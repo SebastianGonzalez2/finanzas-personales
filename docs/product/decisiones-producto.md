@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 3.5  
+**Versión:** 3.6  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -12,7 +12,7 @@
 
 ## 1. Objetivo y criterios del producto — CONFIRMADO
 
-- Desarrollar una aplicación **web privada de finanzas personales** que muestre información útil, organizada y fácil de revisar.
+- Desarrollar una aplicación **web privada de finanzas personales** que muestre información útil, organizada y fácil de revisar. **Condición prioritaria: operar sin costos obligatorios de infraestructura para el usuario dentro de los límites de uso gratuitos vigentes; no asumir que gratis significa disponibilidad, cuotas o condiciones garantizadas para siempre.**
 - Debe ser **completa, pero de muy bajo mantenimiento**: no obligar al usuario a registrar todas las transacciones de cada día ni a abrirla continuamente.
 - La aplicación debe **calcular correctamente a partir de los datos efectivamente registrados** y señalar cuándo un saldo puede estar desactualizado. No simular integración bancaria ni inventar movimientos faltantes.
 - El usuario quiere planificar funciones y experiencia de usuario **antes de empezar a generar código de la aplicación**; Codex será el agente principal de desarrollo.
@@ -330,6 +330,16 @@
 
 - **Otros detalles pendientes:** fechas objetivo, transferencias reales a cuentas de ahorro separadas, visualización final del dashboard, cierre de metas con historial y casos de concurrencia/corrección de transferencias. **Transferencias directas entre fondos de igual moneda ya confirmadas.** No inferir automatismos bancarios ni deducciones reales de una reserva virtual.
 
+## 11.4 Usuarios, autenticación y sincronización — REQUISITOS CONFIRMADOS; PROVEEDOR PENDIENTE
+
+- La aplicación debe permitir que una persona sin cuenta elija **«Crear cuenta»** y que una persona registrada pueda **«Iniciar sesión»** posteriormente. No limitar el producto a un único usuario preconfigurado: deben existir **cuentas independientes**.
+- Cada usuario accede a **sus propios saldos bancarios, gastos, tarjetas, deudas, presupuestos, fondos y configuración**, privados e inaccesibles para otros usuarios. Requerir identificación segura, autorización por usuario en base de datos y comunicación mediante HTTPS; no crear un almacenamiento compartido legible por todos.
+- Los datos se guardan en una **base de datos remota persistente**, asociada a la cuenta, y se sincronizan al iniciar sesión desde teléfono, otra computadora o desde otro país. No depender exclusivamente del almacenamiento local de un dispositivo. **No implica conexión con los bancos**; los datos financieros siguen siendo manuales según decisiones anteriores.
+- La experiencia buscada es una **web responsiva instalable como PWA**, con icono de inicio y aspecto de aplicación en móvil, además de acceso desde navegador de escritorio. No exigir una aplicación nativa ni publicación inicial en Apple App Store/Google Play, que podrían implicar costos.
+- **Costo objetivo obligatorio para primera versión:** cero mensualidades y cero licencias/servicios de pago necesarios para crear cuentas, iniciar sesión, guardar y sincronizar datos dentro de un uso pequeño compatible con cuotas gratuitas. Seleccionar proveedores con plan gratuito y control de límites, sin prometer gratuidad ilimitada/perpetua; si se agotan cuotas, avisar o degradar servicio, **no contratar automáticamente** planes de pago.
+- **Por definir:** proveedor concreto de autenticación, hosting y base de datos, registro por email/contraseña vs proveedores sociales, verificación de correo, recuperación de contraseñas, backups/exportación, política de privacidad y manejo de datos, disponibilidad offline, escalabilidad y límites gratuitos reales de cada producto.
+- **Alternativa técnica evaluada, NO APROBADA AÚN:** Firebase Spark con Authentication + Firestore + Hosting podría cubrir el objetivo gratuito sin pausar proyectos por simple inactividad según la documentación consultada; exige reglas estrictas de seguridad y diseño de transacciones para evitar inconsistencias en saldos. Supabase Free también es posible, pero puede pausar proyectos por inactividad. Mantener la decisión técnica pendiente de aprobación explícita.
+
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
@@ -338,8 +348,8 @@
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos mensuales opcionales por categoría/subcategoría — CONFIRMADOS** (§11.2), con progreso por categoría e integración al sistema de avisos cuando se aproxima o supera el límite. **Objetivos de ahorro:** confirmada la reserva virtual, el disponible neto de fondos y el dinero bancario total separado (§11.3); **CONFIRMADAS aportaciones manuales y automáticas mensuales** (§11.3.1); **CONFIRMADO** que si falta disponible una aportación automática se omite, queda pendiente y avisa, sin reservas parciales ni disponible negativo; **CONFIRMADA** una moneda fija por fondo (UYU, USD o EUR, sin mezclar monedas); **CONFIRMADO** que solo se aporta desde el disponible bancario de la misma moneda y nunca se convierte realmente desde el fondo, con **conversor de visualización UYU/USD/EUR según cotizaciones**; **CONFIRMADA** meta monetaria opcional, añadible/editable/eliminable sin alterar fondos (§11.3.2); **CONFIRMADO** que al alcanzar la meta se muestra «Meta alcanzada» y se mantienen las aportaciones manuales y automáticas, con edición libre del objetivo; **CONFIRMADO** registrar gastos vinculados a fondos (gasto categorizado único; si se paga de banco, reducir tanto banco como reserva sin alterar el disponible libre), §11.3; **CONFIRMADO** que si el gasto bancario supera el fondo se utiliza todo el fondo y la diferencia sale del disponible en una sola operación (§11.3); **CONFIRMADA** vinculación opcional de compras con crédito a fondos: conservar la reserva al comprar y consumirla al registrar el pago correspondiente de la tarjeta, sin duplicar gastos ni débitos; **CONFIRMADAS** transferencias directas entre fondos de la misma moneda, sin efecto bancario o estadístico; **PENDIENTES** asignación de pagos parciales y compras en cuotas, falta de disponible para completar un gasto, fecha objetivo, transferencias reales y UX final. Para presupuestos siguen pendientes sugerencias automáticas de límites, alertas finas, arrastres, moneda, presupuestos padre/subcategoría y estadísticas adicionales. Correo/push todavía no confirmados.
 6. **Importación de movimientos desde CSV/Excel — DESCARTADA POR AHORA:** el usuario decidió no implementarla en la primera versión. No asumir que se añadirá en otra fase sin una nueva aprobación.
-7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
-8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
+7. **Cuentas independientes con registro/inicio de sesión y sincronización entre dispositivos — CONFIRMADO** (§11.4), con app web instalable (PWA) y cero costo obligatorio de uso en el rango gratuito. **PENDIENTES:** proveedor técnico, método de login específico, verificación, recuperación, backups/exportación, políticas de privacidad, seguridad fina y límites gratuitos.
+8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel; también Firebase Spark (Authentication/Firestore/Hosting) como opción viable para la condición de gratuidad, **sin elección técnica definitiva**. Verificar restricciones, persistencia, inactividad y costo antes de cerrar la arquitectura.
 9. **Nombre final** e identidad textual (distinta de la marca de la captura).
 10. **Política de conciliación y reportes históricos** cuando se editen movimientos anteriores a un ajuste de saldo, para conservar consistencia contable y trazabilidad.
 
@@ -352,6 +362,7 @@
 - El análisis visual fue elaborado y se informó como guardado localmente en `docs/design/fintrack-visual-spec.md`, pero **no se encontró en el repositorio remoto al revisar la rama `main`**. No darlo por versionado hasta comprobarlo.
 - Este documento está versionado en `docs/product/decisiones-producto.md` en GitHub, rama `main` (versión indicada al inicio). Si Codex tiene una versión local distinta o sin seguimiento, primero debe traer los cambios de GitHub y comparar antes de sobrescribir nada.
 - **No iniciar programación del producto hasta cerrar la planificación funcional suficiente**.
+- **Evaluación de costo (2026-11-06, sin proveedor seleccionado):** Firebase ofrece un plan Spark sin costo que permite autenticación y base de datos Firestore con cuotas y Hosting; investigar su compatibilidad con todas las reglas transaccionales y necesidades de respaldo antes de cerrar el stack. Supabase Free ofrece PostgreSQL y autenticación, pero los proyectos gratuitos pueden pausarse después de una semana de baja actividad; Vercel Hobby es gratuito para uso personal no comercial. No presentar estas opciones como compromisos permanentes ni como decisión de stack aprobada. Se prioriza evitar servicios con facturación automática o requisitos de pago.
 
 ## 14. Reglas de mantenimiento del registro
 
@@ -390,3 +401,4 @@
 - **2026-11-06 — v3.3:** compras con tarjeta de crédito vinculables a fondos; la reserva se mantiene (marcada como comprometida) hasta el pago correspondiente de la tarjeta, cuando se reduce banco y fondo sin repetir el gasto. Distribución de pagos parciales y cuotas pendiente.
 - **2026-11-06 — v3.4:** aprobada transferencia directa entre dos fondos de igual moneda, desde saldo no comprometido: baja origen, sube destino, historial enlazado, sin modificar saldo bancario, disponible ni estadísticas; sin cambio de divisas.
 - **2026-11-06 — v3.5:** descartada por ahora la importación de extractos bancarios CSV/Excel. Fuera del alcance de la primera versión, sin compromiso de incorporarla en una fase futura.
+- **2026-11-06 — v3.6:** se confirman registro/inicio de sesión con cuentas separadas, sincronización de datos entre dispositivos y países, web instalable tipo PWA y requisito de funcionar sin pagos obligatorios dentro de planes gratuitos. Hosting, autenticación y base de datos específicos quedan pendientes; Firebase Spark se evalúa como alternativa, no como decisión aprobada.
