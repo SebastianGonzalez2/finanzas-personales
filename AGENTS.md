@@ -23,6 +23,16 @@ Next.js + TypeScript + Tailwind CSS + shadcn/ui, Vercel, Neon PostgreSQL y Neon 
 - Sin operaciones financieras offline ni integración bancaria, OCR, IA por voz, efectivo, inversiones o archivos de comprobantes.
 - No poner tokens, contraseñas, claves API, backups reales ni datos personales financieros en Git o logs.
 
+## Convención obligatoria de Git y trazabilidad
+
+Seguir `docs/planning/09-convenciones-git.md` para **todos los tickets nuevos**:
+- Rama: `codex/F0-01-revision-inicial` (o mismo ID y descripción de ticket).
+- Mensajes de commit: `docs(F0-01): documentar estado inicial`, `feat(F1-03): registrar ingresos y gastos`; **tipo(ID): acción concreta**, y caso excepcional `docs(OPS): ...` para proceso general.
+- Título de Pull Request: `[F0-01] Revisión inicial del repositorio`.
+- Descripción: completar `.github/PULL_REQUEST_TEMPLATE.md` con objetivo, alcance, **RF/CA**, pruebas realmente ejecutadas, riesgos, revisión manual y siguiente ticket.
+- Identificador **idéntico** en rama/commits/PR; nunca confundir crear una rama con completar una tarea. No reescribir commits históricos por esta convención.
+- No hacer merge ni desplegar automáticamente sin aprobación humana o consentimiento explícito para esa acción.
+
 ## Entregables por PR
 
 Cambios de alcance pequeño, ramas por ticket, tests ejecutados con resultados, revisión de permisos, migraciones, UX móvil/escritorio y nota de límites. No marcar un riesgo «resuelto» por suposición. Si existe un bloqueo real de auth/SMTP/costo/conciliación, registrarlo y elevarlo antes de desplegar. Ver `docs/planning/05-plan-de-implementacion.md` y `06-riesgos-y-pendientes.md`.
