@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 8.3  
+**Versión:** 8.4  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -68,6 +68,7 @@
 ### 5.1 Registro manual de movimientos
 
 - Incorporar una acción clara, como **«+ Nueva transacción»**, en el estilo visual de la captura.
+- **Alta desde cero, sin función «Repetir» — OPCIÓN B CONFIRMADA (v8.4):** cada ingreso o gasto nuevo se carga desde su formulario habitual, **sin botón «Repetir movimiento anterior», sin clonar registros previos y sin precargar automáticamente sus datos desde otro movimiento**. No añadir atajos de duplicación desde el historial. Esto **no desactiva** los gastos recurrentes y sus flujos de pago manual ya aprobados (§8.1), que responden a una función distinta; tampoco impide que campos normales como la fecha actual tengan un valor inicial estándar. El usuario prefiere evitar esta función adicional para mantener la app simple.
 - Tipos básicos: **Ingreso**, **Gasto** y **Transferencia / cambio de moneda** (las transferencias se detallan por separado).
 - Al registrar un **ingreso** o **gasto** permitir introducir:
   - **Importe**.
@@ -557,3 +558,4 @@
 - **2026-11-07 — v8.1:** opción A confirmada: «Resumen inteligente» forma parte del catálogo de gráficos/tarjetas de «Estadísticas» y se puede marcar o desmarcar como favorito personal. Solo aparece en «Mis favoritos» cuando se lo elige; no se impone a todas las cuentas.
 - **2026-11-07 — v8.2:** opción A confirmada: operación única «Recibir préstamo» que acredita el saldo bancario en la moneda elegida y crea simultáneamente la deuda por el mismo capital, sin contabilizar ingresos ordinarios ni aumentar patrimonio neto ficticiamente; amortizaciones posteriores no se vuelven a tratar como gastos.
 - **2026-11-07 — v8.3:** opción A confirmada: para estadísticas históricas multimoneda, si falta cotización publicada en la fecha del movimiento (fines de semana/feriados), usar la última cotización histórica anterior o igual, con fecha y fuente visibles y guardadas; nunca usar una cotización posterior o actual. Ante ausencia total de tasas históricas utilizables, señalar la falta o permitir una tasa manual explícita, sin inventar equivalencias.
+- **2026-11-07 — v8.4:** opción B confirmada: descartado botón «Repetir»/duplicar movimientos y precarga desde transacciones anteriores. Los nuevos ingresos y gastos se crean desde cero en el formulario común; los módulos de gastos recurrentes confirmados se mantienen. Sin decisión todavía sobre incorporar servicios de inteligencia artificial externa al producto.
