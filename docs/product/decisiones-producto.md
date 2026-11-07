@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.2  
+**Versión:** 9.3  
 **Actualizado:** 2026-11-07  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -177,6 +177,14 @@
 - **Actualizar deuda real:** el usuario consulta el saldo adeudado en su entidad financiera e introduce manualmente ese total. La diferencia con el importe registrado queda como **ajuste de deuda no clasificado**, con fecha e historial. No inventar compras, categorías, intereses ni gastos a partir del ajuste.
 - Si se registran compras opcionales y se actualiza manualmente la deuda, **evitar doble contabilización** al añadir movimientos o conciliar importes. Todo ajuste/corrección debe conservar trazabilidad y permitir reconstruir saldos sin duplicar efectos.
 - Los créditos son **pasivos**, no dinero disponible. Su deuda reduce el patrimonio registrado, pero un pago hecho desde bancos reduce a la vez activo y pasivo, sin cambiar por sí mismo el patrimonio neto.
+
+### 9.2.1 Pago de deuda en moneda diferente a la del banco — OPCIÓN A CONFIRMADA (v9.3)
+
+- **Una única operación «Registrar pago», sin cambio de moneda ficticio:** para una tarjeta de crédito multimoneda, permitir cancelar total o parcialmente una deuda registrada en una moneda (por ejemplo, USD) utilizando el saldo bancario consolidado de otra (por ejemplo, UYU), cuando **el banco efectivamente haya realizado y confirmado ese pago**. El usuario registra (1) tarjeta y moneda de la deuda, (2) importe exacto de deuda cancelada, (3) moneda del saldo bancario usado y (4) importe real efectivamente descontado de ese saldo, junto con fecha. No solicitar un tipo de cambio estimado ni convertir saldos ficticiamente.
+- **Efectos atómicos:** reducir la deuda exactamente en el importe y moneda cancelados y reducir Bancos [moneda de origen] exactamente en el importe real descontado; **no** agregar antes dinero a Bancos [moneda de deuda], ni contabilizar el pago como una segunda compra/gasto de consumo. Registrar el vínculo, la fecha, ambas monedas e importes y la tasa efectiva informativa calculable como cociente cuando corresponda, conservando trazabilidad. Un pago parcial solo disminuye la parte abonada y no liquida otros saldos de la misma tarjeta.
+- **Ejemplo ilustrativo:** cancelar US$100 de deuda de Visa Itaú pagando $4.200 UYU: Bancos UYU −$4.200, deuda Visa Itaú USD −US$100, Bancos USD sin cambios. No sustituir $4.200 por una conversión de referencia ni crear un ingreso USD inventado. Si únicamente se cancelan US$40 con $1.680 UYU, mantener los US$60 pendientes.
+- **Controles:** requerir importes reales positivos, validar saldo bancario disponible conforme a las reglas sobre reservas de §11.3, impedir aplicar más cancelación que deuda vigente (salvo reglas expresas futuras), proteger contra duplicados/reintentos, y mantener coherentes los pagos parciales, cuotas, estados de cuenta e historial. La asignación manual de compras/cuotas y fondos comprometidos ya confirmada en §9.2 y §11.3 permanece vigente; **si la compra y el fondo están en otra moneda, no efectuar conversiones ni consumir reservas automáticamente sin una regla adicional acordada**.
+- **Detalles todavía pendientes:** cómo registrar comisiones explícitas y diferencias cambiarias como conceptos separados cuando corresponda; pagos con varias deudas y fuentes en una misma confirmación; particularidades del emisor sobre cuándo se acredita el pago y su conciliación con el resumen. Ninguno autoriza registrar un gasto de compra duplicado o un cambio bancario que no ocurrió.
 
 ### 9.3 Próximo estado de cuenta, vencimiento y recordatorio — CONFIRMADO
 
@@ -575,4 +583,5 @@
 - **2026-11-07 — v8.9:** opción B confirmada: compras financiadas solo con cuotas iguales en importe, cálculo total = cuota fija × cantidad. Descartada la carga o edición individual de cuotas variables de una misma compra.
 - **2026-11-07 — v9.0:** opción A confirmada: buscador y filtros combinables para el historial completo de movimientos (texto, fecha, categoría, importe, moneda, método/tarjeta), con consultas paginadas y aisladas por cuenta. Reconfirmado que el historial se conserva entre meses y años y no se reinicia mensualmente; las vistas mensuales son filtros y la eliminación de cuenta sigue vigente.
 - **2026-11-07 — v9.1:** opción A confirmada: permitir archivar tarjetas de débito/crédito que ya no se utilizan. Se retiran del selector de nuevos pagos/compras pero conservan todos los movimientos, referencias e historial; en crédito, las deudas pendientes continúan visibles y pagables, sin cancelación ni doble cómputo.
-- **2026-11-07 — v9.2:** confirmada opción A: una sola tarjeta de crédito registrada con saldos/deudas independientes por moneda (por ejemplo UYU y USD), sin duplicar tarjeta; pagos reales reducen únicamente las deudas y bancos efectivamente afectados, sin contar otro gasto. Queda pendiente determinar el flujo de pagos cruzados entre monedas y la interfaz concreta de registro.
+- **2026-11-07 — v9.2:** confirmada opción A: una sola tarjeta de crédito registrada con saldos/deudas independientes por moneda (por ejemplo UYU y USD), sin duplicar tarjeta; pagos reales reducen únicamente las deudas y bancos efectivamente afectados, sin contar otro gasto. El flujo de pagos cruzados se resolvió posteriormente en v9.3.
+- **2026-11-07 — v9.3:** opción A confirmada: pagar una deuda de tarjeta en una moneda con dinero bancario de otra directamente desde «Registrar pago», cargando importe real descontado e importe real de deuda cancelada en una sola operación, sin transferencias ficticias ni duplicar gastos. Quedan pendientes comisiones identificadas y situaciones multimoneda de fondos comprometidos.
