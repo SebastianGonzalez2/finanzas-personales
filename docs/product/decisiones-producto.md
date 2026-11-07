@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 3.4  
+**Versión:** 3.5  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -48,6 +48,7 @@
 - En consecuencia, **NO desarrollar módulos de inversiones ni integrar APIs de acciones**. La discusión anterior de proveedores bursátiles quedó anulada.
 - **NO conectar directamente cuentas bancarias de BROU, Itaú o Santander en la primera versión** ni pedir credenciales de acceso a esas entidades.
 - **NO separar obligatoriamente bancos por institución**: el usuario descartó gestionar BROU / Itaú / Santander como subcuentas individuales.
+- **DESCARTADO para la primera versión:** importar extractos o movimientos bancarios desde archivos **CSV/Excel**. No desarrollar interfaz de carga de extractos, lectura de archivos, mapeo de columnas ni conciliación por importación ahora. No comprometer una segunda versión; solo reconsiderarlo si el usuario lo pide expresamente.
 
 ## 4. Cuentas bancarias — CONFIRMADO
 
@@ -336,7 +337,7 @@
 3. **Deudas por pagar y dinero por cobrar**: confirmados los módulos y el flujo de **préstamos con cuotas** (§9.4.1), así como **deudas simples, pagos y cobros parciales o totales, ajuste del importe pendiente sin movimiento bancario y seguimiento histórico** (§9.4.2). Pendiente: alta de deuda nueva con desembolso, obligaciones originadas por compras, detalles de conciliación de préstamos, cuotas variables y tratamientos de intereses especiales.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos mensuales opcionales por categoría/subcategoría — CONFIRMADOS** (§11.2), con progreso por categoría e integración al sistema de avisos cuando se aproxima o supera el límite. **Objetivos de ahorro:** confirmada la reserva virtual, el disponible neto de fondos y el dinero bancario total separado (§11.3); **CONFIRMADAS aportaciones manuales y automáticas mensuales** (§11.3.1); **CONFIRMADO** que si falta disponible una aportación automática se omite, queda pendiente y avisa, sin reservas parciales ni disponible negativo; **CONFIRMADA** una moneda fija por fondo (UYU, USD o EUR, sin mezclar monedas); **CONFIRMADO** que solo se aporta desde el disponible bancario de la misma moneda y nunca se convierte realmente desde el fondo, con **conversor de visualización UYU/USD/EUR según cotizaciones**; **CONFIRMADA** meta monetaria opcional, añadible/editable/eliminable sin alterar fondos (§11.3.2); **CONFIRMADO** que al alcanzar la meta se muestra «Meta alcanzada» y se mantienen las aportaciones manuales y automáticas, con edición libre del objetivo; **CONFIRMADO** registrar gastos vinculados a fondos (gasto categorizado único; si se paga de banco, reducir tanto banco como reserva sin alterar el disponible libre), §11.3; **CONFIRMADO** que si el gasto bancario supera el fondo se utiliza todo el fondo y la diferencia sale del disponible en una sola operación (§11.3); **CONFIRMADA** vinculación opcional de compras con crédito a fondos: conservar la reserva al comprar y consumirla al registrar el pago correspondiente de la tarjeta, sin duplicar gastos ni débitos; **CONFIRMADAS** transferencias directas entre fondos de la misma moneda, sin efecto bancario o estadístico; **PENDIENTES** asignación de pagos parciales y compras en cuotas, falta de disponible para completar un gasto, fecha objetivo, transferencias reales y UX final. Para presupuestos siguen pendientes sugerencias automáticas de límites, alertas finas, arrastres, moneda, presupuestos padre/subcategoría y estadísticas adicionales. Correo/push todavía no confirmados.
-6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
+6. **Importación de movimientos desde CSV/Excel — DESCARTADA POR AHORA:** el usuario decidió no implementarla en la primera versión. No asumir que se añadirá en otra fase sin una nueva aprobación.
 7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
 8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
 9. **Nombre final** e identidad textual (distinta de la marca de la captura).
@@ -388,3 +389,4 @@
 - **2026-11-06 — v3.2:** los gastos bancarios superiores a un fondo consumen primero toda su reserva y luego el dinero disponible por la diferencia, como gasto único sin duplicar saldos. Queda pendiente definir qué ocurre si tampoco hay disponible suficiente y la vinculación a compras con crédito.
 - **2026-11-06 — v3.3:** compras con tarjeta de crédito vinculables a fondos; la reserva se mantiene (marcada como comprometida) hasta el pago correspondiente de la tarjeta, cuando se reduce banco y fondo sin repetir el gasto. Distribución de pagos parciales y cuotas pendiente.
 - **2026-11-06 — v3.4:** aprobada transferencia directa entre dos fondos de igual moneda, desde saldo no comprometido: baja origen, sube destino, historial enlazado, sin modificar saldo bancario, disponible ni estadísticas; sin cambio de divisas.
+- **2026-11-06 — v3.5:** descartada por ahora la importación de extractos bancarios CSV/Excel. Fuera del alcance de la primera versión, sin compromiso de incorporarla en una fase futura.
