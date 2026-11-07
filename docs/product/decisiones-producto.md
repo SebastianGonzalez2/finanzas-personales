@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.5  
+**Versión:** 9.6  
 **Actualizado:** 2026-11-07  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -203,6 +203,15 @@
 - **Mantener intacto** el reparto manual de pagos parciales a compras/cuotas y a dinero disponible/fondos autorizados (v6.1): el formulario conjunto no da permiso para consumir automáticamente fondos comprometidos. Validar disponibilidad total por moneda, no permitir operaciones parciales ante error ni duplicados por reintento. **PENDIENTES** detalles de múltiples fondos comprometidos y monedas diferentes, emisión/acreditación real de estados de cuenta y otros casos complejos ya identificados.
 - La opción A define **un único formulario y una confirmación** para las diversas monedas de la misma tarjeta; no obliga a representar varios pagos bancarios reales como si fueran una sola transferencia bancaria, ni impide registrar pagos por separado cuando ocurran en fechas distintas.
 
+### 9.2.4 Intereses reales cobrados en tarjetas — OPCIÓN A CONFIRMADA (v9.6)
+
+- Permitir **registrar manualmente los intereses efectivos** que el banco haya cobrado y añadido a la deuda de una tarjeta (por ejemplo, interés por no pagar el resumen completo). Pedir al usuario **importe real, moneda, tarjeta y fecha**; no exigir una tasa de interés, no calcular automáticamente intereses sobre saldos supuestos ni inventar cargos por el transcurso del tiempo.
+- Cuando el interés informado se **agrega a la deuda**, en una **única operación** aumentar el saldo pendiente de la tarjeta en esa moneda y registrar **una sola vez el interés como gasto financiero** en estadísticas, diferenciado de la compra de consumo previa. **No descontar Bancos [moneda] por registrar el cargo**, porque todavía no se pagó en efectivo/banco. El pago posterior reduce banco y deuda pero **no registra de nuevo ese gasto financiero**.
+- Ejemplo: tras pagar US$40 de una deuda de US$100 quedan US$60. Si luego el emisor cobra **US$3 de interés real** y lo añade a la deuda, esta pasa a US$63 y el período del interés registra US$3 de gasto financiero; no disminuye bancos hasta el pago efectivo.
+- **Regla de no duplicación RECONFIRMADA:** registrar el **pago de la tarjeta** genera un movimiento de **cancelación de deuda** visible y buscable en el historial, con sus efectos en bancos y pasivo, **NO un segundo gasto categorizado por el capital de compras**. Las compras ordinarias ya se categorizan una vez al registrarlas y las compras en cuotas siguen su **imputación mensual de cuotas** (§9.5), sin volver a contar la compra ni sus cuotas cuando se paga la tarjeta. Los intereses/comisiones efectivos, cuando se identifican, son **gastos financieros distintos** de ese capital y se reconocen una sola vez.
+- Si el usuario **solo actualizó manualmente el saldo de deuda**, pero **no ingresó el detalle de alguna compra**, un pago posterior queda en el historial como cancelación de pasivo, **sin inventar una compra de determinada categoría**. Las estadísticas de consumo seguirán siendo parciales; nunca asignar el importe de pago entero a una categoría ficticia. Si se quiere contabilizar compras omitidas hay que definir un registro/conciliación adecuado, no duplicar el pago.
+- Casos aún por precisar: interés cargado directamente a bancos, interés en otra moneda, reversión/condonación, conciliaciones tras correcciones y cargos no desglosados. No asumir que una diferencia entre el resumen del banco y la deuda calculada son intereses, ni tratar automáticamente una diferencia de cambio como interés.
+
 ### 9.3 Próximo estado de cuenta, vencimiento y recordatorio — CONFIRMADO
 
 - **No exigir datos de cierre ni vencimiento al crear una tarjeta.** El usuario puede empezar solo con deuda total y acciones «Actualizar deuda» / «Registrar pago».
@@ -216,7 +225,7 @@
 
 ### 9.3.1 Detalles que siguen abiertos — PENDIENTE
 
-- **Cierre habitual opcional y agrupación estimada de compras por ciclo CONFIRMADOS (v8.8)**; quedan pendientes reglas finas de fechas efectivas de contabilización del emisor, modificaciones excepcionales de cierre, y conciliación de la estimación con un resumen confirmado. También quedan pendientes reglas operativas adicionales de cuotas (§9.5), intereses, pagos mínimos, compras en otra moneda y conciliación detallada de estados de cuenta. **La asignación manual de pagos parciales a compras/cuotas y fuentes de fondos está confirmada en §9.2 (v6.1);** sus validaciones y conciliación ante correcciones todavía requieren diseño técnico.
+- **Cierre habitual opcional y agrupación estimada de compras por ciclo CONFIRMADOS (v8.8)**; quedan pendientes reglas finas de fechas efectivas de contabilización del emisor, modificaciones excepcionales de cierre, y conciliación de la estimación con un resumen confirmado. También quedan pendientes reglas operativas adicionales de cuotas (§9.5), **intereses especiales no cubiertos por el registro manual de intereses realmente cobrados ya CONFIRMADO (v9.6, §9.2.4)**, pagos mínimos, compras en otra moneda y conciliación detallada de estados de cuenta. **La asignación manual de pagos parciales a compras/cuotas y fuentes de fondos está confirmada en §9.2 (v6.1);** sus validaciones y conciliación ante correcciones todavía requieren diseño técnico.
 - Está previsto que los pagos y consumos se identifiquen por tarjeta, no por banco: **métodos de débito independientes, cuentas bancarias agrupadas por moneda**.
 
 ### 9.5 Compras con tarjeta de crédito en cuotas — CONFIRMADO (detalles operativos pendientes)
@@ -604,3 +613,4 @@
 - **2026-11-07 — v9.3:** opción A confirmada: pagar una deuda de tarjeta en una moneda con dinero bancario de otra directamente desde «Registrar pago», cargando importe real descontado e importe real de deuda cancelada en una sola operación, sin transferencias ficticias ni duplicar gastos. Comisión explícita resuelta posteriormente en v9.4; continúan pendientes situaciones multimoneda de fondos comprometidos.
 - **2026-11-07 — v9.4:** opción A confirmada: comisión bancaria opcional y separada cuando el banco la informa expresamente y se descuenta del mismo saldo bancario usado para el pago; gasto financiero por comisión una sola vez y débito bancario único por cancelación + comisión, sin volver a contar la compra original.
 - **2026-11-07 — v9.5:** opción A confirmada: desde una tarjeta de crédito multimoneda, registrar en un solo formulario/confirmación pagos completos o parciales de una o varias monedas, con origen bancario e importe real por cada línea, historial vinculado y operación consistente sin duplicar gasto o debito bancario. Se mantienen asignaciones manuales de compras y fondos y las reglas para pagos entre monedas.
+- **2026-11-07 — v9.6:** opción A confirmada: intereses de tarjeta informados efectivamente por el banco y añadidos a la deuda se registran manualmente como mayor deuda y gasto financiero único, sin reducir bancos hasta que se pague. Se reconfirma que todo pago de capital de tarjeta queda en historial como cancelación de pasivo, **no como un gasto de consumo duplicado**; compras omitidas no se inventan a partir del pago.
