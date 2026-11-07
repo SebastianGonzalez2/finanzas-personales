@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.3  
+**Versión:** 1.4  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -35,7 +35,7 @@
 2. **Ingresos y gastos** con movimientos clasificados por categoría y subcategoría (detalles en §5).
 3. **Ajuste manual del saldo real** sin inventar ni clasificar automáticamente movimientos que faltan (detalles en §6).
 4. **Transferencias / cambios de moneda** sin falsos ingresos o gastos (detalles en §7).
-5. **Tarjetas de crédito:** seguimiento de saldos adeudados, vencimientos y pagos; el comportamiento detallado está pendiente (detalles en §8).
+5. **Tarjetas de débito y crédito:** métodos de pago configurables; las tarjetas de crédito mantienen deuda propia y las de débito utilizan el saldo bancario agrupado. Quedan detalles de cierre y cuotas por definir (detalles en §9).
 6. **Deudas y préstamos:** importes pendientes, cuotas, vencimientos e intereses cuando corresponda; el comportamiento detallado está pendiente (detalles en §8).
 7. **Conversión de divisas** para visualizar saldos consolidados (detalles en §9).
 8. **Dashboard y estadísticas** sustentados en los datos que existen (detalles en §11).
@@ -69,11 +69,12 @@
 - Tipos básicos: **Ingreso**, **Gasto** y **Transferencia / cambio de moneda** (las transferencias se detallan por separado).
 - Al registrar un **ingreso** o **gasto** permitir introducir:
   - **Importe**.
-  - **Moneda / saldo bancario agrupado** que recibirá el ingreso o del que se descontará el gasto.
+  - **Moneda / saldo bancario agrupado** que recibirá el ingreso o del que se descontará el gasto, cuando corresponda.
+  - Para los gastos, **método de pago**: saldo bancario/transferencia, tarjeta de débito registrada o tarjeta de crédito registrada. La tarjeta elegida determina si el movimiento reduce bancos o incrementa deuda de crédito.
   - **Categoría** y, cuando corresponda, **subcategoría opcional**.
   - **Fecha**.
   - **Descripción / nota opcional**.
-- Al guardar un ingreso, **sumar** el importe al saldo agregado de esa moneda. Al guardar un gasto, **restarlo**.
+- Al guardar un ingreso recibido en bancos, **sumar** el importe al saldo agregado de esa moneda. Un gasto pagado por **transferencia bancaria o débito** resta del saldo bancario agrupado de la moneda; un gasto pagado con **crédito** aumenta la deuda de esa tarjeta y **no reduce el banco** al momento de la compra. En ambos casos el gasto se clasifica una sola vez en las estadísticas.
 - Incluir los movimientos en las estadísticas de ingresos/gastos por período y categoría.
 - Permitir **consultar, editar y eliminar/corregir movimientos**; al corregir o revertir uno debe recalcularse el saldo sin duplicar efectos. Este detalle es un requisito técnico de consistencia derivado del registro de movimientos.
 - **No se exige registrar todos los gastos cotidianos** para poder usar la aplicación. Los movimientos importantes que el usuario sí cargue deben producir estadísticas útiles.
@@ -139,12 +140,35 @@
 - **Límite de automatización:** sin integración bancaria ni facturas importadas, el sistema no conoce los importes reales del próximo período, el vencimiento verdadero ni si el servicio fue pagado fuera de la aplicación.
 - **Detalles técnicos abiertos:** fórmula exacta de estimación y detección, tolerancia a duplicados y configuración de notificaciones; deben concretarse durante especificación sin alterar las reglas confirmadas.
 
-## 9. Tarjetas de crédito, deudas y préstamos — INCLUIDOS, DETALLE PENDIENTE
+## 9. Tarjetas de débito, crédito, deudas y préstamos
 
-- **Tarjetas:** permitir registrar obligaciones pendientes, vencimientos y pagos. No obligar de entrada a cargar cada consumo de tarjeta.
-- **Préstamos/deudas:** permitir registrar el saldo que se adeuda y sus cuotas/vencimientos/intereses cuando corresponda.
-- Evitar **doble contabilización**: un gasto registrado en el momento de comprar con tarjeta no debería volver a contarse como gasto cuando se paga la tarjeta. Tampoco descontar dos veces una obligación en el cálculo patrimonial.
-- **Pendiente de diseñar:** si la tarjeta se registra como una obligación con saldo manual, si hay movimientos detallados y cómo se concilian pagos, límites, cuotas e intereses. No asumir una solución no acordada.
+### 9.1 Catálogo y métodos de pago — CONFIRMADO
+
+- Existirá una sección para **agregar y gestionar tarjetas**, registrando como mínimo **nombre identificable, tipo (débito o crédito) y moneda**. El banco emisor puede indicarse para reconocer la tarjeta (p. ej., Visa Itaú o débito BROU), **sin dividir por banco** los saldos consolidados.
+- Los gastos permitirán seleccionar el **método de pago**: transferencia/saldo bancario de una moneda, una tarjeta de débito registrada o una tarjeta de crédito registrada. No obligar a registrar cada compra.
+- **Tarjeta de débito:** solo identifica el medio de pago; **NO tiene un saldo financiero independiente**. Un gasto con débito se descuenta del saldo **Bancos [moneda]** correspondiente, exactamente como un gasto pagado desde el banco.
+- **Tarjeta de crédito:** cada tarjeta tiene **su propia deuda pendiente**. Un gasto categorizado y pagado con ella **aumenta su deuda** y **cuenta como gasto en las estadísticas**, pero **NO descuenta de bancos** hasta que se pague la tarjeta.
+- El mismo formulario de ingreso/gasto debe funcionar independientemente del método de pago, para evitar complejidad innecesaria.
+
+### 9.2 Deuda, pago y actualización manual — CONFIRMADO
+
+- Al crear una tarjeta de crédito se puede introducir **deuda inicial**; no se registra como un ingreso ni como un gasto nuevo. Se conserva la fecha de referencia.
+- La sección de crédito mostrará por tarjeta **deuda actual registrada** y las acciones prioritarias **«Actualizar deuda»** y **«Registrar pago»**. Se podrá **registrar compra** desde la sección o desde «Nueva transacción» sin crear registros duplicados.
+- **Registrar pago de tarjeta:** introducir importe, fecha, tarjeta y saldo bancario agrupado de origen; **reducir simultáneamente Bancos [moneda] y la deuda de esa tarjeta**. El pago es cancelación de un pasivo, **NO un segundo gasto** en estadísticas.
+- **Actualizar deuda real:** el usuario consulta el saldo adeudado en su entidad financiera e introduce manualmente ese total. La diferencia con el importe registrado queda como **ajuste de deuda no clasificado**, con fecha e historial. No inventar compras, categorías, intereses ni gastos a partir del ajuste.
+- Si se registran compras opcionales y se actualiza manualmente la deuda, **evitar doble contabilización** al añadir movimientos o conciliar importes. Todo ajuste/corrección debe conservar trazabilidad y permitir reconstruir saldos sin duplicar efectos.
+- Los créditos son **pasivos**, no dinero disponible. Su deuda reduce el patrimonio registrado, pero un pago hecho desde bancos reduce a la vez activo y pasivo, sin cambiar por sí mismo el patrimonio neto.
+
+### 9.3 Datos secundarios y decisiones todavía abiertas — PARCIALMENTE CONFIRMADO
+
+- Para tarjetas de crédito se podrán configurar **vencimiento, deuda que vence en el período y límite de crédito**, como campos **opcionales**; cuando existan, distinguir claramente **deuda total** frente a **pago del estado de cuenta**.
+- Está previsto que los pagos y consumos se identifiquen por tarjeta, no por banco: **métodos de débito independientes, cuentas bancarias agrupadas por moneda**.
+- Todavía está pendiente cerrar el diseño exacto de **cierres, cuotas, intereses, compras en otras monedas, importes mínimos y tratamiento del resumen/estado de cuenta**. No inventar automatismos ni reglas específicas antes de que se definan.
+
+### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
+
+- Permitir registrar importe adeudado y, cuando corresponda, cuotas, vencimientos e intereses.
+- Evitar doble contabilización entre movimientos, deuda y pagos. El diseño operativo definitivo queda pendiente.
 
 ## 10. Monedas y conversión — CONFIRMADO
 
@@ -174,10 +198,10 @@
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; pendiente solo definir detalles secundarios de detección/estimación y notificaciones, sin descontar automáticamente.
-2. **Funcionamiento preciso de tarjetas de crédito**: saldos, consumos, límites, vencimientos, pagos, cuotas, intereses.
+2. **Tarjetas de crédito:** ya confirmados catálogo débito/crédito, efectos de compras, pagos y ajustes manuales (§9). Falta precisar cierres, vencimientos/resúmenes, cuotas, intereses, mínimos, compras multimoneda y alertas.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
-5. **Presupuestos y límites de gasto**, objetivos de ahorro, alertas y estadísticas adicionales: qué conservar de la captura y qué adaptar.
+5. **Presupuestos y límites de gasto**, objetivos de ahorro, alertas y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Notificaciones y recordatorios:** seleccionar eventos, nivel de prioridad, cuándo avisar y canal; ninguna regla se ha aprobado todavía.
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
 7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
 8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
@@ -209,3 +233,4 @@
 - **2026-11-06 — v1.1:** confirmados registro individual de ingresos/gastos, efecto automático sobre saldos, ajuste manual del saldo real como evento no clasificable en ingresos/gastos, transferencias y cambios de moneda, y categorías/subcategorías predeterminadas y personalizables con historial protegido.
 - **2026-11-06 — v1.2:** consolidación y publicación directa en GitHub; se confirma qué documentación está efectivamente versionada en `main` y qué documentación visual sigue pendiente de subir. Sin cambios nuevos de funcionalidad. Se actualizaron los apartados pendientes para no contradecir esos acuerdos.
 - **2026-11-06 — v1.3:** gastos recurrentes aprobados: opcionales, importes variables estimables a partir de historial, vencimientos opcionales/aproximados, sugerencias de recurrencia, confirmación de pagos reales, conciliación sin duplicados y sin descuentos automáticos.
+- **2026-11-06 — v1.4:** tarjetas registrables como débito o crédito; débito carga a bancos agrupados, crédito acumula deuda por tarjeta; pagos de tarjeta reducen banco y deuda sin registrar un segundo gasto; deuda inicial y ajustes manuales sin clasificar; quedan pendientes detalles de estados de cuenta y alertas.
