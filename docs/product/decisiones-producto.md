@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 2.2  
+**Versión:** 2.3  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -259,12 +259,22 @@
 - **Gastos recurrentes:** recordatorio de prioridad media o informativa si llegó el período habitual y el pago todavía no se registró. Con fecha desconocida, indicar **«pago de este período sin confirmar»**, **NO «vencido»**; no realizar descuentos automáticos.
 - **Revisión de movimientos:** recordatorio de baja prioridad para revisar si hubo ingresos/gastos olvidados, orientativamente semanal; puede desactivarse o posponerse. No afirmar que existieron movimientos no registrados.
 - **Saldo bancario bajo:** aviso cuando el saldo registrado de una moneda caiga por debajo de un **umbral que establezca el usuario**. Reconocer que ese saldo puede no coincidir con el real si no se concilió.
-- **Presupuesto por categoría excedido:** posible aviso cuando se habilite el módulo de presupuestos y exista un límite configurado. No implica que presupuestos ya esté aprobado.
+- **Presupuesto por categoría excedido:** aviso dentro de la app cuando el gasto registrado del mes se acerque al límite o lo supere, siempre que el usuario haya habilitado un presupuesto y definido su importe (§11.2). Sin presupuesto configurado no hay alerta. Umbrales exactos y preferencias siguen pendientes.
 - **Revisión del saldo bancario real:** **NO generar una alerta obligatoria ni automática cada 14 días**. Mantener «Actualizar saldo real» disponible en todo momento, mostrando la fecha de **última comprobación manual**. Ofrecer únicamente un **recordatorio de revisión opcional, desactivado por defecto**, cuyo intervalo configure quien lo active.
 - **Antirruido:** como regla general, un aviso por situación, no repetirlo todos los días; permitir marcar revisado, posponer o desactivar tipos de alertas. Resolver la situación (registrar el pago, actualizar lo requerido, etc.) debe cerrar o actualizar el aviso correspondiente.
 - Separar avisos de **vencimientos confirmados** de sugerencias o recordatorios basados en el historial. No convertir predicciones, importes estimados ni desconocimiento del banco en obligaciones ciertas.
 - **Canales de envío:** queda confirmada la presencia de avisos **dentro de la app**. **NO quedó elegido todavía** si habrá correos electrónicos (p. ej., resumen semanal) o notificaciones push al dispositivo. Ambos canales externos son opciones pendientes y no deben implementarse por inferencia.
 - **Detalles técnicos abiertos:** preferencias y tiempos concretos por tipo de alerta, modo de persistencia, política de deduplicación/posposición y configuración de permisos para los eventuales canales externos.
+
+## 11.2 Presupuestos y límites de gasto por categoría — CONFIRMADO
+
+- **Funcionalidad opcional:** el usuario puede crear presupuestos o límites de gasto mensuales para categorías y subcategorías seleccionadas. **No se crean límites por defecto** y no se exige configurar presupuestos para usar la aplicación.
+- **Definición manual y editable:** el usuario indica el importe máximo que desea gastar en el mes para cada categoría o subcategoría elegida; puede modificarlo, deshabilitarlo o dejar categorías sin límite.
+- **Seguimiento automático:** cada gasto efectivamente registrado en la categoría/subcategoría correspondiente incrementa el gasto acumulado del mes. Incluir en el mes correspondiente **las cuotas mensuales de compras con crédito** (§9.5). Evitar contabilizar dos veces un movimiento si existen límites en una categoría padre y en una subcategoría; el detalle del desglose visual sigue pendiente.
+- **Vista sencilla:** importe gastado, límite establecido, importe restante, porcentaje consumido y barra de progreso, con período mensual claramente identificado. Si supera el límite, mostrar el excedente con claridad.
+- **Alertas no intrusivas:** avisar cuando se acerque al límite o lo sobrepase, integrándose al centro de notificaciones ya definido (§11.1); evitar duplicados. **No bloquear la incorporación de gastos** aunque se supere el presupuesto.
+- **Límite de exactitud:** se usa la información registrada por el usuario; no afirmar que representa gastos omitidos o movimientos bancarios desconocidos. Ajustes manuales de saldos, transferencias propias y pagos de tarjeta que ya corresponden a gastos registrados no deben duplicar el gasto presupuestario.
+- **No confirmado:** cálculo o sugerencia automática de límites basándose en historial, umbral porcentual exacto para alertar, arrastre de remanentes entre meses, conversión/criterio de moneda para presupuestos con movimientos de distintas monedas, detalle de presupuestos padre/subcategoría y objetivos de ahorro. Son decisiones posteriores, no comportamientos aprobados.
 
 ## 12. Funcionalidades todavía PENDIENTES
 
@@ -272,7 +282,7 @@
 2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** y **formulario sencillo de valor de cuota × cantidad de cuotas, sin precio original ni tasa de interés** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres, pagos mínimos, cuotas de importes variables, cargos posteriores, compras multimoneda y conciliación.
 3. **Deudas por pagar y dinero por cobrar**: confirmados los módulos y el flujo de **préstamos con cuotas** (§9.4.1), así como **deudas simples, pagos y cobros parciales o totales, ajuste del importe pendiente sin movimiento bancario y seguimiento histórico** (§9.4.2). Pendiente: alta de deuda nueva con desembolso, obligaciones originadas por compras, detalles de conciliación de préstamos, cuotas variables y tratamientos de intereses especiales.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
-5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
+5. **Presupuestos mensuales opcionales por categoría/subcategoría — CONFIRMADOS** (§11.2), con progreso por categoría e integración al sistema de avisos cuando se aproxima o supera el límite. **PENDIENTES:** objetivos de ahorro, sugerencias automáticas de límites, configuración fina de alertas, arrastres, moneda, presupuestos padre/subcategoría y estadísticas adicionales. Correo/push todavía no confirmados.
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
 7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
 8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
@@ -313,3 +323,4 @@
 - **2026-11-06 — v2.0:** confirmado alcance de dos módulos diferenciados: deudas/préstamos por pagar y dinero por cobrar. El modelo concreto de alta, pagos, cuotas e intereses queda pendiente, evitando dar por aprobadas propuestas de diseño.
 - **2026-11-06 — v2.1:** confirmado flujo simple de préstamos con cuotas: datos de deuda y cuota conocida, registrar pago real descontado del banco, actualizar deuda pendiente manualmente y desglose opcional entre capital/intereses/cargos; no reducir automáticamente la deuda por toda la cuota cuando se desconoce el desglose.
 - **2026-11-06 — v2.2:** confirmadas deudas simples y dinero por cobrar: importe pendiente y moneda, fecha opcional, pagos/cobros parciales y totales con efecto en bancos, correcciones manuales sin movimiento bancario, historial y saldado; quedan pendientes casos de alta con desembolso y deudas por consumo.
+- **2026-11-06 — v2.3:** confirmados presupuestos mensuales opcionales por categoría/subcategoría, límites definidos por usuario, barra de progreso y alertas por cercanía/exceso; no bloquean gastos. Sugerencias automáticas, arrastres y detalles multimoneda quedan pendientes.
