@@ -2,6 +2,8 @@
 
 Base: scaffold F0-03, PR #2, aún sin merge. Este ticket agrega infraestructura de pruebas; no implementa auth, esquema ni motor financiero.
 
+Los spikes aislados llevan sus propios package/tsconfig/pruebas y quedan fuera del formato/lint/tsconfig de la app. Evita que el target ES2017 de Next compile contratos Node/BigInt o que la app requiera dependencias de un experimento. Al incorporar un spike hay que ejecutar sus verificaciones propias; F0-09 incluye workflow dedicado. Esto no excluye src ni tests de aplicación.
+
 - `npm ci`: instalación reproducible en Node 24.19.0/npm 11.17.0.
 - `npm run check`: formato, ESLint, tipos y build.
 - `npm run test:unit`: Node test runner incorporado; guardas del entorno desechable.
