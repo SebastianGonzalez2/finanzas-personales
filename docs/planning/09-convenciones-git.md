@@ -6,6 +6,18 @@
 
 Que una búsqueda por identificador de ticket, por ejemplo **`F0-01`**, permita encontrar su rama, commits, PR, criterios de aceptación y pruebas. Usar **el mismo ID canónico** de `05-plan-de-implementacion.md` en todos esos elementos. No inventar que un ticket está terminado si solo se creó una rama.
 
+## 0. Títulos de conversaciones de Codex
+
+**Formato obligatorio:** `[<TICKET>] <Nombre breve y específico>`. Usar el **mismo ID** de ticket para título de chat, rama, mensaje de commit y Pull Request. Ejemplos:
+
+| Chat de Codex | Rama | Commit | Pull Request |
+|---|---|---|---|
+| `[F0-01] Revisión inicial` | `codex/F0-01-revision-inicial` | `docs(F0-01): documentar inventario` | `[F0-01] Revisión inicial del repositorio` |
+| `[F0-03] Configurar Next.js` | `codex/F0-03-scaffold-nextjs` | `chore(F0-03): crear base Next.js` | `[F0-03] Estructura inicial de Next.js` |
+| `[F1-03] Registrar movimientos` | `codex/F1-03-registro-movimientos` | `feat(F1-03): registrar movimientos` | `[F1-03] Registro manual de movimientos` |
+
+**En el primer prompt del nuevo chat**, colocar `[F0-01] Revisión inicial` como primera línea para orientar el título que Codex genere automáticamente. **Verificar título visible en la lista de chats**; si falta el ID, renombrarlo manualmente desde la interfaz cuando esa función esté disponible, o con `/rename` en Codex CLI. Según la versión, la extensión de VS Code puede no ofrecer renombrado de hilos. Una instrucción de `AGENTS.md` **no puede garantizar** cambiar el título de un chat existente sin función disponible en el cliente. No reabrir/recrear un chat solo por su título; conservar conversaciones de un mismo ticket.
+
 ## 1. Identificadores
 
 - Ticket de desarrollo: `F{fase}-{número de dos dígitos}`, p. ej. `F0-01`, `F1-03`, `F2-05`.
@@ -104,7 +116,7 @@ Dejar enlaces a pruebas/evidencia o rutas locales cuando sean verificables. No a
 
 ## 6. Trazabilidad y búsqueda
 
-- Buscar `F0-01` en ramas, commits y PR; en GitHub también puede buscarse por mensaje de commit y título de PR. Buscar `RF-008` o `CA-015` en descripciones cuando se necesite trazabilidad por requerimiento/criterio.
+- Buscar `F0-01` en **conversaciones de Codex**, ramas, commits y PR; en GitHub también puede buscarse por mensaje de commit y título de PR. Buscar `RF-008` o `CA-015` en descripciones cuando se necesite trazabilidad por requerimiento/criterio.
 - Actualizar una tabla de avance en el plan o un registro de tickets solo **cuando exista evidencia de entrega**. Estado sugerido: `pendiente`, `en curso`, `en revisión`, `aceptado`, `bloqueado`.
 - Cada PR debe enlazar o referenciar el ticket, RF/CA y notas de riesgo reales. No requiere instalar servicios externos de gestión de tareas.
 - Se puede usar una GitHub Issue por ticket si el equipo lo considera útil; **no es requisito** para aplicar estas convenciones.
