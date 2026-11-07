@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 6.6  
+**Versión:** 6.7  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -261,8 +261,11 @@
 - Al acceder al balance, permitir un **desglose** de bancos por moneda y pasivos registrados (tarjetas, préstamos y deudas).
 - Dado que no se incluyen inversiones ni efectivo, el balance **no pretende representar todo el patrimonio real** de la persona. Su título/ayuda debe comunicar el alcance.
 - Ingresos/gastos mensuales y gráficos deben usar **movimientos registrados**, excluyendo saldos iniciales, ajustes y transferencias que no corresponden a ingresos/gastos.
+- **Período predeterminado de estadísticas — OPCIÓN A CONFIRMADA (v6.7):** al abrir el dashboard y la sección de estadísticas, mostrar por defecto el **mes calendario actual**, desde el día 1 hasta la fecha actual (sin incluir movimientos futuros como si ya hubieran ocurrido). El período mensual sigue siendo el mes calendario, en coherencia con los presupuestos. No usar «últimos 30 días» como período inicial.
+- **Navegación histórica y períodos elegibles — CONFIRMADO (v6.7):** permitir consultar **meses anteriores** y cambiar libremente el período de análisis, incluyendo **otros rangos de fechas elegidos por el usuario**, sin restringir los reportes al mes actual ni perder el historial. Mostrar claramente las fechas del período seleccionado y mantener el mismo filtro en las cifras y gráficos correspondientes. Presets adicionales y UX del selector de fechas se precisarán al diseñar.
+- **Sección de estadísticas AMPLIA — REQUISITO CONFIRMADO (v6.7):** ofrecer **una gama variada y útil de estadísticas**, no limitarse a dos contadores de ingresos/gastos. Debe posibilitar análisis históricos y desgloses a partir de movimientos efectivamente registrados, con filtros temporales flexibles, y sin inventar transacciones no registradas. **Los gráficos y métricas concretos se definirán en decisiones siguientes**; no asumir por adelantado predicciones, integraciones externas ni estadísticas de inversiones o efectivo excluidos del alcance. Las sumas entre UYU, USD y EUR necesitan conversión de referencia pertinente, sin duplicaciones de gastos o pagos de tarjeta.
 - Conservar como referencia la **composición de cuatro columnas** del tablero; **pendiente** decidir cómo se adaptan exactamente sus tarjetas a los módulos finales, especialmente tras excluir inversiones.
-- El usuario prioriza **claridad, rapidez, mínimo mantenimiento y organización**.
+- El usuario prioriza **claridad, rapidez, mínimo mantenimiento y organización**, incluso con el alcance amplio del módulo de estadísticas: presentar análisis profundos de manera ordenada y con navegación comprensible.
 
 ## 11.1 Alertas y recordatorios — CONFIRMADO (canales externos pendientes)
 
@@ -436,6 +439,7 @@
 8. **Stack y servicios**: **CONFIRMADOS Vercel (hosting web), Neon PostgreSQL (base de datos) y Neon Auth (correo/contraseña + Google OAuth)** en planes gratuitos para uso pequeño. Next.js, TypeScript, Tailwind, shadcn/ui y demás detalles del stack **NO están cerrados**. Supabase y Firebase fueron alternativas exploradas, no seleccionadas. Verificar cuotas, términos de planes, persistencia, seguridad y copias de seguridad antes de implementar.
 9. **Nombre final** e identidad textual (distinta de la marca de la captura).
 10. **Política de conciliación y reportes históricos** cuando se editen movimientos anteriores a un ajuste de saldo, para conservar consistencia contable y trazabilidad.
+11. **Estadísticas detalladas — PARCIALMENTE CONFIRMADO (§11):** mostrar por defecto el mes calendario actual, permitir meses anteriores y rangos de fechas personalizados, y ofrecer una gama amplia de análisis históricos. **Pendiente:** definir uno por uno gráficos, indicadores, comparaciones, filtros y presentación visual, sin exceder los datos realmente registrados.
 
 ## 13. Entorno técnico y repositorio — ESTADO INFORMADO
 
@@ -516,3 +520,4 @@
 - **2026-11-06 — v6.4:** el nombre o concepto identificador es opcional para los ingresos, a diferencia de los gastos donde sigue siendo obligatorio. La nota adicional sigue siendo opcional para ambos; ingreso sin concepto se puede mostrar como «Ingreso» sin inventar datos.
 - **2026-11-06 — v6.5:** también los ingresos pueden registrarse sin categoría (opción A) y clasificarse más tarde; el importe se suma al banco y al total de ingresos una sola vez. La clasificación posterior no duplica el ingreso ni modifica saldos, y «Sin categorizar» se mantiene separado entre ingresos y gastos.
 - **2026-11-06 — v6.6:** confirmada opción A de subcategorías iniciales básicas, pocas por categoría y personalizables: ejemplos Alimentación (Supermercado, Restaurantes, Delivery), Transporte (Transporte público, Taxi/Uber), Vivienda (Alquiler, Mantenimiento), Ropa (Ropa, Calzado). No desplegar un catálogo extenso de subcategorías ni volverlas obligatorias.
+- **2026-11-06 — v6.7:** estadísticas predeterminadas del mes calendario actual (opción A), acceso a meses previos y selección de otros períodos/rangos de fecha. El usuario pide una oferta amplia de estadísticas históricas y desgloses, a concretar por decisiones posteriores sin inventar información no registrada.
