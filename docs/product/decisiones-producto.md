@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.5  
+**Versión:** 1.6  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -159,11 +159,20 @@
 - Si se registran compras opcionales y se actualiza manualmente la deuda, **evitar doble contabilización** al añadir movimientos o conciliar importes. Todo ajuste/corrección debe conservar trazabilidad y permitir reconstruir saldos sin duplicar efectos.
 - Los créditos son **pasivos**, no dinero disponible. Su deuda reduce el patrimonio registrado, pero un pago hecho desde bancos reduce a la vez activo y pasivo, sin cambiar por sí mismo el patrimonio neto.
 
-### 9.3 Datos secundarios y decisiones todavía abiertas — PARCIALMENTE CONFIRMADO
+### 9.3 Próximo estado de cuenta, vencimiento y recordatorio — CONFIRMADO
 
-- Para tarjetas de crédito se podrán configurar **vencimiento, deuda que vence en el período y límite de crédito**, como campos **opcionales**; cuando existan, distinguir claramente **deuda total** frente a **pago del estado de cuenta**.
+- **No exigir datos de cierre ni vencimiento al crear una tarjeta.** El usuario puede empezar solo con deuda total y acciones «Actualizar deuda» / «Registrar pago».
+- Cada tarjeta de crédito permite registrar **opcionalmente** el **importe del próximo estado de cuenta a pagar** y su **fecha de vencimiento**, consultados por el usuario en el resumen/banco. No inventar ni inferir esos datos a partir de la deuda total.
+- Mostrar claramente dos conceptos **distintos**: (1) **deuda total actual de la tarjeta**, que puede incluir compras no facturadas o futuros períodos; y (2) **importe del estado de cuenta que vence en el período**, cuando esté informado. No presentar el segundo como idéntico al primero.
+- Cuando haya **importe y vencimiento registrados**, habilitar recordatorio en la sección de notificaciones de la app antes del vencimiento si el importe de ese período aún figura pendiente. No afirmar «pago atrasado» sin fecha válida ni comprobar pagos externos que no se registraron.
+- Al usar «Registrar pago» deben disminuir el saldo agrupado de bancos correspondiente y la deuda de la tarjeta, **sin registrar un gasto adicional**. También se debe reflejar lo pagado respecto al estado de cuenta, sin confundir una amortización parcial con pago completo; no duplicar pagos.
+- La visualización de límite de crédito es **opcional**, si el usuario decide registrarlo.
+- **No descontar automáticamente el importe del resumen** ni marcarlo como pagado por una mera estimación o por llegar a la fecha. No asumir conexión con la entidad financiera.
+
+### 9.3.1 Detalles que siguen abiertos — PENDIENTE
+
+- Definir cierres de período, cuotas, intereses, pagos mínimos, compras en otra moneda y reconciliación de estados de cuenta/pagos parciales más allá de las reglas generales anteriores.
 - Está previsto que los pagos y consumos se identifiquen por tarjeta, no por banco: **métodos de débito independientes, cuentas bancarias agrupadas por moneda**.
-- Todavía está pendiente cerrar el diseño exacto de **cierres, cuotas, intereses, compras en otras monedas, importes mínimos y tratamiento del resumen/estado de cuenta**. No inventar automatismos ni reglas específicas antes de que se definan.
 
 ### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
 
@@ -200,7 +209,7 @@
 **Principio:** avisar únicamente sobre situaciones útiles o revisiones opcionales, sin crear trabajo administrativo innecesario ni presentar datos inferidos como si fueran hechos confirmados.
 
 - Incluir un **centro de notificaciones dentro de la aplicación** (por ejemplo, campana visible en el dashboard). Los avisos deben tener un texto entendible, un estado de atención y, cuando proceda, una acción directa para resolverlos.
-- **Vencimiento de tarjeta de crédito:** alerta de alta prioridad antes del vencimiento que haya sido cargado, mientras el pago correspondiente figure pendiente de confirmar. Se propuso **3 días antes** como valor inicial ajustable; el plazo final exacto se puede configurar. Si no hay fecha o monto del estado de cuenta confirmados, no inventarlos ni afirmar que existe un atraso.
+- **Vencimiento de tarjeta de crédito:** alerta de alta prioridad **solo cuando el usuario haya registrado el importe del próximo estado de cuenta y la fecha de vencimiento** (§9.3), mientras el pago del período esté pendiente de confirmación. Se propuso **3 días antes** como valor inicial ajustable; el plazo final exacto se puede configurar. Si faltan datos, no inventarlos ni afirmar que existe un atraso.
 - **Cuotas de préstamos/deudas:** alerta de alta prioridad con antelación a un vencimiento registrado, mientras la cuota correspondiente esté pendiente. No inventar fechas ni importes.
 - **Gastos recurrentes:** recordatorio de prioridad media o informativa si llegó el período habitual y el pago todavía no se registró. Con fecha desconocida, indicar **«pago de este período sin confirmar»**, **NO «vencido»**; no realizar descuentos automáticos.
 - **Revisión de movimientos:** recordatorio de baja prioridad para revisar si hubo ingresos/gastos olvidados, orientativamente semanal; puede desactivarse o posponerse. No afirmar que existieron movimientos no registrados.
@@ -215,7 +224,7 @@
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
-2. **Tarjetas de crédito:** ya confirmados catálogo débito/crédito, efectos de compras, pagos y ajustes manuales (§9); alertas generales aprobadas en §11.1. Falta precisar cierres, vencimientos/resúmenes, cuotas, intereses, mínimos y compras multimoneda.
+2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; también **importe y vencimiento opcionales del estado de cuenta**, visualización separada de deuda total y alertas basadas en datos cargados (§9 y §11.1). Pendiente: cierres, **compras en cuotas**, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
@@ -252,3 +261,4 @@
 - **2026-11-06 — v1.3:** gastos recurrentes aprobados: opcionales, importes variables estimables a partir de historial, vencimientos opcionales/aproximados, sugerencias de recurrencia, confirmación de pagos reales, conciliación sin duplicados y sin descuentos automáticos.
 - **2026-11-06 — v1.4:** tarjetas registrables como débito o crédito; débito carga a bancos agrupados, crédito acumula deuda por tarjeta; pagos de tarjeta reducen banco y deuda sin registrar un segundo gasto; deuda inicial y ajustes manuales sin clasificar; quedan pendientes detalles de estados de cuenta y alertas.
 - **2026-11-06 — v1.5:** alertas no intrusivas aprobadas: vencimientos de tarjetas y préstamos, recurrentes sin confirmar, revisión de movimientos, umbrales bajos y presupuestos futuros. Revisión bancaria opcional y desactivada por defecto; sin alerta periódica obligatoria de 14 días. Centro de avisos interno; correo y push pendientes.
+- **2026-11-06 — v1.6:** estado de cuenta y vencimiento opcionales por tarjeta de crédito; deuda total diferenciada del importe a pagar en el período; recordatorio solo con importe y fecha aportados por el usuario, sin pagos automáticos. Siguiente decisión pendiente: compras en cuotas.
