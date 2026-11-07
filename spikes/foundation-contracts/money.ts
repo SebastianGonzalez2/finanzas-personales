@@ -14,7 +14,8 @@ export class Money {
   readonly #currency: Currency;
 
   private constructor(units: bigint, code: Currency) {
-    if (units > maximum || units < -maximum) throw new Error("Importe fuera de rango");
+    if (units > maximum || units < -maximum)
+      throw new Error("Importe fuera de rango");
     this.#units = units;
     this.#currency = code;
     Object.freeze(this);
@@ -22,27 +23,42 @@ export class Money {
 
   static parse(value: unknown, code: unknown): Money {
     currency(code);
-    if (typeof value !== "string" || value.length > 22 || !/^-?(0|[1-9]\d{0,15})(\.\d{1,4})?$/.test(value)) {
+    if (
+      typeof value !== "string" ||
+      value.length > 22 ||
+      !/^-?(0|[1-9]\d{0,15})(\.\d{1,4})?$/.test(value)
+    ) {
       throw new Error("Importe decimal inválido");
     }
     const negative = value.startsWith("-");
-    const [whole, fraction = ""] = (negative ? value.slice(1) : value).split(".");
+    const [whole, fraction = ""] = (negative ? value.slice(1) : value).split(
+      ".",
+    );
     const units = BigInt(whole) * scale + BigInt(fraction.padEnd(4, "0"));
     return new Money(negative ? -units : units, code);
   }
 
-  get currency(): Currency { return this.#currency; }
+  get currency(): Currency {
+    return this.#currency;
+  }
 
   add(other: Money): Money {
-    if (this.#currency !== other.#currency) throw new Error("Monedas diferentes");
+    if (this.#currency !== other.#currency)
+      throw new Error("Monedas diferentes");
     return new Money(this.#units + other.#units, this.#currency);
   }
 
-  negate(): Money { return new Money(-this.#units, this.#currency); }
+  negate(): Money {
+    return new Money(-this.#units, this.#currency);
+  }
 
   /** Equal installments only when exact; caller must resolve any remainder explicitly. */
   divideEqually(count: bigint): Money {
-    if (typeof count !== "bigint" || count <= 0n || this.#units % count !== 0n) {
+    if (
+      typeof count !== "bigint" ||
+      count <= 0n ||
+      this.#units % count !== 0n
+    ) {
       throw new Error("División no exacta");
     }
     return new Money(this.#units / count, this.#currency);
