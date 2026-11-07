@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.6  
+**Versión:** 1.7  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -75,7 +75,7 @@
   - **Fecha**.
   - **Descripción / nota opcional**.
 - Al guardar un ingreso recibido en bancos, **sumar** el importe al saldo agregado de esa moneda. Un gasto pagado por **transferencia bancaria o débito** resta del saldo bancario agrupado de la moneda; un gasto pagado con **crédito** aumenta la deuda de esa tarjeta y **no reduce el banco** al momento de la compra. En ambos casos el gasto se clasifica una sola vez en las estadísticas.
-- Incluir los movimientos en las estadísticas de ingresos/gastos por período y categoría.
+- Incluir los movimientos en las estadísticas de ingresos/gastos por período y categoría. **Excepción confirmada:** las compras a crédito en cuotas se reparten entre los meses del plan, en lugar de cargar toda la compra al primer mes (ver §9.5). Evitar contar como gastos simultáneamente la compra completa y sus cuotas.
 - Permitir **consultar, editar y eliminar/corregir movimientos**; al corregir o revertir uno debe recalcularse el saldo sin duplicar efectos. Este detalle es un requisito técnico de consistencia derivado del registro de movimientos.
 - **No se exige registrar todos los gastos cotidianos** para poder usar la aplicación. Los movimientos importantes que el usuario sí cargue deben producir estadísticas útiles.
 
@@ -147,7 +147,7 @@
 - Existirá una sección para **agregar y gestionar tarjetas**, registrando como mínimo **nombre identificable, tipo (débito o crédito) y moneda**. El banco emisor puede indicarse para reconocer la tarjeta (p. ej., Visa Itaú o débito BROU), **sin dividir por banco** los saldos consolidados.
 - Los gastos permitirán seleccionar el **método de pago**: transferencia/saldo bancario de una moneda, una tarjeta de débito registrada o una tarjeta de crédito registrada. No obligar a registrar cada compra.
 - **Tarjeta de débito:** solo identifica el medio de pago; **NO tiene un saldo financiero independiente**. Un gasto con débito se descuenta del saldo **Bancos [moneda]** correspondiente, exactamente como un gasto pagado desde el banco.
-- **Tarjeta de crédito:** cada tarjeta tiene **su propia deuda pendiente**. Un gasto categorizado y pagado con ella **aumenta su deuda** y **cuenta como gasto en las estadísticas**, pero **NO descuenta de bancos** hasta que se pague la tarjeta.
+- **Tarjeta de crédito:** cada tarjeta tiene **su propia deuda pendiente**. Una compra ordinaria categorizada y pagada con ella aumenta su deuda y cuenta como gasto en las estadísticas, pero **NO descuenta de bancos** hasta que se pague la tarjeta. **Las compras en cuotas son un caso especial**: su gasto se distribuye por mes (§9.5), y se distinguen las cuotas futuras de la deuda efectivamente reflejada en el estado de cuenta.
 - El mismo formulario de ingreso/gasto debe funcionar independientemente del método de pago, para evitar complejidad innecesaria.
 
 ### 9.2 Deuda, pago y actualización manual — CONFIRMADO
@@ -171,8 +171,22 @@
 
 ### 9.3.1 Detalles que siguen abiertos — PENDIENTE
 
-- Definir cierres de período, cuotas, intereses, pagos mínimos, compras en otra moneda y reconciliación de estados de cuenta/pagos parciales más allá de las reglas generales anteriores.
+- Definir cierres de período, reglas operativas adicionales de cuotas (§9.5), intereses, pagos mínimos, compras en otra moneda y reconciliación de estados de cuenta/pagos parciales más allá de las reglas generales anteriores.
 - Está previsto que los pagos y consumos se identifiquen por tarjeta, no por banco: **métodos de débito independientes, cuentas bancarias agrupadas por moneda**.
+
+### 9.5 Compras con tarjeta de crédito en cuotas — CONFIRMADO (detalles operativos pendientes)
+
+**Principio confirmado:** una compra en cuotas se introduce una sola vez; las cuotas se reflejan automáticamente en los gastos de cada mes, mientras que **Bancos [moneda] solo baja cuando el usuario registra el pago real de la tarjeta**.
+
+- Al registrar una compra con una tarjeta de crédito, ofrecer de manera opcional un **plan de cuotas**: descripción, categoría/subcategoría, tarjeta, moneda, precio total, cantidad de cuotas y distribución mensual. Para una compra sin intereses de $12.000 UYU en 6 cuotas, mostrar $2.000 UYU como gasto asignado a cada uno de los seis períodos correspondientes.
+- **Estadísticas mensuales:** contabilizar el importe **de la cuota correspondiente a cada mes** en la categoría elegida; **no** cargar simultáneamente los $12.000 como gasto en el primer mes ni repetir el gasto cuando se paga el estado de cuenta.
+- El calendario y la asignación mensual de cuotas se **generan automáticamente** desde la compra inicial, sin obligar a registrar cada cuota a mano. La creación del registro mensual no implica que el usuario haya pagado la tarjeta.
+- Mostrar una sección **«Compras en cuotas»** por tarjeta, con descripción, precio total, número de cuotas, importe de cada cuota, meses/períodos asignados, progreso, cuotas futuras y compromiso restante.
+- **Diferenciar expresamente:** cuota incluida en los gastos/plan mensual, cuota facturada en un estado de cuenta, cuota efectivamente pagada, **deuda actual registrada de la tarjeta** y **cuotas futuras comprometidas**. «Cuota del mes» no equivale a «pagada». El progreso nunca debe declarar pagos confirmados solo porque haya transcurrido un mes.
+- **Pago de la tarjeta:** al registrar el pago efectivo, descontar del saldo bancario agrupado y reducir la deuda correspondiente **sin generar otro gasto**. No descontar automáticamente saldo bancario cuando se genera la cuota mensual.
+- **Evitar doble cómputo de deuda:** según el emisor, el saldo que informa el banco puede reflejar solamente cuotas facturadas o también obligaciones de cuotas futuras. La aplicación debe mantener separado el **saldo real/manual del emisor** y el **calendario de compromisos futuros**, sin sumar a ciegas ambos importes al patrimonio o a la deuda total. La política técnica exacta de reconocimiento/reconciliación queda pendiente.
+- Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; **intereses, comisiones, primer ciclo de facturación, cuotas no iguales y cambios multimoneda** requieren aún reglas detalladas y no deben inferirse por defecto.
+- **Ejemplo confirmado:** $12.000 en 6 cuotas de $2.000 → cada mes se muestran $2.000 en estadísticas de gastos; Bancos UYU no disminuye hasta el registro de pago real de la tarjeta.
 
 ### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
 
@@ -224,7 +238,7 @@
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
-2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; también **importe y vencimiento opcionales del estado de cuenta**, visualización separada de deuda total y alertas basadas en datos cargados (§9 y §11.1). Pendiente: cierres, **compras en cuotas**, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
+2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: cierres y primer período de cuotas, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
@@ -262,3 +276,4 @@
 - **2026-11-06 — v1.4:** tarjetas registrables como débito o crédito; débito carga a bancos agrupados, crédito acumula deuda por tarjeta; pagos de tarjeta reducen banco y deuda sin registrar un segundo gasto; deuda inicial y ajustes manuales sin clasificar; quedan pendientes detalles de estados de cuenta y alertas.
 - **2026-11-06 — v1.5:** alertas no intrusivas aprobadas: vencimientos de tarjetas y préstamos, recurrentes sin confirmar, revisión de movimientos, umbrales bajos y presupuestos futuros. Revisión bancaria opcional y desactivada por defecto; sin alerta periódica obligatoria de 14 días. Centro de avisos interno; correo y push pendientes.
 - **2026-11-06 — v1.6:** estado de cuenta y vencimiento opcionales por tarjeta de crédito; deuda total diferenciada del importe a pagar en el período; recordatorio solo con importe y fecha aportados por el usuario, sin pagos automáticos. Siguiente decisión pendiente: compras en cuotas.
+- **2026-11-06 — v1.7:** compra en cuotas ingresada una sola vez; importe distribuido automáticamente como gasto en cada mes; sin descuentos a bancos hasta pago real de la tarjeta. Vista de progreso y cuotas comprometidas; distinción entre plan futuro, deuda del emisor, facturación y pagos, para evitar doble conteo.
