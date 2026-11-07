@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 6.3  
+**Versión:** 6.4  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -75,7 +75,8 @@
   - **Categoría opcional en los gastos**: permitir guardar sin elegir ninguna, mostrando **«Sin categorizar»** hasta que el usuario la asigne después. En movimientos categorizados, la **subcategoría también es opcional**. La obligatoriedad de categorías en ingresos no se modifica con esta decisión.
   - **Fecha**.
   - **Nombre / concepto obligatorio para los gastos**, escrito por el usuario, por ejemplo «Compra en supermercado», «Cena» o «Pasaje a Madrid»; es el texto principal que identifica el movimiento en el historial, con independencia de que tenga o no categoría.
-  - **Descripción / nota adicional opcional** para ampliar detalles cuando se quiera, sin exigirla para guardar un gasto. **No confundir el nombre obligatorio con la nota opcional**. La obligatoriedad del nombre para ingresos queda pendiente de una decisión separada.
+  - **Nombre / concepto OPCIONAL para los ingresos — CONFIRMADO v6.4:** registrar un ingreso sin nombre está permitido; no bloquear el alta del ingreso por dejar el campo vacío. Si existe, mostrar el concepto escrito por el usuario. Si no existe, utilizar una etiqueta neutra como «Ingreso» en el historial, sin inventar una procedencia o descripción.
+  - **Descripción / nota adicional opcional** para ampliar detalles cuando se quiera, tanto en ingresos como en gastos. **No confundir el nombre/concepto con la nota opcional.**
 - Al guardar un ingreso recibido en bancos, **sumar** el importe al saldo agregado de esa moneda. Un gasto pagado por **transferencia bancaria o débito** resta del saldo bancario agrupado de la moneda; un gasto pagado con **crédito** aumenta la deuda de esa tarjeta y **no reduce el banco** al momento de la compra. En ambos casos el gasto se clasifica una sola vez en las estadísticas.
 - Incluir los movimientos en las estadísticas de ingresos/gastos por período y categoría. **Excepción confirmada:** las compras a crédito en cuotas se reparten entre los meses del plan, en lugar de cargar toda la compra al primer mes (ver §9.5). Evitar contar como gastos simultáneamente la compra completa y sus cuotas.
 - Permitir **consultar, editar y eliminar/corregir movimientos**; al corregir o revertir uno debe recalcularse el saldo sin duplicar efectos. Este detalle es un requisito técnico de consistencia derivado del registro de movimientos.
@@ -511,3 +512,4 @@
 - **2026-11-06 — v6.1:** en pagos parciales de tarjeta, el usuario asigna manualmente qué compras/cuotas y qué fuentes (dinero libre o fondos asociados) cubre el importe pagado. Sin reparto automático ni consumo no autorizado de fondos; pago bancario y reducción de deuda una sola vez, sin gasto duplicado. Deudas iniciales sin compras detalladas siguen pudiendo abonarse sin inventar vínculos.
 - **2026-11-06 — v6.2:** confirmada alta de préstamo nuevo que el usuario entrega a un tercero en un solo flujo: descontar una vez Bancos [moneda] y crear «Dinero por cobrar» por el mismo principal, sin gasto de consumo. Mantener alta de obligaciones antiguas sin movimiento de bancos y registrar devoluciones como cobro de principal, no nuevo ingreso. Recepción de préstamo nuevo por el usuario pendiente.
 - **2026-11-06 — v6.3:** confirmado catálogo inicial de categorías de ingresos/gastos con cambio explícito «Ropa» en lugar de «Ropa y compras». Cada gasto requiere nombre/concepto identificador; descripción/nota complementaria opcional. Aplicar también a compras en cuotas y recurrencias. Pendiente listado completo de subcategorías e identidad de ingresos.
+- **2026-11-06 — v6.4:** el nombre o concepto identificador es opcional para los ingresos, a diferencia de los gastos donde sigue siendo obligatorio. La nota adicional sigue siendo opcional para ambos; ingreso sin concepto se puede mostrar como «Ingreso» sin inventar datos.
