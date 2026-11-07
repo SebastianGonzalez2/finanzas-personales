@@ -27,6 +27,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
+**Diseño F0-02:** [especificación visual](../design/fintrack-visual-spec.md) y [evidencia de revisión](10-informe-f0-02.md). Documentación para revisión; no constituye UI implementada ni cierre de CA funcionales.
+
 ## Autoridad y resolución de conflictos
 
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).
