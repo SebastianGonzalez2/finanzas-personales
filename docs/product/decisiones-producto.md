@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.0  
+**Versión:** 9.1  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -165,6 +165,7 @@
 - **Tarjeta de débito:** solo identifica el medio de pago; **NO tiene un saldo financiero independiente**. Un gasto con débito se descuenta del saldo **Bancos [moneda]** correspondiente, exactamente como un gasto pagado desde el banco.
 - **Tarjeta de crédito:** cada tarjeta tiene **su propia deuda pendiente**. Una compra ordinaria categorizada y pagada con ella aumenta su deuda y cuenta como gasto en las estadísticas, pero **NO descuenta de bancos** hasta que se pague la tarjeta. **Las compras en cuotas son un caso especial**: su gasto se distribuye por mes (§9.5), y se distinguen las cuotas futuras de la deuda efectivamente reflejada en el estado de cuenta.
 - El mismo formulario de ingreso/gasto debe funcionar independientemente del método de pago, para evitar complejidad innecesaria.
+- **Archivar tarjetas que ya no se utilizan — OPCIÓN A CONFIRMADA (v9.1):** permitir **archivar tarjetas de débito o crédito** sin eliminarlas. Una tarjeta archivada **deja de aparecer como método habitual seleccionable para nuevos gastos o compras**, pero **mantiene su identidad y todos sus vínculos con movimientos, cuotas, pagos, historial y estadísticas anteriores**, sin reclasificar ni borrar transacciones. **En tarjetas de crédito, archivar NO cancela ni oculta contablemente la deuda pendiente**: el usuario debe poder consultarla, registrar pagos reales y actualizar la deuda mientras exista saldo por saldar, con los efectos financieros y las reglas de no duplicación ya confirmados. La opción de archivo es una condición de uso futuro de la tarjeta, no un ajuste contable ni una eliminación. Mantener accesible la consulta de tarjetas archivadas desde su gestión sin saturar el selector cotidiano; no inferir que la deuda quedó pagada al archivar. La eventual reactivación y otros detalles de UX se precisarán sin reabrir los efectos financieros aprobados.
 
 ### 9.2 Deuda, pago y actualización manual — CONFIRMADO
 
@@ -573,3 +574,4 @@
 - **2026-11-07 — v8.8:** opción A confirmada: día de cierre opcional por tarjeta de crédito para estimar a qué resumen pertenece cada compra registrada, con vencimiento opcional por separado. Mantener deuda total separada de importes estimados y de resumen confirmado por el usuario; sin cambiar cuotas, movimientos reales ni saldos, ni pagar automáticamente.
 - **2026-11-07 — v8.9:** opción B confirmada: compras financiadas solo con cuotas iguales en importe, cálculo total = cuota fija × cantidad. Descartada la carga o edición individual de cuotas variables de una misma compra.
 - **2026-11-07 — v9.0:** opción A confirmada: buscador y filtros combinables para el historial completo de movimientos (texto, fecha, categoría, importe, moneda, método/tarjeta), con consultas paginadas y aisladas por cuenta. Reconfirmado que el historial se conserva entre meses y años y no se reinicia mensualmente; las vistas mensuales son filtros y la eliminación de cuenta sigue vigente.
+- **2026-11-07 — v9.1:** opción A confirmada: permitir archivar tarjetas de débito/crédito que ya no se utilizan. Se retiran del selector de nuevos pagos/compras pero conservan todos los movimientos, referencias e historial; en crédito, las deudas pendientes continúan visibles y pagables, sin cancelación ni doble cómputo.
