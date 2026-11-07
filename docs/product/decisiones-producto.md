@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.1  
+**Versión:** 9.2  
 **Actualizado:** 2026-11-07  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -160,7 +160,7 @@
 
 ### 9.1 Catálogo y métodos de pago — CONFIRMADO
 
-- Existirá una sección para **agregar y gestionar tarjetas**, registrando como mínimo **nombre identificable, tipo (débito o crédito) y moneda**. El banco emisor puede indicarse para reconocer la tarjeta (p. ej., Visa Itaú o débito BROU), **sin dividir por banco** los saldos consolidados.
+- Existirá una sección para **agregar y gestionar tarjetas**, registrando como mínimo **nombre identificable, tipo (débito o crédito) y moneda(s) aplicable(s)**. El banco emisor puede indicarse para reconocer la tarjeta (p. ej., Visa Itaú o débito BROU), **sin dividir por banco** los saldos consolidados. **OPCIÓN A CONFIRMADA (v9.2): para tarjetas de crédito, una única tarjeta registrada puede llevar saldos de deuda diferenciados por moneda, p. ej., UYU y USD, sin duplicar la tarjeta física como dos métodos de pago.** Un consumo aumenta la obligación de la moneda en la que el emisor efectivamente lo mantiene; no presumir que todo consumo extranjero genera deuda en moneda extranjera, pues algunos emisores convierten los cargos. Presentar por separado la deuda registrada de cada moneda dentro de la misma tarjeta y conservar moneda e historial originales. Los pagos reales pueden amortizar parcial o totalmente cada saldo; **por cada importe y moneda efectivamente pagados**, reducir la deuda respectiva y registrar su salida bancaria real sin duplicar gastos. Pagar una sola moneda no salda las demás. **PENDIENTE**: el flujo exacto si un emisor permite liquidar deuda en una moneda usando dinero bancario de otra moneda, incluidas cotización real, diferencias y comisiones; no convertir ni cancelar deuda automáticamente sin importes reales conocidos o decisión del usuario. El diseño de un único formulario que permita cargar ambas partes de un pago es una propuesta de UX, no una confirmación adicional.
 - Los gastos permitirán seleccionar el **método de pago**: transferencia/saldo bancario de una moneda, una tarjeta de débito registrada o una tarjeta de crédito registrada. No obligar a registrar cada compra.
 - **Tarjeta de débito:** solo identifica el medio de pago; **NO tiene un saldo financiero independiente**. Un gasto con débito se descuenta del saldo **Bancos [moneda]** correspondiente, exactamente como un gasto pagado desde el banco.
 - **Tarjeta de crédito:** cada tarjeta tiene **su propia deuda pendiente**. Una compra ordinaria categorizada y pagada con ella aumenta su deuda y cuenta como gasto en las estadísticas, pero **NO descuenta de bancos** hasta que se pague la tarjeta. **Las compras en cuotas son un caso especial**: su gasto se distribuye por mes (§9.5), y se distinguen las cuotas futuras de la deuda efectivamente reflejada en el estado de cuenta.
@@ -575,3 +575,4 @@
 - **2026-11-07 — v8.9:** opción B confirmada: compras financiadas solo con cuotas iguales en importe, cálculo total = cuota fija × cantidad. Descartada la carga o edición individual de cuotas variables de una misma compra.
 - **2026-11-07 — v9.0:** opción A confirmada: buscador y filtros combinables para el historial completo de movimientos (texto, fecha, categoría, importe, moneda, método/tarjeta), con consultas paginadas y aisladas por cuenta. Reconfirmado que el historial se conserva entre meses y años y no se reinicia mensualmente; las vistas mensuales son filtros y la eliminación de cuenta sigue vigente.
 - **2026-11-07 — v9.1:** opción A confirmada: permitir archivar tarjetas de débito/crédito que ya no se utilizan. Se retiran del selector de nuevos pagos/compras pero conservan todos los movimientos, referencias e historial; en crédito, las deudas pendientes continúan visibles y pagables, sin cancelación ni doble cómputo.
+- **2026-11-07 — v9.2:** confirmada opción A: una sola tarjeta de crédito registrada con saldos/deudas independientes por moneda (por ejemplo UYU y USD), sin duplicar tarjeta; pagos reales reducen únicamente las deudas y bancos efectivamente afectados, sin contar otro gasto. Queda pendiente determinar el flujo de pagos cruzados entre monedas y la interfaz concreta de registro.
