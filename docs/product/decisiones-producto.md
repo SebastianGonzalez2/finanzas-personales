@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.8  
+**Versión:** 1.9  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -178,15 +178,17 @@
 
 **Principio confirmado:** una compra en cuotas se introduce una sola vez; las cuotas se reflejan automáticamente en los gastos de cada mes, mientras que **Bancos [moneda] solo baja cuando el usuario registra el pago real de la tarjeta**.
 
-- Al registrar una compra con una tarjeta de crédito, ofrecer de manera opcional un **plan de cuotas**: descripción, categoría/subcategoría, tarjeta, moneda, precio total, cantidad de cuotas y distribución mensual. Para una compra sin intereses de $12.000 UYU en 6 cuotas, mostrar $2.000 UYU como gasto asignado a cada uno de los seis períodos correspondientes.
+- Al registrar una compra con tarjeta de crédito, permitir elegir **pago en cuotas**. El formulario simplificado debe pedir: **importe de cada cuota, cantidad de cuotas, tarjeta de crédito, categoría/subcategoría, moneda y mes/año de la primera cuota**, además de una descripción opcional. Es el mismo flujo para compras con y sin intereses. **No exigir precio original de contado, precio total ni tasa de interés**.
+- Calcular automáticamente el **total financiado** como valor de cuota × número de cuotas (para cuotas iguales). Ejemplo: 6 cuotas de $2.200 UYU producen un total financiado de $13.200 y un gasto de $2.200 en cada uno de los seis meses. El importe de cuota que proporciona el usuario ya incluye los intereses/cargos financiados conocidos.
+- **Descartado del formulario principal:** campo «Agregar precio original» o «Precio al contado» y cálculo de cuánto costó la financiación frente al contado. No pedir porcentaje de interés ni derivarlo automáticamente.
 - **Estadísticas mensuales:** contabilizar el importe **de la cuota correspondiente a cada mes** en la categoría elegida; **no** cargar simultáneamente los $12.000 como gasto en el primer mes ni repetir el gasto cuando se paga el estado de cuenta.
 - Al cargar una compra en cuotas, el usuario **selecciona el mes y año de la primera cuota** (no necesita conocer la fecha de cierre del emisor). El sistema distribuye automáticamente las cuotas desde ese período, una por mes, y permite **modificar posteriormente el mes inicial**, actualizando el calendario y la asignación de gastos mensuales. Las correcciones deben conservar trazabilidad y no alterar ni duplicar pagos reales previamente registrados.
 - El calendario y la asignación mensual de cuotas se **generan automáticamente** desde la compra inicial, sin obligar a registrar cada cuota a mano. La creación del registro mensual no implica que el usuario haya pagado la tarjeta.
-- Mostrar una sección **«Compras en cuotas»** por tarjeta, con descripción, precio total, número de cuotas, importe de cada cuota, meses/períodos asignados, progreso, cuotas futuras y compromiso restante.
+- Mostrar una sección **«Compras en cuotas»** por tarjeta, con descripción, **total financiado calculado**, número de cuotas, importe de cada cuota, meses/períodos asignados, progreso, cuotas futuras y compromiso restante.
 - **Diferenciar expresamente:** cuota incluida en los gastos/plan mensual, cuota facturada en un estado de cuenta, cuota efectivamente pagada, **deuda actual registrada de la tarjeta** y **cuotas futuras comprometidas**. «Cuota del mes» no equivale a «pagada». El progreso nunca debe declarar pagos confirmados solo porque haya transcurrido un mes.
 - **Pago de la tarjeta:** al registrar el pago efectivo, descontar del saldo bancario agrupado y reducir la deuda correspondiente **sin generar otro gasto**. No descontar automáticamente saldo bancario cuando se genera la cuota mensual.
 - **Evitar doble cómputo de deuda:** según el emisor, el saldo que informa el banco puede reflejar solamente cuotas facturadas o también obligaciones de cuotas futuras. La aplicación debe mantener separado el **saldo real/manual del emisor** y el **calendario de compromisos futuros**, sin sumar a ciegas ambos importes al patrimonio o a la deuda total. La política técnica exacta de reconocimiento/reconciliación queda pendiente.
-- Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; **intereses, comisiones, conciliación con el ciclo real del emisor, cuotas no iguales y cambios multimoneda** requieren aún reglas detalladas y no deben inferirse por defecto.
+- Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; la **conciliación con el ciclo real del emisor, cuotas de importes diferentes, cargos posteriores al registro y compras multimoneda** requieren aún reglas detalladas. Para las cuotas iguales, **el usuario registra directamente su importe final** sin ingresar tasa ni precio original. No inventar intereses o comisiones adicionales.
 - **Ejemplo confirmado:** $12.000 en 6 cuotas de $2.000 → cada mes se muestran $2.000 en estadísticas de gastos; Bancos UYU no disminuye hasta el registro de pago real de la tarjeta.
 
 ### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
@@ -239,7 +241,7 @@
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
-2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres del emisor, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
+2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** y **formulario sencillo de valor de cuota × cantidad de cuotas, sin precio original ni tasa de interés** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres, pagos mínimos, cuotas de importes variables, cargos posteriores, compras multimoneda y conciliación.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
@@ -279,3 +281,4 @@
 - **2026-11-06 — v1.6:** estado de cuenta y vencimiento opcionales por tarjeta de crédito; deuda total diferenciada del importe a pagar en el período; recordatorio solo con importe y fecha aportados por el usuario, sin pagos automáticos. Siguiente decisión pendiente: compras en cuotas.
 - **2026-11-06 — v1.7:** compra en cuotas ingresada una sola vez; importe distribuido automáticamente como gasto en cada mes; sin descuentos a bancos hasta pago real de la tarjeta. Vista de progreso y cuotas comprometidas; distinción entre plan futuro, deuda del emisor, facturación y pagos, para evitar doble conteo.
 - **2026-11-06 — v1.8:** al registrar compras en cuotas, elegir mes/año de la primera cuota y permitir modificarlo después; se reajustan las cuotas y estadísticas mensuales sin duplicar ni alterar pagos efectivamente registrados.
+- **2026-11-06 — v1.9:** simplificado el registro de compras en cuotas con o sin intereses: valor de cuota, cantidad de cuotas, tarjeta, categoría y primer mes; calcular total financiado automáticamente. Descartados precio original de contado y tasa de interés como datos obligatorios o campos del formulario principal.
