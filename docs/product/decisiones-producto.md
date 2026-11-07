@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 2.0  
+**Versión:** 2.1  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -195,9 +195,25 @@
 
 - Se confirma que existirán **ambos módulos separados**: (1) **Deudas y préstamos por pagar** — dinero que el usuario debe a entidades o personas; (2) **Dinero por cobrar** — dinero que terceros deben al usuario.
 - No confundir los efectos de signo: una deuda por pagar es un **pasivo**, mientras que dinero por cobrar es un **derecho de cobro** registrado, no efectivo bancario disponible.
-- Deben poder existir tanto préstamos con cuotas, vencimientos e intereses como **deudas simples sin plan de pagos**. Todavía no se aprobó qué campos serán obligatorios/opcionales ni el mecanismo detallado de cobro/pago.
+- Deben poder existir tanto préstamos con cuotas, vencimientos e intereses como **deudas simples sin plan de pagos**. **El flujo de los préstamos con cuotas ya está confirmado (§9.4.1)**; los datos y el funcionamiento exactos de las deudas simples y del dinero por cobrar siguen pendientes.
 - **Evitar doble contabilización:** entregar o recibir capital de un préstamo y amortizar principal no equivalen por sí solos a ingreso o gasto ordinario; intereses y cargos sí requieren tratamiento diferenciado. Definir posteriormente cómo mostrarlos en estadísticas y flujo de caja, y cómo se concilian con los saldos bancarios.
-- El módulo no debe inventar fechas, amortización de capital ni intereses cuando el usuario no dispone de ellos. Toda automatización y conciliación concreta queda **pendiente de aprobación**.
+- El módulo no debe inventar fechas, amortización de capital ni intereses cuando el usuario no dispone de ellos. Los detalles técnicos de la conciliación de préstamos y el diseño de deudas simples quedan pendientes.
+
+#### 9.4.1 Préstamos con cuotas — CONFIRMADO
+
+- Registrar un préstamo mediante un nombre o descripción identificable, **saldo de deuda pendiente actual** y moneda. Si el usuario los conoce, permitir añadir **importe habitual de cuota, frecuencia y fecha de vencimiento**, sin exigirlos como datos imprescindibles de seguimiento del saldo. No confundir capital inicial del préstamo con saldo pendiente actual.
+- Mostrar deuda registrada, cuota habitual cuando exista, siguiente vencimiento si se conoce e historial de pagos. No crear automáticamente salidas del banco ni marcar cuotas pagadas por transcurrir el tiempo.
+- Acciones principales: **«Registrar pago»** y **«Actualizar deuda pendiente»**.
+- **Registrar pago:** el usuario anota cuánto pagó efectivamente; la aplicación **reduce el saldo consolidado de Bancos [moneda]** una sola vez y conserva la operación en el historial.
+- Una cuota puede contener amortización de principal, intereses, seguros y/o comisiones. **No restar necesariamente de la deuda el importe íntegro pagado**. Si el usuario conoce el desglose, el componente de capital disminuye la deuda y los intereses/gastos financieros registrados cuentan en la estadística correspondiente, sin duplicaciones.
+- **Si desconoce el desglose**, puede registrar el pago sin clasificarlo entre capital e intereses; el monto pagado sale de bancos, pero la deuda no debe reducirse arbitrariamente por ese mismo total. El usuario puede consultar el saldo real del préstamo e introducirlo mediante «Actualizar deuda pendiente». Conservar el ajuste y la fecha, sin deducir automáticamente qué parte fueron intereses, seguros u otros cargos. La interfaz debe hacer visible cuando la deuda aguarda conciliación.
+- El pago de **capital de un préstamo** no es un gasto ordinario nuevo y la recepción del capital prestado tampoco es un ingreso ordinario. **Los intereses y cargos** sí pueden clasificarse como gastos si el usuario conoce los importes.
+- Se mantienen las alertas sobre vencimientos **solo cuando la fecha esté registrada** (§11.1).
+- **Pendiente:** cómo conciliar pagos con ajustes posteriores sin doble conteo, cuotas variables, pagos adelantados, moneda distinta y desglose automático por contrato; no implementar reglas inferidas sin acuerdo.
+
+#### 9.4.2 Deudas simples y dinero por cobrar — DETALLE PENDIENTE
+
+- El alcance de ambos está aprobado, pero todavía falta definir y confirmar las reglas particulares de registro, pago parcial/total, cobro y conciliación.
 
 ## 10. Monedas y conversión — CONFIRMADO
 
@@ -245,7 +261,7 @@
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
 2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** y **formulario sencillo de valor de cuota × cantidad de cuotas, sin precio original ni tasa de interés** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres, pagos mínimos, cuotas de importes variables, cargos posteriores, compras multimoneda y conciliación.
-3. **Funcionamiento preciso de deudas por pagar y dinero por cobrar** (ambos módulos aprobados en §9.4): datos mínimos, préstamos vs. deudas simples, cuotas, amortización, vencimientos, intereses, historial, pagos/cobros y efecto en bancos y estadísticas.
+3. **Deudas por pagar y dinero por cobrar**: confirmados ambos módulos y el flujo básico de **préstamos con cuotas** (§9.4.1: registrar pago, actualizar deuda y desglose de intereses opcional). Pendiente: **deudas simples**, cobros, pagos parciales, conciliación de préstamos, cuotas variables, historial y detalles de datos mínimos.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
@@ -286,3 +302,4 @@
 - **2026-11-06 — v1.8:** al registrar compras en cuotas, elegir mes/año de la primera cuota y permitir modificarlo después; se reajustan las cuotas y estadísticas mensuales sin duplicar ni alterar pagos efectivamente registrados.
 - **2026-11-06 — v1.9:** simplificado el registro de compras en cuotas con o sin intereses: valor de cuota, cantidad de cuotas, tarjeta, categoría y primer mes; calcular total financiado automáticamente. Descartados precio original de contado y tasa de interés como datos obligatorios o campos del formulario principal.
 - **2026-11-06 — v2.0:** confirmado alcance de dos módulos diferenciados: deudas/préstamos por pagar y dinero por cobrar. El modelo concreto de alta, pagos, cuotas e intereses queda pendiente, evitando dar por aprobadas propuestas de diseño.
+- **2026-11-06 — v2.1:** confirmado flujo simple de préstamos con cuotas: datos de deuda y cuota conocida, registrar pago real descontado del banco, actualizar deuda pendiente manualmente y desglose opcional entre capital/intereses/cargos; no reducir automáticamente la deuda por toda la cuota cuando se desconoce el desglose.
