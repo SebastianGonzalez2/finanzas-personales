@@ -123,7 +123,7 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 
 ## Estrategia de PR y tickets
 
-**Tamaño recomendado:** un PR entrega una capacidad vertical pequeña y probada, no varios módulos contables a la vez. Rama `feature/F1-03-movimientos`, `fix/F2-03-cuotas`, etc.; nombres ilustrativos. Cada ticket referencia RF, CA, fuente de producto, migración y UI afectada.
+**Tamaño recomendado:** un PR entrega una capacidad vertical pequeña y probada, no varios módulos contables a la vez. **Convención obligatoria:** ver [nombres de rama, commits y PR](09-convenciones-git.md). Usar una rama `codex/F1-03-registro-movimientos`, commits `feat(F1-03): registrar gastos e ingresos`, PR `[F1-03] Registro manual de movimientos`, y completar [plantilla automática de PR](../../.github/PULL_REQUEST_TEMPLATE.md) con RF/CA, pruebas, riesgos y alcance. **El mismo ID aparece en los tres elementos**. Otros prefijos de rama solo si se documentan expresamente; no mezclar tickets en un PR. No reescribir el historial existente. Cada ticket referencia RF, CA, fuente de producto, migración y UI afectada.
 
 **Plantilla de ticket:**
 
