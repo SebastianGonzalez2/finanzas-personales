@@ -37,9 +37,9 @@
 | R-19 | Conexión de Neon/Google/Vercel requiere credenciales y acciones del titular. | Operativo; no se puede completar sin permisos del dueño. | No configurado en este paquete | Documentar variables en `.env.example`, solicitar autorización puntual, no almacenar tokens/API keys en documentos, issues, GitHub o chat. |
 | R-20 | Backlog amplio genera falsa «MVP completa» al finalizar núcleo. | Medio/alto; expectativas equivocadas. | Controlado con fases | Distinguir demostración interna incremental de producto completo aprobado; conservar todas RF P1/P2 en plan y establecer gates. |
 
-## Precaución: decisiones anteriores reemplazadas
+## Evidencia F0-04 — 2026-11-07
 
-### Evidencia F0-04 — 2026-11-07
+Entrega revisable: [PR #3 en borrador](https://github.com/SebastianGonzalez2/finanzas-personales/pull/3), commit `2c12f46`; no constituye cierre de los riesgos.
 
 - **R-01 — En investigación:** [informe y procedimiento](12-informe-f0-04.md), [pruebas locales](../../spikes/neon-auth/tests/admission.test.mjs). Política experimental cubre ambos proveedores, código reutilizable, rotación, revocación y permisos pendientes. Transporte real de admisión en Google/email, webhook configurado y rechazo directo en Neon: **pendientes**; no hay proyecto de prueba, confirmado por el titular.
 - **R-02 — No configurado:** métodos OTP/reset compilan; envío, reenvío, expiración, antiabuso y SMTP real **no ejecutados**. No se contrató servicio.
@@ -48,6 +48,8 @@
 - **R-19 — Pendiente:** titular debe preparar Neon Free de prueba y buzones según el informe; no se requieren secretos en Git/chat. Procedimiento de consola documentado, sin configuración real ni facturación.
 
 Resultados ejecutados: `npm ci --ignore-scripts --no-audit --no-fund` (pasa con advertencia de peer), `npm test` (27/27), `npm run typecheck` (pasa), `npm run probe` (salida 2: URL ausente), `npm audit --omit=dev --json` (0 vulnerabilidades reportadas), todos desde `spikes/neon-auth`. Ningún riesgo se marca verificado por estas pruebas locales. Resto de la matriz conserva sus estados.
+
+## Precaución: decisiones anteriores reemplazadas
 
 | Tema | Regla definitiva a implementar |
 |---|---|

@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-11-07. **Estado:** investigación y experimento local entregados; **validación real pendiente por falta de proyecto Neon de prueba**, confirmada por el titular. No cierra F0 ni habilita publicación.
 
+**Revisión:** [PR #3 en borrador](https://github.com/SebastianGonzalez2/finanzas-personales/pull/3), rama `codex/F0-04-neon-auth-invitaciones`; implementación local en commit `2c12f46`. Sin merge ni despliegue.
+
 ## Alcance y trazabilidad
 
 RF-001…004; CA-001…006 como referencia, especialmente CA-002/003/004/005; RNF-01/09/11/12; I-12 (aislamiento). Producto v9.48, §§11.4.2/3/5 y 12.1. No hay movimientos, migraciones ni efectos monetarios: I-01…I-11 no se modifican.
