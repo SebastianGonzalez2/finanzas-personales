@@ -25,6 +25,7 @@ export class Money {
     currency(code);
     if (
       typeof value !== "string" ||
+      value.trim() !== value ||
       value.length > 22 ||
       !/^-?(0|[1-9]\d{0,15})(\.\d{1,4})?$/.test(value)
     ) {
