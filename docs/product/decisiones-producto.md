@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.4  
+**Versión:** 1.5  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -195,13 +195,30 @@
 - Conservar como referencia la **composición de cuatro columnas** del tablero; **pendiente** decidir cómo se adaptan exactamente sus tarjetas a los módulos finales, especialmente tras excluir inversiones.
 - El usuario prioriza **claridad, rapidez, mínimo mantenimiento y organización**.
 
+## 11.1 Alertas y recordatorios — CONFIRMADO (canales externos pendientes)
+
+**Principio:** avisar únicamente sobre situaciones útiles o revisiones opcionales, sin crear trabajo administrativo innecesario ni presentar datos inferidos como si fueran hechos confirmados.
+
+- Incluir un **centro de notificaciones dentro de la aplicación** (por ejemplo, campana visible en el dashboard). Los avisos deben tener un texto entendible, un estado de atención y, cuando proceda, una acción directa para resolverlos.
+- **Vencimiento de tarjeta de crédito:** alerta de alta prioridad antes del vencimiento que haya sido cargado, mientras el pago correspondiente figure pendiente de confirmar. Se propuso **3 días antes** como valor inicial ajustable; el plazo final exacto se puede configurar. Si no hay fecha o monto del estado de cuenta confirmados, no inventarlos ni afirmar que existe un atraso.
+- **Cuotas de préstamos/deudas:** alerta de alta prioridad con antelación a un vencimiento registrado, mientras la cuota correspondiente esté pendiente. No inventar fechas ni importes.
+- **Gastos recurrentes:** recordatorio de prioridad media o informativa si llegó el período habitual y el pago todavía no se registró. Con fecha desconocida, indicar **«pago de este período sin confirmar»**, **NO «vencido»**; no realizar descuentos automáticos.
+- **Revisión de movimientos:** recordatorio de baja prioridad para revisar si hubo ingresos/gastos olvidados, orientativamente semanal; puede desactivarse o posponerse. No afirmar que existieron movimientos no registrados.
+- **Saldo bancario bajo:** aviso cuando el saldo registrado de una moneda caiga por debajo de un **umbral que establezca el usuario**. Reconocer que ese saldo puede no coincidir con el real si no se concilió.
+- **Presupuesto por categoría excedido:** posible aviso cuando se habilite el módulo de presupuestos y exista un límite configurado. No implica que presupuestos ya esté aprobado.
+- **Revisión del saldo bancario real:** **NO generar una alerta obligatoria ni automática cada 14 días**. Mantener «Actualizar saldo real» disponible en todo momento, mostrando la fecha de **última comprobación manual**. Ofrecer únicamente un **recordatorio de revisión opcional, desactivado por defecto**, cuyo intervalo configure quien lo active.
+- **Antirruido:** como regla general, un aviso por situación, no repetirlo todos los días; permitir marcar revisado, posponer o desactivar tipos de alertas. Resolver la situación (registrar el pago, actualizar lo requerido, etc.) debe cerrar o actualizar el aviso correspondiente.
+- Separar avisos de **vencimientos confirmados** de sugerencias o recordatorios basados en el historial. No convertir predicciones, importes estimados ni desconocimiento del banco en obligaciones ciertas.
+- **Canales de envío:** queda confirmada la presencia de avisos **dentro de la app**. **NO quedó elegido todavía** si habrá correos electrónicos (p. ej., resumen semanal) o notificaciones push al dispositivo. Ambos canales externos son opciones pendientes y no deben implementarse por inferencia.
+- **Detalles técnicos abiertos:** preferencias y tiempos concretos por tipo de alerta, modo de persistencia, política de deduplicación/posposición y configuración de permisos para los eventuales canales externos.
+
 ## 12. Funcionalidades todavía PENDIENTES
 
-1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; pendiente solo definir detalles secundarios de detección/estimación y notificaciones, sin descontar automáticamente.
-2. **Tarjetas de crédito:** ya confirmados catálogo débito/crédito, efectos de compras, pagos y ajustes manuales (§9). Falta precisar cierres, vencimientos/resúmenes, cuotas, intereses, mínimos, compras multimoneda y alertas.
+1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
+2. **Tarjetas de crédito:** ya confirmados catálogo débito/crédito, efectos de compras, pagos y ajustes manuales (§9); alertas generales aprobadas en §11.1. Falta precisar cierres, vencimientos/resúmenes, cuotas, intereses, mínimos y compras multimoneda.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
-5. **Presupuestos y límites de gasto**, objetivos de ahorro, alertas y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Notificaciones y recordatorios:** seleccionar eventos, nivel de prioridad, cuándo avisar y canal; ninguna regla se ha aprobado todavía.
+5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
 7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
 8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
@@ -215,7 +232,7 @@
 - Codex informó que el remoto `origin/main` y la rama local están sincronizados tras ese primer commit. Otros commits posteriores de documentación pueden existir; verificar localmente antes de trabajar.
 - Playwright MCP probado: pudo navegar y realizar capturas; hubo una restricción de guardado fuera del directorio autorizado.
 - El análisis visual fue elaborado y se informó como guardado localmente en `docs/design/fintrack-visual-spec.md`, pero **no se encontró en el repositorio remoto al revisar la rama `main`**. No darlo por versionado hasta comprobarlo.
-- Este documento v1.2 se incorpora a `docs/product/decisiones-producto.md` en GitHub, rama `main`. Si Codex tiene una versión local distinta o sin seguimiento, primero debe traer los cambios de GitHub y comparar antes de sobrescribir nada.
+- Este documento está versionado en `docs/product/decisiones-producto.md` en GitHub, rama `main` (versión indicada al inicio). Si Codex tiene una versión local distinta o sin seguimiento, primero debe traer los cambios de GitHub y comparar antes de sobrescribir nada.
 - **No iniciar programación del producto hasta cerrar la planificación funcional suficiente**.
 
 ## 14. Reglas de mantenimiento del registro
@@ -234,3 +251,4 @@
 - **2026-11-06 — v1.2:** consolidación y publicación directa en GitHub; se confirma qué documentación está efectivamente versionada en `main` y qué documentación visual sigue pendiente de subir. Sin cambios nuevos de funcionalidad. Se actualizaron los apartados pendientes para no contradecir esos acuerdos.
 - **2026-11-06 — v1.3:** gastos recurrentes aprobados: opcionales, importes variables estimables a partir de historial, vencimientos opcionales/aproximados, sugerencias de recurrencia, confirmación de pagos reales, conciliación sin duplicados y sin descuentos automáticos.
 - **2026-11-06 — v1.4:** tarjetas registrables como débito o crédito; débito carga a bancos agrupados, crédito acumula deuda por tarjeta; pagos de tarjeta reducen banco y deuda sin registrar un segundo gasto; deuda inicial y ajustes manuales sin clasificar; quedan pendientes detalles de estados de cuenta y alertas.
+- **2026-11-06 — v1.5:** alertas no intrusivas aprobadas: vencimientos de tarjetas y préstamos, recurrentes sin confirmar, revisión de movimientos, umbrales bajos y presupuestos futuros. Revisión bancaria opcional y desactivada por defecto; sin alerta periódica obligatoria de 14 días. Centro de avisos interno; correo y push pendientes.
