@@ -27,6 +27,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
+**Entrega F0-03 para revisión:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
+
 ## Autoridad y resolución de conflictos
 
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).

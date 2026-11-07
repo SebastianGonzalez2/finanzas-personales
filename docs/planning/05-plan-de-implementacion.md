@@ -36,6 +36,8 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 
 **Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Neon Auth/SMTP/código invitación, **no simular** que el acceso es seguro ni publicar con un bypass.
 
+**Seguimiento F0-03 — 2026-11-07:** esqueleto Next.js/TypeScript/Tailwind/shadcn con lockfile y herramientas de formato/lint, **en revisión** en `codex/F0-03-scaffold-nextjs`. Ver [implementación, checks y límites](11-informe-f0-03.md). Dev server, instalación limpia, typecheck/lint/build y revisión de portada en Chromium móvil/escritorio ejecutados; no implica auth, DB, CI, cierre de CA funcionales ni puerta F0. Siguiente ticket: F0-04.
+
 ## F1 — Núcleo financiero y movimientos
 
 | Ticket | Entrega | RF/CA principal |
