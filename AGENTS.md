@@ -23,6 +23,10 @@ Next.js + TypeScript + Tailwind CSS + shadcn/ui, Vercel, Neon PostgreSQL y Neon 
 - Sin operaciones financieras offline ni integración bancaria, OCR, IA por voz, efectivo, inversiones o archivos de comprobantes.
 - No poner tokens, contraseñas, claves API, backups reales ni datos personales financieros en Git o logs.
 
+## Nombre de conversaciones de Codex: obligatorio por ticket
+
+Para cada nuevo chat/hilo de Codex, **el título debe empezar por el ID canónico del ticket** y una descripción corta: `[F0-01] Revisión inicial`, `[F0-03] Configurar Next.js`, `[F1-03] Registrar movimientos`. Usar **exactamente** el mismo ID que la rama, los commits y la PR. **Primera línea del primer mensaje**: `[F0-01] Revisión inicial`; después poner el objetivo y criterios. Si el título autogenerado omite el ID, **renombrarlo con la función de la aplicación, si existe**, o manualmente; en CLI puede emplearse `/rename`. **Las instrucciones de repositorio no garantizan poder cambiar automáticamente el título de la UI**, por lo que verificar que aparezca correctamente. Para continuar el mismo ticket, mantener el chat; cambiar de ticket implica abrir otro chat. Ver `docs/planning/09-convenciones-git.md`.
+
 ## Convención obligatoria de Git y trazabilidad
 
 Seguir `docs/planning/09-convenciones-git.md` para **todos los tickets nuevos**:
