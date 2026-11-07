@@ -39,3 +39,7 @@ Referencias oficiales: [Node 24 test runner](https://nodejs.org/docs/latest-v24.
 `npm run check`: pasa. `npm run test:unit`: 3/3. `npm run test:e2e`: 2/2. `npm audit --json`: cero avisos. Integración local sin variables: falla cerrada, esperada; no hay Docker/psql/postgres instalados. Primer intento E2E aislado quedó sin respuesta local; se canceló y repetición fuera del sandbox pasó. Un segundo intento simultáneo falló EADDRINUSE y no se ocultó reutilizando el servidor.
 
 RF-004/RNF-01/02/03/12, CA-001/006/013/014/066, I-11/12: infraestructura y comprobaciones parciales, **no aceptación funcional**. Sin migraciones ni cambios de UI, Neon o datos. R-13/R-19 abiertos. CI remoto y prueba negativa se registran en el PR con su SHA. Siguiente: F0-05 en entorno Neon aislado y protección tras revisión humana.
+
+## Evidencia remota negativa
+
+[Run 42405689022](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42405689022), SHA `14b8ff3`: `F0 quality` falla exactamente en el centinela unitario (3 pasan, 1 falla); formato/lint/tipos/build pasan. `F0 database` pasa contra PostgreSQL real. El test temporal se elimina en un commit nuevo, conservando la evidencia histórica. Esto demuestra propagación del fallo al check, **no** protección efectiva de merge. No se intentó hacer merge como experimento.
