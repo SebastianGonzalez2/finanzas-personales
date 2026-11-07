@@ -8,6 +8,16 @@
 
 Los **archivos y commits de Git**, no la memoria de la conversación, son la fuente persistente de avance. Codex debe leer documentación del repositorio al inicio de cada nuevo chat.
 
+## Nombre visible del chat de Codex
+
+**Norma para todos los tickets:** título **`[ID] Descripción breve`**, p. ej. `[F0-01] Revisión inicial`, `[F0-02] Diseño visual`, `[F0-03] Configurar Next.js`, `[F1-03] Registrar movimientos`. El ID debe ser **idéntico** al de la rama, commit y PR. Al iniciar un nuevo chat:
+1. Escribir **en la primera línea del primer mensaje** el título sugerido `[F0-01] Revisión inicial`.
+2. Seguir debajo con el prompt de ese ticket. No abrir un chat nuevo para cambiar solo el nombre.
+3. Si Codex generó un título sin ID, **renombrarlo desde la UI cuando esté disponible** o, en CLI, con `/rename [F0-01] Revisión inicial`. La extensión de VS Code puede no ofrecer rename según versión; entonces usar primera línea del prompt y comprobar el resultado. No asumir que un texto en `AGENTS.md` puede alterar el título de un chat ya existente.
+4. Si el chat actual ya se llama «Revisar estado inicial del repositorio», renombrarlo a `[F0-01] Revisión inicial` cuando la superficie lo permita, **sin reiniciar ni perder su trabajo**.
+
+Este convenio se documenta además en `09-convenciones-git.md`. Los títulos de chat se tratan como referencias de navegación, **no como prueba de implementación**.
+
 ## Entorno recomendado al comenzar
 
 - Abrir **Codex en el ordenador**, elegir el proyecto local `finanzas-personales`, confirmar ruta, rama y remoto de GitHub. No editar otro proyecto.
@@ -33,6 +43,8 @@ Los **archivos y commits de Git**, no la memoria de la conversación, son la fue
 ## Prompt inicial: F0-01 (primera vez)
 
 ```text
+[F0-01] Revisión inicial
+
 Estamos desarrollando el repositorio SebastianGonzalez2/finanzas-personales.
 Abrí y revisá AGENTS.md y docs/planning/README.md, 05-plan-de-implementacion.md,
 06-riesgos-y-pendientes.md y 07-handoff-codex.md. El documento de decisiones
@@ -57,6 +69,8 @@ de trabajo separada y ejecutá los chequeos que correspondan.
 ## Prompt para un ticket de implementación ordinario
 
 ```text
+[F?-??] Descripción breve del ticket
+
 Leé AGENTS.md y docs/planning/README.md. Trabajá SOLO [F?-??] de
 docs/planning/05-plan-de-implementacion.md, usando los requisitos RF-...
 y criterios CA-... de docs/planning. Comprobá git status y sincronización
