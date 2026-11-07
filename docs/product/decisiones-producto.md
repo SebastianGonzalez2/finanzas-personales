@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.7  
+**Versión:** 1.8  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -180,12 +180,13 @@
 
 - Al registrar una compra con una tarjeta de crédito, ofrecer de manera opcional un **plan de cuotas**: descripción, categoría/subcategoría, tarjeta, moneda, precio total, cantidad de cuotas y distribución mensual. Para una compra sin intereses de $12.000 UYU en 6 cuotas, mostrar $2.000 UYU como gasto asignado a cada uno de los seis períodos correspondientes.
 - **Estadísticas mensuales:** contabilizar el importe **de la cuota correspondiente a cada mes** en la categoría elegida; **no** cargar simultáneamente los $12.000 como gasto en el primer mes ni repetir el gasto cuando se paga el estado de cuenta.
+- Al cargar una compra en cuotas, el usuario **selecciona el mes y año de la primera cuota** (no necesita conocer la fecha de cierre del emisor). El sistema distribuye automáticamente las cuotas desde ese período, una por mes, y permite **modificar posteriormente el mes inicial**, actualizando el calendario y la asignación de gastos mensuales. Las correcciones deben conservar trazabilidad y no alterar ni duplicar pagos reales previamente registrados.
 - El calendario y la asignación mensual de cuotas se **generan automáticamente** desde la compra inicial, sin obligar a registrar cada cuota a mano. La creación del registro mensual no implica que el usuario haya pagado la tarjeta.
 - Mostrar una sección **«Compras en cuotas»** por tarjeta, con descripción, precio total, número de cuotas, importe de cada cuota, meses/períodos asignados, progreso, cuotas futuras y compromiso restante.
 - **Diferenciar expresamente:** cuota incluida en los gastos/plan mensual, cuota facturada en un estado de cuenta, cuota efectivamente pagada, **deuda actual registrada de la tarjeta** y **cuotas futuras comprometidas**. «Cuota del mes» no equivale a «pagada». El progreso nunca debe declarar pagos confirmados solo porque haya transcurrido un mes.
 - **Pago de la tarjeta:** al registrar el pago efectivo, descontar del saldo bancario agrupado y reducir la deuda correspondiente **sin generar otro gasto**. No descontar automáticamente saldo bancario cuando se genera la cuota mensual.
 - **Evitar doble cómputo de deuda:** según el emisor, el saldo que informa el banco puede reflejar solamente cuotas facturadas o también obligaciones de cuotas futuras. La aplicación debe mantener separado el **saldo real/manual del emisor** y el **calendario de compromisos futuros**, sin sumar a ciegas ambos importes al patrimonio o a la deuda total. La política técnica exacta de reconocimiento/reconciliación queda pendiente.
-- Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; **intereses, comisiones, primer ciclo de facturación, cuotas no iguales y cambios multimoneda** requieren aún reglas detalladas y no deben inferirse por defecto.
+- Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; **intereses, comisiones, conciliación con el ciclo real del emisor, cuotas no iguales y cambios multimoneda** requieren aún reglas detalladas y no deben inferirse por defecto.
 - **Ejemplo confirmado:** $12.000 en 6 cuotas de $2.000 → cada mes se muestran $2.000 en estadísticas de gastos; Bancos UYU no disminuye hasta el registro de pago real de la tarjeta.
 
 ### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
@@ -238,7 +239,7 @@
 ## 12. Funcionalidades todavía PENDIENTES
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
-2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: cierres y primer período de cuotas, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
+2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres del emisor, intereses, pagos mínimos, compras multimoneda y reglas detalladas de conciliación.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
@@ -277,3 +278,4 @@
 - **2026-11-06 — v1.5:** alertas no intrusivas aprobadas: vencimientos de tarjetas y préstamos, recurrentes sin confirmar, revisión de movimientos, umbrales bajos y presupuestos futuros. Revisión bancaria opcional y desactivada por defecto; sin alerta periódica obligatoria de 14 días. Centro de avisos interno; correo y push pendientes.
 - **2026-11-06 — v1.6:** estado de cuenta y vencimiento opcionales por tarjeta de crédito; deuda total diferenciada del importe a pagar en el período; recordatorio solo con importe y fecha aportados por el usuario, sin pagos automáticos. Siguiente decisión pendiente: compras en cuotas.
 - **2026-11-06 — v1.7:** compra en cuotas ingresada una sola vez; importe distribuido automáticamente como gasto en cada mes; sin descuentos a bancos hasta pago real de la tarjeta. Vista de progreso y cuotas comprometidas; distinción entre plan futuro, deuda del emisor, facturación y pagos, para evitar doble conteo.
+- **2026-11-06 — v1.8:** al registrar compras en cuotas, elegir mes/año de la primera cuota y permitir modificarlo después; se reajustan las cuotas y estadísticas mensuales sin duplicar ni alterar pagos efectivamente registrados.
