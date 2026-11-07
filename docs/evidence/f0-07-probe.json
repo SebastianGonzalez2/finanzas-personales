@@ -1,0 +1,174 @@
+{
+  "observedAt": "2026-11-07T19:19:18.973Z",
+  "purpose": "Public source availability only; not financial data",
+  "observations": [
+    {
+      "url": "https://datosuruguay.com/api/v1/exchange-rates/usd?to=2026-11-06&limit=2",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": {
+        "data": [
+          {
+            "date": "2026-11-06",
+            "series": "usd",
+            "value": 40.449
+          },
+          {
+            "date": "2026-11-05",
+            "series": "usd",
+            "value": 40.307
+          }
+        ],
+        "meta": {
+          "indicator": "usd",
+          "source": "BCU",
+          "unit": "UYU/USD",
+          "frequency": "daily",
+          "last_updated": "2026-11-06",
+          "count": 2,
+          "limit": 2,
+          "offset": 0,
+          "total": 6516,
+          "has_more": true,
+          "license": "CC-BY-4.0",
+          "attribution": {
+            "required": true,
+            "text": "Datos de datosUruguay.com",
+            "url": "https://datosuruguay.com/dolar?utm_source=api&utm_medium=attribution&utm_campaign=backlinks"
+          }
+        }
+      }
+    },
+    {
+      "url": "https://datosuruguay.com/api/v1/exchange-rates/eur?to=2026-11-06&limit=2",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": {
+        "data": [
+          {
+            "date": "2026-11-06",
+            "series": "eur",
+            "value": 45.080411
+          },
+          {
+            "date": "2026-11-05",
+            "series": "eur",
+            "value": 45.252669
+          }
+        ],
+        "meta": {
+          "indicator": "eur",
+          "source": "BCU",
+          "unit": "UYU/EUR",
+          "frequency": "daily",
+          "last_updated": "2026-11-06",
+          "count": 2,
+          "limit": 2,
+          "offset": 0,
+          "total": 6516,
+          "has_more": true,
+          "license": "CC-BY-4.0",
+          "attribution": {
+            "required": true,
+            "text": "Datos de datosUruguay.com",
+            "url": "https://datosuruguay.com/euro?utm_source=api&utm_medium=attribution&utm_campaign=backlinks"
+          }
+        }
+      }
+    },
+    {
+      "url": "https://datosuruguay.com/api/v1/exchange-rates/usd?to=2026-11-01&limit=2",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": {
+        "data": [
+          {
+            "date": "2026-10-30",
+            "series": "usd",
+            "value": 40.188
+          },
+          {
+            "date": "2026-10-29",
+            "series": "usd",
+            "value": 40.191
+          }
+        ],
+        "meta": {
+          "indicator": "usd",
+          "source": "BCU",
+          "unit": "UYU/USD",
+          "frequency": "daily",
+          "last_updated": "2026-11-06",
+          "count": 2,
+          "limit": 2,
+          "offset": 0,
+          "total": 6512,
+          "has_more": true,
+          "license": "CC-BY-4.0",
+          "attribution": {
+            "required": true,
+            "text": "Datos de datosUruguay.com",
+            "url": "https://datosuruguay.com/dolar?utm_source=api&utm_medium=attribution&utm_campaign=backlinks"
+          }
+        }
+      }
+    },
+    {
+      "url": "https://api.frankfurter.dev/v2/rates?date=2026-11-06&base=USD&quotes=UYU,EUR",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": [
+        {
+          "date": "2026-11-06",
+          "base": "USD",
+          "quote": "EUR",
+          "rate": 0.89138
+        },
+        {
+          "date": "2026-11-06",
+          "base": "USD",
+          "quote": "UYU",
+          "rate": 40.289
+        }
+      ]
+    },
+    {
+      "url": "https://api.frankfurter.dev/v2/rates?date=2026-11-01&base=USD&quotes=UYU,EUR",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": [
+        {
+          "date": "2026-11-01",
+          "base": "USD",
+          "quote": "EUR",
+          "rate": 0.89445
+        },
+        {
+          "date": "2026-11-01",
+          "base": "USD",
+          "quote": "UYU",
+          "rate": 40.127
+        }
+      ]
+    },
+    {
+      "url": "https://api.frankfurter.dev/v1/2026-11-06?base=USD&symbols=UYU,EUR",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "sample": {
+        "amount": 1,
+        "base": "USD",
+        "date": "2026-11-06",
+        "rates": {
+          "EUR": 0.89566
+        }
+      }
+    }
+  ]
+}
