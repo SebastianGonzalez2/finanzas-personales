@@ -39,6 +39,16 @@
 
 ## Precaución: decisiones anteriores reemplazadas
 
+### Evidencia F0-04 — 2026-11-07
+
+- **R-01 — En investigación:** [informe y procedimiento](12-informe-f0-04.md), [pruebas locales](../../spikes/neon-auth/tests/admission.test.mjs). Política experimental cubre ambos proveedores, código reutilizable, rotación, revocación y permisos pendientes. Transporte real de admisión en Google/email, webhook configurado y rechazo directo en Neon: **pendientes**; no hay proyecto de prueba, confirmado por el titular.
+- **R-02 — No configurado:** métodos OTP/reset compilan; envío, reenvío, expiración, antiabuso y SMTP real **no ejecutados**. No se contrató servicio.
+- **R-13 — En investigación:** pruebas sintéticas de aislamiento pasan; no hay pruebas DB A/B. SDK 0.8.2 conserva cookie cacheada con `disableCookieCache: true` boolean; [reproducción](../../spikes/neon-auth/tests/sdk.test.mjs). Debe verificarse sesión fresca y revocación inmediata antes de autorizar datos.
+- **R-17 — En investigación:** SDK Apache-2.0 instalado en spike con lockfile; advertencia de peer transitivo fetch 1.3.2/1.3.3, sin override. No declarar compatibilidad runtime completa por compilación de contrato.
+- **R-19 — Pendiente:** titular debe preparar Neon Free de prueba y buzones según el informe; no se requieren secretos en Git/chat. Procedimiento de consola documentado, sin configuración real ni facturación.
+
+Resultados ejecutados: `npm ci --ignore-scripts --no-audit --no-fund` (pasa con advertencia de peer), `npm test` (27/27), `npm run typecheck` (pasa), `npm run probe` (salida 2: URL ausente), `npm audit --omit=dev --json` (0 vulnerabilidades reportadas), todos desde `spikes/neon-auth`. Ningún riesgo se marca verificado por estas pruebas locales. Resto de la matriz conserva sus estados.
+
 | Tema | Regla definitiva a implementar |
 |---|---|
 | Devolución de compra de enero recibida en febrero | **v9.42**: devolución febrero separada, compras y presupuesto febrero **intactos**; no ingreso ordinario. |

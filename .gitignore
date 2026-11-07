@@ -1,0 +1,9 @@
+# Secretos locales, también durante los spikes de proveedores.
+.env*
+!.env.example
+!**/.env.example
+node_modules/
+.next/
+.playwright-mcp/
+next-env.d.ts
+*.tsbuildinfo

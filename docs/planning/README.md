@@ -30,6 +30,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 ## Autoridad y resolución de conflictos
 
+**Entrega F0-04 para revisión:** [Neon Auth, invitaciones y configuración por el titular](12-informe-f0-04.md), con [spike aislado](../../spikes/neon-auth/README.md). Investigación/pruebas locales entregadas; validación real pendiente por ausencia de entorno Neon. No declara auth de la aplicación implementada ni cierre de F0.
+
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).
 2. Este paquete transforma decisiones en **criterios implementables**, pero sus diagramas, nombres de tablas, orden de tareas y opciones de bibliotecas son **propuestas de ingeniería**, no nuevas funciones aprobadas.
 3. Si un documento de esta carpeta contradice una decisión del usuario en el historial, **detener la interpretación, abrir un registro de discrepancia y corregir el documento**; no elegir silenciosamente.
