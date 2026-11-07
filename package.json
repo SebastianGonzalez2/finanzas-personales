@@ -16,7 +16,11 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build",
+    "test": "npm run test:unit",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "clsx": "2.1.1",
@@ -28,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@next/eslint-plugin-next": "16.4.5",
+    "@playwright/test": "1.65.0",
     "@tailwindcss/postcss": "4.3.5",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
@@ -35,6 +40,7 @@
     "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-react-hooks": "7.1.1",
+    "pg": "8.23.1",
     "postcss": "8.5.32",
     "prettier": "3.9.10",
     "tailwindcss": "4.3.5",

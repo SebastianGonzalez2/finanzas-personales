@@ -1,0 +1,59 @@
+name: F0 CI
+on:
+  pull_request:
+  push:
+    branches: [main, codex/F0-06-ci-tests]
+permissions:
+  contents: read
+concurrency:
+  group: f0-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: F0 quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-fund
+      - run: npm run check
+      - run: npm run test:unit
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+  database:
+    name: F0 database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: f0_test
+          POSTGRES_PASSWORD: f0_test
+          POSTGRES_DB: finanzas_test
+        ports: [55432:5432]
+        options: >-
+          --health-cmd "pg_isready -U f0_test -d finanzas_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test
+      TEST_DATABASE_CONFIRM: isolated-local-test
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-fund
+      - run: npm run test:integration
+
