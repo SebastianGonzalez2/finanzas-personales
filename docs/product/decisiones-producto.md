@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.11  
+**Versión:** 9.12  
 **Actualizado:** 2026-11-07  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -223,9 +223,16 @@
 - La visualización de límite de crédito es **opcional**, si el usuario decide registrarlo.
 - **No descontar automáticamente el importe del resumen** ni marcarlo como pagado por una mera estimación o por llegar a la fecha. No asumir conexión con la entidad financiera.
 
+### 9.3.0 Pago mínimo informado por el banco — OPCIÓN A CONFIRMADA (v9.12)
+
+- **Campo opcional «Pago mínimo exigido» por resumen/ciclo de tarjeta de crédito**, solo si el emisor informa ese valor real. Mantener diferenciados **(a) total oficial del resumen, (b) mínimo oficial, (c) importe efectivamente pagado** y **(d) deuda pendiente total de tarjeta**. No exigir mínimo al crear tarjeta ni al registrar un pago, no estimar mínimos con porcentajes y no confundir una estimación basada en compras con un mínimo oficial.
+- Si se informa un mínimo, los **pagos reales asignados al ciclo** permiten mostrar si el mínimo **figura cubierto según la app**; ello **no implica** pago completo del resumen ni prueba bancaria de cumplimiento. Mantener visible el restante y actualizar recordatorios de manera coherente sin ocultar obligación pendiente. Por ejemplo, resumen $20.000, mínimo informado $3.000 y pago real registrado $3.000 → mínimo cubierto según registros, saldo del resumen $17.000 aún pendiente.
+- **Registrar el mínimo nunca descuenta bancos, no genera pago ni gasto y no altera deuda por sí solo**. Los pagos reales siguen reglas anteriores: reducen banco y deuda, historial sin doble gasto. No asumir que pagar el mínimo evita todos los intereses o cargos del emisor; los intereses efectivos pueden registrarse manualmente conforme §9.2.4 (v9.6). Si no hay mínimo informado, mostrar el resumen y pagos habituales sin indicadores de mínimo.
+- **Pendiente el detalle de interfaz** de recordatorios después de cubrir el mínimo pero mantener resumen pendiente; las reglas de notificación estimada/oficial y su distinción siguen vigentes. No tratar automáticamente el pago mínimo como equivalente al pago total.
+
 ### 9.3.1 Detalles que siguen abiertos — PENDIENTE
 
-- **Cierre habitual opcional y agrupación estimada de compras por ciclo CONFIRMADOS (v8.8)**; quedan pendientes reglas finas de fechas efectivas de contabilización del emisor, **modificaciones excepcionales de cierre ya CONFIRMADAS (v9.11, §9.3.5)**, y conciliación de la estimación con un resumen confirmado. También quedan pendientes reglas operativas adicionales de cuotas (§9.5), **intereses especiales no cubiertos por el registro manual de intereses realmente cobrados ya CONFIRMADO (v9.6, §9.2.4)**, pagos mínimos, compras en otra moneda y conciliación detallada de estados de cuenta. **La asignación manual de pagos parciales a compras/cuotas y fuentes de fondos está confirmada en §9.2 (v6.1);** sus validaciones y conciliación ante correcciones todavía requieren diseño técnico.
+- **Cierre habitual opcional y agrupación estimada de compras por ciclo CONFIRMADOS (v8.8)**; quedan pendientes reglas finas de fechas efectivas de contabilización del emisor, **modificaciones excepcionales de cierre ya CONFIRMADAS (v9.11, §9.3.5)**, y conciliación de la estimación con un resumen confirmado. También quedan pendientes reglas operativas adicionales de cuotas (§9.5), **intereses especiales no cubiertos por el registro manual de intereses realmente cobrados ya CONFIRMADO (v9.6, §9.2.4)**, **pago mínimo oficial opcional ya CONFIRMADO (v9.12, §9.3.0)**, compras en otra moneda y conciliación detallada de estados de cuenta. **La asignación manual de pagos parciales a compras/cuotas y fuentes de fondos está confirmada en §9.2 (v6.1);** sus validaciones y conciliación ante correcciones todavía requieren diseño técnico.
 - Está previsto que los pagos y consumos se identifiquen por tarjeta, no por banco: **métodos de débito independientes, cuentas bancarias agrupadas por moneda**.
 
 ### 9.3.2 Avisos estimados de pagos de tarjetas según cierre y vencimiento — OPCIÓN A CONFIRMADA (v9.7)
@@ -651,3 +658,4 @@
 - **2026-11-07 — v9.9:** opción A confirmada: recordatorios internos de tarjeta 3 días calendario antes del vencimiento como valor inicial, editable por tarjeta, sin notificaciones repetidas a diario y sin alterar pagos, saldos ni deudas; distinción entre fecha/importe estimados y confirmados permanece intacta. Push/email no decididos.
 - **2026-11-07 — v9.10:** opción B confirmada: avisos internos siempre disponibles y push al celular opcionales para vencimientos de tarjetas, sin impedir uso de la app si no hay compatibilidad/instalación/permisos o si falla la entrega. Buscar implementación con coste obligatorio adicional cero, sin garantías de recepción; permisos explícitos y posibilidad de desactivar. Email y push para otros tipos de alerta no se aprueban por inferencia.
 - **2026-11-07 — v9.11:** opción A confirmada: fecha de cierre excepcional para un mes/ciclo de tarjeta, que prevalece en estimaciones de ese ciclo sin reemplazar el cierre habitual de otros meses ni modificar compras, cuotas, saldos, deudas, pagos reales, estadísticas ni importes de resúmenes oficiales. Recalcular únicamente estimaciones y avisos; mantener trazabilidad. Vencimientos excepcionales y reglas bancarias de contabilización permanecen pendientes.
+- **2026-11-07 — v9.12:** opción A confirmada: pago mínimo oficial y opcional por resumen de tarjeta, independiente del total del resumen y de la deuda; mostrar mínimo cubierto según pagos reales registrados, sin considerar el resumen totalmente pagado ni estimar mínimos o intereses. No altera saldos al registrar el mínimo. Detalles de alertas después del mínimo pendientes.
