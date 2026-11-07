@@ -119,6 +119,9 @@ mostrame exactamente qué cambió.
 
 ## Control de modelos/intensidad
 
+**Consultar la matriz actual por ticket** en [10-modelos-por-ticket.md](10-modelos-por-ticket.md), que recomienda el modelo, nivel de razonamiento y necesidad de revisión independiente para cada tarea. El titular selecciona el modelo manualmente en Codex; no se cambia automáticamente por el nombre del ticket. Si falla una evaluación, no se sacrifica calidad para ahorrar uso.
+
+
 - Elegir un modelo avanzado disponible en Codex; los nombres exactos y disponibilidad cambian.
 - High para F0 autenticación/seguridad, F1 motor contable y checkpoints, F2 cuotas y tarjetas, F3 fondos, migraciones y revisiones críticas.
 - Medium para redacción de tests unitarios de bajo riesgo, edición de UI puntual, estilos, documentación o cambios pequeños.
