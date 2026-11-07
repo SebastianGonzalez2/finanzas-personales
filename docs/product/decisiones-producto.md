@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 8.4  
+**Versión:** 8.5  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -50,6 +50,7 @@
 - **NO conectar directamente cuentas bancarias de BROU, Itaú o Santander en la primera versión** ni pedir credenciales de acceso a esas entidades.
 - **NO separar obligatoriamente bancos por institución**: el usuario descartó gestionar BROU / Itaú / Santander como subcuentas individuales.
 - **DESCARTADO para la primera versión:** importar extractos o movimientos bancarios desde archivos **CSV/Excel**. No desarrollar interfaz de carga de extractos, lectura de archivos, mapeo de columnas ni conciliación por importación ahora. No comprometer una segunda versión; solo reconsiderarlo si el usuario lo pide expresamente.
+- **DESCARTADO el registro de transacciones por voz o asistente de IA (v8.5):** el usuario evaluó dictar mensajes como «Gasté $85 con débito Itaú en un alfajor, categoría Alimentación» para que se interpreten y precarguen o registren movimientos. Decidió **no incluirlo** por la complejidad de transcripción, interpretación y validación frente al beneficio esperado. No agregar botón de micrófono, grabación, reconocimiento automático de voz, procesamiento con IA externa ni costos de API para esta función. Se mantiene el registro manual desde cero (v8.4) y la lógica determinística aprobada para estadísticas y «Resumen inteligente» (v8.0). No implica prohibición general de toda IA futura si el usuario decide aprobar otra función concreta.
 
 ## 4. Cuentas bancarias — CONFIRMADO
 
@@ -558,4 +559,5 @@
 - **2026-11-07 — v8.1:** opción A confirmada: «Resumen inteligente» forma parte del catálogo de gráficos/tarjetas de «Estadísticas» y se puede marcar o desmarcar como favorito personal. Solo aparece en «Mis favoritos» cuando se lo elige; no se impone a todas las cuentas.
 - **2026-11-07 — v8.2:** opción A confirmada: operación única «Recibir préstamo» que acredita el saldo bancario en la moneda elegida y crea simultáneamente la deuda por el mismo capital, sin contabilizar ingresos ordinarios ni aumentar patrimonio neto ficticiamente; amortizaciones posteriores no se vuelven a tratar como gastos.
 - **2026-11-07 — v8.3:** opción A confirmada: para estadísticas históricas multimoneda, si falta cotización publicada en la fecha del movimiento (fines de semana/feriados), usar la última cotización histórica anterior o igual, con fecha y fuente visibles y guardadas; nunca usar una cotización posterior o actual. Ante ausencia total de tasas históricas utilizables, señalar la falta o permitir una tasa manual explícita, sin inventar equivalencias.
-- **2026-11-07 — v8.4:** opción B confirmada: descartado botón «Repetir»/duplicar movimientos y precarga desde transacciones anteriores. Los nuevos ingresos y gastos se crean desde cero en el formulario común; los módulos de gastos recurrentes confirmados se mantienen. Sin decisión todavía sobre incorporar servicios de inteligencia artificial externa al producto.
+- **2026-11-07 — v8.4:** opción B confirmada: descartado botón «Repetir»/duplicar movimientos y precarga desde transacciones anteriores. Los nuevos ingresos y gastos se crean desde cero en el formulario común; los módulos de gastos recurrentes confirmados se mantienen. Sin decisión todavía sobre otros eventuales servicios de inteligencia artificial externa al producto.
+- **2026-11-07 — v8.5:** descartada la funcionalidad de registrar gastos o ingresos mediante dictado de voz/IA (micrófono, transcripción y extracción de campos) por su complejidad. Mantener formulario manual de registro; los resúmenes estadísticos determinísticos ya aprobados no cambian.
