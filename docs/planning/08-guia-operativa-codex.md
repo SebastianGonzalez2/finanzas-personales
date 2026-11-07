@@ -4,7 +4,7 @@
 
 ## Regla principal
 
-**Una conversación principal de Codex por ticket o unidad de trabajo revisable (normalmente un PR pequeño).** Mantener la conversación para aclaraciones, errores, pruebas y correcciones de **ese mismo ticket**. Crear una nueva cuando haya cambiado el objetivo o el ticket haya sido aceptado y cerrado. No un chat por requisito de producto si el requisito es grande; dividir en tickets F0-01, F0-02, etc. No mezclar tareas de módulos independientes en un chat de implementación gigantesco.
+**Una conversación principal de Codex por ticket o unidad de trabajo revisable (normalmente un PR pequeño).** **Nombres y trazabilidad obligatorios:** seguir [09-convenciones-git.md](09-convenciones-git.md) y [plantilla de PR](../../.github/PULL_REQUEST_TEMPLATE.md): rama `codex/F0-01-revision-inicial`, commit `docs(F0-01): documentar estado inicial`, PR `[F0-01] Revisión inicial del repositorio`. El ID debe coincidir con el ticket; buscarlo recupera los cambios relacionados. Una rama no es un commit ni prueba de tarea completada. Mantener la conversación para aclaraciones, errores, pruebas y correcciones de **ese mismo ticket**. Crear una nueva cuando haya cambiado el objetivo o el ticket haya sido aceptado y cerrado. No un chat por requisito de producto si el requisito es grande; dividir en tickets F0-01, F0-02, etc. No mezclar tareas de módulos independientes en un chat de implementación gigantesco.
 
 Los **archivos y commits de Git**, no la memoria de la conversación, son la fuente persistente de avance. Codex debe leer documentación del repositorio al inicio de cada nuevo chat.
 
