@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.9  
+**Versión:** 2.0  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -36,7 +36,7 @@
 3. **Ajuste manual del saldo real** sin inventar ni clasificar automáticamente movimientos que faltan (detalles en §6).
 4. **Transferencias / cambios de moneda** sin falsos ingresos o gastos (detalles en §7).
 5. **Tarjetas de débito y crédito:** métodos de pago configurables; las tarjetas de crédito mantienen deuda propia y las de débito utilizan el saldo bancario agrupado. Quedan detalles de cierre y cuotas por definir (detalles en §9).
-6. **Deudas y préstamos:** importes pendientes, cuotas, vencimientos e intereses cuando corresponda; el comportamiento detallado está pendiente (detalles en §8).
+6. **Deudas y préstamos por pagar Y dinero por cobrar:** módulos diferenciados, con saldos y movimientos propios; el comportamiento detallado está pendiente (detalles en §9.4).
 7. **Conversión de divisas** para visualizar saldos consolidados (detalles en §9).
 8. **Dashboard y estadísticas** sustentados en los datos que existen (detalles en §11).
 9. **Gastos recurrentes flexibles y opcionales** (detalles en §8.1).
@@ -191,10 +191,13 @@
 - Permitir corregir el plan cuando cambie un importe o se produzca una cancelación anticipada; la **conciliación con el ciclo real del emisor, cuotas de importes diferentes, cargos posteriores al registro y compras multimoneda** requieren aún reglas detalladas. Para las cuotas iguales, **el usuario registra directamente su importe final** sin ingresar tasa ni precio original. No inventar intereses o comisiones adicionales.
 - **Ejemplo confirmado:** $12.000 en 6 cuotas de $2.000 → cada mes se muestran $2.000 en estadísticas de gastos; Bancos UYU no disminuye hasta el registro de pago real de la tarjeta.
 
-### 9.4 Deudas y préstamos no vinculados a tarjetas — INCLUIDOS, DETALLE PENDIENTE
+### 9.4 Deudas y préstamos / dinero por cobrar — AMBOS MÓDULOS CONFIRMADOS, DETALLE PENDIENTE
 
-- Permitir registrar importe adeudado y, cuando corresponda, cuotas, vencimientos e intereses.
-- Evitar doble contabilización entre movimientos, deuda y pagos. El diseño operativo definitivo queda pendiente.
+- Se confirma que existirán **ambos módulos separados**: (1) **Deudas y préstamos por pagar** — dinero que el usuario debe a entidades o personas; (2) **Dinero por cobrar** — dinero que terceros deben al usuario.
+- No confundir los efectos de signo: una deuda por pagar es un **pasivo**, mientras que dinero por cobrar es un **derecho de cobro** registrado, no efectivo bancario disponible.
+- Deben poder existir tanto préstamos con cuotas, vencimientos e intereses como **deudas simples sin plan de pagos**. Todavía no se aprobó qué campos serán obligatorios/opcionales ni el mecanismo detallado de cobro/pago.
+- **Evitar doble contabilización:** entregar o recibir capital de un préstamo y amortizar principal no equivalen por sí solos a ingreso o gasto ordinario; intereses y cargos sí requieren tratamiento diferenciado. Definir posteriormente cómo mostrarlos en estadísticas y flujo de caja, y cómo se concilian con los saldos bancarios.
+- El módulo no debe inventar fechas, amortización de capital ni intereses cuando el usuario no dispone de ellos. Toda automatización y conciliación concreta queda **pendiente de aprobación**.
 
 ## 10. Monedas y conversión — CONFIRMADO
 
@@ -242,7 +245,7 @@
 
 1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; notificaciones informativas aprobadas en §11.1, con detalles menores de detección y estimación pendientes, sin descuentos automáticos.
 2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** y **formulario sencillo de valor de cuota × cantidad de cuotas, sin precio original ni tasa de interés** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres, pagos mínimos, cuotas de importes variables, cargos posteriores, compras multimoneda y conciliación.
-3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
+3. **Funcionamiento preciso de deudas por pagar y dinero por cobrar** (ambos módulos aprobados en §9.4): datos mínimos, préstamos vs. deudas simples, cuotas, amortización, vencimientos, intereses, historial, pagos/cobros y efecto en bancos y estadísticas.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
 5. **Presupuestos y límites de gasto**, objetivos de ahorro y estadísticas adicionales: qué conservar de la captura y qué adaptar. **Alertas:** reglas generales aprobadas en §11.1; todavía pendientes configuración final de tiempos y canales externos (correo/push).
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
@@ -282,3 +285,4 @@
 - **2026-11-06 — v1.7:** compra en cuotas ingresada una sola vez; importe distribuido automáticamente como gasto en cada mes; sin descuentos a bancos hasta pago real de la tarjeta. Vista de progreso y cuotas comprometidas; distinción entre plan futuro, deuda del emisor, facturación y pagos, para evitar doble conteo.
 - **2026-11-06 — v1.8:** al registrar compras en cuotas, elegir mes/año de la primera cuota y permitir modificarlo después; se reajustan las cuotas y estadísticas mensuales sin duplicar ni alterar pagos efectivamente registrados.
 - **2026-11-06 — v1.9:** simplificado el registro de compras en cuotas con o sin intereses: valor de cuota, cantidad de cuotas, tarjeta, categoría y primer mes; calcular total financiado automáticamente. Descartados precio original de contado y tasa de interés como datos obligatorios o campos del formulario principal.
+- **2026-11-06 — v2.0:** confirmado alcance de dos módulos diferenciados: deudas/préstamos por pagar y dinero por cobrar. El modelo concreto de alta, pagos, cuotas e intereses queda pendiente, evitando dar por aprobadas propuestas de diseño.
