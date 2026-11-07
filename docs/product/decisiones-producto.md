@@ -1,7 +1,7 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
 **Versión:** 9.1  
-**Actualizado:** 2026-11-06  
+**Actualizado:** 2026-11-07  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
 **Referencia visual:** `docs/fintrack-original.jpeg` y `docs/design/fintrack-visual-spec.md`
