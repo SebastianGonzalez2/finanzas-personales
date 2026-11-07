@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 1.2  
+**Versión:** 1.3  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -38,7 +38,8 @@
 5. **Tarjetas de crédito:** seguimiento de saldos adeudados, vencimientos y pagos; el comportamiento detallado está pendiente (detalles en §8).
 6. **Deudas y préstamos:** importes pendientes, cuotas, vencimientos e intereses cuando corresponda; el comportamiento detallado está pendiente (detalles en §8).
 7. **Conversión de divisas** para visualizar saldos consolidados (detalles en §9).
-8. **Dashboard y estadísticas** sustentados en los datos que existen (detalles en §10).
+8. **Dashboard y estadísticas** sustentados en los datos que existen (detalles en §11).
+9. **Gastos recurrentes flexibles y opcionales** (detalles en §8.1).
 
 ### 3.2 Excluido explícitamente
 
@@ -121,6 +122,23 @@
 
 > **Nota:** Está confirmada la existencia de categorías y subcategorías predeterminadas y personalizables. La **lista final exacta** todavía puede ajustarse; los ejemplos previos no deben tratarse como un catálogo definitivo.
 
+## 8.1 Gastos recurrentes flexibles — CONFIRMADO
+
+**Objetivo:** seguimiento opcional de pagos repetidos (servicios, alquiler, suscripciones, seguros, etc.) sin exigir conocer de antemano fecha exacta de vencimiento ni importe fijo, y sin obligar a llevar un calendario estricto.
+
+- Al registrar un gasto normal se podrá marcar como **recurrente** e indicar su periodicidad (mensual por defecto cuando corresponda). La recurrencia reutiliza la categoría/subcategoría, descripción y moneda del movimiento.
+- También se podrá crear o gestionar una recurrencia desde la sección de gastos recurrentes.
+- **Importe flexible:** no será obligatorio definir un monto exacto. Cuando haya historial suficiente, la aplicación podrá presentar una **estimación claramente etiquetada** a partir de pagos pasados (por ejemplo, media de los últimos tres); el importe real se ingresa o confirma al pagar. Un importe estimado no es una factura real.
+- **Fecha flexible:** permitir vencimiento exacto, fecha aproximada o **sin fecha de vencimiento**. Cuando no se conozca la fecha, no inventar una ni informar que un pago está «vencido». Si se muestra un período estimado, debe aparecer como aproximado.
+- **Sugerencias basadas en el historial:** cuando se registren repetidamente gastos similares, se podrá sugerir convertirlos en recurrentes; el sistema no debe asumir que todos los cargos de una categoría corresponden a la misma factura. La sugerencia requerirá validación del usuario.
+- **Pago manual confirmado:** la recurrencia nunca debe restar automáticamente un importe estimado ni crear un gasto consumado por el mero paso del tiempo. Solo al registrar el pago real se crea/confirma el movimiento que impacta en **Bancos [moneda]** y las estadísticas.
+- **Sin duplicados:** pagar desde la tarjeta de recurrencia o registrar el movimiento desde «Nueva transacción» debe dar lugar a un **único gasto** vinculado a ese período. Si el usuario ya registró el pago, no volver a descontarlo.
+- **Seguimiento por período:** mostrar los recurrentes registrados del mes y cuáles están pagados; «pendiente» debe referirse al registro/confirmación del pago en la aplicación, **no** a una afirmación de deuda bancaria verificada.
+- **No obligatorio:** poder ocultar, pausar o desactivar recurrencias. No forzar al usuario a confirmar todas las facturas para seguir usando la app.
+- El módulo o tablero visual de recurrentes podrá adoptar la columna **Bills & Fixed** de la referencia, manteniendo la fidelidad del diseño general.
+- **Límite de automatización:** sin integración bancaria ni facturas importadas, el sistema no conoce los importes reales del próximo período, el vencimiento verdadero ni si el servicio fue pagado fuera de la aplicación.
+- **Detalles técnicos abiertos:** fórmula exacta de estimación y detección, tolerancia a duplicados y configuración de notificaciones; deben concretarse durante especificación sin alterar las reglas confirmadas.
+
 ## 9. Tarjetas de crédito, deudas y préstamos — INCLUIDOS, DETALLE PENDIENTE
 
 - **Tarjetas:** permitir registrar obligaciones pendientes, vencimientos y pagos. No obligar de entrada a cargar cada consumo de tarjeta.
@@ -155,7 +173,7 @@
 
 ## 12. Funcionalidades todavía PENDIENTES
 
-1. **Pagos y gastos recurrentes:** si solo se recuerdan y preparan, o si se descuentan automáticamente (la propuesta de confirmar antes de descontar todavía no fue aceptada expresamente).
+1. **Gastos recurrentes:** funcionamiento general ya **CONFIRMADO** en §8.1; pendiente solo definir detalles secundarios de detección/estimación y notificaciones, sin descontar automáticamente.
 2. **Funcionamiento preciso de tarjetas de crédito**: saldos, consumos, límites, vencimientos, pagos, cuotas, intereses.
 3. **Funcionamiento preciso de deudas y préstamos**: cuotas, amortización, vencimientos, intereses, historial.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
@@ -190,3 +208,4 @@
 - **2026-11-06 — v1.0:** primer documento de alcance: diseño de referencia, bancos por moneda, tarjetas/deudas, exclusión de efectivo e inversiones, conversión de divisas y decisiones pendientes.
 - **2026-11-06 — v1.1:** confirmados registro individual de ingresos/gastos, efecto automático sobre saldos, ajuste manual del saldo real como evento no clasificable en ingresos/gastos, transferencias y cambios de moneda, y categorías/subcategorías predeterminadas y personalizables con historial protegido.
 - **2026-11-06 — v1.2:** consolidación y publicación directa en GitHub; se confirma qué documentación está efectivamente versionada en `main` y qué documentación visual sigue pendiente de subir. Sin cambios nuevos de funcionalidad. Se actualizaron los apartados pendientes para no contradecir esos acuerdos.
+- **2026-11-06 — v1.3:** gastos recurrentes aprobados: opcionales, importes variables estimables a partir de historial, vencimientos opcionales/aproximados, sugerencias de recurrencia, confirmación de pagos reales, conciliación sin duplicados y sin descuentos automáticos.
