@@ -22,6 +22,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 5 | [Plan de implementación](05-plan-de-implementacion.md) | Fases, épicas, dependencias y Definition of Done. |
 | 6 | [Riesgos y verificaciones](06-riesgos-y-pendientes.md) | Puntos técnicos que requieren prueba; sin nuevas rondas funcionales. |
 | 7 | [Handoff para Codex](07-handoff-codex.md) | Instrucciones listas para entregar a Codex y primer incremento de trabajo. |
+| 8 | [Guía operativa de Codex](08-guia-operativa-codex.md) | Cómo trabajar por tickets, chats, permisos y revisión. |
+| 9 | [Convenciones de Git](09-convenciones-git.md) | Formato obligatorio de ramas, commits, títulos y descripciones de PR. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
