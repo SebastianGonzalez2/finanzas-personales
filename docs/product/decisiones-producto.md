@@ -1,6 +1,6 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 2.3  
+**Versión:** 2.4  
 **Actualizado:** 2026-11-06  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
@@ -242,7 +242,9 @@
 
 - Conservar las **tres tarjetas principales** de la referencia visual: **Balance Overview**, **Monthly Income** y **Spending**, ajustando sus textos al nombre final del producto y a los datos reales.
 - **Balance:** reflejar solo el patrimonio **registrado en la aplicación**, esencialmente saldos de bancos menos pasivos registrados que correspondan, convertido a la moneda elegida.
-- **Dinero disponible:** reflejar saldos bancarios sin mezclar inversiones o efectivo (ambos excluidos). No confundir dinero disponible con patrimonio neto.
+- **Dinero disponible (valor principal del dashboard):** suma de los saldos bancarios consolidados **menos el dinero reservado en objetivos de ahorro**. Es el dinero libre para administrar gastos sin tocar los fondos (§11.3). No mezclar inversiones o efectivo (ambos excluidos) ni confundir con patrimonio neto.
+- **Dinero total / saldo bancario real (visible por separado):** suma real de los saldos de los bancos registrados, **incluido lo asignado a fondos virtuales**, sin duplicar los fondos como si fueran otra cuenta bancaria. No reducir este saldo por una mera reserva virtual. Mantener también el desglose patrimonial de activos y pasivos según las reglas del Balance.
+- **Ejemplo:** bancos $30.000, fondo de emergencia $20.000 y vacaciones $2.000 → **dinero disponible $8.000** y **dinero total bancario $30.000**. El disponible es la cifra destacada, el total bancario sigue consultable claramente.
 - Al acceder al balance, permitir un **desglose** de bancos por moneda y pasivos registrados (tarjetas, préstamos y deudas).
 - Dado que no se incluyen inversiones ni efectivo, el balance **no pretende representar todo el patrimonio real** de la persona. Su título/ayuda debe comunicar el alcance.
 - Ingresos/gastos mensuales y gráficos deben usar **movimientos registrados**, excluyendo saldos iniciales, ajustes y transferencias que no corresponden a ingresos/gastos.
@@ -274,7 +276,19 @@
 - **Vista sencilla:** importe gastado, límite establecido, importe restante, porcentaje consumido y barra de progreso, con período mensual claramente identificado. Si supera el límite, mostrar el excedente con claridad.
 - **Alertas no intrusivas:** avisar cuando se acerque al límite o lo sobrepase, integrándose al centro de notificaciones ya definido (§11.1); evitar duplicados. **No bloquear la incorporación de gastos** aunque se supere el presupuesto.
 - **Límite de exactitud:** se usa la información registrada por el usuario; no afirmar que representa gastos omitidos o movimientos bancarios desconocidos. Ajustes manuales de saldos, transferencias propias y pagos de tarjeta que ya corresponden a gastos registrados no deben duplicar el gasto presupuestario.
-- **No confirmado:** cálculo o sugerencia automática de límites basándose en historial, umbral porcentual exacto para alertar, arrastre de remanentes entre meses, conversión/criterio de moneda para presupuestos con movimientos de distintas monedas, detalle de presupuestos padre/subcategoría y objetivos de ahorro. Son decisiones posteriores, no comportamientos aprobados.
+- **No confirmado:** cálculo o sugerencia automática de límites basándose en historial, umbral porcentual exacto para alertar, arrastre de remanentes entre meses, conversión/criterio de moneda para presupuestos con movimientos de distintas monedas y detalle de presupuestos padre/subcategoría. Los principios de objetivos de ahorro ya se aprobaron por separado (§11.3), pero faltan sus detalles operativos.
+
+## 11.3 Objetivos de ahorro y fondos reservados — PRINCIPIO CONFIRMADO
+
+- Permitir crear **objetivos/fondos de ahorro virtuales**, tales como emergencia o vacaciones, asignándoles dinero periódicamente o cuando el usuario quiera. Las aportaciones y retiros se registran como **reasignaciones internas del dinero**, no como gastos o ingresos de consumo.
+- Cada objetivo tendrá un **importe reservado identificable** y su historial de aportaciones y retiros. Podrá **añadirse dinero**, **retirarse parcial o totalmente** y **cerrarse un objetivo**, recuperando el importe reservado para el dinero libre. La interfaz y los demás datos de la meta (importe objetivo, fecha, automatizaciones) aún requieren especificación.
+- **Cifra protagonista del dashboard: DINERO DISPONIBLE = saldo bancario total real registrado − suma reservada en los fondos virtuales** (con conversión pertinente por moneda). Este dinero disponible representa lo que se puede gastar **sin tocar las metas**. La necesidad de excluir reservas de la cifra principal fue expresamente aprobada.
+- Mostrar **DINERO TOTAL (bancario real) separado y accesible** junto con dinero disponible; no ocultar ni confundir las reservas con un débito bancario real. El dinero sigue en el banco mientras no haya habido una transferencia externa. Evitar tratar las reservas virtuales como una segunda cuenta bancaria o sumarlas otra vez al patrimonio.
+- **Aportación:** al asignar, p. ej., $2.000 a vacaciones, **el disponible disminuye $2.000** y el fondo aumenta $2.000, pero el saldo bancario real y el patrimonio no cambian por la mera reasignación; no se crea gasto.
+- **Retiro/devolución al disponible:** al liberar, p. ej., $2.000 desde vacaciones, el fondo disminuye $2.000 y el disponible aumenta $2.000; el total bancario real permanece constante; no se crea ingreso.
+- **Gasto real desde un fondo:** si se utiliza un importe reservado para realizar un pago real, se deberá reducir tanto el fondo asignado como el saldo bancario por el pago efectivo y crear **un solo gasto** cuando corresponda. No doble descontar el disponible ni el gasto. Reglas finas de vinculación y UX pendientes.
+- **Ejemplo confirmado:** Bancos UYU $30.000; Emergencias $20.000 y Vacaciones $2.000 → disponible $8.000 y total bancario $30.000. Una aportación nueva de $2.000 a Vacaciones deja disponible $6.000 y total bancario $30.000. Si se retira esa aportación, vuelve a disponible $8.000 sin tocar el saldo real.
+- **Pendiente de definir:** moneda de cada objetivo, manejo de reservas superiores al saldo bancario, aportaciones mensuales manuales o programadas, importes objetivo y fechas, transferencia real a cuenta de ahorro separada, reasignaciones entre fondos, visualización final del dashboard, cierre de metas con historial y conciliación multimoneda. No inferir automatismos bancarios ni deducciones reales de una reserva virtual.
 
 ## 12. Funcionalidades todavía PENDIENTES
 
@@ -282,7 +296,7 @@
 2. **Tarjetas de crédito:** confirmado catálogo débito/crédito, efectos de compras, pagos y ajustes; **cuotas automáticas distribuidas en gastos mensuales sin descontar bancos hasta registrar el pago**, con **mes/año de primera cuota seleccionable y modificable** y **formulario sencillo de valor de cuota × cantidad de cuotas, sin precio original ni tasa de interés** (§9.5); importe/vencimiento opcionales del estado de cuenta y alertas basadas en datos cargados (§9 y §11.1). Pendiente: detalle de cierres, pagos mínimos, cuotas de importes variables, cargos posteriores, compras multimoneda y conciliación.
 3. **Deudas por pagar y dinero por cobrar**: confirmados los módulos y el flujo de **préstamos con cuotas** (§9.4.1), así como **deudas simples, pagos y cobros parciales o totales, ajuste del importe pendiente sin movimiento bancario y seguimiento histórico** (§9.4.2). Pendiente: alta de deuda nueva con desembolso, obligaciones originadas por compras, detalles de conciliación de préstamos, cuotas variables y tratamientos de intereses especiales.
 4. **Lista final de categorías/subcategorías** y opciones de configuración concreta.
-5. **Presupuestos mensuales opcionales por categoría/subcategoría — CONFIRMADOS** (§11.2), con progreso por categoría e integración al sistema de avisos cuando se aproxima o supera el límite. **PENDIENTES:** objetivos de ahorro, sugerencias automáticas de límites, configuración fina de alertas, arrastres, moneda, presupuestos padre/subcategoría y estadísticas adicionales. Correo/push todavía no confirmados.
+5. **Presupuestos mensuales opcionales por categoría/subcategoría — CONFIRMADOS** (§11.2), con progreso por categoría e integración al sistema de avisos cuando se aproxima o supera el límite. **Objetivos de ahorro:** confirmada la reserva virtual, el disponible neto de fondos y el dinero bancario total separado (§11.3); **PENDIENTES** detalle de aportaciones programadas, moneda/metas, transferencias reales y UX final. Para presupuestos siguen pendientes sugerencias automáticas de límites, alertas finas, arrastres, moneda, presupuestos padre/subcategoría y estadísticas adicionales. Correo/push todavía no confirmados.
 6. **Importación opcional de extractos bancarios** (CSV, Excel, etc.): se discutió, pero no se aprobó como requisito de primera versión.
 7. **Autenticación y seguridad**, titular/es de cuenta, copias de seguridad y exportación de datos.
 8. **Stack y servicios**: se exploraron Next.js, TypeScript, Tailwind, shadcn/ui, Supabase y Vercel, pero todavía no se ha cerrado toda la arquitectura de implementación.
@@ -324,3 +338,4 @@
 - **2026-11-06 — v2.1:** confirmado flujo simple de préstamos con cuotas: datos de deuda y cuota conocida, registrar pago real descontado del banco, actualizar deuda pendiente manualmente y desglose opcional entre capital/intereses/cargos; no reducir automáticamente la deuda por toda la cuota cuando se desconoce el desglose.
 - **2026-11-06 — v2.2:** confirmadas deudas simples y dinero por cobrar: importe pendiente y moneda, fecha opcional, pagos/cobros parciales y totales con efecto en bancos, correcciones manuales sin movimiento bancario, historial y saldado; quedan pendientes casos de alta con desembolso y deudas por consumo.
 - **2026-11-06 — v2.3:** confirmados presupuestos mensuales opcionales por categoría/subcategoría, límites definidos por usuario, barra de progreso y alertas por cercanía/exceso; no bloquean gastos. Sugerencias automáticas, arrastres y detalles multimoneda quedan pendientes.
+- **2026-11-06 — v2.4:** fondos de ahorro virtuales con aportes y retiros reversibles, sin mover dinero del banco en la mera reserva; dashboard prioriza **dinero disponible (total bancario menos fondos reservados)** y mantiene separado **dinero total bancario real**. Detalles de aportaciones programadas y gestión de metas pendientes.
