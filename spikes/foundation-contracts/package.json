@@ -1,0 +1,17 @@
+{
+  "name": "f0-09-foundation-contracts",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test:timezones": "node tests/timezones.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
