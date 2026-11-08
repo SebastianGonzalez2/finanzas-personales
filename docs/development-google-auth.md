@@ -38,6 +38,10 @@ destino HTTPS para esta nueva aplicación; localhost solo se prueba en este PC.
    comprobados. Iniciar `npm run dev:google` y abrir Chrome/Edge externo en
    `http://localhost:3000/auth/sign-in`.
 
+Reiniciar el proceso local después de cambiar `.env.google.local`; las variables
+se cargan al arrancar. Revocar una autorización en DB no requiere reinicio y debe
+denegar las solicitudes siguientes aunque el navegador conserve su cookie.
+
 ## Google Cloud Console, paso a paso
 
 No crear credenciales hasta llegar juntos a este paso. Las etiquetas pueden
