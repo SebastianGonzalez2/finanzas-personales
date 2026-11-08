@@ -1,0 +1,7 @@
+# Artefactos y credenciales solo de este experimento.
+node_modules/
+.next/
+.env*
+!.env.example
+next-env.d.ts
+*.tsbuildinfo

@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+spikes/
+package-lock.json
+next-env.d.ts
+*.tsbuildinfo
+.playwright-mcp/
+playwright-report/
+test-results/
+# Preserve existing product/planning documents and the PR template.
+docs/
+.github/
+AGENTS.md
