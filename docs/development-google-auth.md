@@ -34,13 +34,28 @@ destino HTTPS para esta nueva aplicación; localhost solo se prueba en este PC.
 4. Añadir las cuentas de prueba A/B a la allowlist por el administrador. Para
    probar un rechazo real, incluir una cuenta de prueba en Google OAuth Testing
    pero **no** en la allowlist de la aplicación. Ambas listas tienen fines distintos.
-5. Habilitar GOOGLE_AUTH_READY solo cuando schema, roles, allowlist y OAuth estén
-   comprobados. Iniciar `npm run dev:google` y abrir Chrome/Edge externo en
-   `http://localhost:3000/auth/sign-in`.
+5. Para la primera prueba negativa, mantener la allowlist vacía. Iniciar
+   `npm run dev:google -- --test-login` y abrir Chrome/Edge externo en
+   `http://localhost:3000/auth/sign-in`. El flag habilita solo el flujo OAuth del
+   proceso local; las altas dependen siempre de la allowlist persistente.
+   Sin ese flag se respeta GOOGLE_AUTH_READY del archivo privado (false inicial).
+   Comprobar el rechazo antes de autorizar A/B mediante la CLI.
 
 Reiniciar el proceso local después de cambiar `.env.google.local`; las variables
 se cargan al arrancar. Revocar una autorización en DB no requiere reinicio y debe
 denegar las solicitudes siguientes aunque el navegador conserve su cookie.
+
+El launcher carga `.env.google.local` con `process.loadEnvFile` y lanza Next sin
+`--env-file` en execArgv: Next 16.4.5 reenviaba ese flag a NODE_OPTIONS y Node lo
+rechazaba antes de arrancar. Exige localhost y URLs owner vacías. Las conexiones
+nombradas siguen verificándose con los guards de servidor y sus roles limitados.
+Se deshabilitan logs entrantes de desarrollo y forwarding de argumentos/logs de
+navegador para evitar imprimir code/state de los callbacks OAuth. No adjuntar
+trazas/red/cookies/URLs completas a Git ni al chat.
+
+Si el titular guardó GOOGLE_CLIENT_ID/SECRET en `.env.local`, copiar únicamente
+esos dos valores al archivo de runtime, sin reemplazar el resto ni cargar las
+credenciales propietarias en la aplicación. No imprimirlos para comprobarlos.
 
 ## Google Cloud Console, paso a paso
 
