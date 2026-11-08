@@ -19,9 +19,12 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run build",
     "test": "npm run test:unit",
     "test:unit": "node --test tests/unit/*.test.mjs",
-    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test:integration": "node --conditions=react-server --test tests/integration/*.test.mjs",
     "test:e2e": "playwright test",
-    "probe:neon": "node --conditions=react-server --env-file-if-exists=.env.local scripts/probe-neon-development.mjs"
+    "probe:neon": "node --conditions=react-server --env-file-if-exists=.env.local scripts/probe-neon-development.mjs",
+    "db:plan": "node scripts/migrate-development.mjs",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate-development.mjs",
+    "test:db:development": "node --conditions=react-server --env-file-if-exists=.env.local scripts/test-development-schema.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

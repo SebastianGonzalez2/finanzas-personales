@@ -6,6 +6,15 @@ Este procedimiento prepara F0-04/F0-05; no los declara aceptados. Usar solo
 El titular confirmó el ID después de que la búsqueda exacta devolviera dos
 proyectos homónimos. No usar el otro proyecto ni `production`.
 
+**Actualización F0-05 (2026-11-08):** esquema propio y migrador ya implementados
+y probados en development tras autorización expresa. Ver
+[propuesta exacta autorizada](planning/18-autorizacion-f0-05.md),
+[ADR](adr/0003-esquema-migraciones-f0-05.md) e
+[informe de resultados y comandos](planning/19-informe-f0-05.md).
+Las indicaciones posteriores de migraciones pendientes corresponden al estado
+F0-NEON anterior. `.env.local` se conservó íntegro. La autenticación completa
+y credencial runtime restringida siguen pendientes; no se habilita acceso público.
+
 ## Configuración privada
 
 Ya se preparó `.env.local` en la raíz sin sobrescribir un archivo existente.

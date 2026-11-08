@@ -1,0 +1,70 @@
+{
+  "ticket": "F0-05",
+  "date": "2026-11-08",
+  "timezone": "America/Montevideo",
+  "repositoryBase": "e3d1ec456054f659aef848aafd2e8f070b5452e8",
+  "pullRequest": "https://github.com/SebastianGonzalez2/finanzas-personales/pull/11",
+  "target": {
+    "project": "dry-voice-45959315",
+    "branch": "development",
+    "branchId": "br-late-feather-b6czfkx0",
+    "database": "neondb"
+  },
+  "authorization": {
+    "explicitUserApproval": true,
+    "scope": "Exact initial SQL and synthetic A/B fixtures with rollback; no production or Auth writes"
+  },
+  "migration": {
+    "version": "0001_F0-05_initial.sql",
+    "sha256": "2b61f79cae12eb1b6c504e9a2f30f296ba00a2cf5df87281c91daa39f4e29c7b",
+    "appliedAt": "2026-11-08T03:02:46.359Z",
+    "firstRunApplied": 1,
+    "secondRunApplied": 0,
+    "pending": 0
+  },
+  "tests": {
+    "unit": {
+      "passed": 9,
+      "failed": 0
+    },
+    "ciDatabase": {
+      "postgres": "17.6",
+      "passed": 2,
+      "failed": 0,
+      "job": "https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42440966505/job/128609905226"
+    },
+    "developmentDirect": {
+      "checks": 48,
+      "passed": true,
+      "rollback": true,
+      "contextReset": true
+    },
+    "developmentPooled": {
+      "checks": 48,
+      "passed": true,
+      "rollback": true,
+      "contextReset": true
+    },
+    "authSessionsTested": false
+  },
+  "databaseAfterTests": {
+    "financialTables": 6,
+    "financialRows": 0,
+    "migrationRows": 1,
+    "rlsEnabledTables": 6,
+    "rlsForcedTables": 6,
+    "role": "finanzas_app",
+    "roleLogin": false,
+    "roleBypassRls": false,
+    "roleCanUseAuth": false,
+    "roleCanUseMeta": false
+  },
+  "localEnvironment": {
+    "envLocalPreserved": true
+  },
+  "limitations": [
+    "No authenticated application API or two real Neon Auth sessions tested",
+    "Runtime LOGIN credentials and Auth admission remain pending",
+    "No F1 services, production, merge or deployment"
+  ]
+}
