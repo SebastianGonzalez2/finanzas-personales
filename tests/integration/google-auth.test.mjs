@@ -68,6 +68,7 @@ test(
       };
       let profile, authorizationUrl;
       let providerUnavailable = false;
+      let invalidSignature = false;
       t.mock.method(globalThis, "fetch", async (url, options) => {
         const target = String(url);
         if (target === "https://www.googleapis.com/oauth2/v3/certs")
@@ -105,12 +106,17 @@ test(
           ).toString("base64url") +
           "." +
           Buffer.from(JSON.stringify(claims)).toString("base64url");
-        const idToken =
+        let idToken =
           input +
           "." +
           sign("RSA-SHA256", Buffer.from(input), privateKey).toString(
             "base64url",
           );
+        if (invalidSignature) {
+          const parts = idToken.split(".");
+          parts[2] = (parts[2][0] === "A" ? "B" : "A") + parts[2].slice(1);
+          idToken = parts.join(".");
+        }
         return Response.json({
           access_token: "synthetic-access-token",
           token_type: "Bearer",
@@ -481,7 +487,7 @@ test(
         },
       );
       await t.test(
-        "JWT expirado, audience/issuer incorrectos y fallo de red no crean sesiones",
+        "JWT inválido, fallo de red y error DB no crean sesiones ni filtran diagnóstico",
         async () => {
           const sessionsBefore = (
             await admin.query("SELECT count(*) FROM app_auth.session")
@@ -500,6 +506,19 @@ test(
               `${origin}/account`,
             );
           }
+          invalidSignature = true;
+          try {
+            const result = await callback(
+              await begin(),
+              google("a@example.invalid", "google-A"),
+            );
+            assert.notEqual(
+              result.headers.get("location"),
+              `${origin}/account`,
+            );
+          } finally {
+            invalidSignature = false;
+          }
           const start = await begin();
           providerUnavailable = true;
           try {
@@ -513,6 +532,28 @@ test(
             );
           } finally {
             providerUnavailable = false;
+          }
+          const dbStart = await begin();
+          await admin.query(
+            "REVOKE SELECT ON app_access.allowlist FROM finanzas_google_auth",
+          );
+          try {
+            const result = await callback(
+              dbStart,
+              google("a@example.invalid", "google-A"),
+            );
+            assert.notEqual(
+              result.headers.get("location"),
+              `${origin}/account`,
+            );
+            assert.doesNotMatch(
+              await result.text(),
+              /permission denied|app_access|SELECT|postgresql:/i,
+            );
+          } finally {
+            await admin.query(
+              "GRANT SELECT ON app_access.allowlist TO finanzas_google_auth",
+            );
           }
           assert.equal(
             (await admin.query("SELECT count(*) FROM app_auth.session")).rows[0]

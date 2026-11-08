@@ -64,6 +64,7 @@ export function createGoogleAuth(
         clientSecret: config.clientSecret,
         disableIdTokenSignIn: true,
         accessType: "online",
+        includeGrantedScopes: false,
         prompt: "select_account",
         mapProfileToUser: async (profile) => {
           const identity = verifiedGoogleProfile(profile);
