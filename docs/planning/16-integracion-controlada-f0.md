@@ -17,6 +17,22 @@
 
 Las ramas se conservaron. Los borradores #4/#7/#3/#5 se habilitaron tras comprobar sus pruebas y alcance. Los merges incorporaron main sin rebase ni push forzado; no se perdió trabajo del checkout original F0-04. No hubo despliegues, servicios pagos ni datos reales. La demora de actualización de metadatos de #5 se resolvió comprobando que el head del PR coincidiera con la referencia remota antes de fusionar.
 
+## Confirmación posterior a #8 y pruebas sobre main
+
+Los ocho PR quedaron fusionados en el orden autorizado. #8 produjo `de0eec2187d2982f7cfe9da7fe52ee236462bee2`; ese es el SHA de main contra el que se ejecutaron las verificaciones finales. La tabla anterior conserva el corte previo al propio merge de #8. Esta confirmación documental se entrega por separado para revisión; no está incluida en la autorización de fusionar exclusivamente #1–#8.
+
+| Verificación final | Resultado real |
+| --- | --- |
+| `npm run check` | Formato, lint, tipos y build pasan. |
+| `npm run test:unit` / `npm run test:e2e` | 3/3 unidades y 2/2 Chromium, escritorio y viewport móvil. |
+| Contratos: tipos, tests y tres husos | 16/16 casos; 48/48 ejecuciones adicionales en Montevideo, Kiritimati y Los Ángeles. |
+| Spike Auth: tipos y tests | 27/27 sintéticas; caché/peer siguen pendientes para uso real. Ninguna sonda Neon. |
+| Documentación visual / proveedores offline | 51 enlaces/54 contrastes y 9/9 tests; sin nuevos HTTP ni SMTP. |
+| PostgreSQL 17.6 desechable en GitHub Actions | 1/1 integración real, sin DB financiera. No ejecutada localmente por ausencia de PostgreSQL/Docker. |
+| Workflows de main | Los cinco workflows y sus seis jobs pasan sobre ese SHA. |
+
+Evidencia: [CI app/DB](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42436136455), [contratos](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42436136454), [Auth](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42436136472), [visual](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42436136447), [proveedores](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42436136482). Deployments registrados por GitHub: cero. El checkout original permanece en F0-04/a3401bd; las pruebas se hicieron en un worktree aislado exactamente igual a origin/main.
+
 ## Protección de main verificada por API
 
 La cuenta permitió configurar protección en este repositorio privado sin cambiar plan, visibilidad ni facturación. Lectura posterior confirmó `protected: true`, `strict: true`, administradores sujetos a las reglas, sin force push ni borrado y resolución de conversaciones obligatoria. Se exige PR; el mínimo de reviews aprobatorias es **0**, no una segunda aprobación humana obligatoria.
@@ -52,6 +68,6 @@ Fuentes para contrastar con el panel: [OAuth](https://neon.com/docs/auth/guides/
 
 ## Completar F0-04 y comenzar F0-05
 
-F0-04 debe resolver o aislar el problema reproducido de caché SDK 0.8.2 que devuelve boolean y la advertencia peer fetch 1.3.2/1.3.3. Implementar admisión persistente y límites de intentos en servidor, sesión fresca y metadatos para email/Google; las Maps del spike no son backend. Probar bloqueo de alta directa por Neon mediante `user.before_create` HTTPS, firma Ed25519 sobre cuerpo crudo/JWKS de la rama y fallo cerrado. Ejecutar registro invitado/no invitado, OTP, reset/revocación, OAuth, sesión y dos usuarios reales de prueba con evidencia saneada, antes de cerrar CA-001/006.
+F0-04 debe resolver o aislar el problema reproducido del SDK 0.8.2: `disableCookieCache` booleano conserva la caché, mientras el string fuerza consulta upstream en el transporte simulado. Esto no valida sesiones frescas contra Neon real. También sigue pendiente la advertencia peer fetch 1.3.2/1.3.3. Implementar admisión persistente y límites de intentos en servidor, sesión fresca y metadatos para email/Google; las Maps del spike no son backend. Probar bloqueo de alta directa por Neon mediante `user.before_create` HTTPS, firma Ed25519 sobre cuerpo crudo/JWKS de la rama y fallo cerrado. Ejecutar registro invitado/no invitado, OTP, reset/revocación, OAuth, sesión y dos usuarios reales de prueba con evidencia saneada, antes de cerrar CA-001/006.
 
 F0-05 puede comenzar al disponer de la conexión Neon aislada y fixtures sintéticos A/B: justificar driver/pooling y SQL u ORM compatible/licenciado; acordar persistencia de admisión con F0-04; implementar esquema/migraciones con relaciones y propietario, NUMERIC exacto, atomicidad, idempotencia y concurrencia. No editar manualmente el esquema gestionado `neon_auth`. No necesita esperar UI financiera, pero no puede declarar aislamiento real sin integrar/verificar Auth. Cerrar estos puntos y proveedores antes de declarar F0 terminada o avanzar el gate de uso real.
