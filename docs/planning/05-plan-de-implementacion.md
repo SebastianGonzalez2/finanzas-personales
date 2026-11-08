@@ -20,6 +20,8 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 
 ## F0 — Preparación, seguridad y spike técnico
 
+**Seguimiento F0-04 — 2026-11-07:** investigación y [experimento local reproducible](../../spikes/neon-auth/README.md) entregados para revisión; ver [hallazgos, acciones exactas del titular y matriz real pendiente](12-informe-f0-04.md). Pruebas locales y contrato SDK no equivalen a alta real. El titular confirmó que aún no tiene proyecto Neon de prueba: Google, OTP, recuperación, sesiones e invitación real permanecen pendientes, y F0-04 no está aceptado funcionalmente. No se supera la puerta F0 ni se autoriza publicación. Siguiente ticket del plan: F0-05, sin iniciar.
+
 **Objetivo:** base reproducible sin secretos, proveedor de identidad y persistencia validados, modelo claro, herramienta de QA y diseño visual recuperado.
 
 | Ticket | Implementación / investigación | Evidencia de aceptación |
