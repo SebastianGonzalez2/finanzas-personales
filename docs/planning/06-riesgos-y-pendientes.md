@@ -1,9 +1,11 @@
 # Registro de riesgos y verificaciones antes de implementar
 
+**CAMBIO VIGENTE v9.49 (2026-11-08):** [ADR 0004](../adr/0004-google-only-allowlist-auth.md) cambia F0-04 a **Better Auth autogestionado, Google-only + allowlist privada**. R-01 se reabre como integración Google/allowlist/sesiones y no como webhook administrado. **R-02 (SMTP/OTP de login) deja de ser bloqueo del producto**; los riesgos de costo y sesiones A/B siguen abiertos. El PR #12 es un borrador de arquitectura anterior, no fusionarlo sin refactorización. Informes de Neon Managed Auth anteriores son históricos.
+
 **Actualización F0-INTEGRATE:** [merges, protección y pendientes vigentes](16-integracion-controlada-f0.md). CI y checks obligatorios activos no resuelven R-01/02/13/19; la evidencia preparatoria de R-04/12/16 no prueba la aplicación real. Cuentas, SMTP y límites/costo de proveedores R-03/11 requieren validación. El inventario inicial de abajo es histórico.
 
 **Estado:** evaluación de planificación; **funcionalmente cerrado**, técnicamente **requiere verificación**.  
-**Registro fuente:** [decisiones v9.48](../product/decisiones-producto.md).  
+**Registro fuente:** [decisiones v9.49](../product/decisiones-producto.md).  
 **Regla:** «pendiente» significa *no verificado/no implementado*; **no** implica abrir automáticamente otra tanda de decisiones.
 
 ## Resultado de auditoría inicial
@@ -26,8 +28,8 @@ y credencial final de runtime continúan abiertos. No hay aprobación de producc
 
 | ID | Riesgo / incertidumbre | Impacto | Estado | Mitigación y evidencia exigida |
 |---|---|---|---|---|
-| R-01 | **Neon Auth** (Managed Better Auth) y código de invitación grupal aplicado correctamente a correo/contraseña **y Google OAuth**. | **Bloquea publicación/alta real** si cualquiera puede saltarse invitación. | No validado | Spike F0 con cuentas de test, rechazo del código inválido en ambos flujos, recuperación, verificación email y sesiones. No presumir soporte de un plugin Better Auth autogestionado. |
-| R-02 | Envío gratuito confiable de OTP/recuperación para producción; remitente SMTP y límites. | **Bloquea publicación de cuentas email** si no entrega/verifica. | No configurado | Probar correo de verificación, recuperación, reenvío/expiración, tasa de error, límites, comportamiento sin SMTP. No activar servicio pago sin permiso. |
+| R-01 | **Google OAuth + Better Auth propio + allowlist**: acceso de terceros, alta directa, cambios de identidad, revocación y sesiones. | **Bloquea acceso real** si el servidor permite crear sesión/usuario no autorizado o filtra datos A/B. | Pendiente de implementación/prueba | Verificar hook previo de alta, perfil verificado/ID estable, rechazo directo, revocación de cuentas existentes y pruebas reales A/B de API + PostgreSQL con rol limitado. |
+| R-02 | **Histórico:** envío de OTP/recuperación para cuentas propias con contraseña. | **No aplica** a v9.49: Google gestiona autenticación y recuperación. | Retirado como bloqueo | No implementar SMTP para login ni contratarlo. Si una función futura requiere email, evaluar nuevo riesgo y servicio explícitamente. |
 | R-03 | **Vercel Hobby** y condición personal/no comercial, además de cuotas gratuitas; Neon Free/cuotas. | **Bloquea publicación** si uso previsto contraviene términos o requiere plan pago no autorizado. | Verificación documental inicial; falta revisar despliegue real | Comprobar términos vigentes, recursos consumidos, política de uso para invitados no comerciales; registrar alternativa **sin comprarla** si no encaja. |
 | R-04 | Corrección retroactiva anterior a saldo bancario manual confirmado. | **Bloquea mutaciones monetarias históricas F1** sin algoritmo seguro. | Regla de producto confirmada; motor no probado | Spike F0/F1 con proyección, anclas de checkpoints, diferencia auditada y tests CA-015. No compensar con «gasto misterioso». |
 | R-05 | Doble débito/gasto por tarjeta, cuotas, pagos mixtos o cobros por tercero. | Alto, integridad financiera. | Diseño de invariantes; sin código | Pruebas I-02/I-04/I-05/I-06; transacciones, validación de asignaciones e idempotencia. Ningún despliegue sin esos tests por etapa. |
