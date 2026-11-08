@@ -4,7 +4,7 @@
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
-**Referencia visual:** [Fintrack original](../fintrack-original.jpeg).
+**Referencia visual:** [Fintrack original](../fintrack-original.jpeg); [guía visual F0-02 y evidencia](10-informe-f0-02.md).
 
 ## Objetivo
 
