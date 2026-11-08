@@ -123,7 +123,11 @@ test(
           .getSetCookie()
           .map((v) => v.split(";")[0])
           .join("; ");
-      async function begin() {
+      async function begin(resetWindow = true) {
+        // Independent scenarios model elapsed windows without sleeping. Only
+        // this isolated local test admin changes the fixture clock.
+        if (resetWindow)
+          await admin.query('UPDATE app_auth."rateLimit" SET "lastRequest"=0');
         const r = await handleGoogleHttp(
           new Request(`${origin}/api/auth/sign-in/social`, {
             method: "POST",
@@ -183,6 +187,11 @@ test(
             `${origin}/account`,
           );
           assert.equal(await count(), 0);
+          assert.equal(
+            (await admin.query("SELECT count(*) FROM app_auth.session")).rows[0]
+              .count,
+            "0",
+          );
           await admin.query(
             "INSERT INTO app_access.allowlist(email) VALUES('a@example.invalid'),('b@example.invalid')",
           );
@@ -315,6 +324,67 @@ test(
         },
       );
       await t.test(
+        "revocación espera la transacción autorizada y bloquea todas las posteriores",
+        async () => {
+          const financial = await financePool.connect();
+          const revoker = new pg.Client(config);
+          await revoker.connect();
+          let revoke;
+          try {
+            await financial.query("BEGIN");
+            await financial.query("SET LOCAL ROLE finanzas_app");
+            const locked = await financial.query(
+              "SELECT app_access.authorize_session($1) AS owner",
+              [b.session.session.token],
+            );
+            assert.equal(locked.rows[0].owner, b.session.user.id);
+            revoke = revoker.query(
+              "UPDATE app_access.allowlist SET enabled=false WHERE email='b@example.invalid'",
+            );
+            let blocked = false;
+            for (let attempt = 0; attempt < 200; attempt++) {
+              const r = await admin.query(
+                "SELECT cardinality(pg_blocking_pids($1))>0 AS blocked",
+                [revoker.processID],
+              );
+              if (r.rows[0].blocked) {
+                blocked = true;
+                break;
+              }
+              await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+            }
+            assert.equal(
+              blocked,
+              true,
+              "Revocación debe esperar el lock financiero",
+            );
+            await financial.query("COMMIT");
+            await revoke;
+            assert.equal(await fresh(b.cookie), null);
+            const denied = await financial.query(
+              "SELECT app_access.authorize_session($1) AS owner",
+              [b.session.session.token],
+            );
+            assert.equal(denied.rows[0].owner, null);
+          } finally {
+            await financial.query("ROLLBACK");
+            await revoke;
+            financial.release();
+            await revoker.end();
+          }
+          await admin.query(
+            "UPDATE app_access.allowlist SET enabled=true WHERE email='b@example.invalid'",
+          );
+          const renewed = await callback(
+            await begin(),
+            google("b@example.invalid", "google-B"),
+          );
+          b = { cookie: cookieHeader(renewed) };
+          b.session = await fresh(b.cookie);
+          assert.ok(b.session);
+        },
+      );
+      await t.test(
         "revocar B invalida cookie existente, nuevos OAuth y sesiones sin afectar A",
         async () => {
           await admin.query(
@@ -381,6 +451,49 @@ test(
             [a.session.session.token],
           );
           assert.equal(await fresh(a.cookie), null);
+        },
+      );
+      await t.test(
+        "cambio de email para el mismo sub revoca sin transferir titular",
+        async () => {
+          const existing = await callback(
+            await begin(),
+            google("a@example.invalid", "google-A"),
+          );
+          const cookie = cookieHeader(existing);
+          assert.ok(await fresh(cookie));
+          const denied = await callback(
+            await begin(),
+            google("changed@example.invalid", "google-A"),
+          );
+          assert.notEqual(denied.headers.get("location"), `${origin}/account`);
+          assert.equal(await fresh(cookie), null);
+          assert.equal(await count(), 2);
+          const binding = await admin.query(
+            "SELECT email,user_id FROM app_access.allowlist WHERE google_sub='google-A'",
+          );
+          assert.equal(binding.rows[0].email, "a@example.invalid");
+          assert.equal(binding.rows[0].user_id, a.session.user.id);
+        },
+      );
+      await t.test(
+        "límite de intentos persistente devuelve 429 sin crear identidad",
+        async () => {
+          await begin();
+          await begin(false);
+          await begin(false);
+          const denied = await handleGoogleHttp(
+            new Request(`${origin}/api/auth/sign-in/social`, {
+              method: "POST",
+              headers: { origin, "content-type": "application/json" },
+              body: JSON.stringify({ provider: "google" }),
+            }),
+            ["sign-in", "social"],
+            deps,
+          );
+          assert.equal(denied.status, 429);
+          assert.ok(Number(denied.headers.get("retry-after")) > 0);
+          assert.equal(await count(), 2);
         },
       );
     } finally {

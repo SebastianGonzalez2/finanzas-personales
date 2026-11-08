@@ -124,7 +124,9 @@ export function createGoogleAuth(
       },
     },
     logger: { disabled: true },
-    onAPIError: { errorURL: `${config.origin}/auth/sign-in` },
+    // The HTTP boundary sanitizes unexpected failures, preventing the router's
+    // fallback console logger from printing raw database/provider exceptions.
+    onAPIError: { errorURL: `${config.origin}/auth/sign-in`, throw: true },
     databaseHooks: {
       user: {
         create: {
