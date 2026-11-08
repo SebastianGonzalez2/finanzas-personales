@@ -10,6 +10,7 @@ import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { createGoogleAuth } from "../../src/server/google-auth-factory.ts";
 import { handleGoogleHttp } from "../../src/server/google-http.ts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
+import { setGoogleAllowed } from "../../scripts/google-allowlist-admin.mjs";
 const { Request, Response, Headers, URLSearchParams } = globalThis;
 
 // Real PostgreSQL, actual Better Auth OAuth handler/crypto. Google transport alone
@@ -423,6 +424,38 @@ test(
             "UPDATE app_access.allowlist SET enabled=true WHERE email='b@example.invalid'",
           );
           assert.equal(await fresh(b.cookie), null);
+        },
+      );
+      await t.test(
+        "CLI: rehabilitar no duplica altas; un permiso ya vigente no genera auditoría falsa",
+        async () => {
+          const email = "b@example.invalid";
+          const auditCounts = async () =>
+            Object.fromEntries(
+              (
+                await admin.query(
+                  "SELECT action,count(*)::int AS n FROM app_access.audit WHERE email=$1 GROUP BY action",
+                  [email],
+                )
+              ).rows.map(({ action, n }) => [action, n]),
+            );
+          const before = await auditCounts();
+          await admin.query("BEGIN");
+          try {
+            assert.equal(await setGoogleAllowed(admin, email, false), true);
+            assert.equal(await setGoogleAllowed(admin, email, true), true);
+            assert.equal(await setGoogleAllowed(admin, email, true), false);
+            const after = await auditCounts();
+            assert.deepEqual(after, {
+              ...before,
+              enable: (before.enable ?? 0) + 1,
+              revoke: (before.revoke ?? 0) + 1,
+            });
+            await admin.query("COMMIT");
+          } catch (error) {
+            await admin.query("ROLLBACK");
+            throw error;
+          }
         },
       );
       await t.test(

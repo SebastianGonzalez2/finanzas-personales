@@ -6,6 +6,7 @@ import {
   developmentTarget,
 } from "../src/server/neon-development-config.ts";
 import { normalizeGoogleEmail } from "../src/server/google-policy.ts";
+import { setGoogleAllowed } from "./google-allowlist-admin.mjs";
 const action = process.argv.includes("--allow")
   ? "allow"
   : process.argv.includes("--revoke")
@@ -31,20 +32,9 @@ try {
       .rows[0].id !== developmentTarget.branchId
   )
     throw new Error();
-  const result =
-    action === "allow"
-      ? await client.query(
-          "INSERT INTO app_access.allowlist(email) VALUES($1) ON CONFLICT(email) DO UPDATE SET enabled=true",
-          [email],
-        )
-      : await client.query(
-          "UPDATE app_access.allowlist SET enabled=false WHERE email=$1",
-          [email],
-        );
+  const updated = await setGoogleAllowed(client, email, action === "allow");
   await client.query("COMMIT");
-  console.log(
-    JSON.stringify({ action, updated: result.rowCount === 1, audited: true }),
-  );
+  console.log(JSON.stringify({ action, updated, audited: updated }));
 } catch {
   await client.query("ROLLBACK").catch(() => {});
   console.error("Autorización no modificada; diagnóstico privado omitido");

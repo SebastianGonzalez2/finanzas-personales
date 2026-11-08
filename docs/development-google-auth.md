@@ -2,6 +2,10 @@
 
 F0-04, v9.49, ADR 0004. PR #14 en borrador. No es habilitación del sistema.
 
+Avance: OAuth Google real comprobado localmente con A (rechazo inicial, alta,
+logout, persistencia en dos ventanas y revocación). A/B real espera una segunda
+cuenta Google. Ver [evidencia sin datos personales](evidence/f0-04-google-oauth-local.json).
+
 ## Destino definido
 
 | Elemento | Valor |
@@ -99,6 +103,17 @@ enviarlo al chat. `npm run auth:google:allowlist -- --allow` añade/rehabilita;
 administrativa usa `.env.local` owner; la aplicación usa exclusivamente las dos
 conexiones limitadas de `.env.google.local`. La gestión es auditable en DB y no
 imprime direcciones. No hay panel ni rutas administrativas públicas.
+
+La CLI serializa operaciones por correo, registra add/revoke/enable solo ante
+cambios reales y no reanima sesiones eliminadas. Una repetición sin cambio es
+un no-op sin evento de auditoría.
+
+Para verificar una sesión Google existente sin extraer cookies del navegador:
+`node --conditions=react-server --env-file=.env.google.local scripts/test-google-development.mjs --existing-google-sessions`.
+En terminal interactiva: `capture A` o `capture B` lee únicamente la cuenta del
+archivo privado, `api A`/`api B` prueba el acceso y `denied A`/`denied B` verifica
+la cookie anterior después de cerrar/revocar. `quit` cierra el proceso. Usa roles
+restringidos, mantiene la firma y token solo en memoria y nunca crea sesiones.
 
 ## Pruebas reales a realizar con el titular
 

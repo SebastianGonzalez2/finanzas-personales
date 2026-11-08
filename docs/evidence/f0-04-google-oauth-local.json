@@ -1,0 +1,66 @@
+{
+  "ticket": "F0-04",
+  "productVersion": "9.49",
+  "date": "2026-11-08",
+  "environment": "Next.js localhost:3000 + Neon development",
+  "project": "dry-voice-45959315",
+  "branch": "br-late-feather-b6czfkx0",
+  "callback": "http://localhost:3000/api/auth/callback/google",
+  "googleTransport": "real",
+  "userPerformedGoogleInteraction": true,
+  "oauthCredentialsPresentPrivately": true,
+  "privateCredentialsOrTokensInEvidence": false,
+  "unauthorizedInitialA": {
+    "userReportedAppDenied": true,
+    "databaseAllowlistEntries": 0,
+    "databaseUsers": 0,
+    "databaseAccounts": 0,
+    "databaseSessions": 0
+  },
+  "authorizedA": {
+    "allowlistAddedAudited": true,
+    "userReportedConnected": true,
+    "databaseUsers": 1,
+    "databaseBoundIdentities": 1,
+    "googleAccountsWithTokensDiscarded": 1,
+    "realApiUsingExistingSessionReplay": 200,
+    "injectedOwnerQuery": 400,
+    "invalidCookie": 401,
+    "noStoreResponse": true
+  },
+  "logoutA": {
+    "userClickedLogout": true,
+    "userReportedAccountPageDenied": true,
+    "databaseSessionsAfterLogout": 0,
+    "previousSessionCookieReplay": 401
+  },
+  "returnA": {
+    "userReportedReloginAndReloadConnected": true,
+    "serverVerifiedSameOwnerId": true,
+    "realApiUsingNewExistingSessionReplay": 200
+  },
+  "twoConcurrentSessionsOfA": {
+    "userReportedBothWindowsConnected": true,
+    "databaseActiveSessions": 2,
+    "databaseDistinctSessionOwners": 1,
+    "serverVerifiedSameOwnerId": true
+  },
+  "existingIdentityRevocation": {
+    "revokedAudited": true,
+    "databaseSessionsAfterRevocation": 0,
+    "previousSessionCookieReplay": 401,
+    "userReportedBothWindowsDenied": true,
+    "userReportedNewGoogleLoginDenied": true,
+    "allowlistRestored": true,
+    "databaseUsersPreserved": 1,
+    "databaseSessionsAfterRestore": 0,
+    "oldCookieAfterRestore": 401,
+    "historicalDuplicateAddAuditPreserved": true,
+    "fixedCliAlreadyAllowedNoOpVerified": true
+  },
+  "differentUsersAB": "pending: second Google account unavailable",
+  "financialFixturesWritten": false,
+  "publicHttpsDeployment": false,
+  "crossDevicePersistence": "pending",
+  "acceptanceComplete": false
+}

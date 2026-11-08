@@ -101,7 +101,7 @@ Auth permanece cerrada por defecto (GOOGLE_AUTH_READY=false).
 
 ## Verificación y pendientes
 
-Resultado verificado del código `24c2c0f`:
+Base automatizada del código `24c2c0f` y verificación de Neon previa a OAuth:
 
 | Prueba | Resultado | Alcance |
 | --- | --- | --- |
@@ -142,7 +142,48 @@ sin el tratamiento financiero y respaldo correspondientes.
 
 F0-07: cuotas/términos Hobby y Neon Free, configuración/operación OAuth. SMTP,
 OTP y recuperación de contraseñas propias ya no son dependencias de acceso.
-F0-04/F0 abiertas, sin F1, merge, despliegue nuevo ni pago. Auth sigue cerrada.
+F0-04/F0 abiertas, sin F1, merge, despliegue nuevo ni pago.
+
+## Avance OAuth real local (2026-11-08)
+
+El titular configuró Google personalmente y guardó Client ID/Secret en su archivo
+privado. Se copiaron únicamente esos dos campos a `.env.google.local`, conservando
+el resto y las URLs owner vacías. No se imprimieron credenciales. El launcher
+corregido ejecuta `npm run dev:google -- --test-login`: habilita OAuth solo en el
+proceso local, sin cambiar el flag false del archivo privado. Admisión sigue
+dependiendo de la lista persistente. No se desplegó HTTPS nuevo.
+
+Prueba real asistida por el titular, con Google y Neon (no mock):
+
+- Cuenta A fuera de lista: Google retorna a la app con rechazo; conteos reales de
+  allowlist, usuarios, cuentas y sesiones permanecen en cero.
+- Alta de A en allowlist mediante CLI auditada; OAuth permite entrar. Neon tiene
+  un usuario y una identidad Google vinculada al sub; tokens Google descartados.
+- API real con su sesión existente: 200; owner en query 400, cookie inválida 401,
+  no-store. Harness privado con rol Auth restringido, firma oficial de Better Auth
+  y sesiones ya creadas por Google, sin emitir usuarios/sesiones ni exportar tokens.
+- Logout desde el botón: /account denegado, cero sesiones en DB y replay de la
+  cookie anterior devuelve 401. Nuevo OAuth conserva el mismo owner y la recarga
+  permanece conectada.
+- Ventana normal e incógnito con A: dos sesiones reales y un titular único.
+  Revocar A elimina ambas sesiones y bloquea las dos ventanas y un nuevo OAuth.
+  Rehabilitar A conserva la identidad, no restaura sesiones y el replay sigue 401.
+- La CLI anterior usaba INSERT ON CONFLICT al rehabilitar, lo cual activaba el
+  trigger BEFORE INSERT de auditoría y anotaba un add de más. El registro
+  histórico se conserva. La CLI corregida bloquea por correo, actualiza la fila
+  existente o inserta solo si falta; el no-op real no genera auditoría. Regresión
+  automatizada comprueba que rehabilitar solo incrementa enable y no add.
+
+[Evidencia sin datos personales](../evidence/f0-04-google-oauth-local.json).
+Los tokens de replay viven solo en memoria del proceso de prueba interactivo;
+no se guardan en archivos, logs ni argv. La allowlist contiene únicamente A.
+La inspección de runtime cerrado/vacío anterior es una evidencia inicial, no una
+expectativa posterior al alta de prueba.
+
+**Limitación comunicada por el titular:** no dispone de una segunda cuenta de
+prueba. Sesiones y revocación de A probadas; A/B real y continuidad de A al
+revocar B siguen pendientes. No sustituir B por otra sesión o alias de A.
+La persistencia entre dispositivos requiere el destino HTTPS autorizado posterior.
 
 Guía paso a paso del titular: [Google Cloud y pruebas](../development-google-auth.md).
 
