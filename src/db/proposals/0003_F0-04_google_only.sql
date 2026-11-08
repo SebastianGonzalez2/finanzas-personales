@@ -78,17 +78,17 @@ BEGIN
 END $$;
 CREATE TRIGGER allowlist_change BEFORE INSERT OR UPDATE OR DELETE ON app_access.allowlist FOR EACH ROW EXECUTE FUNCTION app_access.allowlist_change();
 CREATE FUNCTION app_access.guard_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
-DECLARE authorization app_access.allowlist%ROWTYPE;
+DECLARE allowed_identity app_access.allowlist%ROWTYPE;
 BEGIN
   IF TG_OP='UPDATE' AND (NEW.id IS DISTINCT FROM OLD.id OR NEW.email IS DISTINCT FROM OLD.email OR NEW."googleSubject" IS DISTINCT FROM OLD."googleSubject" OR NEW."emailVerified" IS DISTINCT FROM OLD."emailVerified") THEN
     RAISE EXCEPTION 'Identity binding is immutable';
   END IF;
-  SELECT * INTO authorization FROM app_access.allowlist WHERE email=NEW.email FOR UPDATE;
-  IF NOT FOUND OR NOT authorization.enabled OR NOT NEW."emailVerified" OR NEW."googleSubject" IS NULL OR
-    (authorization.google_sub IS NOT NULL AND (authorization.google_sub<>NEW."googleSubject" OR authorization.user_id<>NEW.id)) THEN
+  SELECT * INTO allowed_identity FROM app_access.allowlist WHERE email=NEW.email FOR UPDATE;
+  IF NOT FOUND OR NOT allowed_identity.enabled OR NOT NEW."emailVerified" OR NEW."googleSubject" IS NULL OR
+    (allowed_identity.google_sub IS NOT NULL AND (allowed_identity.google_sub<>NEW."googleSubject" OR allowed_identity.user_id<>NEW.id)) THEN
     RAISE EXCEPTION 'Identity not authorized';
   END IF;
-  IF authorization.google_sub IS NULL THEN
+  IF allowed_identity.google_sub IS NULL THEN
     UPDATE app_access.allowlist SET google_sub=NEW."googleSubject",user_id=NEW.id WHERE email=NEW.email;
   END IF;
   RETURN NEW;
