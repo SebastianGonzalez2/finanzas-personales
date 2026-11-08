@@ -1,6 +1,9 @@
 import { developmentTarget } from "@/server/neon-development-config.ts";
 import { readLimitedBody } from "@/server/auth-policy.ts";
-import { verifyBeforeCreate } from "@/server/neon-webhook.ts";
+import {
+  verifyBeforeCreate,
+  WebhookValidationError,
+} from "@/server/neon-webhook.ts";
 import { decideAdmission } from "@/server/admission.ts";
 import { privateHeaders } from "@/server/auth-http.ts";
 export const runtime = "nodejs";
@@ -9,11 +12,14 @@ let cached: { keys: Record<string, unknown>[] } | null = null;
 let fetchedAt = 0;
 let attemptedAt = 0;
 export async function POST(request: Request) {
+  let stage = "body";
   try {
     const raw = await readLimitedBody(request, 32_768);
+    stage = "headers";
     const kid = request.headers.get("x-neon-signature-kid");
     if (!kid || kid.length > 200) throw new Error("Firma requerida");
     const now = Date.now();
+    stage = "jwks";
     if (
       (!cached ||
         now - fetchedAt > 60_000 ||
@@ -38,7 +44,9 @@ export async function POST(request: Request) {
     }
     if (!cached || now - fetchedAt > 300_000)
       throw new Error("Clave no disponible");
+    stage = "verification";
     const event = verifyBeforeCreate(raw, request.headers, cached);
+    stage = "admission";
     const allowed = await decideAdmission(event, raw);
     return Response.json(
       allowed
@@ -50,7 +58,13 @@ export async function POST(request: Request) {
           },
       { headers: privateHeaders },
     );
-  } catch {
+  } catch (error) {
+    // Only local enum values: never log bodies, headers, identities or Error text.
+    console.warn("neon_webhook_rejected", {
+      stage,
+      reason:
+        error instanceof WebhookValidationError ? error.reason : "unavailable",
+    });
     return Response.json(
       { allowed: false, error_code: "ADMISSION_UNAVAILABLE" },
       { status: 503, headers: privateHeaders },

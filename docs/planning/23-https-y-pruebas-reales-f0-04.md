@@ -251,3 +251,22 @@ No fusionar PR #12 ni declarar F0 cerrada por completar la publicación HTTPS.
 - El primer acceso a consola Neon correspondía a otra organización vacía. El
   titular cambió personalmente al acceso correcto; solo se configuró el proyecto
   existente y la rama development. No se crearon proyectos/organizaciones Neon.
+
+## Fase 2 autorizada: primer intento real
+
+El titular autorizó «fase 2 de pruebas»: registrar el origen HTTPS exacto,
+abrir temporalmente alta email con código revocado y comprobar primero el
+rechazo directo. Se agregó únicamente el origen del proyecto temporal.
+
+A las 14:26 UTC se envió una solicitud sintética sin invitación directamente
+al Auth de development. Resultado: HTTP 502 `WEBHOOK_DELIVERY_FAILED`, sin usuario
+ni token. Vercel recibió los tres intentos de Neon y respondió 503. Lectura SQL
+posterior: cero usuarios Auth y código revocado. Se volvió a cerrar inmediatamente
+el alta email; UI continúa cerrada. Esto prueba el fallo cerrado, todavía no la
+validación satisfactoria de la firma ni la política de invitaciones.
+
+Se agregan motivos de rechazo tipados y etapas sanitizadas al receptor para
+resolver el error real. No se registran payloads, firmas, correos ni mensajes de
+excepción. Unitarios 18/18 y build pasan; el primer ensayo del diagnóstico usaba
+una propiedad de parámetro TypeScript incompatible con strip-only de Node y se
+corrigió antes de publicar. CI de `82b1429`: seis checks SUCCESS.
