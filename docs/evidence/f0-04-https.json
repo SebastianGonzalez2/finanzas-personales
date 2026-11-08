@@ -1,0 +1,55 @@
+{
+  "nodeVersion": "24.x",
+  "origin": "https://finanzas-personales-f0-04.vercel.app",
+  "webhookConfigured": true,
+  "sourceCommit": "4b384738110228eb9a792038b794b8789a58715d",
+  "readyState": "READY",
+  "ticket": "F0-04",
+  "plan": "hobby",
+  "signupEnabled": false,
+  "checkedAt": "2026-11-08T14:13:19.9457416Z",
+  "projectId": "prj_pb5iMyLfSTdQQKqZ0U3TbYqnRcQi",
+  "realGoogleTested": false,
+  "regions": [
+    "gru1"
+  ],
+  "packageSha256": "c8e9615a08bc3e3638b9cf6984d9d125bc57e143fab16a744ee8f31cb1bb0c4e",
+  "deploymentId": "dpl_4THXqe9v893ZwedQSxLCr8VBpzrX",
+  "authEnabled": false,
+  "checks": [
+    {
+      "path": "/auth/sign-up",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/account",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "path": "/api/account",
+      "status": 400,
+      "passed": true
+    },
+    {
+      "path": "/api/admission",
+      "status": 503,
+      "passed": true
+    },
+    {
+      "path": "/api/auth/sign-up/email",
+      "status": 503,
+      "passed": true
+    },
+    {
+      "path": "/api/webhooks/neon-auth",
+      "status": 503,
+      "passed": true
+    }
+  ],
+  "realOtpTested": false,
+  "webhookEvent": "user.before_create",
+  "webhookTimeoutSeconds": 5,
+  "webhookReadBackVerified": true
+}

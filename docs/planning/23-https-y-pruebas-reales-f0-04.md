@@ -2,9 +2,20 @@
 
 Fecha: 2026-11-08, America/Montevideo. PR #12 en borrador, sin merge.
 RF-001…004, CA-001…005, RNF-01/09/11 e I-12. Sin F1 ni nuevas migraciones.
+**Fase 1 autorizada y ejecutada:** el titular seleccionó «Autorizar fase 1 con
+altas cerradas». Publicación READY en
+[finanzas-personales-f0-04.vercel.app](https://finanzas-personales-f0-04.vercel.app),
+Hobby verificado, Node 24 y región gru1. Diez variables de runtime cargadas,
+cuatro Secret, sin owner. Webhook de development guardado y releído: exclusivamente
+`user.before_create`, timeout 5 s. Alta email y UI siguen cerradas; código revocado.
+[Evidencia pública sanitizada](../evidence/f0-04-https.json).
+Configurar el webhook todavía **no demuestra un callback real firmado**.
+
 El titular tiene dos Gmail disponibles y una cuenta Vercel sin proyecto.
-La conexión Vercel aparece instalada/habilitada; todavía no se ha utilizado para
-crear proyecto, transferir secretos ni desplegar. No equivale a autorización.
+La cuenta estaba sin proyecto al iniciar esta continuación. La conexión Vercel
+aparece instalada/habilitada, pero sus herramientas no quedaron expuestas en
+esta sesión. Se usó CLI oficial 65.12.1; el titular completó personalmente los
+accesos de Vercel y Neon, sin enviar secretos al chat.
 
 ## Recomendación y alternativas gratuitas
 
@@ -35,6 +46,9 @@ Neon/Google/email compartidos existentes no necesitan otro proveedor para esta
 prueba. SMTP de producción sigue pendiente de F0-07.
 
 ## Qué autorización se solicita para la fase 1
+
+La autorización descrita debajo ya fue concedida y ejecutada; se conserva como
+registro del alcance. La fase 2 requiere aprobación adicional antes de abrir altas.
 
 1. Crear **solo** el proyecto de pruebas indicado en la cuenta personal Hobby
    que el titular conectó; verificar cuenta y plan antes de crear recursos.
@@ -226,4 +240,14 @@ No fusionar PR #12 ni declarar F0 cerrada por completar la publicación HTTPS.
 - Registro npm de CLI oficial consultado: `vercel` 65.12.1, Apache-2.0, Node >=20.
   No se incorpora como dependencia de la aplicación ni se crean recursos por ello.
 - No se ejecutó la sonda de publicación porque todavía no existe URL autorizada.
-  Los nuevos controles locales no se presentan como resultados Auth reales.
+  Esa era la situación al preparar el paquete; después de la autorización se
+  ejecutó realmente y pasó 6/6. Los controles no son resultados Auth E2E.
+- CI del commit `4b38473`: 6/6 checks SUCCESS. PR permanece en borrador.
+- La creación inicial con un campo no admitido fue rechazada antes de crear
+  recursos. Se creó el proyecto con el contrato actual y se fijó Node 24 mediante
+  PATCH. La carga genérica de env fue rechazada sin variables; el comando
+  específico con `npm.cmd` e input por stdin creó las diez variables previstas.
+  No se imprimieron valores privados; se retiraron los payloads temporales.
+- El primer acceso a consola Neon correspondía a otra organización vacía. El
+  titular cambió personalmente al acceso correcto; solo se configuró el proyecto
+  existente y la rama development. No se crearon proyectos/organizaciones Neon.
