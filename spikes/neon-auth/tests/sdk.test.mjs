@@ -4,6 +4,8 @@ import test from "node:test";
 import { createAuthClient } from "@neon/auth";
 import {
   createAuthServer,
+  handleAuthProxyRequest,
+  resolveNeonAuthLogging,
   NEON_AUTH_SESSION_COOKIE_NAME,
   NEON_AUTH_SESSION_DATA_COOKIE_NAME,
 } from "@neon/auth/server";
@@ -77,7 +79,7 @@ test("SDK real construye rutas email, verificación OTP y reset con transporte s
 // Reproducción de un límite de 0.8.2: el wrapper compara con string 'true',
 // aunque los tipos públicos de Better Auth aceptan boolean. No usar este
 // caché como autorización financiera ni como prueba de revocación inmediata.
-test("SDK 0.8.2: disableCookieCache boolean conserva caché; string fuerza upstream", async (t) => {
+test("SDK 0.8.2: boolean conserva caché; string y proxy HTTP fuerzan upstream", async (t) => {
   const secret = randomBytes(32).toString("hex");
   const date = new Date().toISOString();
   const session = {
@@ -137,4 +139,26 @@ test("SDK 0.8.2: disableCookieCache boolean conserva caché; string fuerza upstr
     null,
   );
   assert.equal(fetched, 1);
+  // Exercise the SDK HTTP proxy used by the Next handler, with the same cache.
+  // Both lookups must consult upstream: a revoked session stays anonymous.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await handleAuthProxyRequest({
+      baseUrl: "https://auth.example.invalid/auth",
+      cookieSecret: secret,
+      sameSite: "lax",
+      path: "get-session",
+      log: resolveNeonAuthLogging({ logLevel: "silent" }),
+      request: new Request(
+        "https://app.example.invalid/api/auth/get-session?disableCookieCache=true",
+        {
+          headers: {
+            cookie: `${NEON_AUTH_SESSION_COOKIE_NAME}=fixture-only; ${NEON_AUTH_SESSION_DATA_COOKIE_NAME}=${cookie}`,
+          },
+        },
+      ),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(await response.json(), null);
+  }
+  assert.equal(fetched, 3);
 });

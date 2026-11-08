@@ -53,6 +53,16 @@ Resultados ejecutados: `npm ci --ignore-scripts --no-audit --no-fund` (pasa con 
 
 ## Precaución: decisiones anteriores reemplazadas
 
+**Actualización F0-NEON, 2026-11-07:** el entorno de prueba ya existe y el
+conector tiene acceso efectivo al proyecto autorizado `dry-voice-45959315`,
+solo `development`. Better Auth, esquema administrado y sonda anónima/JWKS
+verificados; OTP obligatorio y revocación en reset configurados/releídos.
+Altas por correo apagadas provisionalmente, sin afirmar cierre del alta Google.
+R-19 parcialmente mitigado; R-01/02/13/17 siguen abiertos. Invitaciones,
+revocación real, entregabilidad e integración A/B no probadas. Ver
+[evidencia y límites vigentes](17-informe-f0-neon.md); las notas de ausencia
+de proyecto anteriores son históricas, no el estado actual.
+
 | Tema | Regla definitiva a implementar |
 |---|---|
 | Devolución de compra de enero recibida en febrero | **v9.42**: devolución febrero separada, compras y presupuesto febrero **intactos**; no ingreso ordinario. |

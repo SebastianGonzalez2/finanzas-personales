@@ -10,6 +10,20 @@ export async function checkSdkContract(baseUrl: string, cookieSecret: string) {
   });
   const client = createAuthClient();
   const { GET, POST } = auth.handler();
+  // HTTP query avoids the boolean/string cache mismatch in SDK 0.8.2.
+  // Compile-only: not mounted in the application and not an admission guard.
+  const readFreshSession = (request: Request) => {
+    const url = new URL(request.url);
+    url.search = "?disableCookieCache=true";
+    return GET(
+      new Request(url, {
+        method: "GET",
+        headers: { cookie: request.headers.get("cookie") ?? "" },
+        signal: AbortSignal.timeout(10_000),
+      }),
+      { params: Promise.resolve({ path: ["get-session"] }) },
+    );
+  };
   const { data, error } = await auth.getSession();
   const ownerId = error ? null : data?.user?.id;
   await client.signUp.email({
@@ -45,5 +59,5 @@ export async function checkSdkContract(baseUrl: string, cookieSecret: string) {
   await auth.listSessions();
   await auth.revokeOtherSessions();
   await auth.signOut();
-  return { GET, POST, ownerId };
+  return { GET, POST, ownerId, readFreshSession };
 }

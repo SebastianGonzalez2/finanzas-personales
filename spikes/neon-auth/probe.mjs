@@ -1,5 +1,6 @@
 // Sonda opcional de solo lectura. No registra usuarios ni manda correos.
 import { createAuthClient } from "@neon/auth";
+import { developmentTarget } from "../../src/server/neon-development-config.mts";
 
 const value = process.env.NEON_AUTH_BASE_URL;
 if (!value) {
@@ -11,6 +12,9 @@ if (!value) {
   try {
     const url = new URL(value);
     if (
+      value !== developmentTarget.authBaseUrl ||
+      process.env.NEON_PROJECT_ID !== developmentTarget.projectId ||
+      process.env.NEON_BRANCH_ID !== developmentTarget.branchId ||
       url.protocol !== "https:" ||
       !url.hostname.endsWith(".neon.tech") ||
       url.username ||
@@ -40,8 +44,8 @@ if (!value) {
       true;
     console.log(
       JSON.stringify({
-        anonymousSessionDenied: true,
-        webhookEd25519KeyAvailable: keyAvailable,
+        anonymousSessionEmpty: true,
+        jwksEd25519KeyAvailable: keyAvailable,
       }),
     );
     if (!keyAvailable) process.exitCode = 1;

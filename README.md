@@ -37,6 +37,11 @@ Este ticket no necesita `.env` ni cuentas de proveedores. [.env.example](.env.ex
 
 ## Estructura
 
+**F0-NEON:** [configurar el entorno development existente](docs/development-neon.md)
+y ejecutar `npm run probe:neon` (solo lectura, sin migraciones). El conector Neon
+no configura automáticamente las credenciales del proceso local. Estado y
+límites: [informe](docs/planning/17-informe-f0-neon.md).
+
 ```text
 src/app/                 Rutas, layout, CSS global, portada e icono
 src/components/ui/       Código fuente local de shadcn/ui
