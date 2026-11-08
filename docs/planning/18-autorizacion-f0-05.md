@@ -1,6 +1,10 @@
 # F0-05 — Cambios exactos propuestos para development
 
-Estado: **pendiente de autorización; ninguna escritura Neon ejecutada**.
+Estado: **autorizado expresamente por el titular y aplicado en development**.
+El contenido de la propuesta SQL de abajo se conserva como registro del alcance
+autorizado. SHA-256 aprobado/aplicado:
+`2b61f79cae12eb1b6c504e9a2f30f296ba00a2cf5df87281c91daa39f4e29c7b`.
+Ledger: `2026-11-08T03:02:46.359Z`. Ver [resultados](19-informe-f0-05.md).
 Destino exclusivo: proyecto `dry-voice-45959315`, rama `development`
 `br-late-feather-b6czfkx0`, endpoint `ep-falling-queen-b63xbfuk`, base `neondb`.
 Base Git: `e3d1ec456054f659aef848aafd2e8f070b5452e8`.

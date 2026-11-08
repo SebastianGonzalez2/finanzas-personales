@@ -1,6 +1,6 @@
 # Plan de implementación por fases y entregables para Codex
 
-**Seguimiento vigente de F0:** [integración controlada](16-integracion-controlada-f0.md). Scaffold, CI protegido y spikes integrados; F0-04, F0-05 y verificaciones reales de proveedores siguen pendientes. Las notas de entrega históricas no sustituyen ese estado ni cierran la fase.
+**Seguimiento vigente de F0:** [integración controlada previa](16-integracion-controlada-f0.md) e [informe F0-05](19-informe-f0-05.md). Scaffold, CI protegido y spikes integrados; persistencia F0-05 aplicada/probada en development y en revisión en PR #11. F0-04 y verificaciones de proveedores siguen pendientes. No se cierra la fase.
 
 **Tipo:** backlog técnico priorizado, **no cronograma ni compromiso de fechas**.  
 **Base:** requisito funcional aprobado v9.48, [requisitos](01-alcance-y-requisitos.md), [modelo/invariantes](02-modelo-de-dominio-y-datos.md) y [criterios](03-criterios-de-aceptacion.md).  
@@ -30,6 +30,15 @@ locales pooled/direct pasan en READ ONLY. No sustituye migraciones ni pruebas re
 **Seguimiento F0-04 — 2026-11-07:** investigación y [experimento local reproducible](../../spikes/neon-auth/README.md) entregados para revisión; ver [hallazgos, acciones exactas del titular y matriz real pendiente](12-informe-f0-04.md). Pruebas locales y contrato SDK no equivalen a alta real. El titular confirmó que aún no tiene proyecto Neon de prueba: Google, OTP, recuperación, sesiones e invitación real permanecen pendientes, y F0-04 no está aceptado funcionalmente. No se supera la puerta F0 ni se autoriza publicación. Siguiente ticket del plan: F0-05, sin iniciar.
 
 **Objetivo:** base reproducible sin secretos, proveedor de identidad y persistencia validados, modelo claro, herramienta de QA y diseño visual recuperado.
+
+**Seguimiento F0-05 — 2026-11-08:** [implementación y evidencia real](19-informe-f0-05.md)
+en [PR #11](https://github.com/SebastianGonzalez2/finanzas-personales/pull/11),
+sin fusionar. SQL exacto autorizado por el titular, aplicado únicamente en
+development; reejecución sin cambios, 48 verificaciones directas y 48 pooled de
+aislamiento/precisión/rollback pasan; mismo SQL desde cero en CI PostgreSQL.
+`neon_auth` no modificado. Aceptación técnica de persistencia F0-05 verificada;
+revisión humana pendiente. Sesiones/API/invitaciones F0-04 y puerta F0 abiertas.
+Las menciones anteriores de F0-05 pendiente son históricas.
 
 | Ticket | Implementación / investigación | Evidencia de aceptación |
 |---|---|---|

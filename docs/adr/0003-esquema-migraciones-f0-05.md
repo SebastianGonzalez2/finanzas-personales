@@ -1,7 +1,8 @@
 # ADR 0003 — Persistencia inicial F0-05
 
-Fecha: 2026-11-07, America/Montevideo. Estado: implementación local preparada;
-**aplicación en Neon pendiente de autorización expresa**. Producto v9.48,
+Fecha: 2026-11-08, America/Montevideo. Estado: implementado y probado en Neon
+development tras autorización expresa del SQL y fixtures; revisión del PR #11
+pendiente. Producto v9.48,
 RF-004, RNF-01/02/03/04/12/15, CA-001 (capa DB), I-10/11/12.
 
 ## Decisiones
@@ -72,3 +73,15 @@ La jerarquía completa de categorías y auditoría de rectificaciones se validar
 cuando existan esas mutaciones; no se habilitan ahora.
 
 No se tocan `neon_auth`, `production`, datos reales, facturación ni F1.
+
+## Validación realizada
+
+El titular autorizó el SHA-256
+`2b61f79cae12eb1b6c504e9a2f30f296ba00a2cf5df87281c91daa39f4e29c7b`
+y las pruebas con rollback. Aplicación real en development: una migración;
+segunda ejecución: ninguna pendiente ni aplicada. Ledger remoto coincide.
+48 verificaciones directas y 48 pooled pasan, contexto se limpia y seis tablas
+financieras vacías al terminar. Catálogo confirma rol sin bypass/login/DDL y
+RLS habilitada/forzada en las seis tablas. CI PostgreSQL 17.6 verifica el mismo
+SQL desde cero y reejecución; Neon usa PostgreSQL 18.6. No son pruebas Auth.
+Ver [informe y límites](../planning/19-informe-f0-05.md).

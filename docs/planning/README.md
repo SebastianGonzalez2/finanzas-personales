@@ -1,6 +1,6 @@
 # Plan maestro de implementación — Finanzas personales
 
-**Estado:** planificación funcional cerrada (decisiones del producto v9.48); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Auth, DB y proveedores; ver [integración vigente](16-integracion-controlada-f0.md).
+**Estado:** planificación funcional cerrada (decisiones del producto v9.48); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Auth y proveedores; persistencia development F0-05 probada y en revisión, sin merge. Ver [informe F0-05](19-informe-f0-05.md) e [integración previa](16-integracion-controlada-f0.md).
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
@@ -34,6 +34,11 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 **F0-03 integrado:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
 
 ## Autoridad y resolución de conflictos
+
+**F0-05, 2026-11-08:** [esquema/migración y pruebas reales](19-informe-f0-05.md)
+en PR #11. SQL autorizado aplicado solo a development; aislamiento y precisión
+48/48 directo y 48/48 pooled, fixtures revertidos. No equivale a sesión/API
+Auth segura ni cierra F0-04, puerta F0 o revisión humana del PR.
 
 **Avance F0-NEON:** [conexión de development y evidencia real](17-informe-f0-neon.md),
 con [configuración privada y pasos manuales](../development-neon.md). Sustituye

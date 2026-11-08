@@ -8,6 +8,14 @@
 
 ## Resultado de auditoría inicial
 
+**Actualización F0-05 — 2026-11-08:** [PR #11 e informe](19-informe-f0-05.md).
+R-12 mitigado en persistencia inicial: dominio exacto que rechaza escala/overflow
+y Money BigInt/string; tres monedas probadas. R-13 mitigado en DB: 48 controles
+directos y 48 pooled con rol sin bypass, RLS/FK por dueño y rollback; no hay
+fixtures persistentes. R-19 permite migración development expresamente
+autorizada/aplicada. R-13 integral, R-01/02/17, SMTP, sesiones reales, invitación
+y credencial final de runtime continúan abiertos. No hay aprobación de producción.
+
 - La planificación funcional de los módulos principales está **suficientemente cerrada** para iniciar tareas técnicas F0.
 - El repositorio remoto visto en noviembre de 2026 contenía únicamente `docs/` con la imagen visual y el registro de decisiones. **No se encontró aplicación ni esquema de base de datos desplegados**. No se deben dar por implementados.
 - En la auditoría original la guía visual local `docs/design/fintrack-visual-spec.md` **no se encontró en `main` remoto**. F0-02 confirmó su existencia local y la consolidó para revisión; ver [evidencia y límites](10-informe-f0-02.md). Esto no demuestra reproducción visual de una aplicación.

@@ -47,3 +47,33 @@ RF-004/RNF-01/02/03/12, CA-001/006/013/014/066, I-11/12: infraestructura y compr
 ## Evidencia remota negativa
 
 [Run 42405689022](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42405689022), SHA `14b8ff3`: `F0 quality` falla exactamente en el centinela unitario (3 pasan, 1 falla); formato/lint/tipos/build pasan. `F0 database` pasa contra PostgreSQL real. El test temporal se elimina en un commit nuevo, conservando la evidencia histórica. Esto demuestra propagación del fallo al check, **no** protección efectiva de merge. No se intentó hacer merge como experimento.
+
+## F0-05 — Esquema real y Neon development
+
+Actualización 2026-11-08: `pg` ya es dependencia runtime desde F0-NEON; F0-05
+lo reutiliza sin ORM ni paquetes adicionales. Las notas anteriores sobre
+ausencia de esquema son históricas. [Informe y límites actuales](planning/19-informe-f0-05.md).
+
+`npm run test:integration` ahora usa `--conditions=react-server` y agrega una
+suite que aplica el SQL versionado desde cero, lo reejecuta sin duplicarlo y
+verifica RLS, FK por titular, NUMERIC exacto y rollback. Mantiene intacta la
+guarda de localhost: nunca reemplazar TEST_DATABASE_URL por una URL Neon.
+El esquema neon_auth simulado solo se crea en ese contenedor vacío, sin
+identidades, para verificar denegación de permisos; no altera Neon Auth real.
+
+Hay comandos separados, fijados al único development autorizado:
+
+- `npm run db:plan`: muestra destino/versiones/SHA-256 sin conectar.
+- `npm run db:migrate -- --apply <sha256 autorizado>`: conexión directa,
+  verificación de rama, DDL + ledger atómicos y reejecución sin cambios.
+- `npm run test:db:development -- --approved-rollback-fixtures`: requiere
+  autorización de fixtures; 48 verificaciones reales con ROLLBACK, sin datos
+  persistentes. Por defecto usa conexión directa. Para pooled, establecer
+  `F0_05_TEST_CONNECTION=pooled` solamente para ese proceso.
+
+El titular autorizó la migración inicial y esas pruebas; se ejecutaron y
+pasaron directo/pooled. El código de prueba no autoriza nuevas migraciones,
+escrituras de otro alcance ni cambios en production. No se ejecutan
+DELETE/TRUNCATE ni limpieza; se verifica ausencia de esos privilegios.
+Los IDs A/B sintéticos de persistencia no son sesiones Auth: CA-001 de API,
+CA-006 y puerta F0 continúan pendientes de F0-04/F1-08.
