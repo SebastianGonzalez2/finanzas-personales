@@ -11,7 +11,10 @@ const action = process.argv.includes("--allow")
   : process.argv.includes("--revoke")
     ? "revoke"
     : null;
-if (!action)
+if (
+  !action ||
+  (process.argv.includes("--allow") && process.argv.includes("--revoke"))
+)
   throw new Error(
     "Elegir --allow o --revoke; correo en archivo privado GOOGLE_ALLOWLIST_EMAIL",
   );

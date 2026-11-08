@@ -67,6 +67,7 @@ test(
         use: "sig",
       };
       let profile, authorizationUrl;
+      let providerUnavailable = false;
       t.mock.method(globalThis, "fetch", async (url, options) => {
         const target = String(url);
         if (target === "https://www.googleapis.com/oauth2/v3/certs")
@@ -76,6 +77,7 @@ test(
           "https://oauth2.googleapis.com/token",
           "No network outside simulated Google",
         );
+        if (providerUnavailable) throw new Error("Synthetic provider outage");
         const params = new URLSearchParams(options.body);
         assert.equal(
           params.get("redirect_uri"),
@@ -361,6 +363,8 @@ test(
             await financial.query("COMMIT");
             await revoke;
             assert.equal(await fresh(b.cookie), null);
+            await financial.query("BEGIN");
+            await financial.query("SET LOCAL ROLE finanzas_app");
             const denied = await financial.query(
               "SELECT app_access.authorize_session($1) AS owner",
               [b.session.session.token],
@@ -477,6 +481,48 @@ test(
         },
       );
       await t.test(
+        "JWT expirado, audience/issuer incorrectos y fallo de red no crean sesiones",
+        async () => {
+          const sessionsBefore = (
+            await admin.query("SELECT count(*) FROM app_auth.session")
+          ).rows[0].count;
+          for (const invalid of [
+            { exp: 1 },
+            { aud: "another-client" },
+            { iss: "https://evil.invalid" },
+          ]) {
+            const result = await callback(await begin(), {
+              ...google("a@example.invalid", "google-A"),
+              ...invalid,
+            });
+            assert.notEqual(
+              result.headers.get("location"),
+              `${origin}/account`,
+            );
+          }
+          const start = await begin();
+          providerUnavailable = true;
+          try {
+            const result = await callback(
+              start,
+              google("a@example.invalid", "google-A"),
+            );
+            assert.notEqual(
+              result.headers.get("location"),
+              `${origin}/account`,
+            );
+          } finally {
+            providerUnavailable = false;
+          }
+          assert.equal(
+            (await admin.query("SELECT count(*) FROM app_auth.session")).rows[0]
+              .count,
+            sessionsBefore,
+          );
+          assert.equal(await count(), 2);
+        },
+      );
+      await t.test(
         "límite de intentos persistente devuelve 429 sin crear identidad",
         async () => {
           await begin();
@@ -492,7 +538,7 @@ test(
             deps,
           );
           assert.equal(denied.status, 429);
-          assert.ok(Number(denied.headers.get("retry-after")) > 0);
+          assert.ok(Number(denied.headers.get("x-retry-after")) > 0);
           assert.equal(await count(), 2);
         },
       );
