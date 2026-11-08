@@ -1,5 +1,7 @@
 # Registro de riesgos y verificaciones antes de implementar
 
+**Actualización F0-INTEGRATE:** [merges, protección y pendientes vigentes](16-integracion-controlada-f0.md). CI y checks obligatorios activos no resuelven R-01/02/13/19; la evidencia preparatoria de R-04/12/16 no prueba la aplicación real. Cuentas, SMTP y límites/costo de proveedores R-03/11 requieren validación. El inventario inicial de abajo es histórico.
+
 **Estado:** evaluación de planificación; **funcionalmente cerrado**, técnicamente **requiere verificación**.  
 **Registro fuente:** [decisiones v9.48](../product/decisiones-producto.md).  
 **Regla:** «pendiente» significa *no verificado/no implementado*; **no** implica abrir automáticamente otra tanda de decisiones.

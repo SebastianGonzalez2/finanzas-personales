@@ -1,6 +1,6 @@
 # F0-06 — Pruebas y CI
 
-Base: scaffold F0-03, PR #2, aún sin merge. Este ticket agrega infraestructura de pruebas; no implementa auth, esquema ni motor financiero.
+Base: scaffold F0-03, PR #2 integrado; F0-06 también integrado. Este ticket agrega infraestructura de pruebas; no implementa auth, esquema ni motor financiero de aplicación. Estado vigente: [integración controlada](planning/16-integracion-controlada-f0.md).
 
 Los spikes aislados llevan sus propios package/tsconfig/pruebas y quedan fuera del formato/lint/tsconfig de la app. Evita que el target ES2017 de Next compile contratos Node/BigInt o que la app requiera dependencias de un experimento. Al incorporar un spike hay que ejecutar sus verificaciones propias; F0-09 incluye workflow dedicado. Esto no excluye src ni tests de aplicación.
 
@@ -30,6 +30,8 @@ Detener con Ctrl+C la terminal del contenedor al terminar. Nunca adaptar la guar
 
 ## Merge y seguridad de CI
 
+**Configuración vigente verificada por API:** main protegido con rama actualizada obligatoria, reglas también para administradores, sin fuerza/borrado y seis checks requeridos de GitHub Actions: `F0 quality`, `F0 database`, `F0 visual documentation`, `F0 contracts`, `F0 auth spike`, `F0 provider evidence`. PR obligatorio, mínimo de reviews aprobatorias 0. Se observó bloqueo mientras checks pendientes y habilitación al pasar; no se intentó fusionar un head fallido. La inspección sin protección y recomendaciones siguientes son históricas, anteriores a F0-INTEGRATE.
+
 Checks únicos: `F0 quality` y `F0 database`. Workflow en PR/push de la rama F0-06 y main; sin filtros que omitan archivos, sin secretos ni `pull_request_target`, permisos `contents: read`, checkout sin persistir credenciales, 15/10 minutos y cancelación de runs obsoletos. No publica artefactos financieros ni despliega. Node nativo evita otra dependencia para unidad; Playwright 1.65.0 Apache-2.0 y pg 8.23.1 MIT son compatibles con Node 24; lockfile y licencias de la instalación conservados.
 
 **Inspección 2026-11-07:** repositorio privado, permisos admin disponibles, `main` sin protección (404) y sin rulesets (`[]`). Un check rojo por sí solo **no impide** un merge. [GitHub limita protección en repos privados según plan](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches). No se cambió visibilidad ni plan. Activar checks obligatorios después de integrar scaffold/CI y comprobar disponibilidad en la cuenta; antes dejaría PR anteriores sin checks requeridos. No se afirma cumplido ese criterio de F0-06 hasta verificar bloqueo efectivo con prueba negativa.
@@ -40,7 +42,7 @@ Referencias oficiales: [Node 24 test runner](https://nodejs.org/docs/latest-v24.
 
 `npm run check`: pasa. `npm run test:unit`: 3/3. `npm run test:e2e`: 2/2. `npm audit --json`: cero avisos. Integración local sin variables: falla cerrada, esperada; no hay Docker/psql/postgres instalados. Primer intento E2E aislado quedó sin respuesta local; se canceló y repetición fuera del sandbox pasó. Un segundo intento simultáneo falló EADDRINUSE y no se ocultó reutilizando el servidor.
 
-RF-004/RNF-01/02/03/12, CA-001/006/013/014/066, I-11/12: infraestructura y comprobaciones parciales, **no aceptación funcional**. Sin migraciones ni cambios de UI, Neon o datos. R-13/R-19 abiertos. CI remoto y prueba negativa se registran en el PR con su SHA. Siguiente: F0-05 en entorno Neon aislado y protección tras revisión humana.
+RF-004/RNF-01/02/03/12, CA-001/006/013/014/066, I-11/12: infraestructura y comprobaciones parciales, **no aceptación funcional**. Sin migraciones ni cambios de UI, Neon o datos. R-13/R-19 abiertos. CI remoto y prueba negativa se registran en el PR con su SHA. Siguiente: F0-05 en entorno Neon aislado; protección ya aplicada, con los límites descritos arriba.
 
 ## Evidencia remota negativa
 

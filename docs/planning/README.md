@@ -1,6 +1,6 @@
 # Plan maestro de implementación — Finanzas personales
 
-**Estado:** planificación funcional cerrada (decisiones del producto v9.48); documentación de ingeniería preparatoria, **no código implementado**.  
+**Estado:** planificación funcional cerrada (decisiones del producto v9.48); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Auth, DB y proveedores; ver [integración vigente](16-integracion-controlada-f0.md).
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
@@ -25,14 +25,17 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 8 | [Guía operativa de Codex](08-guia-operativa-codex.md) | Cómo trabajar por tickets, chats, permisos y revisión. |
 | 9 | [Convenciones de Git](09-convenciones-git.md) | Formato obligatorio de **títulos de chats de Codex**, ramas, commits, títulos y descripciones de PR. |
 | 10 | [Modelos por ticket en Codex](10-modelos-por-ticket.md) | Modelo e intensidad recomendados, justificación y revisión independiente para los 56 tickets F0–F6. |
+| 11 | [Estado verificado de F0](14-seguimiento-f0.md) | Entregas, PR, pruebas reales y bloqueos al continuar F0; no sustituye aceptación humana. |
+| 12 | [Auditoría de integración F0](15-auditoria-integracion-f0.md) | Revisión técnica de PR #1–#8, correcciones, compatibilidad conjunta y configuración pendiente. |
+| 13 | [Integración controlada F0](16-integracion-controlada-f0.md) | Merges reales, protección de main, estado vigente y configuración Neon/Google/SMTP pendiente. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
-**Entrega F0-03 para revisión:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
+**F0-03 integrado:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
 
 ## Autoridad y resolución de conflictos
 
-**Entrega F0-04 para revisión:** [Neon Auth, invitaciones y configuración por el titular](12-informe-f0-04.md), con [spike aislado](../../spikes/neon-auth/README.md). Investigación/pruebas locales entregadas; validación real pendiente por ausencia de entorno Neon. No declara auth de la aplicación implementada ni cierre de F0.
+**F0-04 integrado parcialmente:** [Neon Auth, invitaciones y configuración por el titular](12-informe-f0-04.md), con [spike aislado](../../spikes/neon-auth/README.md). Investigación/pruebas locales entregadas; implementación y validación real pendientes por ausencia de entorno Neon. No declara auth de la aplicación implementada ni cierre de F0.
 
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).
 2. Este paquete transforma decisiones en **criterios implementables**, pero sus diagramas, nombres de tablas, orden de tareas y opciones de bibliotecas son **propuestas de ingeniería**, no nuevas funciones aprobadas.
