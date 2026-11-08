@@ -136,6 +136,13 @@ y que la respuesta explícita nunca permite el alta. Esta corrección evita trat
 una denegación permanente como indisponibilidad transitoria; **no desbloquea un
 registro válido ni está certificada por un callback nuevo de Neon**.
 
+Publicación del receptor: READY en el [proyecto temporal](https://finanzas-personales-f0-04.vercel.app),
+deployment `dpl_GK8EKHmg2Kt8t7ASqrPv95W2rfuS`, fuente `daf4699`, Next.js,
+gru1, build 42 s. La etiqueta production pertenece solo al proyecto temporal de
+Vercel; no se cambió Neon production. Sonda pública cerrada 6/6; cero logs de
+nivel error en la ventana 19:21:40–19:31:40 UTC. Esto no acredita flujos Auth reales.
+Se conserva la observabilidad existente; no se añadieron servicios ni drains.
+
 ### Pruebas actuales y límite de lo demostrado
 
 `npm run audit:auth:development -- --probe-closed-signup` ejecuta SQL READ ONLY,
@@ -172,6 +179,11 @@ PATCH con campos no documentados, SQL manual sobre `neon_auth` ni re-provisionad
 La firma del proyecto, un `Origin`/IP, un token entregado al navegador o un filtro
 posterior al alta no sustituyen la atribución segura de rama. Crear otro proyecto
 aislado podría separar claves, pero está fuera del destino autorizado y no se hizo.
+En particular, un permiso que recibe el navegador puede reenviarse a otro Auth
+URL: encontrar su hash en development acredita la invitación, pero no el destino
+donde el proveedor intenta crear al usuario. Es el motivo para no sustituir el
+control de contexto por la mera existencia de ese permiso; no se probó ese ataque
+contra production.
 
 **Conclusión:** se corrigió una respuesta nuestra y se localizó el valor anómalo
 en configuración administrada heredada. No se confirmó un desvío de tráfico a

@@ -51,6 +51,22 @@
     "signatureKeyNetworkDatabaseFailureClosed": true,
     "newRealSignedCallbackTested": false
   },
+  "deployment": {
+    "id": "dpl_GK8EKHmg2Kt8t7ASqrPv95W2rfuS",
+    "origin": "https://finanzas-personales-f0-04.vercel.app",
+    "target": "production_of_temporary_test_project",
+    "readyState": "READY",
+    "sourceCommit": "daf4699",
+    "framework": "Next.js",
+    "region": "gru1",
+    "buildDurationSeconds": 42,
+    "packageSha256": "92b4e70a8fcac45752a46ee1c75577095807b4f3ba9d637372225d19c960fb3e",
+    "publicClosedChecks": "6/6",
+    "runtimeErrorLogRecords": 0,
+    "errorScanStartUtc": "2026-11-08T19:21:40.886Z",
+    "errorScanEndUtc": "2026-11-08T19:31:40.886Z",
+    "signupStillDisabledReadBack": true
+  },
   "verification": {
     "unitTests": "22/22",
     "managedAuditExit": 1,
