@@ -36,7 +36,11 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 | F0-08 | Diseñar/implementar prototipo de **motor de efectos + checkpoints históricos** con pruebas de CA-015 e I-10. | Correcciones previas a conciliación **no** modifican saldo posterior confirmado; inconsistencia auditada y visible. |
 | F0-09 | Decidir convenciones de módulos, IDs, timestamps, decimales, transacciones y eventos; amenazas de seguridad. | ADR breve (Architecture Decision Record) con pruebas de monedas y permisos. |
 
+**Seguimiento F0-02 — 2026-11-07:** entrega documental en revisión en la rama `codex/F0-02-diseno-visual`. [Guía consolidada](../design/fintrack-visual-spec.md) y [verificaciones/límites](10-informe-f0-02.md): referencia preservada, responsive, componentes, formularios y estados especificados. No hay UI ni CA funcional aprobado. Aceptación humana pendiente; siguiente ticket propuesto F0-03, sin iniciarlo ni autorizar merge/despliegue.
+
 **Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Neon Auth/SMTP/código invitación, **no simular** que el acceso es seguro ni publicar con un bypass.
+
+**Seguimiento F0-03 — 2026-11-07:** esqueleto Next.js/TypeScript/Tailwind/shadcn con lockfile y herramientas de formato/lint, **en revisión** en `codex/F0-03-scaffold-nextjs`. Ver [implementación, checks y límites](11-informe-f0-03.md). Dev server, instalación limpia, typecheck/lint/build y revisión de portada en Chromium móvil/escritorio ejecutados; no implica auth, DB, CI, cierre de CA funcionales ni puerta F0. Siguiente ticket: F0-04.
 
 ## F1 — Núcleo financiero y movimientos
 

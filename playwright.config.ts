@@ -1,0 +1,31 @@
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./tests/e2e",
+  forbidOnly: true,
+  retries: 0,
+  workers: 1,
+  reporter: "list",
+  use: {
+    baseURL: "http://127.0.0.1:3106",
+    trace: "off",
+    screenshot: "off",
+    video: "off",
+  },
+  projects: [
+    {
+      name: "chromium-desktop",
+      use: { browserName: "chromium", viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: "chromium-mobile",
+      use: { browserName: "chromium", viewport: { width: 390, height: 844 } },
+    },
+  ],
+  webServer: {
+    command: "npm start -- --port 3106",
+    url: "http://127.0.0.1:3106",
+    reuseExistingServer: false,
+    timeout: 60000,
+  },
+});

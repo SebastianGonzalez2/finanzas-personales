@@ -8,7 +8,7 @@
 
 - La planificación funcional de los módulos principales está **suficientemente cerrada** para iniciar tareas técnicas F0.
 - El repositorio remoto visto en noviembre de 2026 contenía únicamente `docs/` con la imagen visual y el registro de decisiones. **No se encontró aplicación ni esquema de base de datos desplegados**. No se deben dar por implementados.
-- La supuesta guía visual local `docs/design/fintrack-visual-spec.md` **no se encontró en `main` remoto**, aunque Codex informó previamente haberla redactado. Comprobar local o reconstruir antes de implementación visual.
+- En la auditoría original la guía visual local `docs/design/fintrack-visual-spec.md` **no se encontró en `main` remoto**. F0-02 confirmó su existencia local y la consolidó para revisión; ver [evidencia y límites](10-informe-f0-02.md). Esto no demuestra reproducción visual de una aplicación.
 - El apartado histórico §12 del documento de producto mezcla decisiones ya cerradas con pendientes antiguos: **no usar ese apartado literalmente como lista de cosas sin resolver**, sin consultar decisiones posteriores y este registro.
 - No identificamos un nuevo requisito funcional que sea obligatorio decidir en otra ronda para **iniciar F0**. Sí existen puertas de **seguridad/viabilidad** que deben probarse antes de desplegar o tratar datos reales.
 
@@ -33,7 +33,7 @@
 | R-15 | PWA offline genera operaciones locales inconexas. | Medio/alto; falsa certeza de saldo. | Descartado funcionalmente | Sin cola de escritura offline; respuesta persistida del servidor obligatoria para éxito. Test CA-065. |
 | R-16 | Inconsistencia de mes/período al viajar entre zonas horarias. | Medio; cuotas/recurrencias en mes erróneo. | Diseño pendiente | Fecha de calendario separada de timestamp UTC; tests con fechas de fin de mes y distintos husos. |
 | R-17 | Gráficos/bibliotecas y dependencias de uso comercial/costo no verificado. | Medio; deuda técnica/licencias. | Stack base elegido; paquetes adicionales pendientes | Elegir mínimo paquete mantenido y gratuito, testear licencias/compatibilidad/cantidad de dependencias. No enviar datos de gastos a SaaS de gráficos. |
-| R-18 | Falta de especificación visual versionada. | Medio; divergencia del diseño aprobado. | Imagen disponible, texto local no confirmado | Verificar archivo local; recuperar o documentar especificación visual desde `docs/fintrack-original.jpeg`; probar UI móvil/escritorio. |
+| R-18 | Falta de especificación visual versionada y reproducción visual aún sin probar. | Medio; divergencia del diseño aprobado. | Mitigado parcialmente en F0-02; UI pendiente | 2026-11-07: [guía consolidada](../design/fintrack-visual-spec.md), [evidencia F0-02](10-informe-f0-02.md) y `node docs/design/verify-visual-spec.mjs` para enlaces/contraste. Falta aceptación humana y ejecutar matriz visual móvil/escritorio al implementar F1-01/F6; no se declara resuelto. |
 | R-19 | Conexión de Neon/Google/Vercel requiere credenciales y acciones del titular. | Operativo; no se puede completar sin permisos del dueño. | No configurado en este paquete | Documentar variables en `.env.example`, solicitar autorización puntual, no almacenar tokens/API keys en documentos, issues, GitHub o chat. |
 | R-20 | Backlog amplio genera falsa «MVP completa» al finalizar núcleo. | Medio/alto; expectativas equivocadas. | Controlado con fases | Distinguir demostración interna incremental de producto completo aprobado; conservar todas RF P1/P2 en plan y establecer gates. |
 

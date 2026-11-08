@@ -1,0 +1,26 @@
+# Dependencies and generated output
+/node_modules/
+/.next/
+/out/
+/build/
+/coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local credentials and provider configuration
+.env*
+!.env.example
+/.vercel/
+*.pem
+*.key
+
+# Local logs and browser artifacts
+*.log
+/.playwright-mcp/
+/playwright-report/
+/test-results/
+
+# Editor / OS files
+.DS_Store
+Thumbs.db
+/.idea/

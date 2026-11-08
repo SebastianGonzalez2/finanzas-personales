@@ -4,7 +4,7 @@
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
-**Referencia visual:** [Fintrack original](../fintrack-original.jpeg).
+**Referencia visual:** [Fintrack original](../fintrack-original.jpeg); [guía visual F0-02 y evidencia](10-informe-f0-02.md).
 
 ## Objetivo
 
@@ -27,6 +27,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 10 | [Modelos por ticket en Codex](10-modelos-por-ticket.md) | Modelo e intensidad recomendados, justificación y revisión independiente para los 56 tickets F0–F6. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
+
+**Entrega F0-03 para revisión:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
 
 ## Autoridad y resolución de conflictos
 
