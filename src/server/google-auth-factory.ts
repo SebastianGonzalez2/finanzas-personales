@@ -92,7 +92,6 @@ export function createGoogleAuth(
           }
           return {
             user: {
-              id: identity.subject,
               email: identity.email,
               emailVerified: true,
               name:
