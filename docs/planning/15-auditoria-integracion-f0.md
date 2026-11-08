@@ -1,5 +1,7 @@
 # F0-REVIEW — Auditoría y preparación de PR #1–#8
 
+**Informe histórico de auditoría anterior a la autorización.** La decisión y las fusiones posteriores, los nuevos heads y la protección aplicada se registran en [F0-INTEGRATE](16-integracion-controlada-f0.md). La ausencia de autorización/protección y las bases descritas a continuación corresponden al corte de revisión, no al estado vigente.
+
 **Fecha:** 2026-11-07, America/Montevideo. **Decisión pendiente del titular:** autorizar integración; **ningún PR fusionado ni aprobado mediante review de GitHub**. No se modificó main, producción, proveedores, facturación ni datos reales. La aprobación técnica de un artefacto parcial no equivale a cerrar su ticket ni la fase F0.
 
 ## Método y estado de Git

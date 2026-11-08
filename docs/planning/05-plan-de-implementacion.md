@@ -1,5 +1,7 @@
 # Plan de implementación por fases y entregables para Codex
 
+**Seguimiento vigente de F0:** [integración controlada](16-integracion-controlada-f0.md). Scaffold, CI protegido y spikes integrados; F0-04, F0-05 y verificaciones reales de proveedores siguen pendientes. Las notas de entrega históricas no sustituyen ese estado ni cierran la fase.
+
 **Tipo:** backlog técnico priorizado, **no cronograma ni compromiso de fechas**.  
 **Base:** requisito funcional aprobado v9.48, [requisitos](01-alcance-y-requisitos.md), [modelo/invariantes](02-modelo-de-dominio-y-datos.md) y [criterios](03-criterios-de-aceptacion.md).  
 **Regla de cierre:** una fase termina con artefactos, pruebas y revisión; no con «la pantalla parece funcionar». Las fases pueden subdividirse en PR pequeños.

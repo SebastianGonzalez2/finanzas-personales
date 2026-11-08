@@ -1,5 +1,7 @@
 # F0-COORD — Estado verificado de F0
 
+**Estado vigente:** [integración controlada F0-INTEGRATE](16-integracion-controlada-f0.md). Los siete PR previos a #8 ya se fusionaron bajo autorización posterior; main tiene protección activa. Las tablas siguientes son históricas y no declaran pendientes esos merges ni vigente la ausencia de protección.
+
 **Fecha:** 2026-11-07, America/Montevideo. **Alcance autorizado:** continuar pendientes sin repetir F0-02/F0-03 ni intervenir F0-04; priorizar F0-06/07/09. Este registro distingue entrega, revisión y aceptación. Ningún merge, despliegue, servicio pago ni modificación de datos reales realizados.
 
 **Corte histórico:** las tablas siguientes registran la entrega F0-COORD previa a la revisión posterior. Los heads, correcciones, pruebas reejecutadas y orden de integración vigentes se encuentran en la [auditoría F0-REVIEW](15-auditoria-integracion-f0.md). No interpretar los SHA históricos de esta tabla como los heads actuales después de las correcciones.
