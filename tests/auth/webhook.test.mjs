@@ -3,7 +3,10 @@ import test from "node:test";
 import { Buffer } from "node:buffer";
 const { Headers } = globalThis;
 import { generateKeyPairSync, sign } from "node:crypto";
-import { verifyBeforeCreate } from "../../src/server/neon-webhook.ts";
+import {
+  verifyBeforeCreate,
+  WebhookValidationError,
+} from "../../src/server/neon-webhook.ts";
 import { newGrant } from "../../src/server/auth-policy.ts";
 
 test("webhook: firma Ed25519, cuerpo crudo, rama, ID, tipo y ventana temporal", () => {
@@ -66,6 +69,29 @@ test("webhook: firma Ed25519, cuerpo crudo, rama, ID, tipo y ventana temporal", 
   );
   assert.throws(() =>
     verifyBeforeCreate(valid.raw, valid.headers, { keys: [] }, now),
+  );
+  // Real phase-2 failure: a valid signature with production's endpoint must
+  // remain rejected. Shared project signing keys do not establish the branch.
+  const foreign = signed({
+    ...event,
+    context: { endpoint_id: "ep-morning-sunset-b6i4kxdg" },
+  });
+  assert.throws(
+    () =>
+      verifyBeforeCreate(foreign.raw, foreign.headers, { keys: [key] }, now),
+    (error) => {
+      assert.ok(error instanceof WebhookValidationError);
+      assert.equal(error.reason, "event_envelope");
+      assert.deepEqual(error.envelopeChecks, {
+        endpointMatches: false,
+        typeMatches: true,
+        headerTypeMatches: true,
+        idPresent: true,
+        idMatches: true,
+        signedEndpoint: "ep-morning-sunset-b6i4kxdg",
+      });
+      return true;
+    },
   );
   valid.headers.set("x-neon-event-id", "other");
   assert.throws(() =>

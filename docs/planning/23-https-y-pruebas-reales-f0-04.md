@@ -9,7 +9,10 @@ Hobby verificado, Node 24 y región gru1. Diez variables de runtime cargadas,
 cuatro Secret, sin owner. Webhook de development guardado y releído: exclusivamente
 `user.before_create`, timeout 5 s. Alta email y UI siguen cerradas; código revocado.
 [Evidencia pública sanitizada](../evidence/f0-04-https.json).
-Configurar el webhook todavía **no demuestra un callback real firmado**.
+**Actualización fase 2:** autorizada por el titular y preflight ejecutado. La
+firma real pasa, pero el evento identifica el endpoint de otra rama; se volvió
+a cerrar el alta email. Código y UI continúan cerrados. Ver
+[bloqueo reproducible y pasos para Neon](24-bloqueo-webhook-f0-04.md).
 
 El titular tiene dos Gmail disponibles y una cuenta Vercel sin proyecto.
 La cuenta estaba sin proyecto al iniciar esta continuación. La conexión Vercel
@@ -121,7 +124,10 @@ El paquete inicial contiene 32 archivos revisables. Preparar/compilar no demuest
 que Vercel o el webhook real funcionen. El peer del SDK descrito en el informe
 anterior sigue abierto; no se fuerza resolución ni se declara resuelto por build.
 
-## Fase 2: autorización adicional antes de habilitar altas
+## Fase 2: alcance autorizado antes de habilitar altas
+
+La autorización descrita en esta sección fue concedida. No hace falta repetirla
+para el mismo alcance; la condición técnica de preflight todavía no pasa.
 
 Después de publicar y verificar la fase 1 se presentará el estado real de URL,
 plan, secretos cargados y webhook leído de vuelta. Entonces autorizar una ventana

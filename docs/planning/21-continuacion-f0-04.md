@@ -6,8 +6,9 @@ Complementa el [informe anterior](12-informe-f0-04.md); prevalece sobre sus
 menciones históricas de ausencia de proyecto Neon y de scaffold.
 
 **Siguiente preparación del mismo ticket:** [HTTPS y pruebas reales](23-https-y-pruebas-reales-f0-04.md).
-El titular ya dispone de dos Gmail y cuenta Vercel sin proyecto. El paquete se
-prepara localmente; publicación y habilitación de altas requieren autorizaciones separadas.
+El titular dispone de dos Gmail. Se autorizó y publicó el proyecto temporal en
+Vercel; la fase 2 también fue autorizada. Las altas volvieron a cerrarse por una
+[discrepancia de rama del evento firmado real](24-bloqueo-webhook-f0-04.md).
 
 ## Base y trazabilidad
 

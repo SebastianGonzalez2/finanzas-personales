@@ -27,7 +27,69 @@
       "tokenReturned": false,
       "authUsersBefore": 0,
       "authUsersAfter": 0,
-      "codeRevoked": true
+      "codeRevoked": true,
+      "deliveryAttempts": 3,
+      "receiverStatus": 503,
+      "signatureVerified": true,
+      "rejectionReason": "event_envelope",
+      "signupsClosedAfter": true
+    },
+    {
+      "checkedAt": "2026-11-08T14:36:45.145Z",
+      "method": "direct_email_without_invitation",
+      "status": 502,
+      "code": "WEBHOOK_DELIVERY_FAILED",
+      "userReturned": false,
+      "tokenReturned": false,
+      "authUsersBefore": 0,
+      "authUsersAfter": 0,
+      "codeRevoked": true,
+      "deliveryAttempts": 3,
+      "receiverStatus": 503,
+      "signatureVerified": true,
+      "rejectionReason": "event_envelope",
+      "envelopeChecks": {
+        "endpointMatches": false,
+        "typeMatches": true,
+        "headerTypeMatches": true,
+        "idPresent": true,
+        "idMatches": true,
+        "signedEndpoint": "ep-morning-sunset-b6i4kxdg"
+      },
+      "signupsClosedAfter": true
     }
+  ],
+  "receiverDeployment": {
+    "id": "dpl_5HRpFGEBEe2geeAwdG1B4mnUxwLu",
+    "sourceCommit": "f2c3286",
+    "readyState": "READY",
+    "packageSha256": "c218753ad12eaed98e8eaa844331825da47b3dcbbbbec9de3073c48f7aa44990"
+  },
+  "endpointMappingVerifiedViaControlApi": {
+    "expectedEndpoint": "ep-falling-queen-b63xbfuk",
+    "expectedBranch": "br-late-feather-b6czfkx0",
+    "receivedEndpoint": "ep-morning-sunset-b6i4kxdg",
+    "receivedEndpointBranch": "br-wild-mode-b64fgovd",
+    "receivedEndpointBranchName": "production",
+    "productionAuthOrSqlProbesExecuted": false
+  },
+  "finalState": {
+    "emailSignupEnabled": false,
+    "appAuthEnabled": false,
+    "codeRevoked": true,
+    "policyGeneration": 1,
+    "authUsers": 0,
+    "admittedOwners": 0,
+    "grants": 0,
+    "blockingWebhookEnabled": true
+  },
+  "notTested": [
+    "successful invitation decision",
+    "signup metadata transport",
+    "direct Google rejection and invited registration",
+    "Gmail OTP delivery, expiry, resend and attempt limits",
+    "real password recovery",
+    "real authenticated session revocation with stale cookie",
+    "two authenticated users and API data isolation"
   ]
 }

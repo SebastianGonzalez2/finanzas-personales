@@ -39,7 +39,9 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 con [SQL autorizado/aplicado y permisos](22-autorizacion-f0-04.md).
 Auth sigue deshabilitada por defecto; no equivale a aceptación del ticket ni cierre F0.
 La [preparación HTTPS y guía Gmail/Google](23-https-y-pruebas-reales-f0-04.md)
-continúa en PR #12, sin publicación ni autorización de altas todavía.
+continúa en PR #12: proyecto temporal HTTPS publicado con autorización; fase 2
+autorizada, pero altas nuevamente cerradas por la
+[discrepancia de rama en el webhook real](24-bloqueo-webhook-f0-04.md).
 
 **F0-05, 2026-11-08:** [esquema/migración y pruebas reales](19-informe-f0-05.md)
 en PR #11. SQL autorizado aplicado solo a development; aislamiento y precisión
