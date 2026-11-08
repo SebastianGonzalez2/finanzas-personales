@@ -1,23 +1,25 @@
 # Alcance y catálogo de requisitos
 
-**Estado:** especificación derivada de decisiones confirmadas hasta v9.48. Cada fila identifica una capacidad; no implica que esté implementada.  
+**Estado:** especificación derivada de decisiones confirmadas hasta v9.49. Cada fila identifica una capacidad; no implica que esté implementada.  
 **Prioridades:** P0 = imprescindible para un uso seguro del núcleo; P1 = parte del producto completo aprobado, depende del núcleo; P2 = refinamiento de experiencia/analítica aprobado. **P1/P2 no significa descartado.**  
 **Fases:** F0 basamento, F1 núcleo, F2 tarjetas/deudas, F3 ahorro/presupuestos, F4 recurrencias, F5 analítica/utilidades, F6 finalización.
 
 ## Usuarios y límites
 
 - **Actor principal:** titular de una cuenta de usuario. Los amigos/contactos y comercios son **registros nominales**, no usuarios colaborativos con acceso a información.
-- **Sistema externo:** Neon Auth (identidad), Neon PostgreSQL, Vercel, fuentes de tipo de cambio. No existen proveedores bancarios conectados.
+- **Sistema externo:** Google OAuth (proveedor de identidad), Better Auth autogestionado en Next.js, Neon PostgreSQL, Vercel, fuentes de tipo de cambio. No existen proveedores bancarios conectados.
 - **Monedas:** UYU, USD, EUR; saldo bancario **consolidado por moneda**, no por banco. Sin efectivo ni inversiones.
 - **Entrada de datos:** manual, excepto cotizaciones de referencia y automatismos **virtuales de reservas** explícitamente aprobados. La app no tiene certeza sobre movimientos no registrados.
+
+**Precedencia v9.49:** RF-001/002/003 se sustituyeron por Google-only + allowlist. Los demás RF de datos, historial y privacidad siguen vigentes. Fuente: [ADR 0004](../adr/0004-google-only-allowlist-auth.md). No fusionar el PR #12 legado tal como está.
 
 ## Requisitos funcionales
 
 | ID | Prior. | Fase | Requisito verificable y alcance |
 |---|---|---|---|
-| RF-001 | P0 | F0 | Registro e inicio de sesión por email/contraseña y Google mediante Neon Auth; cuentas personales separadas. |
-| RF-002 | P0 | F0 | Alta restringida por un **código de invitación grupal reutilizable**, revocable/rotativo sin anular cuentas previas, válido para ambos métodos de registro. |
-| RF-003 | P0 | F0 | Verificación de email por código al registrarse con contraseña, recuperación de contraseña y cierre de sesión seguro. |
+| RF-001 | P0 | F0 | Inicio de sesión y primera alta **solo con Google** mediante **Better Auth autogestionado**; cuentas personales separadas, cierre de sesión y retorno a misma identidad. Sin passwords propios. |
+| RF-002 | P0 | F0 | Alta limitada a **lista privada de cuentas Google autorizadas** por el titular, con comprobación en servidor **antes de crear usuario**; altas ajenas rechazadas, incorporación/revocación auditable sin panel complejo, revocación efectiva de sesiones. |
+| RF-003 | P0 | F0 | Google OAuth con identidad/email verificados y callback/cookies seguros, sesiones y cierre de sesión; recuperación de cuenta delegada a Google. **Sin OTP, email/contraseña ni SMTP para acceso.** |
 | RF-004 | P0 | F0 | Acceso a datos solo del titular autenticado; servidor verifica identidad y pertenencia de todos los recursos. |
 | RF-005 | P0 | F1 | Configurar y visualizar saldos bancarios agregados **independientes** en UYU/USD/EUR. |
 | RF-006 | P0 | F1 | Registrar ingresos ordinarios reales y gastos reales con fecha, importe y moneda; categoría opcional; concepto de gasto obligatorio y nota opcional. |
