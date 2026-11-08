@@ -45,7 +45,7 @@ CREATE TABLE app_auth.session(
   "expiresAt" timestamptz NOT NULL,"createdAt" timestamptz NOT NULL DEFAULT clock_timestamp(),"updatedAt" timestamptz NOT NULL DEFAULT clock_timestamp(),
   "ipAddress" text,"userAgent" text
 );
-CREATE INDEX session_user ON app_auth.session("userId");
+CREATE INDEX google_session_user_idx ON app_auth.session("userId");
 CREATE TABLE app_auth.verification(
   id text PRIMARY KEY DEFAULT gen_random_uuid()::text,identifier text NOT NULL,value text NOT NULL,
   "expiresAt" timestamptz NOT NULL,"createdAt" timestamptz NOT NULL DEFAULT clock_timestamp(),"updatedAt" timestamptz NOT NULL DEFAULT clock_timestamp()
