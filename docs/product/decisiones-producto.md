@@ -1,10 +1,12 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.48  
-**Actualizado:** 2026-11-07  
+**Versión:** 9.49  
+**Actualizado:** 2026-11-08  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
 **Referencia visual:** `docs/fintrack-original.jpeg` y `docs/design/fintrack-visual-spec.md`
+
+> **CAMBIO VIGENTE v9.49 (2026-11-08):** la autenticación se simplifica a **solo Google**, con **lista privada de 5–6 cuentas autorizadas** administrada por el titular y **Better Auth autogestionado en Next.js**; se conservan **Neon PostgreSQL, Vercel y el aislamiento financiero**. Quedan sustituidos **Neon Auth administrado**, código compartido de invitación, correo/contraseña, OTP, verificación/recuperación propias y SMTP para acceder. El texto anterior en §11.4, §11.4.2, §11.4.3, §11.4.5, §12 y el historial queda como constancia de decisiones **revocadas**, no como instrucciones actuales. Ver [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
 > **Objetivo de este documento:** que el desarrollo no dependa de la memoria de un chat. Distinguir entre **CONFIRMADO**, **PENDIENTE** y **DESCARTADO**. Una propuesta no es un requisito hasta que el usuario la confirme. Si se contradicen versiones, prevalece la decisión explícita más reciente.
 
@@ -661,6 +663,17 @@
 - **Otros detalles pendientes:** transferencias reales a cuentas de ahorro separadas, visualización final del dashboard, cierre de metas con historial y casos de concurrencia/corrección de transferencias. **Fecha objetivo opcional y transferencias directas entre fondos de igual moneda ya confirmadas.** No inferir automatismos bancarios ni deducciones reales de una reserva virtual.
 
 ## 11.4 Usuarios, autenticación y sincronización — REQUISITOS Y SERVICIOS PRINCIPALES CONFIRMADOS
+
+### Decisión superior v9.49 (2026-11-08) — SUSTITUYE LA AUTENTICACIÓN ANTERIOR
+
+- **Uso privado:** aproximadamente cinco o seis familiares/amigos. **Única opción «Entrar con Google»**; sin cuentas con contraseña propia, OTP, correo de verificación o recuperación propios, ni código grupal de invitación. Google maneja su propia autenticación y recuperación.
+- **Lista de autorizados:** el propietario añade o revoca cuentas Google en una allowlist privada controlada desde el servidor. No hay altas públicas: rechazar una identidad no autorizada **antes de crear el usuario**; comprobar la autorización también en las sesiones posteriores y bloquear acceso ante revocación. Interfaz de administración compleja no requerida en v1.
+- **Stack:** **Better Auth autogestionado en la aplicación Next.js (Vercel)** para Google OAuth, sesiones y control de altas; **Neon PostgreSQL** conserva datos de autenticación propios y las seis tablas financieras de F0-05. No utilizar Neon Auth administrado ni su webhook. Las tablas `neon_auth` anteriores quedan intactas e inactivas; no ejecutar limpieza destructiva sin aprobación.
+- **Seguridad:** verificar el correo de Google y la identidad estable del proveedor, vincularla con un identificador interno de usuario; no fusionar automáticamente cuentas por email; RLS, sesiones verificadas en servidor y privacidad financiera por titular siguen obligatorias. Pruebas A/B reales antes de utilizar datos personales.
+- **Pendiente técnico:** credenciales OAuth de Google y callback, migraciones de Better Auth en esquema propio, pruebas reales, controles de revocación y cuota/condiciones gratuitas. **F0-04 no está terminado**. No desplegar ni habilitar uso financiero real sin pruebas.
+- **Precedencia:** las viñetas y secciones que siguen sobre Neon Auth gestionado, código grupal, contraseña/OTP y SMTP representan el **historial v9.48 y anteriores, explícitamente superado** por esta decisión. Se mantienen aquí solo para trazabilidad. La eliminación de cuenta y datos (§11.4.4) y todo el modelo financiero siguen vigentes, adaptando la integración de identidad.
+
+
 
 - La aplicación debe permitir que una persona sin cuenta elija **«Crear cuenta»** y que una persona registrada pueda **«Iniciar sesión»** posteriormente. No limitar el producto a un único usuario preconfigurado: deben existir **cuentas independientes**. **El alta de nuevas cuentas requiere invitación mediante código proporcionado por el administrador (§11.4.5); no habrá registro público libre.**
 - Cada usuario accede a **sus propios saldos bancarios, gastos, tarjetas, deudas, presupuestos, fondos y configuración**, privados e inaccesibles para otros usuarios. Requerir identificación segura, autorización por usuario en base de datos y comunicación mediante HTTPS; no crear un almacenamiento compartido legible por todos.

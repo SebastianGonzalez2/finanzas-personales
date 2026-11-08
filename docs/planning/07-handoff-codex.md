@@ -1,5 +1,8 @@
 # Handoff operativo a Codex
 
+> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. No implementar Neon Auth administrado, webhook, contraseña/OTP, SMTP de acceso ni código compartido de invitación. Referencia obligatoria: [ADR 0004](../adr/0004-google-only-allowlist-auth.md). Los pasos históricos de autenticación que figuran abajo quedan sustituidos; F0-04 sigue abierto.
+
+
 **Estado:** instrucción preparada para iniciar **F0**, no orden de construir toda la app en un único cambio.  
 **Fuente de autoridad:** `AGENTS.md` en raíz, `docs/planning/README.md`, `docs/product/decisiones-producto.md` **v9.48**, otros documentos de `docs/planning/`.
 

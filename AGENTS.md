@@ -6,12 +6,14 @@ Antes de modificar código o datos:
 
 1. Comprobar `git status`, rama, remoto y diferencias local/`origin/main`; **nunca eliminar trabajo local**.
 2. Leer `docs/planning/README.md`, `docs/planning/07-handoff-codex.md` y los demás `docs/planning/0*.md`.
-3. Consultar `docs/product/decisiones-producto.md` (versión funcional cerrada **v9.48**) para reglas confirmadas y precedencia histórica; decisiones posteriores prevalecen sobre anteriores.
+3. Consultar `docs/product/decisiones-producto.md` (decisión más reciente **v9.49**; v9.48 se conserva como historia) para reglas confirmadas y precedencia histórica; decisiones posteriores prevalecen sobre anteriores.
 4. Referenciar RF, CA, fase/ticket e invariantes al hacer un cambio; **no afirmar implementación que no existe**.
 
 ## Arquitectura confirmada
 
-Next.js + TypeScript + Tailwind CSS + shadcn/ui, Vercel, Neon PostgreSQL y Neon Auth. Construcción incremental y probada. Comenzar **F0**, no implementar toda la aplicación en una sola PR. Bibliotecas y ORM adicionales requieren justificación técnica y validación de compatibilidad/licencia; preferir fuentes oficiales. No activar facturación ni instalar servicios pagos sin consentimiento.
+Next.js + TypeScript + Tailwind CSS + shadcn/ui, Vercel, Neon PostgreSQL y **Better Auth autogestionado en Next.js con Google OAuth exclusivamente**. Acceso limitado a una **lista privada de cuentas Google autorizadas**; **Neon Auth administrado, webhook e invitación grupal quedan descartados** por la decisión v9.49. ADR obligatorio: `docs/adr/0004-google-only-allowlist-auth.md`. Construcción incremental y probada. Comenzar **F0**, no implementar toda la aplicación en una sola PR. Bibliotecas y ORM adicionales requieren justificación técnica y validación de compatibilidad/licencia; preferir fuentes oficiales. No activar facturación ni instalar servicios pagos sin consentimiento.
+
+**Prioridad vigente F0-04:** refactorizar autenticación Google-only y comprobar la lista de autorizados antes de crear usuarios o habilitar sesiones; probar revocación, sesiones reales y separación entre titulares. **No fusionar PR #12 tal como está** (código histórico del webhook Neon). No reactivar altas de Neon Managed Auth. F0 sigue abierta. Las referencias a contraseña, OTP, SMTP de acceso, código grupal o Neon Auth en documentación anterior son históricas y se consideran sustituidas por ADR 0004, no obligaciones del producto.
 
 ## Seguridad e integridad financiera
 

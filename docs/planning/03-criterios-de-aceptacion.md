@@ -1,17 +1,19 @@
 # Criterios de aceptación y matriz de pruebas
 
-**Estado:** casos propuestos para la implementación, derivados del producto v9.48. Se deben automatizar en niveles apropiados, no solo afirmar que «funcionan». Referencias: [RF](01-alcance-y-requisitos.md), [invariantes](02-modelo-de-dominio-y-datos.md).  
+**Estado:** casos propuestos para la implementación, derivados del producto v9.49. Se deben automatizar en niveles apropiados, no solo afirmar que «funcionan». Referencias: [RF](01-alcance-y-requisitos.md), [invariantes](02-modelo-de-dominio-y-datos.md).  
 **Formato:** `Dado / Cuando / Entonces`. Los importes de ejemplo son datos de prueba, no datos bancarios del usuario.
+
+**Precedencia:** CA-002–005 se redefinen en v9.49; la privacidad A/B CA-001 y sincronización CA-006 se mantienen. [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
 ## Identidad y privacidad — F0
 
 | CA | RF | Dado / Cuando / Entonces |
 |---|---|---|
 | CA-001 | 001–004 | **Dado** usuario A autenticado y datos de B, **cuando** A pide API/URL de movimiento de B, **entonces** recibe acceso denegado y **ningún dato de B**. |
-| CA-002 | 001–003 | Dado visitante sin cuenta/código, cuando intenta alta por correo o Google sin invitación válida, entonces el servidor rechaza **antes de crear acceso a datos financieros**. |
-| CA-003 | 002 | Dado código grupal válido, cuando dos usuarios distintos se registran, entonces ambos pueden usarlo; al rotarlo se rechaza el viejo en altas nuevas pero no se desactivan cuentas existentes. |
-| CA-004 | 003 | Dado registro email/contraseña, cuando no se valida el código numérico, entonces no se habilita el acceso normal; reenvío y caducidad tienen límites. |
-| CA-005 | 003 | Dado usuario con contraseña olvidada, cuando pide restablecimiento, entonces hay flujo oficial seguro; no se revela si el correo existe ni se exponen tokens en logs. |
+| CA-002 | 001–003 | Dado una cuenta Google **no incluida** en la lista privada o correo/identidad no verificables, cuando intenta entrar por UI o API OAuth directa, entonces se rechaza **antes de crear usuario o sesión utilizable** y sin acceso financiero. |
+| CA-003 | 002 | Dadas cuentas Google A y B autorizadas, cuando inician sesión, entonces son titulares separados; quitar B de la lista impide sesiones nuevas y acceso con sesiones existentes **sin desactivar A**. Una cuenta no autorizada no puede darse de alta. |
+| CA-004 | 003 | Dado un acceso con Google, cuando OAuth falla, el perfil no es verificable, callback/state es inválido o la identidad cambia, entonces no se autoriza acceso; solo se piden scopes básicos y no hay rutas de OTP/contraseña activas. |
+| CA-005 | 003 | Dado un titular autorizado, cuando cierra sesión o se revoca su autorización, entonces su sesión anterior no permite leer/escribir datos financieros; la app no ofrece restablecimiento de contraseñas propias. |
 | CA-006 | 004 | Dado dos sesiones activas del mismo usuario, cuando consulta saldos en ambas, entonces ve el mismo estado confirmado; eventos repetidos no se aplican dos veces. |
 
 ## Bancos, movimientos y conciliación — F1
@@ -159,7 +161,7 @@ Feature: Gasto recurrente compartido
 
 ## Cuestiones deliberadamente pendientes de validación
 
-- Compatibilidad del SDK actual de Neon Auth y configuración real de proveedor Google/códigos SMTP.
+- Compatibilidad de Better Auth autogestionado con Next.js y Neon, cuenta OAuth Google propia, allowlist y sesiones reales; **SMTP/OTP de login descartados por v9.49**.
 - Motor preciso de conciliación (propuesta en §6 de modelo), verificable con casos reales y checkpoints.
 - Excepciones bancarias inusuales y tratamiento de intereses/beneficios sin inventar clasificaciones.
 - Cobertura de conversiones USD/UYU/EUR y coste real de las fuentes/proveedores.

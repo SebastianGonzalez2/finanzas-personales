@@ -1,6 +1,6 @@
 # Plan maestro de implementación — Finanzas personales
 
-**Estado:** planificación funcional cerrada (decisiones del producto v9.48); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Auth y proveedores; persistencia development F0-05 probada y revisada técnicamente en PR #11. Ver [revisión y corrección F0-05](20-revision-f0-05.md), [informe original](19-informe-f0-05.md) e [integración previa](16-integracion-controlada-f0.md).
+**Estado:** planificación funcional cerrada (decisiones del producto **v9.49**); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Better Auth Google-only, allowlist y verificación real;  persistencia development F0-05 probada y revisada técnicamente en PR #11. Ver [revisión y corrección F0-05](20-revision-f0-05.md), [informe original](19-informe-f0-05.md) e [integración previa](16-integracion-controlada-f0.md).
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
@@ -14,7 +14,7 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 | Orden | Archivo | Para qué sirve |
 | --- | --- | --- |
-| 0 | [Decisiones del producto](../product/decisiones-producto.md) | Decisiones reales del usuario, excepciones y trazabilidad; v9.48. |
+| 0 | [Decisiones del producto](../product/decisiones-producto.md) | Decisiones reales del usuario, excepciones y trazabilidad; v9.49. |
 | 1 | [Alcance y requisitos](01-alcance-y-requisitos.md) | IDs funcionales/no funcionales, prioridades y exclusiones. |
 | 2 | [Modelo de datos y reglas](02-modelo-de-dominio-y-datos.md) | Entidades propuestas, reglas contables, invariantes, transacciones y estados. |
 | 3 | [Criterios de aceptación](03-criterios-de-aceptacion.md) | Escenarios verificables por módulo y controles de no regresión. |
@@ -28,6 +28,8 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 11 | [Estado verificado de F0](14-seguimiento-f0.md) | Entregas, PR, pruebas reales y bloqueos al continuar F0; no sustituye aceptación humana. |
 | 12 | [Auditoría de integración F0](15-auditoria-integracion-f0.md) | Revisión técnica de PR #1–#8, correcciones, compatibilidad conjunta y configuración pendiente. |
 | 13 | [Integración controlada F0](16-integracion-controlada-f0.md) | Merges reales, protección de main, estado vigente y configuración Neon/Google/SMTP pendiente. |
+
+**DECISIÓN ACTUAL DE AUTENTICACIÓN (v9.49):** [ADR 0004 — Google-only, Better Auth autogestionado y allowlist](../adr/0004-google-only-allowlist-auth.md). **Este documento tiene precedencia sobre referencias históricas a Neon Auth, webhook, código grupal, OTP, contraseñas y SMTP de login.** El PR #12 está basado en la alternativa anterior y no debe fusionarse sin reconversión. F0-04 sigue pendiente de implementación y pruebas Google/OAuth + aislamiento real.
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 

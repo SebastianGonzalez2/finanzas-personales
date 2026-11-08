@@ -1,5 +1,7 @@
 # Plan de implementación por fases y entregables para Codex
 
+**CAMBIO VIGENTE v9.49 — 2026-11-08:** [ADR 0004](../adr/0004-google-only-allowlist-auth.md) sustituye Neon Auth administrado, webhook e invitación grupal por **Better Auth propio con acceso solo Google y allowlist privada**. El PR #12 es borrador legado y **no puede fusionarse tal cual**. Continuar F0-04 para adaptar código y probar cuentas reales sin habilitar altas antiguas. F0-05 sigue integrado; no abrir F1.
+
 **Seguimiento vigente de F0:** [integración controlada previa](16-integracion-controlada-f0.md), [informe F0-05](19-informe-f0-05.md) y [revisión independiente](20-revision-f0-05.md). Scaffold, CI protegido y spikes integrados; persistencia F0-05 aplicada/probada en development y revisada técnicamente en PR #11. Consultar allí integración/checks vigentes. F0-04 y verificaciones de proveedores siguen pendientes. No se cierra la fase.
 
 **Tipo:** backlog técnico priorizado, **no cronograma ni compromiso de fechas**.  
@@ -49,16 +51,16 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F0-01 | Confirmar estado actual del repositorio; comprobar `main`, árbol, ramas, `AGENTS.md` y documentos; inspeccionar imagen de UI. | Informe de inventario y Git limpio; no sobrescribir trabajo local de Codex sin comparar. |
 | F0-02 | Verificar si existe localmente `docs/design/fintrack-visual-spec.md`; si no, reconstruir desde imagen con reglas de UI y no inventar funcionalidades. | Guía visual de componentes, tipografía, espaciado, colores, responsive, estados y ejemplos versionada. |
 | F0-03 | Crear esqueleto Next.js App Router + TypeScript + Tailwind + shadcn/ui, ESLint/formatter, scripts, README y lockfile reproducible. | Dev server inicia; typecheck/lint/build pasan localmente. |
-| F0-04 | Investigar cliente Neon Auth actual, sesiones, Google OAuth, email OTP, recuperación y **validación del código de invitación para ambos métodos**. | Pruebas reales en entorno de prueba y documento de opciones/limitaciones. Si flujo seguro no es posible sin pago, **es bloqueo de despliegue y se informa**. |
+| F0-04 | **Implementar Better Auth autogestionado en Next.js, solo Google OAuth, allowlist cerrada y sesiones verificadas**; adaptar la rama histórica de F0-04 sin integrar su webhook de Neon Managed Auth. | Alta autorizada/rechazo no autorizado ANTES de creación, cierre/revocación, dos titulares A/B reales, RLS + API, callback/credenciales y migraciones propias autorizadas. No requiere OTP/SMTP/contraseñas. |
 | F0-05 | Crear DB de prueba aislada Neon, escoger ORM/migraciones/driver/pooling/decimal, esquema inicial y aislamiento por titular. | Migración reproducible; usuario A no puede consultar datos de B; esquema de `neon_auth` no alterado manualmente. |
 | F0-06 | Configurar CI mínima y frameworks de tests: unidad, integración DB real de test, E2E de navegador. | PR que falla intencionalmente test impide merge; comandos de test documentados. |
-| F0-07 | Verificar viabilidad legal/técnica de Vercel Hobby no comercial, límites de Neon Free, SMTP real y cotizaciones. | Registro verificable de términos/cupos; ningún servicio pago activado; plan de fallback requiere aprobación, no cambio silencioso. |
+| F0-07 | Verificar viabilidad de Vercel Hobby no comercial, límites Neon Free, Google OAuth propio y cotizaciones. **SMTP de login no corresponde** tras v9.49. | Registro verificable de términos/cupos; ningún servicio pago activado; plan alternativo requiere aprobación. |
 | F0-08 | Diseñar/implementar prototipo de **motor de efectos + checkpoints históricos** con pruebas de CA-015 e I-10. | Correcciones previas a conciliación **no** modifican saldo posterior confirmado; inconsistencia auditada y visible. |
 | F0-09 | Decidir convenciones de módulos, IDs, timestamps, decimales, transacciones y eventos; amenazas de seguridad. | ADR breve (Architecture Decision Record) con pruebas de monedas y permisos. |
 
 **Seguimiento F0-02 — 2026-11-07:** entrega documental en revisión en la rama `codex/F0-02-diseno-visual`. [Guía consolidada](../design/fintrack-visual-spec.md) y [verificaciones/límites](10-informe-f0-02.md): referencia preservada, responsive, componentes, formularios y estados especificados. No hay UI ni CA funcional aprobado. Aceptación humana pendiente; siguiente ticket propuesto F0-03, sin iniciarlo ni autorizar merge/despliegue.
 
-**Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Neon Auth/SMTP/código invitación, **no simular** que el acceso es seguro ni publicar con un bypass.
+**Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Google OAuth, allowlist previa al alta, revocación o aislamiento A/B, **no simular** que el acceso es seguro ni publicar con un bypass. Neon Managed Auth y SMTP para login ya no son dependencias del producto (v9.49).
 
 **Seguimiento F0-03 — 2026-11-07:** esqueleto Next.js/TypeScript/Tailwind/shadcn con lockfile y herramientas de formato/lint, **en revisión** en `codex/F0-03-scaffold-nextjs`. Ver [implementación, checks y límites](11-informe-f0-03.md). Dev server, instalación limpia, typecheck/lint/build y revisión de portada en Chromium móvil/escritorio ejecutados; no implica auth, DB, CI, cierre de CA funcionales ni puerta F0. Siguiente ticket: F0-04.
 
@@ -187,7 +189,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 
 1. **Leer** `AGENTS.md`, `docs/planning/README.md` y `docs/product/decisiones-producto.md`.
 2. Inventariar `main`, branches, design local y el hecho de que el remoto inicialmente contenía solo documentación.
-3. Comprobar documentación oficial, compatibilidad de Neon Auth con Next.js, código grupal e email OTP; registrar viabilidad en `docs/planning/06-riesgos-y-pendientes.md` sin marcarla validada antes de ejecutar pruebas.
+3. **Histórico, sustituido por v9.49:** para el trabajo vigente comprobar Better Auth autogestionado con Next.js, Google OAuth y allowlist con hook previo a alta; registrar viabilidad y pruebas en `docs/planning/06-riesgos-y-pendientes.md`.
 4. Proponer decisión técnica mínima de ORM/decimal/CI y justificación; **no pedir decisión de producto salvo verdadero bloqueo**.
 5. Construir esqueleto Next.js con TypeScript/Tailwind/shadcn/ui, scripts y tests base en una **rama**.
 6. Crear PR con lo probado y lo pendiente; no desplegar con secretos ni habilitar pagos; el usuario conserva control de conexiones y aprobación de costes.
