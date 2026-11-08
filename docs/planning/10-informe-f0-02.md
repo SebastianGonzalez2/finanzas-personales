@@ -78,6 +78,8 @@ R-18 se mitiga parcialmente por recuperación y consolidación documental. Fuent
 
 ## Revisión y siguiente ticket
 
+**Auditoría F0-REVIEW (2026-11-07):** se reprodujo conflicto del índice con PR #2 y errores `no-undef` al ejecutar el lint de la aplicación sobre el verificador. El enlace de índice se trasladó a la referencia visual; imports de console/process explícitos. Workflow documental independiente sin dependencias ni secretos. Verificador actual: 34 enlaces y 54 contrastes pasan; el dato 35 anterior corresponde al commit original, no se reescribe como evidencia nueva. No certifica UI ni cierra CA funcionales.
+
 Revisar primero §1 de la guía (autoridad y límites), luego tokens y responsive (§§2–3), correspondencia de dashboard (§4), formularios/estados (§§5–7), Estadísticas y matriz (§§8–9). Comparar apéndice A con JPEG distinguiendo reglas operativas de observaciones. Ejecutar desde raíz `node docs/design/verify-visual-spec.mjs` y revisar el diff del PR `[F0-02] Consolidar la especificación visual` contra `main`. Convención de commit: `docs(F0-02): consolidar la especificación visual`.
 
 **Siguiente sugerido: F0-03**, scaffold Next.js App Router + TypeScript + Tailwind + shadcn/ui, herramientas/scripts y lockfile; deberá verificar versiones compatibles y obtener dev/typecheck/lint/build. Depende de revisión/aceptación de esta entrega y aprobación explícita para avanzar. **No iniciado** en F0-02. No hacer merge ni despliegue sin autorización del titular.

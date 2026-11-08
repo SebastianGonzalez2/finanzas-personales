@@ -2,6 +2,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import console from 'node:console';
+import process from 'node:process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const files = [

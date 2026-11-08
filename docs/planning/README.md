@@ -4,7 +4,7 @@
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
-**Referencia visual:** [Fintrack original](../fintrack-original.jpeg).
+**Referencia visual:** [Fintrack original](../fintrack-original.jpeg); [guía visual F0-02 y evidencia](10-informe-f0-02.md).
 
 ## Objetivo
 
@@ -26,8 +26,6 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 9 | [Convenciones de Git](09-convenciones-git.md) | Formato obligatorio de **títulos de chats de Codex**, ramas, commits, títulos y descripciones de PR. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
-
-**Diseño F0-02:** [especificación visual](../design/fintrack-visual-spec.md) y [evidencia de revisión](10-informe-f0-02.md). Documentación para revisión; no constituye UI implementada ni cierre de CA funcionales.
 
 ## Autoridad y resolución de conflictos
 
