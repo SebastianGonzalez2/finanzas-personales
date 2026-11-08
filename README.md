@@ -1,5 +1,8 @@
 # Finanzas personales
 
+> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. No implementar Neon Auth administrado, webhook, contraseña/OTP, SMTP de acceso ni código compartido de invitación. Referencia obligatoria: [ADR 0004](docs/adr/0004-google-only-allowlist-auth.md). Los pasos históricos de autenticación que figuran abajo quedan sustituidos; F0-04 sigue abierto.
+
+
 Base de desarrollo **F0-03**: Next.js App Router, TypeScript estricto, Tailwind CSS y un componente Card de shadcn/ui. La portada en español permite comprobar el stack; aún no hay autenticación, persistencia ni operaciones financieras.
 
 ## Requisitos y arranque
