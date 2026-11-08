@@ -7,14 +7,10 @@ for (const TZ of [
   "America/Los_Angeles",
 ]) {
   console.log(`Timezone: ${TZ}`);
-  const result = spawnSync(
-    process.execPath,
-    ["--test", "tests/contracts.test.ts"],
-    {
-      env: { ...process.env, TZ },
-      stdio: "inherit",
-      shell: false,
-    },
-  );
+  const result = spawnSync(process.execPath, ["--test", "tests/*.test.ts"], {
+    env: { ...process.env, TZ },
+    stdio: "inherit",
+    shell: false,
+  });
   if (result.error || result.status !== 0) process.exit(1);
 }
