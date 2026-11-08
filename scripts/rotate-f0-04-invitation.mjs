@@ -6,6 +6,7 @@ import {
   developmentTarget,
 } from "../src/server/neon-development-config.mts";
 import { privateDigest } from "../src/server/auth-policy.ts";
+import { admissionInputs } from "./f0-04-private-config.mjs";
 
 // Administrative local process only. Never deploy owner credentials with Next.
 const action = process.argv[2];
@@ -17,13 +18,14 @@ if (!["--rotate", "--revoke"].includes(action) || process.argv.length !== 3) {
 } else {
   let client;
   try {
+    const privateInputs = await admissionInputs(process.env);
     let hash = null;
     if (action === "--rotate") {
-      const code = process.env.NEON_NEXT_INVITATION_CODE;
+      const code = privateInputs.NEON_NEXT_INVITATION_CODE;
       if (!code || code.length < 24 || code.length > 256)
         throw new Error("Código insuficiente");
       hash = privateDigest(
-        process.env.NEON_ADMISSION_SECRET ?? "",
+        privateInputs.NEON_ADMISSION_SECRET ?? "",
         "code",
         code,
       );

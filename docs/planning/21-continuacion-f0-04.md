@@ -5,6 +5,10 @@ deshabilitación predeterminada; ticket no aceptado**. F0 abierta, sin avanzar F
 Complementa el [informe anterior](12-informe-f0-04.md); prevalece sobre sus
 menciones históricas de ausencia de proyecto Neon y de scaffold.
 
+**Siguiente preparación del mismo ticket:** [HTTPS y pruebas reales](23-https-y-pruebas-reales-f0-04.md).
+El titular ya dispone de dos Gmail y cuenta Vercel sin proyecto. El paquete se
+prepara localmente; publicación y habilitación de altas requieren autorizaciones separadas.
+
 ## Base y trazabilidad
 
 Inicio limpio en main `da7f442f8ea8b0f7602adc5e3bb82b5608ebd7c5`, fetch real

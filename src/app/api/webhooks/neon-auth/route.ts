@@ -4,6 +4,7 @@ import { verifyBeforeCreate } from "@/server/neon-webhook.ts";
 import { decideAdmission } from "@/server/admission.ts";
 import { privateHeaders } from "@/server/auth-http.ts";
 export const runtime = "nodejs";
+export const maxDuration = 10;
 let cached: { keys: Record<string, unknown>[] } | null = null;
 let fetchedAt = 0;
 let attemptedAt = 0;

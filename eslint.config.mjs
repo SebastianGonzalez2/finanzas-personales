@@ -28,5 +28,6 @@ export default defineConfig([
     ".playwright-mcp/**",
     "playwright-report/**",
     "test-results/**",
+    ".deployment/**",
   ]),
 ]);

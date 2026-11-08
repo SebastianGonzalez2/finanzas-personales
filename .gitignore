@@ -19,6 +19,7 @@ next-env.d.ts
 /.playwright-mcp/
 /playwright-report/
 /test-results/
+/.deployment/
 
 # Editor / OS files
 .DS_Store

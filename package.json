@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "next dev --webpack --hostname 127.0.0.1",
     "dev:auth": "node --env-file=.env.runtime.local node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1",
+    "auth:deploy:prepare": "node --conditions=react-server scripts/prepare-f0-04-deployment.mjs",
+    "probe:auth:published": "node scripts/probe-f0-04-published.mjs",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
@@ -28,6 +30,7 @@
     "auth:sql:plan": "node scripts/prepare-f0-04.mjs",
     "auth:sql:apply": "node --env-file-if-exists=.env.local scripts/prepare-f0-04.mjs",
     "auth:invitation": "node --env-file-if-exists=.env.local scripts/rotate-f0-04-invitation.mjs",
+    "auth:invitation:prepare": "node scripts/prepare-f0-04-invitation.mjs",
     "test:auth:development": "node --conditions=react-server --env-file-if-exists=.env.local scripts/test-f0-04-admission.mjs",
     "auth:runtime:prepare": "node --conditions=react-server --env-file-if-exists=.env.local scripts/provision-f0-04-runtime.mjs",
     "test:auth:runtime": "node --conditions=react-server --env-file-if-exists=.env.local --env-file-if-exists=.env.runtime.local scripts/test-f0-04-runtime.mjs",
