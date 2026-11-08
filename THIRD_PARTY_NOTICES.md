@@ -1,5 +1,10 @@
 # Componentes de terceros
 
+F0-NEON usa `pg` 8.23.1 (MIT), ya utilizado por CI y ahora disponible para
+la conexión de desarrollo, `@types/pg` 8.23.1 (MIT, solo desarrollo) y
+`server-only` 0.0.1 (MIT, impide importar el adaptador en un Client Component).
+Las licencias completas se conservan en los paquetes instalados y el lockfile.
+
 Card procede del registro oficial shadcn/ui (new-york-v4).
 Fuente: https://ui.shadcn.com/r/styles/new-york-v4/card.json
 Adaptación local: import de cn desde @/lib/utils y formato Prettier.

@@ -35,6 +35,11 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 ## Autoridad y resolución de conflictos
 
+**Avance F0-NEON:** [conexión de development y evidencia real](17-informe-f0-neon.md),
+con [configuración privada y pasos manuales](../development-neon.md). Sustituye
+la ausencia de proyecto de prueba indicada en informes anteriores; F0-04/F0-05
+siguen abiertos, sin autorización de publicación.
+
 **F0-04 integrado parcialmente:** [Neon Auth, invitaciones y configuración por el titular](12-informe-f0-04.md), con [spike aislado](../../spikes/neon-auth/README.md). Investigación/pruebas locales entregadas; implementación y validación real pendientes por ausencia de entorno Neon. No declara auth de la aplicación implementada ni cierre de F0.
 
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).
