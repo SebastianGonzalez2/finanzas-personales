@@ -17,20 +17,23 @@ Este ticket no necesita `.env` ni cuentas de proveedores. [.env.example](.env.ex
 
 ## Comandos
 
-| Comando                | Uso                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `npm ci`               | Instalar exactamente el lockfile; usar también en futuras verificaciones/CI.                     |
-| `npm run dev`          | Desarrollo local con recarga y Webpack.                                                          |
-| `npm run build`        | Compilar la aplicación para producción, sin desplegar.                                           |
-| `npm start`            | Servir el build local en loopback.                                                               |
-| `npm run typecheck`    | Generar tipos de rutas y ejecutar TypeScript sin emitir código; funciona antes del primer build. |
-| `npm run lint`         | ESLint: Next Core Web Vitals + TypeScript, sin warnings permitidos.                              |
-| `npm run lint:fix`     | Aplicar correcciones automáticas de ESLint.                                                      |
-| `npm run format`       | Aplicar Prettier; preserva documentación histórica y plantilla de PR.                            |
-| `npm run format:check` | Verificar formato sin modificar archivos.                                                        |
-| `npm run check`        | Formato, lint, typecheck y build, en ese orden.                                                  |
+| Comando                          | Uso                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm ci`                         | Instalar exactamente el lockfile; usar también en futuras verificaciones/CI.                     |
+| `npm run dev`                    | Desarrollo local con recarga y Webpack.                                                          |
+| `npm run build`                  | Compilar la aplicación para producción, sin desplegar.                                           |
+| `npm start`                      | Servir el build local en loopback.                                                               |
+| `npm run typecheck`              | Generar tipos de rutas y ejecutar TypeScript sin emitir código; funciona antes del primer build. |
+| `npm run lint`                   | ESLint: Next Core Web Vitals + TypeScript, sin warnings permitidos.                              |
+| `npm run lint:fix`               | Aplicar correcciones automáticas de ESLint.                                                      |
+| `npm run format`                 | Aplicar Prettier; preserva documentación histórica y plantilla de PR.                            |
+| `npm run format:check`           | Verificar formato sin modificar archivos.                                                        |
+| `npm run check`                  | Formato, lint, typecheck y build, en ese orden.                                                  |
+| `npm test` / `npm run test:unit` | Pruebas unitarias con Node test runner.                                                          |
+| `npm run test:integration`       | PostgreSQL real desechable; falla si falta el entorno aislado documentado.                       |
+| `npm run test:e2e`               | Playwright Chromium contra build local, escritorio y móvil.                                      |
 
-No hay script `test` ni suites de dominio/DB/E2E todavía: los frameworks y CI corresponden a **F0-06**. La aceptación de F0-03 es iniciar el servidor y pasar typecheck/lint/build. La evidencia real y la revisión de navegador se documentan en [el informe F0-03](docs/planning/11-informe-f0-03.md).
+**F0-06** incorpora scripts de test y CI: ver [comandos, PostgreSQL desechable, checks y límites](docs/testing.md). Para E2E, instalar Chromium con `npx playwright install chromium` y ejecutar primero `npm run build`. Los spikes de proveedores/contratos se verifican por separado con sus propios comandos y workflows; no son auth ni motor de producción. La prueba DB temporal no acredita aislamiento de la aplicación. La evidencia original del scaffold permanece en [el informe F0-03](docs/planning/11-informe-f0-03.md).
 
 ## Estructura
 
@@ -38,6 +41,7 @@ No hay script `test` ni suites de dominio/DB/E2E todavía: los frameworks y CI c
 src/app/                 Rutas, layout, CSS global, portada e icono
 src/components/ui/       Código fuente local de shadcn/ui
 src/lib/                 Utilidad cn para clases Tailwind
+tests/                   Unidad, integración PostgreSQL desechable y E2E
 components.json          Configuración de shadcn/ui y alias @/*
 docs/product/            Decisiones del producto v9.48 (autoridad funcional)
 docs/planning/           Tickets, RF/RNF, CA, invariantes y riesgos
@@ -63,6 +67,6 @@ Las versiones se cambian deliberadamente junto con `package-lock.json`, revisand
 
 F0-03 implementa el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md) y la evidencia técnica de [F0-03 en el plan](docs/planning/05-plan-de-implementacion.md). Prepara RF-052 y RNF-07/08 (español, legibilidad y responsive), sin cerrar RF-052 ni CA-066: todavía no existe navegación funcional. No aplica cierre de invariantes I-01…I-12 porque no se opera con dinero ni datos por titular.
 
-Para contribuir, seguir [AGENTS.md](AGENTS.md) y [las convenciones de Git](docs/planning/09-convenciones-git.md). Los commits, la rama y la PR de este cambio usan **F0-03**. El siguiente ticket es **F0-04**, validar Neon Auth e invitaciones en un entorno de prueba. Los gates de seguridad/coste de F0 siguen pendientes; no conectar datos reales, desplegar ni habilitar pagos como parte de este scaffold.
+Para contribuir, seguir [AGENTS.md](AGENTS.md) y [las convenciones de Git](docs/planning/09-convenciones-git.md). El scaffold corresponde a **F0-03** y CI/tests a **F0-06**, con PR y commits separados. **F0-04** continúa pendiente de validar Neon Auth e invitaciones reales; **F0-05** requiere DB Neon aislada. Los gates de seguridad/coste de F0 siguen pendientes; no conectar datos reales, desplegar ni habilitar pagos como parte de esta preparación.
 
 Fuentes oficiales consultadas para esta implementación: [Next.js](https://nextjs.org/docs/app/getting-started/installation), [ESLint con Next.js](https://nextjs.org/docs/app/api-reference/config/eslint), [Tailwind con Next.js](https://tailwindcss.com/docs/installation/framework-guides/nextjs), [shadcn/ui](https://ui.shadcn.com/docs/installation/manual) y [Node LTS](https://nodejs.org/en/about/previous-releases).
