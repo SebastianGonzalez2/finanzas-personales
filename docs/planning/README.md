@@ -4,7 +4,7 @@
 **Fecha:** 2026-11-07.  
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
-**Referencia visual:** [Fintrack original](../fintrack-original.jpeg).
+**Referencia visual:** [Fintrack original](../fintrack-original.jpeg); [guía visual F0-02 y evidencia](10-informe-f0-02.md).
 
 ## Objetivo
 
@@ -24,6 +24,7 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 7 | [Handoff para Codex](07-handoff-codex.md) | Instrucciones listas para entregar a Codex y primer incremento de trabajo. |
 | 8 | [Guía operativa de Codex](08-guia-operativa-codex.md) | Cómo trabajar por tickets, chats, permisos y revisión. |
 | 9 | [Convenciones de Git](09-convenciones-git.md) | Formato obligatorio de **títulos de chats de Codex**, ramas, commits, títulos y descripciones de PR. |
+| 10 | [Modelos por ticket en Codex](10-modelos-por-ticket.md) | Modelo e intensidad recomendados, justificación y revisión independiente para los 56 tickets F0–F6. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
