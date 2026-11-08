@@ -12,6 +12,39 @@ import {
   resolveNeonAuthLogging,
 } from "@neon/auth/server";
 
+test("SDK real 0.8.2: signup conserva destino configurado y cuerpo, sin reescribir endpoint", async (t) => {
+  const baseUrl =
+    "https://ep-falling-queen-b63xbfuk.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth";
+  const body = JSON.stringify({
+    name: "Synthetic",
+    email: "a@example.invalid",
+    password: "synthetic-password",
+    additionalData: { admissionId: "synthetic-grant" },
+  });
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls++;
+    assert.equal(String(url), `${baseUrl}/sign-up/email`);
+    assert.equal(options.method, "POST");
+    assert.equal(options.body, body);
+    return Response.json({ code: "WEBHOOK_DELIVERY_FAILED" }, { status: 502 });
+  });
+  const response = await handleAuthProxyRequest({
+    baseUrl,
+    cookieSecret: "fixture-secret-with-at-least-32-characters",
+    path: "sign-up/email",
+    log: resolveNeonAuthLogging({ logLevel: "silent" }),
+    request: new Request("https://app.example.invalid/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  });
+  assert.equal(calls, 1);
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).code, "WEBHOOK_DELIVERY_FAILED");
+});
+
 test("SDK real 0.8.2: cookie obsoleta no autoriza al pasar por HTTP sin caché", async (t) => {
   const secret = "fixture-secret-with-at-least-32-characters";
   const session = {

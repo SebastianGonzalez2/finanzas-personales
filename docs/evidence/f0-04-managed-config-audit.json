@@ -1,0 +1,34 @@
+{
+  "ticket": "F0-04",
+  "checkedAt": "2026-11-08T19:24:54.114Z",
+  "project": "dry-voice-45959315",
+  "branch": "br-late-feather-b6czfkx0",
+  "sqlReadOnly": true,
+  "checks": {
+    "connectedToDevelopment": true,
+    "storedEndpointMatchesDevelopment": false,
+    "emailSignupsDisabled": true,
+    "webhookEnabled": true,
+    "webhookUrlMatches": true,
+    "onlyBeforeCreate": true,
+    "invitationRevoked": true
+  },
+  "blockingReasons": [
+    "storedEndpointMatchesDevelopment"
+  ],
+  "storedEndpoint": "ep-morning-sunset-b6i4kxdg",
+  "authUsersBefore": 0,
+  "providerContract": {
+    "status": 200,
+    "ownServerUrl": true,
+    "emailSignupDeclaresAdditionalData": false
+  },
+  "closedSignupProbe": {
+    "status": 400,
+    "code": "EMAIL_PASSWORD_SIGN_UP_DISABLED",
+    "userReturned": false,
+    "tokenReturned": false
+  },
+  "authUsersAfter": 0,
+  "remainedClosed": true
+}

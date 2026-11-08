@@ -13,6 +13,7 @@
     "auth:deploy:prepare": "node --conditions=react-server scripts/prepare-f0-04-deployment.mjs",
     "probe:auth:published": "node scripts/probe-f0-04-published.mjs",
     "probe:auth:admission": "node --env-file-if-exists=.env.local scripts/probe-f0-04-admission.mjs",
+    "audit:auth:development": "node --env-file-if-exists=.env.local scripts/audit-f0-04-auth.mjs",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",

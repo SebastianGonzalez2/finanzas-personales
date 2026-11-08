@@ -3,6 +3,7 @@ import { readLimitedBody } from "@/server/auth-policy.ts";
 import {
   verifyBeforeCreate,
   WebhookValidationError,
+  webhookRejection,
 } from "@/server/neon-webhook.ts";
 import { decideAdmission } from "@/server/admission.ts";
 import { privateHeaders } from "@/server/auth-http.ts";
@@ -68,9 +69,10 @@ export async function POST(request: Request) {
         ? { envelopeChecks: error.envelopeChecks }
         : {}),
     });
-    return Response.json(
-      { allowed: false, error_code: "ADMISSION_UNAVAILABLE" },
-      { status: 503, headers: privateHeaders },
-    );
+    const rejection = webhookRejection(error);
+    return Response.json(rejection.body, {
+      status: rejection.status,
+      headers: privateHeaders,
+    });
   }
 }

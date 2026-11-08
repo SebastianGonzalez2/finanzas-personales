@@ -6,6 +6,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import {
   verifyBeforeCreate,
   WebhookValidationError,
+  webhookRejection,
 } from "../../src/server/neon-webhook.ts";
 import { newGrant } from "../../src/server/auth-policy.ts";
 
@@ -82,6 +83,10 @@ test("webhook: firma Ed25519, cuerpo crudo, rama, ID, tipo y ventana temporal", 
     (error) => {
       assert.ok(error instanceof WebhookValidationError);
       assert.equal(error.reason, "event_envelope");
+      const denial = webhookRejection(error);
+      assert.equal(denial.status, 200);
+      assert.equal(denial.body.allowed, false);
+      assert.equal(denial.body.error_code, "AUTH_CONTEXT_MISMATCH");
       assert.deepEqual(error.envelopeChecks, {
         endpointMatches: false,
         typeMatches: true,
@@ -97,4 +102,18 @@ test("webhook: firma Ed25519, cuerpo crudo, rama, ID, tipo y ventana temporal", 
   assert.throws(() =>
     verifyBeforeCreate(valid.raw, valid.headers, { keys: [key] }, now),
   );
+});
+
+test("webhook: errores de firma, clave, red y DB nunca se convierten en una admisión", () => {
+  for (const error of [
+    new WebhookValidationError("signature"),
+    new WebhookValidationError("unknown_key"),
+    new Error("synthetic database/network error"),
+    { reason: "event_envelope" },
+  ]) {
+    const rejection = webhookRejection(error);
+    assert.equal(rejection.status, 503);
+    assert.equal(rejection.body.allowed, false);
+    assert.equal(rejection.body.error_code, "ADMISSION_UNAVAILABLE");
+  }
 });

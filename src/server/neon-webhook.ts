@@ -22,6 +22,28 @@ export class WebhookValidationError extends Error {
   }
 }
 
+// Neon expects a 2xx JSON denial for a completed before_create policy decision.
+// An authenticated but foreign/invalid context is a permanent denial, not a
+// retryable delivery outage. This NEVER turns a rejected event into admission.
+export function webhookRejection(error: unknown) {
+  if (
+    error instanceof WebhookValidationError &&
+    error.reason === "event_envelope"
+  )
+    return {
+      status: 200,
+      body: {
+        allowed: false,
+        error_code: "AUTH_CONTEXT_MISMATCH",
+        error_message: "No se pudo verificar el contexto de autenticación.",
+      },
+    };
+  return {
+    status: 503,
+    body: { allowed: false, error_code: "ADMISSION_UNAVAILABLE" },
+  };
+}
+
 // Same signed-wire contract as spikes/neon-auth/webhook.mjs; no JWT acceptance.
 export function verifyBeforeCreate(
   rawBody: string,

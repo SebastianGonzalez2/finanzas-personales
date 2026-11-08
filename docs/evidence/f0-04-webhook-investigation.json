@@ -1,0 +1,81 @@
+{
+  "ticket": "F0-04",
+  "date": "2026-11-08",
+  "project": "dry-voice-45959315",
+  "branch": "br-late-feather-b6czfkx0",
+  "managedMetadata": {
+    "connectedBranchVerifiedViaSql": "br-late-feather-b6czfkx0",
+    "configEndpoint": "ep-morning-sunset-b6i4kxdg",
+    "configId": "e30f021d-ed01-4f3b-a96c-2c519034a752",
+    "configCreatedAt": "2026-11-08T02:06:12.307Z",
+    "configUpdatedAt": "2026-11-08T02:06:12.307Z",
+    "branchCreatedAt": "2026-11-08T02:09:04Z",
+    "branchParent": "br-wild-mode-b64fgovd",
+    "branchInitSource": "parent-data",
+    "inheritedMetadataHypothesisSupported": true,
+    "routingToProductionProven": false,
+    "signedSourceBranchEstablished": false
+  },
+  "temporaryVercelProject": {
+    "projectId": "prj_pb5iMyLfSTdQQKqZ0U3TbYqnRcQi",
+    "scope": "sebastian-gonzalez1",
+    "environment": "production_of_temporary_test_project",
+    "configMatches": {
+      "NEON_PROJECT_ID": true,
+      "NEON_BRANCH_ID": true,
+      "NEON_AUTH_BASE_URL": true,
+      "AUTH_APP_ORIGIN": true,
+      "NEON_AUTH_ADMISSION_READY_false": true
+    },
+    "ownerUrlInPulledEnvironment": false,
+    "fourSecretsPresentButRedacted": true,
+    "currentSecretValuesReadBack": false,
+    "exactReadyDeploymentSnapshotReadBack": false,
+    "temporaryEnvFilesRemoved": true,
+    "cliVersion": "65.12.1"
+  },
+  "sdk": {
+    "installedVersion": "0.8.2",
+    "publicSourceCommit": "71526c0639ca0079a11716bea9ad139fc15243c1",
+    "fixedUpstreamAndBodyRegressionPassed": true,
+    "upstreamInSdkRegression": "simulated_fetch",
+    "managedWebhookEmitterImplementationInspected": false
+  },
+  "applicationCorrection": {
+    "foreignContextStillRejected": true,
+    "permanentDenial": {
+      "status": 200,
+      "allowed": false,
+      "error_code": "AUTH_CONTEXT_MISMATCH"
+    },
+    "signatureKeyNetworkDatabaseFailureClosed": true,
+    "newRealSignedCallbackTested": false
+  },
+  "verification": {
+    "unitTests": "22/22",
+    "managedAuditExit": 1,
+    "managedAuditExitReason": "storedEndpointMatchesDevelopment_false",
+    "closedSyntheticSignupStatus": 400,
+    "closedSyntheticSignupCode": "EMAIL_PASSWORD_SIGN_UP_DISABLED",
+    "closedProbeReceiverDeliveries": 0,
+    "authUsersBefore": 0,
+    "authUsersAfter": 0,
+    "emailSignupsStayedDisabled": true,
+    "invitationStayedRevoked": true
+  },
+  "constraints": {
+    "gmailUsed": false,
+    "productionMutated": false,
+    "authRecreated": false,
+    "manualNeonAuthWrites": false,
+    "newRemoteMigration": false,
+    "paidServiceActivated": false,
+    "supportContacted": false
+  },
+  "sources": [
+    "https://neon.com/docs/auth/guides/webhooks",
+    "https://neon.com/docs/auth/branching-authentication",
+    "https://neon.com/docs/reference/api/auth/update-neon-auth-config",
+    "https://github.com/neondatabase/neon-js/blob/71526c0639ca0079a11716bea9ad139fc15243c1/packages/auth/src/server/proxy/request.ts"
+  ]
+}
