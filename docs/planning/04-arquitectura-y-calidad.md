@@ -1,7 +1,7 @@
 # Arquitectura, seguridad, dependencias y calidad
 
 **Naturaleza:** propuesta de arquitectura para implementar el stack confirmado en tanda 12. No hay infraestructura configurada ni aplicación ejecutada todavía.  
-**Decisiones confirmadas:** Next.js, TypeScript, Tailwind CSS, shadcn/ui, Vercel, Neon PostgreSQL y Neon Auth. El resto de herramientas y patrones debe justificarse y verificarse en F0.
+**Decisiones confirmadas:** Next.js, TypeScript, Tailwind CSS, shadcn/ui, Vercel, Neon PostgreSQL y **Better Auth autogestionado (solo Google + lista privada de autorizados)**. Ver [ADR 0004](../adr/0004-google-only-allowlist-auth.md). El resto de herramientas y patrones debe justificarse y verificarse en F0.
 
 ## 1. Arquitectura objetivo (monolito modular web)
 
@@ -10,7 +10,7 @@ Navegador / PWA (móvil y escritorio)
   ├─ Next.js App Router: vistas, formularios, diseño responsive y gráficos
   ├─ Client components solo para interacción/visualización
   └─ acciones de usuario → servidor Next.js (Route Handlers / Server Actions)
-       ├─ Neon Auth: autenticar sesión y comprobar titular
+       ├─ Better Auth propio: Google OAuth, allowlist, sesión y titular
        ├─ validación de entrada y permisos por objeto
        ├─ servicios de dominio: Bancos, Tarjetas, Deudas, Fondos, Recurrencias...
        ├─ transacciones atómicas con validación de invariantes
@@ -63,7 +63,7 @@ Estructura **propuesta, no obligatoria**; no crear carpetas vacías ni instalar 
 | ID | Punto | Criterio de elección |
 |---|---|---|
 | T-01 | Versión estable Next.js/Node/React | Revisar documentación oficial y compatibility matrix; fijar versiones y lockfile; sin `latest` flotante en CI. |
-| T-02 | Cliente SDK Neon Auth | Verificar **Managed Better Auth** vigente, integración real con App Router, Google y email/contraseña/OTP, identidades/sesiones; documentar env vars y callback. |
+| T-02 | Better Auth propio y Google OAuth | Verificar versión compatible con Next.js/App Router, rutas OAuth y hooks de rechazo de alta, allowlist privada, sesión/revocación real, tablas propias y callback exacto; **sin Neon Auth administrado ni email/OTP**. |
 | T-03 | Acceso a Neon PostgreSQL | Elegir driver oficial y gestor de migraciones/ORM según necesidad de transacciones, límites serverless, pooling y tests. |
 | T-04 | Validación y decimales | Seleccionar esquema declarativo y biblioteca decimal mantenidas; comprobar parseo estricto, precisión y serialización. |
 | T-05 | Testing | Unitario (p. ej. Vitest), integración con DB real de prueba y E2E (p. ej. Playwright); seleccionar y fijar versiones. |
@@ -71,7 +71,7 @@ Estructura **propuesta, no obligatoria**; no crear carpetas vacías ni instalar 
 | T-07 | UI y diseño | Verificar si existe local `docs/design/fintrack-visual-spec.md`; remoto no verificado. Reconstruir guía visual desde `docs/fintrack-original.jpeg` si falta, sin inventar funcionalidades de la imagen. |
 | T-08 | PWA | Manifest, iconos, instalación y caché de assets; **no** escritura offline ni respuestas financieras privadas persistentes como actuales. |
 | T-09 | Automatismos de calendario | Mecanismo idempotente compatible con límites gratuitos; no programar tareas antes de demostrar que no generan gastos o ingresos ficticios. |
-| T-10 | Email y notificaciones | Verificar SMTP gratuito y realista para producción, OTP/recovery, Google OAuth y push opcional limitado a tarjetas. |
+| T-10 | Notificaciones y OAuth | **No** se necesita SMTP/OTP/recuperación de contraseña para login Google-only. Verificar Google OAuth propio, Vercel Hobby y push opcional para tarjetas; cualquier otro correo futuro requerirá justificación separada. |
 | T-11 | Costo y licencia | Confirmar que despliegue y uso previsto entran en planes gratis **sin activar facturación**. |
 | T-12 | Backups cifrados | Cifrado estándar autenticado + KDF robusta y revisión; protección contra zip bombs, payloads excesivos, importación maliciosa. |
 
@@ -81,6 +81,8 @@ Estructura **propuesta, no obligatoria**; no crear carpetas vacías ni instalar 
 - Neon actual (Backend/Managed Better Auth): https://neon.com/blog/neon-backend-is-ga
 - Skill oficial de Neon para agentes: https://neon.com/docs/ai/ai-rules-neon-auth
 - Neon Auth e interoperabilidad Better Auth: https://neon.com/blog/neon-auth-branchable-identity-in-your-database
+
+**Cambio arquitectónico aprobado v9.49:** Google-only + allowlist; el análisis de Neon Managed Auth/webhook que figura debajo es **histórico**, no implementar ese flujo. El PR #12 no se fusiona como está; migrar o reemplazar el código de Auth en un incremento revisado. El esquema `finance` de F0-05 y los controles RLS se conservan. **Better Auth propio necesita migraciones separadas autorizadas**, no escritura sobre `neon_auth`.
 
 **Importante:** fuentes y precios cambian. Las guías oficiales de Neon indican que **Managed Better Auth no equivale a un despliegue autogestionado de Better Auth con plugins de servidor arbitrarios**. Probar el mecanismo de invitación **antes** de asumir que bastará un hook de un plugin de Better Auth. No inferir automáticamente nombres de funciones SDK ni credenciales.
 
@@ -92,7 +94,7 @@ Estructura **propuesta, no obligatoria**; no crear carpetas vacías ni instalar 
 4. Gestión de sesiones/cookies: usar cookies `HttpOnly`, `Secure` en producción, política SameSite adecuada y protección CSRF según mecanismo oficial elegido; no almacenar tokens de sesión en localStorage de forma improvisada.
 5. No exponer claves de Neon ni secrets como `NEXT_PUBLIC_*`; usar variables de entorno del servidor y archivos `.env.example` **sin valores reales**. `.env*` privados fuera de Git.
 6. Restaurar backups y borrar cuenta son operaciones de alto riesgo: confirmación explícita, reautenticación si el flujo oficial la admite, validación de alcance e integridad, operaciones atómicas.
-7. Controlar invitación del lado servidor **antes de activar cuenta**; pruebas con Google y correo. Código grupal reutilizable implica riesgo de filtración: rotación, límite de intentos y revocación verificables.
+7. Comprobar **allowlist de Google en servidor antes de crear la cuenta**, verificar identidad Google estable y correo verificado; probar rechazo de no autorizados y revocación efectiva de sesiones. Sin código grupal ni correo/contraseña (v9.49).
 8. Limitar el tratamiento de datos personales: nombre de comercio/persona solamente ingresado por usuario, sin contactar terceros automáticamente. No almacenar contraseñas de la app, contraseñas de backup, PIN bancarios ni números completos de tarjetas innecesarios.
 9. Registro de errores: no enviar importes, saldos, conceptos, tokens, identificadores de contactos ni copias de seguridad a logs de terceros salvo análisis explícito y consentido. No registrar contenido sensible completo en errores/analytics.
 10. Evitar cachear respuestas financieras de usuario en rutas estáticas o CDN compartido; aplicar control de caché privado/no-store cuando corresponda. Testear cierre de sesión y cambio de cuenta en mismo navegador.
