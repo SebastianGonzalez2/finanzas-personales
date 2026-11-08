@@ -1,5 +1,9 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
+import {
+  verifyGoogleIdToken,
+  type GoogleProfile,
+} from "better-auth/social-providers";
 import { PostgresDialect } from "kysely";
 import type pg from "pg";
 import {
@@ -66,11 +70,39 @@ export function createGoogleAuth(
         accessType: "online",
         includeGrantedScopes: false,
         prompt: "select_account",
-        mapProfileToUser: async (profile) => {
-          const identity = verifiedGoogleProfile(profile);
+        // This version's redirect flow decodes the provider ID token by default.
+        // Explicitly use its exported verifier before exposing any profile to hooks.
+        getUserInfo: async (tokens) => {
+          if (!tokens.idToken) return null;
+          const profile = await verifyGoogleIdToken({
+            token: tokens.idToken,
+            audience: config.clientId,
+          });
+          if (
+            !profile ||
+            profile.aud !== config.clientId ||
+            (profile.azp !== undefined && profile.azp !== config.clientId)
+          )
+            return null;
+          let identity;
+          try {
+            identity = verifiedGoogleProfile(profile);
+          } catch {
+            return null;
+          }
           return {
-            email: identity.email,
-            emailVerified: true,
+            user: {
+              id: identity.subject,
+              email: identity.email,
+              emailVerified: true,
+              name:
+                typeof profile.name === "string"
+                  ? profile.name
+                  : "Cuenta privada",
+            },
+            // Required identity/JWT claims were verified above; optional Google
+            // name/avatar fields are not used for admission or owner resolution.
+            data: profile as unknown as GoogleProfile,
           };
         },
       },
