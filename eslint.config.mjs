@@ -23,6 +23,7 @@ export default defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
+    "spikes/**",
     "next-env.d.ts",
     ".playwright-mcp/**",
     "playwright-report/**",
