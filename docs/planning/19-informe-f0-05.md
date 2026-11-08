@@ -1,6 +1,6 @@
 # F0-05 — Esquema y migraciones
 
-Fecha: 2026-11-08, America/Montevideo. Estado: **implementación y aceptación
+Fecha: 2026-11-08, America/Montevideo. Estado de la entrega original: **implementación y aceptación
 técnica de persistencia F0-05 verificadas; PR #11 pendiente de revisión humana,
 sin fusionar**. Puerta F0 y autenticación completa continúan abiertas.
 

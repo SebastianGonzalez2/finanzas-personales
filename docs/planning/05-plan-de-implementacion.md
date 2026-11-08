@@ -1,6 +1,6 @@
 # Plan de implementación por fases y entregables para Codex
 
-**Seguimiento vigente de F0:** [integración controlada previa](16-integracion-controlada-f0.md) e [informe F0-05](19-informe-f0-05.md). Scaffold, CI protegido y spikes integrados; persistencia F0-05 aplicada/probada en development y en revisión en PR #11. F0-04 y verificaciones de proveedores siguen pendientes. No se cierra la fase.
+**Seguimiento vigente de F0:** [integración controlada previa](16-integracion-controlada-f0.md), [informe F0-05](19-informe-f0-05.md) y [revisión independiente](20-revision-f0-05.md). Scaffold, CI protegido y spikes integrados; persistencia F0-05 aplicada/probada en development y revisada técnicamente en PR #11. Consultar allí integración/checks vigentes. F0-04 y verificaciones de proveedores siguen pendientes. No se cierra la fase.
 
 **Tipo:** backlog técnico priorizado, **no cronograma ni compromiso de fechas**.  
 **Base:** requisito funcional aprobado v9.48, [requisitos](01-alcance-y-requisitos.md), [modelo/invariantes](02-modelo-de-dominio-y-datos.md) y [criterios](03-criterios-de-aceptacion.md).  
@@ -39,6 +39,10 @@ aislamiento/precisión/rollback pasan; mismo SQL desde cero en CI PostgreSQL.
 `neon_auth` no modificado. Aceptación técnica de persistencia F0-05 verificada;
 revisión humana pendiente. Sesiones/API/invitaciones F0-04 y puerta F0 abiertas.
 Las menciones anteriores de F0-05 pendiente son históricas.
+
+Revisión posterior: [defecto de confirmación corregido y PostgreSQL CI 10/10](20-revision-f0-05.md).
+El párrafo anterior conserva el estado de entrega original. La revisión técnica
+no cierra Auth, F0 ni autoriza despliegues o F1.
 
 | Ticket | Implementación / investigación | Evidencia de aceptación |
 |---|---|---|

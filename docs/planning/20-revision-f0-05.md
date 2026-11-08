@@ -62,8 +62,11 @@ integral, CA-001 de API ni CA-006.
   error SQL capturado rechaza el falso éxito. Esta suite solo usa el harness
   localhost protegido. Confirma esquema y un evento sintético exclusivamente
   en el contenedor desechable; nunca se importa al harness Neon de rollback.
-- No hay PostgreSQL/Docker local disponible. La ejecución real de la suite
-  ampliada y su resultado deben verificarse en CI sobre el head corregido.
+- No hay PostgreSQL/Docker local disponible. La suite ampliada pasó realmente
+  en CI sobre `4f65668`: Node informa 10/10 (tres pruebas principales y siete
+  subpruebas), cero fallos/omitidos, PostgreSQL 17.6.
+  [Log del job verificado](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42442291081/job/128613871547).
+  Los seis checks de ese head pasan, incluido quality con build/unitarios/E2E.
   No se repitieron migraciones ni fixtures en Neon durante esta revisión.
 - Protección de main leída por API: seis checks obligatorios, rama actualizada
   requerida y protección aplicada a administradores. No se modifica ni omite.

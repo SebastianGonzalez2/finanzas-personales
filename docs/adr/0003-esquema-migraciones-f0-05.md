@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-08, America/Montevideo. Estado: implementado y probado en Neon
 development tras autorización expresa del SQL y fixtures; revisión del PR #11
-pendiente. Producto v9.48,
+pendiente en la entrega original; ver [revisión posterior y corrección](../planning/20-revision-f0-05.md). Producto v9.48,
 RF-004, RNF-01/02/03/04/12/15, CA-001 (capa DB), I-10/11/12.
 
 ## Decisiones
