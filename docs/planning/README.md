@@ -26,6 +26,7 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 9 | [Convenciones de Git](09-convenciones-git.md) | Formato obligatorio de **títulos de chats de Codex**, ramas, commits, títulos y descripciones de PR. |
 | 10 | [Modelos por ticket en Codex](10-modelos-por-ticket.md) | Modelo e intensidad recomendados, justificación y revisión independiente para los 56 tickets F0–F6. |
 | 11 | [Estado verificado de F0](14-seguimiento-f0.md) | Entregas, PR, pruebas reales y bloqueos al continuar F0; no sustituye aceptación humana. |
+| 12 | [Auditoría de integración F0](15-auditoria-integracion-f0.md) | Revisión técnica de PR #1–#8, correcciones, compatibilidad conjunta y configuración pendiente. |
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 

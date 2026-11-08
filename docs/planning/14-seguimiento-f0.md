@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-11-07, America/Montevideo. **Alcance autorizado:** continuar pendientes sin repetir F0-02/F0-03 ni intervenir F0-04; priorizar F0-06/07/09. Este registro distingue entrega, revisión y aceptación. Ningún merge, despliegue, servicio pago ni modificación de datos reales realizados.
 
+**Corte histórico:** las tablas siguientes registran la entrega F0-COORD previa a la revisión posterior. Los heads, correcciones, pruebas reejecutadas y orden de integración vigentes se encuentran en la [auditoría F0-REVIEW](15-auditoria-integracion-f0.md). No interpretar los SHA históricos de esta tabla como los heads actuales después de las correcciones.
+
 ## Inspección inicial y aislamiento
 
 Se leyeron AGENTS, README/handoff y `docs/planning/0*.md`, modelo/CA/riesgos y decisiones del producto v9.48. `git fetch origin`, estado, ramas, log, diferencias con main, worktrees y PR reales inspeccionados. Base `origin/main`: e493658. Directorio compartido limpio en F0-04/a3401bd, conservado sin cambiar rama ni archivos. F0-02/03/04 tienen PR abiertos #1/#2/#3, no están fusionados; F0-01 tiene informe local versionado y no se repitió.
