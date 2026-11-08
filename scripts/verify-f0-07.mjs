@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { URL } from "node:url";
 
-const { observations } = JSON.parse(await readFile(new URL("../docs/evidence/f0-07-probe.json", import.meta.url), "utf8"));
+const { observations } = JSON.parse(
+  await readFile(
+    new URL("../docs/evidence/f0-07-probe.json", import.meta.url),
+    "utf8",
+  ),
+);
 test("seis consultas públicas reales respondieron JSON con HTTP 200", () => {
   assert.equal(observations.length, 6);
   for (const entry of observations) {
@@ -19,7 +25,11 @@ test("datosUruguay USD/EUR: fuente, unidad, licencia y datos no posteriores a fe
     assert.equal(entry.sample.meta.attribution.required, true);
     assert.match(entry.sample.meta.unit, /^UYU\/(USD|EUR)$/);
     assert.ok(entry.sample.data.length > 0);
-    assert.ok(entry.sample.data.every((point) => point.date <= cutoff && point.value > 0));
+    assert.ok(
+      entry.sample.data.every(
+        (point) => point.date <= cutoff && point.value > 0,
+      ),
+    );
   }
 });
 test("domingo: primary usa última observación anterior, no meta.last_updated", () => {
@@ -30,8 +40,16 @@ test("domingo: primary usa última observación anterior, no meta.last_updated",
 test("Frankfurter v2 incluye EUR y UYU con base USD y fecha no futura", () => {
   for (const entry of observations.slice(3, 5)) {
     const cutoff = new URL(entry.url).searchParams.get("date");
-    assert.deepEqual(entry.sample.map((point) => point.quote).sort(), ["EUR", "UYU"]);
-    assert.ok(entry.sample.every((point) => point.base === "USD" && point.rate > 0 && point.date <= cutoff));
+    assert.deepEqual(entry.sample.map((point) => point.quote).sort(), [
+      "EUR",
+      "UYU",
+    ]);
+    assert.ok(
+      entry.sample.every(
+        (point) =>
+          point.base === "USD" && point.rate > 0 && point.date <= cutoff,
+      ),
+    );
   }
 });
 test("limitación registrada: Frankfurter v1 responde 200 pero omite UYU", () => {

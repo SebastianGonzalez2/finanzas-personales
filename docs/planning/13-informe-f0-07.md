@@ -37,6 +37,8 @@ Contrato pendiente F5-06/CA-060: exigir todos los pares solicitados, tasa positi
 
 ## Pruebas y trazabilidad
 
+**Auditoría F0-REVIEW (2026-11-07):** el lint/formato conjunto del scaffold detectó imports globales implícitos y dos scripts sin formato. Se corrigieron sin excluirlos del lint. La sonda devolvía exit 0 incluso con fallos HTTP/red/JSON: ahora devuelve error en esos casos y se puede importar para pruebas sin red ni sobrescritura de evidencia. Cuatro regresiones offline adicionales pasan, junto a las cinco verificaciones de evidencia (9/9). CI dedicado ejecuta solo esas pruebas offline; no vuelve a consultar proveedores ni valida SMTP. El snapshot público original se conserva.
+
 - `node --check scripts/probe-f0-07.mjs` y `node --check scripts/verify-f0-07.mjs`: sintaxis.
 - `node scripts/probe-f0-07.mjs`: seis solicitudes reales, 200, 2026-11-07.
 - `node --test scripts/verify-f0-07.mjs`: cinco verificaciones sobre la evidencia conservada; no simulación de SMTP ni test del integrador futuro.
