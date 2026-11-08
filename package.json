@@ -25,6 +25,7 @@
     "auth:google:migrate": "node --env-file-if-exists=.env.local scripts/prepare-google-auth.mjs",
     "auth:google:allowlist": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.google-admin.local scripts/google-allowlist.mjs",
     "auth:google:runtime": "node --env-file-if-exists=.env.local scripts/provision-google-runtime.mjs",
+    "auth:google:verify": "node --conditions=react-server --env-file=.env.google.local scripts/verify-google-runtime.mjs",
     "dev:google": "node --env-file=.env.google.local node_modules/next/dist/bin/next dev --webpack --hostname localhost",
     "probe:neon": "node --conditions=react-server --env-file-if-exists=.env.local scripts/probe-neon-development.mjs",
     "db:plan": "node scripts/migrate-development.mjs",

@@ -40,7 +40,7 @@ La función de autorización mantiene locks hasta COMMIT, con orden allowlist �
 session para coordinar revocación y logout. Se reutilizan los contratos y RLS
 F0-05. `/api/account` solo lee preferencias; no implementa operaciones F1.
 
-## SQL pendiente de autorización
+## SQL autorizado y aplicado en development
 
 Archivo exacto: `src/db/proposals/0003_F0-04_google_only.sql`.
 Destino único: proyecto `dry-voice-45959315`, development
@@ -64,11 +64,13 @@ admission ni neon_auth; no se cargan identidades ni correos de prueba remotos.
 agrega un registro de versión/hash a app_auth_meta.migrations en la misma
 transacción. No ejecuta DDL automáticamente al iniciar la aplicación.
 
-**Ningún SQL nuevo aplicado a Neon todavía.** La autorización del SQL histórico
-del PR #12 no se interpreta como autorización de este archivo.
+**Actualización 2026-11-08:** el titular autorizó expresamente este hash y la
+provisión runtime. Se aplicó con `auth:google:migrate`, resultado applied=true,
+y se crearon las credenciales restringidas con el script aprobado. Esta nueva
+autorización es independiente de la histórica del PR #12.
 
-La provisión posterior de las dos credenciales restringidas también requiere
-autorización: [script exacto](../../scripts/provision-google-runtime.mjs). Ejecuta
+La provisión de las dos credenciales restringidas fue autorizada mediante el
+[script exacto](../../scripts/provision-google-runtime.mjs). Ejecuta
 solo `ALTER ROLE finanzas_google_auth PASSWORD <secreto aleatorio>` y
 `ALTER ROLE finanzas_google_finance PASSWORD <secreto aleatorio>` en transacción,
 con nombres fijos, contraseñas nuevas de 256 bits generadas localmente y literales
@@ -108,8 +110,9 @@ Resultado verificado del código `24c2c0f`:
 | `npm run test:integration` | 21/21 en CI | PostgreSQL 17.6 real; 10 escenarios Google-only más regresiones F0-05 y suites padre |
 | `npm run test:e2e` | 4/4 local y CI | Chromium escritorio/móvil; acceso cerrado y API anónima |
 | Checks requeridos | 6/6 verdes | Quality, database, auth spike, contracts, provider evidence, visual documentation |
-| Neon development | Solo lectura | Nuevos esquemas/roles ausentes; seis tablas financieras mantienen RLS y FORCE RLS |
-| Google real + runtime Neon nuevo | No ejecutado | SQL/OAuth pendientes, no equivale al mock |
+| SQL Neon development | Aplicado, hash autorizado | Tres esquemas aditivos, ledger y dos roles nuevos |
+| Runtime Neon nuevo | Verificación real pasa | Ambas conexiones limitadas, guards/permisos, seis tablas financieras con RLS/FORCE; allowlist, usuarios y sesiones vacíos |
+| Google OAuth real | No ejecutado | Credenciales Google pendientes, no equivale al mock |
 
 Evidencia: [CI del código probado](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42533938569).
 Los commits anteriores conservan los fallos encontrados y corregidos: nombres
@@ -124,8 +127,14 @@ No hay bypass del proveedor en el código de aplicación. Prueba además firma,
 issuer/audience/caducidad inválidos, fallo DB/red, límite persistente, cambio de
 email sin transferir titular y locks de revocación hasta el COMMIT financiero.
 
-Pendientes de aceptación: SQL autorizado, credenciales runtime restringidas,
-cliente Google propio, pruebas reales A/B y cuenta no autorizada, persistencia
+Evidencia Neon: [registro sin secretos](../evidence/f0-04-google-runtime.json).
+`npm run auth:google:verify` es una comprobación de solo lectura de este estado
+inicial cerrado/vacío. La primera consulta diagnóstica intentaba resolver por
+nombre una tabla sin USAGE del esquema, y obtuvo 42501 correctamente. Se corrigió
+la inspección usando OID del catálogo; no se concedieron permisos adicionales.
+El guard de runtime de la aplicación pasó con ambos roles reales.
+
+Pendientes de aceptación: cliente Google propio, pruebas reales A/B y cuenta no autorizada, persistencia
 en dos navegadores, cambio de cuenta y revocación efectiva en Neon. La eliminación
 de cuenta/datos sigue en el alcance global con flujo explícito; el endpoint genérico
 delete-user permanece deshabilitado en este ticket para impedir borrar identidad
@@ -133,7 +142,7 @@ sin el tratamiento financiero y respaldo correspondientes.
 
 F0-07: cuotas/términos Hobby y Neon Free, configuración/operación OAuth. SMTP,
 OTP y recuperación de contraseñas propias ya no son dependencias de acceso.
-F0-04/F0 abiertas, sin F1, merge, despliegue nuevo ni pago.
+F0-04/F0 abiertas, sin F1, merge, despliegue nuevo ni pago. Auth sigue cerrada.
 
 Guía paso a paso del titular: [Google Cloud y pruebas](../development-google-auth.md).
 

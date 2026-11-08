@@ -2,7 +2,7 @@
 
 > **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. No implementar Neon Auth administrado, webhook, contraseña/OTP, SMTP de acceso ni código compartido de invitación. Referencia obligatoria: [ADR 0004](docs/adr/0004-google-only-allowlist-auth.md). Los pasos históricos de autenticación que figuran abajo quedan sustituidos; F0-04 sigue abierto.
 
-Base Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. F0-05 aporta persistencia financiera con RLS. Esta rama implementa F0-04 Google-only, cerrado por defecto y pendiente de migración autorizada y pruebas Google reales: [estado y SQL](docs/planning/25-google-only-f0-04.md), [guía local y callback exacto](docs/development-google-auth.md). La portada sigue siendo el scaffold; no hay operaciones de F1.
+Base Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. F0-05 aporta persistencia financiera con RLS. Esta rama implementa F0-04 Google-only, cerrado por defecto: SQL y runtime autorizados aplicados a development, pendientes pruebas Google reales. Ver [estado y SQL](docs/planning/25-google-only-f0-04.md), [guía local y callback exacto](docs/development-google-auth.md). La portada sigue siendo el scaffold; no hay operaciones de F1.
 
 ## Requisitos y arranque
 

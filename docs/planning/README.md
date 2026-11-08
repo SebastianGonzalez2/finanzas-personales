@@ -33,7 +33,7 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
-**Implementación nueva F0-04:** [Google-only, SQL propuesto y límites de pruebas](25-google-only-f0-04.md), en PR #14 separado del histórico #12. [Guía del entorno local y Google Cloud](../development-google-auth.md). Auth cerrada por defecto; migración nueva todavía no autorizada ni aplicada a Neon.
+**Implementación nueva F0-04:** [Google-only, SQL autorizado y límites de pruebas](25-google-only-f0-04.md), en PR #14 separado del histórico #12. [Guía del entorno local y Google Cloud](../development-google-auth.md). SQL y runtime aplicados con autorización solo a development y verificados; Auth cerrada, pendiente de OAuth Google real.
 
 **F0-03 integrado:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
 
