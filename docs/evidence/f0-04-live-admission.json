@@ -1,0 +1,33 @@
+{
+  "ticket": "F0-04",
+  "project": "dry-voice-45959315",
+  "branch": "br-late-feather-b6czfkx0",
+  "origin": "https://finanzas-personales-f0-04.vercel.app",
+  "attempts": [
+    {
+      "checkedAt": "2026-11-08T14:26:38.864Z",
+      "method": "direct_email_without_invitation",
+      "status": 502,
+      "code": "WEBHOOK_DELIVERY_FAILED",
+      "userReturned": false,
+      "tokenReturned": false,
+      "authUsersBefore": 0,
+      "authUsersAfter": 0,
+      "codeRevoked": true,
+      "deliveryAttempts": 3,
+      "receiverStatus": 503,
+      "signupsClosedAfter": true
+    },
+    {
+      "checkedAt": "2026-11-08T14:34:09.870Z",
+      "method": "direct_email_without_invitation",
+      "status": 502,
+      "code": "WEBHOOK_DELIVERY_FAILED",
+      "userReturned": false,
+      "tokenReturned": false,
+      "authUsersBefore": 0,
+      "authUsersAfter": 0,
+      "codeRevoked": true
+    }
+  ]
+}

@@ -270,3 +270,12 @@ resolver el error real. No se registran payloads, firmas, correos ni mensajes de
 excepción. Unitarios 18/18 y build pasan; el primer ensayo del diagnóstico usaba
 una propiedad de parámetro TypeScript incompatible con strip-only de Node y se
 corrigió antes de publicar. CI de `82b1429`: seis checks SUCCESS.
+
+La segunda sonda (14:34 UTC), ya con diagnóstico, confirmó rechazo en
+`event_envelope` después de verificar Ed25519. Permanecen cero identidades y
+código revocado; alta email cerrada de nuevo. Se agrega una sonda reproducible
+`probe:auth:admission -- --approved-phase2-preflight`: exige branch exacta,
+cero identidades y código revocado, no abre altas, guarda solo resultados seguros.
+La conexión GitHub/Vercel la completó el titular; el bloqueo de autor Hobby se
+resolvió sin Pro ni reescribir commits. Despliegue de diagnóstico READY:
+`dpl_BzmNzsqftnydhM1sfq83NnKvDcR1` (fuente `25bf917`).

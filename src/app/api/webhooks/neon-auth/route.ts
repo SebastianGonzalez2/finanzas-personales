@@ -64,6 +64,9 @@ export async function POST(request: Request) {
       stage,
       reason:
         error instanceof WebhookValidationError ? error.reason : "unavailable",
+      ...(error instanceof WebhookValidationError && error.envelopeChecks
+        ? { envelopeChecks: error.envelopeChecks }
+        : {}),
     });
     return Response.json(
       { allowed: false, error_code: "ADMISSION_UNAVAILABLE" },

@@ -11,9 +11,14 @@ type RejectionReason =
   | "event_envelope";
 export class WebhookValidationError extends Error {
   readonly reason: RejectionReason;
-  constructor(reason: RejectionReason) {
+  readonly envelopeChecks?: Record<string, boolean | string>;
+  constructor(
+    reason: RejectionReason,
+    envelopeChecks?: Record<string, boolean | string>,
+  ) {
     super("Webhook inválido");
     this.reason = reason;
+    this.envelopeChecks = envelopeChecks;
   }
 }
 
@@ -82,13 +87,24 @@ export function verifyBeforeCreate(
   )
     invalid("signature");
   const event = JSON.parse(rawBody);
-  if (
-    event?.context?.endpoint_id !== "ep-falling-queen-b63xbfuk" ||
-    event.event_type !== "user.before_create" ||
-    event.event_type !== headers.get("x-neon-event-type") ||
-    typeof event.event_id !== "string" ||
-    event.event_id !== headers.get("x-neon-event-id")
-  )
-    invalid("event_envelope");
+  const checks = {
+    endpointMatches:
+      event?.context?.endpoint_id === "ep-falling-queen-b63xbfuk",
+    typeMatches: event?.event_type === "user.before_create",
+    headerTypeMatches: event?.event_type === headers.get("x-neon-event-type"),
+    idPresent: typeof event?.event_id === "string",
+    idMatches: event?.event_id === headers.get("x-neon-event-id"),
+  };
+  if (Object.values(checks).some((value) => !value)) {
+    // Only booleans and an already-public endpoint identifier, AFTER signature.
+    const endpoint = event?.context?.endpoint_id;
+    throw new WebhookValidationError("event_envelope", {
+      ...checks,
+      signedEndpoint:
+        typeof endpoint === "string" && /^ep-[a-z0-9-]{1,90}$/.test(endpoint)
+          ? endpoint
+          : "unrecognized",
+    });
+  }
   return event;
 }
