@@ -4,6 +4,10 @@ Fecha: 2026-11-08, America/Montevideo. Estado: **implementación y aceptación
 técnica de persistencia F0-05 verificadas; PR #11 pendiente de revisión humana,
 sin fusionar**. Puerta F0 y autenticación completa continúan abiertas.
 
+Seguimiento posterior: [revisión independiente y corrección del PR #11](20-revision-f0-05.md).
+Las pruebas y estados de este informe describen la entrega original; los checks
+del head corregido y de main deben consultarse en GitHub al integrar.
+
 ## Base y alcance
 
 Git inicial limpio en `codex/F0-NEON-conectar-entorno-desarrollo`. Fetch real

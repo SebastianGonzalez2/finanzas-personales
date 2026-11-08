@@ -45,7 +45,11 @@ export async function withOwnerTransaction<T>(
     await client.query("BEGIN");
     await setOwnerContext(client, identity.ownerId);
     const result = await work(client, identity.ownerId);
-    await client.query("COMMIT");
+    // PostgreSQL answers COMMIT with ROLLBACK when work swallowed a SQL error.
+    // A resolved query alone does not prove that the operation was persisted.
+    const committed = await client.query("COMMIT");
+    if (committed.command !== "COMMIT")
+      throw new Error("Transacción no confirmada");
     return result;
   } catch {
     await client.query("ROLLBACK").catch(() => {
