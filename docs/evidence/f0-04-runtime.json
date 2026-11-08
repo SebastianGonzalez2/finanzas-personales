@@ -1,0 +1,11 @@
+{
+  "ticket": "F0-04",
+  "checkedAt": "2026-11-08T03:55:42.639Z",
+  "development": true,
+  "checks": 16,
+  "rollback": true,
+  "realRestrictedLogins": true,
+  "ownerRoleDenied": true,
+  "syntheticOwners": true,
+  "authenticatedAuthIdentities": false
+}

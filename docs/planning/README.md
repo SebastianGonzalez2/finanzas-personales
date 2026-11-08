@@ -35,6 +35,10 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 
 ## Autoridad y resolución de conflictos
 
+**Continuación F0-04, 2026-11-08:** [implementación protegida y resultados](21-continuacion-f0-04.md),
+con [SQL autorizado/aplicado y permisos](22-autorizacion-f0-04.md).
+Auth sigue deshabilitada por defecto; no equivale a aceptación del ticket ni cierre F0.
+
 **F0-05, 2026-11-08:** [esquema/migración y pruebas reales](19-informe-f0-05.md)
 en PR #11. SQL autorizado aplicado solo a development; aislamiento y precisión
 48/48 directo y 48/48 pooled, fixtures revertidos. No equivale a sesión/API

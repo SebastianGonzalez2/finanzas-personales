@@ -1,0 +1,29 @@
+{
+  "ticket": "F0-04",
+  "checkedAt": "2026-11-08T03:57:04.199Z",
+  "target": {
+    "project": "dry-voice-45959315",
+    "branch": "br-late-feather-b6czfkx0"
+  },
+  "checks": {
+    "anonymousSessionDenied": true,
+    "invalidSessionDenied": true,
+    "ed25519Available": true,
+    "directEmailErrorCode": "EMAIL_PASSWORD_SIGN_UP_DISABLED",
+    "directEmailSignupCurrentlyDisabled": true,
+    "directEmailStatus": 400,
+    "branch": true,
+    "admission_schema_present": true,
+    "runtime_roles": 2,
+    "protected_finance_tables": 6
+  },
+  "notTested": [
+    "blocking webhook",
+    "valid invitation",
+    "Google callback/rejection",
+    "OTP delivery/expiry/retries",
+    "password reset",
+    "authenticated revocation",
+    "authenticated A/B isolation"
+  ]
+}

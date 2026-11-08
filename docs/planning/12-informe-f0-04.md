@@ -1,5 +1,9 @@
 # F0-04 — Neon Auth, sesiones e invitación en ambos métodos
 
+**Continuación vigente:** [código persistente, pruebas y pendientes](21-continuacion-f0-04.md).
+El entorno Neon ya existe; las menciones posteriores de ausencia describen esta
+entrega histórica. F0-04 todavía no está aceptado.
+
 **Fecha:** 2026-11-07. **Estado:** investigación y experimento local entregados; **validación real pendiente por falta de proyecto Neon de prueba**, confirmada por el titular. No cierra F0 ni habilita publicación.
 
 **Revisión:** [PR #3 en borrador](https://github.com/SebastianGonzalez2/finanzas-personales/pull/3), rama `codex/F0-04-neon-auth-invitaciones`; implementación local en commit `2c12f46`. Sin merge ni despliegue.
