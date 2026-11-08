@@ -20,6 +20,8 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 
 ## F0 — Preparación, seguridad y spike técnico
 
+**Seguimiento F0-04 — 2026-11-07:** investigación y [experimento local reproducible](../../spikes/neon-auth/README.md) entregados para revisión; ver [hallazgos, acciones exactas del titular y matriz real pendiente](12-informe-f0-04.md). Pruebas locales y contrato SDK no equivalen a alta real. El titular confirmó que aún no tiene proyecto Neon de prueba: Google, OTP, recuperación, sesiones e invitación real permanecen pendientes, y F0-04 no está aceptado funcionalmente. No se supera la puerta F0 ni se autoriza publicación. Siguiente ticket del plan: F0-05, sin iniciar.
+
 **Objetivo:** base reproducible sin secretos, proveedor de identidad y persistencia validados, modelo claro, herramienta de QA y diseño visual recuperado.
 
 | Ticket | Implementación / investigación | Evidencia de aceptación |
@@ -35,8 +37,6 @@ F0 Fundamentos + proveedores/costo + diseño/auditoría
 | F0-09 | Decidir convenciones de módulos, IDs, timestamps, decimales, transacciones y eventos; amenazas de seguridad. | ADR breve (Architecture Decision Record) con pruebas de monedas y permisos. |
 
 **Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Neon Auth/SMTP/código invitación, **no simular** que el acceso es seguro ni publicar con un bypass.
-
-**Seguimiento F0-04 — 2026-11-07:** investigación y [experimento local reproducible](../../spikes/neon-auth/README.md) entregados para revisión; ver [hallazgos, acciones exactas del titular y matriz real pendiente](12-informe-f0-04.md). Pruebas locales y contrato SDK no equivalen a alta real. El titular confirmó que aún no tiene proyecto Neon de prueba: Google, OTP, recuperación, sesiones e invitación real permanecen pendientes, y F0-04 no está aceptado funcionalmente. No se supera la puerta F0 ni se autoriza publicación. Siguiente ticket del plan: F0-05, sin iniciar.
 
 ## F1 — Núcleo financiero y movimientos
 

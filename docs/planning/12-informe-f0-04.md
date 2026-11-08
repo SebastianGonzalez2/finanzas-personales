@@ -115,4 +115,6 @@ Lint/build/E2E del frontend y revisión móvil/escritorio: no ejecutados aquí p
 
 ## Pendientes y siguiente paso
 
+**Auditoría F0-REVIEW (2026-11-07):** el `.gitignore` añadido en raíz colisionaba con el scaffold de PR #2; sus reglas se localizan ahora en `spikes/neon-auth/.gitignore`, manteniendo secretos/dependencias ignorados. El seguimiento del plan se movió para evitar inserciones en el mismo punto que F0-03. Se añade CI aislado de instalación/contrato/pruebas sintéticas, sin entorno ni sondas reales; no equivale a validar proveedor ni a cerrar F0-04. El peer 1.3.2/1.3.3 y caché del SDK siguen pendientes. La sonda real no se ejecutó durante esta revisión: la revisión automática rechazó esa acción por posible contacto con Neon/configuración del entorno.
+
 R-01/R-02/R-19: **pendientes de entorno real**. R-13: política local probada, aislamiento de datos reales sin probar. Caché del SDK y peer transitivo: abiertos hasta integración corregida y pruebas reales. Entrega offline revisable; ticket no aceptado funcionalmente. El siguiente ticket del plan es **F0-05** (DB aislada/driver/migraciones/propiedad); no se inició. Retomar los pendientes de F0-04 en este chat cuando exista el proyecto de prueba y no declarar puerta F0 superada.
