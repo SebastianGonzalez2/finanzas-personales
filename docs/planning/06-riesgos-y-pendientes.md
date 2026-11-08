@@ -8,7 +8,7 @@
 
 - La planificación funcional de los módulos principales está **suficientemente cerrada** para iniciar tareas técnicas F0.
 - El repositorio remoto visto en noviembre de 2026 contenía únicamente `docs/` con la imagen visual y el registro de decisiones. **No se encontró aplicación ni esquema de base de datos desplegados**. No se deben dar por implementados.
-- La supuesta guía visual local `docs/design/fintrack-visual-spec.md` **no se encontró en `main` remoto**, aunque Codex informó previamente haberla redactado. Comprobar local o reconstruir antes de implementación visual.
+- En la auditoría original la guía visual local `docs/design/fintrack-visual-spec.md` **no se encontró en `main` remoto**. F0-02 confirmó su existencia local y la consolidó para revisión; ver [evidencia y límites](10-informe-f0-02.md). Esto no demuestra reproducción visual de una aplicación.
 - El apartado histórico §12 del documento de producto mezcla decisiones ya cerradas con pendientes antiguos: **no usar ese apartado literalmente como lista de cosas sin resolver**, sin consultar decisiones posteriores y este registro.
 - No identificamos un nuevo requisito funcional que sea obligatorio decidir en otra ronda para **iniciar F0**. Sí existen puertas de **seguridad/viabilidad** que deben probarse antes de desplegar o tratar datos reales.
 
@@ -33,9 +33,21 @@
 | R-15 | PWA offline genera operaciones locales inconexas. | Medio/alto; falsa certeza de saldo. | Descartado funcionalmente | Sin cola de escritura offline; respuesta persistida del servidor obligatoria para éxito. Test CA-065. |
 | R-16 | Inconsistencia de mes/período al viajar entre zonas horarias. | Medio; cuotas/recurrencias en mes erróneo. | Diseño pendiente | Fecha de calendario separada de timestamp UTC; tests con fechas de fin de mes y distintos husos. |
 | R-17 | Gráficos/bibliotecas y dependencias de uso comercial/costo no verificado. | Medio; deuda técnica/licencias. | Stack base elegido; paquetes adicionales pendientes | Elegir mínimo paquete mantenido y gratuito, testear licencias/compatibilidad/cantidad de dependencias. No enviar datos de gastos a SaaS de gráficos. |
-| R-18 | Falta de especificación visual versionada. | Medio; divergencia del diseño aprobado. | Imagen disponible, texto local no confirmado | Verificar archivo local; recuperar o documentar especificación visual desde `docs/fintrack-original.jpeg`; probar UI móvil/escritorio. |
+| R-18 | Falta de especificación visual versionada y reproducción visual aún sin probar. | Medio; divergencia del diseño aprobado. | Mitigado parcialmente en F0-02; UI pendiente | 2026-11-07: [guía consolidada](../design/fintrack-visual-spec.md), [evidencia F0-02](10-informe-f0-02.md) y `node docs/design/verify-visual-spec.mjs` para enlaces/contraste. Falta aceptación humana y ejecutar matriz visual móvil/escritorio al implementar F1-01/F6; no se declara resuelto. |
 | R-19 | Conexión de Neon/Google/Vercel requiere credenciales y acciones del titular. | Operativo; no se puede completar sin permisos del dueño. | No configurado en este paquete | Documentar variables en `.env.example`, solicitar autorización puntual, no almacenar tokens/API keys en documentos, issues, GitHub o chat. |
 | R-20 | Backlog amplio genera falsa «MVP completa» al finalizar núcleo. | Medio/alto; expectativas equivocadas. | Controlado con fases | Distinguir demostración interna incremental de producto completo aprobado; conservar todas RF P1/P2 en plan y establecer gates. |
+
+## Evidencia F0-04 — 2026-11-07
+
+Entrega revisable: [PR #3 en borrador](https://github.com/SebastianGonzalez2/finanzas-personales/pull/3), commit `2c12f46`; no constituye cierre de los riesgos.
+
+- **R-01 — En investigación:** [informe y procedimiento](12-informe-f0-04.md), [pruebas locales](../../spikes/neon-auth/tests/admission.test.mjs). Política experimental cubre ambos proveedores, código reutilizable, rotación, revocación y permisos pendientes. Transporte real de admisión en Google/email, webhook configurado y rechazo directo en Neon: **pendientes**; no hay proyecto de prueba, confirmado por el titular.
+- **R-02 — No configurado:** métodos OTP/reset compilan; envío, reenvío, expiración, antiabuso y SMTP real **no ejecutados**. No se contrató servicio.
+- **R-13 — En investigación:** pruebas sintéticas de aislamiento pasan; no hay pruebas DB A/B. SDK 0.8.2 conserva cookie cacheada con `disableCookieCache: true` boolean; [reproducción](../../spikes/neon-auth/tests/sdk.test.mjs). Debe verificarse sesión fresca y revocación inmediata antes de autorizar datos.
+- **R-17 — En investigación:** SDK Apache-2.0 instalado en spike con lockfile; advertencia de peer transitivo fetch 1.3.2/1.3.3, sin override. No declarar compatibilidad runtime completa por compilación de contrato.
+- **R-19 — Pendiente:** titular debe preparar Neon Free de prueba y buzones según el informe; no se requieren secretos en Git/chat. Procedimiento de consola documentado, sin configuración real ni facturación.
+
+Resultados ejecutados: `npm ci --ignore-scripts --no-audit --no-fund` (pasa con advertencia de peer), `npm test` (27/27), `npm run typecheck` (pasa), `npm run probe` (salida 2: URL ausente), `npm audit --omit=dev --json` (0 vulnerabilidades reportadas), todos desde `spikes/neon-auth`. Ningún riesgo se marca verificado por estas pruebas locales. Resto de la matriz conserva sus estados.
 
 ## Precaución: decisiones anteriores reemplazadas
 
