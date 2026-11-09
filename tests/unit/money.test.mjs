@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Money } from "../../src/domain/money.mts";
+import { Money } from "../../src/domain/money.ts";
 
 test("F0-05: tres monedas exactas, cifras grandes y serialización string", () => {
   for (const currency of ["UYU", "USD", "EUR"]) {

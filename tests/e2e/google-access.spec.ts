@@ -53,3 +53,21 @@ test("Resumen no entrega el tablero ante una visita directa con sesión inválid
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByText("Resumen financiero")).toHaveCount(0);
 });
+
+test("F1-02: la ruta de saldos rechaza POST anónimo y de otro origen", async ({
+  request,
+}) => {
+  const data = { currency: "USD", amount: "100.00", asOfDate: "2024-02-29" };
+  for (const [origin, status] of [
+    ["https://other.example", 403],
+    ["http://localhost:3106", 401],
+  ] as const) {
+    const response = await request.post("/api/bank-balances", {
+      data,
+      headers: { origin, cookie: "better-auth.session_token=invalid" },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+    expect(await response.json()).toHaveProperty("error");
+  }
+});
