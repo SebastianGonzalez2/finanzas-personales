@@ -1,5 +1,7 @@
 import "server-only";
 import type pg from "pg";
+import type { CreditHistoryLine } from "../domain/credit-operations.ts";
+import { creditOperationsReady } from "./movements.ts";
 import type { Currency } from "../domain/money.ts";
 import {
   type HistoryEntry,
@@ -15,7 +17,7 @@ const pageSize = 20;
 const eventFields = `f.id, f.kind, f.status, f.effective_on, f.concept, m.note,
   e.currency, abs(e.amount_signed)::text AS amount,
   credit.currency AS "otherCurrency", credit.amount_signed::text AS "otherAmount",
-  m.category_id AS "categoryId", c.name AS category, m.method`;
+  m.category_id AS "categoryId", c.name AS category, m.method, NULL::jsonb AS "cardAmounts"`;
 const eventSource = `FROM finance.financial_events f
   LEFT JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
   JOIN finance.bank_effects e ON (e.owner_id, e.event_id, e.id) = (f.owner_id, f.id, f.id)
@@ -27,9 +29,24 @@ const checkpointConcept = `CASE WHEN a.checkpoint_id IS NULL THEN 'Saldo inicial
 const checkpointFields = `b.id, 'checkpoint'::text AS kind, 'confirmed'::text AS status,
   b.as_of_date AS effective_on, ${checkpointConcept} AS concept, a.note,
   b.currency, b.confirmed_amount::text AS amount, NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
-  NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method`;
+  NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
 const checkpointSource = `FROM finance.balance_checkpoints b
   LEFT JOIN finance.balance_adjustments a ON (a.owner_id, a.checkpoint_id) = (b.owner_id, b.id)`;
+
+const cardFields = `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
+  (amounts.data->0->>'currency')::finance.currency AS currency, amounts.data->0->>'amount' AS amount,
+  NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  o.category_id AS "categoryId", c.name AS category,
+  CASE WHEN f.kind IN ('card_purchase', 'card_payment') THEN 'credit' END AS method,
+  amounts.data AS "cardAmounts"`;
+const cardSource = `FROM finance.financial_events f
+  JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)
+  JOIN finance.cards card ON (card.owner_id, card.id) = (o.owner_id, o.card_id)
+  LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (o.owner_id, o.category_id)
+  CROSS JOIN LATERAL (
+    SELECT jsonb_agg(jsonb_build_object('currency', l.currency, 'amount', l.amount::text) ORDER BY l.currency) AS data
+      FROM finance.credit_lines l WHERE (l.owner_id, l.event_id) = (o.owner_id, o.event_id)
+  ) amounts`;
 
 export async function listHistory(
   client: pg.PoolClient,
@@ -37,6 +54,7 @@ export async function listHistory(
   query: HistoryQuery,
 ) {
   const { filters, minimum, maximum, cursor } = query;
+  const credit = await creditOperationsReady(client);
   const { rows } = await client.query<HistoryEntry>(
     `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn"
        FROM (
@@ -66,6 +84,29 @@ export async function listHistory(
            AND ($12 IS NULL OR ((b.as_of_date, b.id) <= ($12, $13)
              AND (b.as_of_date, b.id, 'checkpoint'::text) < ($12, $13, $14)))
          ORDER BY b.as_of_date DESC, b.id DESC LIMIT $15)
+       ${
+         credit
+           ? `UNION ALL
+       (SELECT ${cardFields} ${cardSource}
+         WHERE f.owner_id = $1
+           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
+             OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
+           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
+           AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+           AND ($7 IS NULL OR (f.kind = 'card_purchase' AND
+             CASE WHEN $7 = 'none' THEN o.category_id IS NULL ELSE o.category_id::text = lower($7) END))
+           AND ($8 IS NULL OR ($8 = 'credit' AND f.kind IN ('card_purchase', 'card_payment')))
+           AND EXISTS (
+             SELECT 1 FROM finance.credit_lines l
+             CROSS JOIN LATERAL (VALUES (l.currency, l.amount), (l.bank_currency, l.bank_amount + l.fee)) v(currency, amount)
+             WHERE (l.owner_id, l.event_id) = (f.owner_id, f.id) AND v.currency IS NOT NULL
+               AND ($9 IS NULL OR v.currency = $9) AND ($10 IS NULL OR v.amount >= $10)
+               AND ($11 IS NULL OR v.amount <= $11))
+           AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
+             AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
+         ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
+           : ""
+       }
        ) history ORDER BY effective_on DESC, id DESC, kind DESC LIMIT $15`,
     [
       ownerId,
@@ -108,7 +149,43 @@ export async function findHistoryEntry(
              AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')`,
     [ownerId, id],
   );
-  return entry;
+  if (entry || checkpoint || !(await creditOperationsReady(client)))
+    return entry;
+  const result = await client.query<HistoryEntry>(
+    `SELECT ${cardFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+      ${cardSource} WHERE f.owner_id = $1 AND f.id = $2`,
+    [ownerId, id],
+  );
+  return result.rows[0];
+}
+
+export async function creditHistoryDetail(
+  client: pg.PoolClient,
+  ownerId: string,
+  id: string,
+) {
+  const { rows } = await client.query<
+    CreditHistoryLine & { card: string; effectiveRate: string | null }
+  >(
+    `SELECT card.name AS card, l.currency, l.amount::text,
+            l.debt_delta::text AS "debtDelta", l.debt_after::text AS "debtAfter",
+            l.bank_currency AS "bankCurrency", l.bank_amount::text AS "bankAmount", l.fee::text,
+            CASE WHEN l.bank_currency <> l.currency
+              THEN trim_scale(round(l.bank_amount / nullif(l.amount, 0), 8))::text END AS "effectiveRate",
+            coalesce(allocations.items, '[]'::jsonb) AS allocations
+       FROM finance.credit_lines l
+       JOIN finance.cards card ON (card.owner_id, card.id) = (l.owner_id, l.card_id)
+       LEFT JOIN LATERAL (
+         SELECT jsonb_agg(jsonb_build_object('purchaseId', a.purchase_id,
+           'amount', a.amount::text, 'concept', f.concept) ORDER BY a.purchase_id) AS items
+           FROM finance.credit_allocations a
+           JOIN finance.financial_events f ON (f.owner_id, f.id) = (a.owner_id, a.purchase_id)
+          WHERE (a.owner_id, a.payment_id, a.currency) = (l.owner_id, l.event_id, l.currency)
+       ) allocations ON true
+      WHERE l.owner_id = $1 AND l.event_id = $2 ORDER BY l.currency`,
+    [ownerId, id],
+  );
+  return rows;
 }
 
 export async function listHistoryCategories(

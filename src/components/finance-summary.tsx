@@ -6,12 +6,13 @@ import {
   type BankCheckpoint,
 } from "@/domain/bank-balances";
 import {
-  movementMethods,
+  movementDisplayMethods,
   type MovementCategory,
   type MovementTotal,
   type RecentBankTransfer,
   type RecentMovement,
 } from "@/domain/movements";
+import type { CatalogCard } from "@/domain/cards";
 import { BankBalanceRow } from "./bank-balance-row";
 import { BankCheckpointHistory } from "./bank-checkpoint-history";
 import { BalanceAdjustmentForm } from "./balance-adjustment-form";
@@ -48,6 +49,7 @@ export function FinanceSummary({
   reconciliationReady,
   today,
   categories,
+  creditCards,
   totals,
   expenses,
   incomes,
@@ -60,6 +62,7 @@ export function FinanceSummary({
   reconciliationReady: boolean;
   today: string;
   categories: MovementCategory[];
+  creditCards: CatalogCard[];
   totals: MovementTotal[];
   expenses: RecentMovement[];
   incomes: RecentMovement[];
@@ -92,6 +95,7 @@ export function FinanceSummary({
           today={today}
           balances={balances}
           categories={categories}
+          creditCards={creditCards}
         />
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -282,7 +286,7 @@ function RecentMovements({
     <ul className="divide-y">
       {movements.map((movement) => (
         <li
-          key={movement.id}
+          key={`${movement.id}-${movement.currency}`}
           className="space-y-1 py-2 first:pt-0 last:pb-0 wrap-anywhere"
         >
           <div className="flex flex-wrap justify-between gap-x-3 font-medium text-foreground">
@@ -296,12 +300,12 @@ function RecentMovements({
             {" · "}
             {movement.category ?? "Sin categorizar"}
             {" · "}
-            {movementMethods[movement.method]}
+            {movementDisplayMethods[movement.method]}
           </p>
           {movement.note && (
             <p className="whitespace-pre-wrap">{movement.note}</p>
           )}
-          {canCorrect && (
+          {canCorrect && movement.method !== "credit" && (
             <RecentAmountCorrection
               eventId={movement.id}
               amount={movement.amount}

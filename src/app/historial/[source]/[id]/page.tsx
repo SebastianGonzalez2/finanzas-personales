@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
+import { CreditHistoryDetail } from "@/components/credit-history-detail";
+import { CreditVoidForm } from "@/components/credit-void-form";
 import { HistoryEditor } from "@/components/history-editor";
 import { HistoryAmount } from "@/components/history-entry";
 import { historyButton } from "@/components/history-fields";
@@ -15,9 +17,10 @@ import {
   historyStates,
   parseHistoryParams,
 } from "@/domain/history";
-import { movementMethods, movementUuid } from "@/domain/movements";
+import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
+  creditHistoryDetail,
   findHistoryEntry,
   historyRevisions,
   listHistoryCurrencies,
@@ -50,7 +53,11 @@ export default async function HistoryDetail({
       const revisions = checkpoint
         ? []
         : await historyRevisions(client, ownerId, id);
-      const editable = !checkpoint && entry.status === "confirmed";
+      const cardLines = entry.cardAmounts
+        ? await creditHistoryDetail(client, ownerId, id)
+        : [];
+      const editable =
+        !checkpoint && !entry.cardAmounts && entry.status === "confirmed";
       const categories =
         editable && entry.kind !== "bank_transfer"
           ? (await listMovementCategories(client, ownerId)).filter(
@@ -60,7 +67,7 @@ export default async function HistoryDetail({
       const currencies = editable
         ? await listHistoryCurrencies(client, ownerId)
         : [];
-      return { entry, revisions, editable, categories, currencies };
+      return { entry, revisions, editable, categories, currencies, cardLines };
     },
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
@@ -84,7 +91,8 @@ export default async function HistoryDetail({
       </FinanceShell>
     );
 
-  const { entry, revisions, editable, categories, currencies } = data;
+  const { entry, revisions, editable, categories, currencies, cardLines } =
+    data;
   return (
     <FinanceShell current="historial">
       <div className="grid max-w-3xl gap-4">
@@ -121,14 +129,16 @@ export default async function HistoryDetail({
               <>
                 <div>
                   <dt className="text-sm text-muted-foreground">Medio</dt>
-                  <dd>{movementMethods[entry.method]}</dd>
+                  <dd>{movementDisplayMethods[entry.method]}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm text-muted-foreground">Categoría</dt>
-                  <dd className="wrap-anywhere">
-                    {entry.category ?? "Sin categorizar"}
-                  </dd>
-                </div>
+                {entry.kind !== "card_payment" && (
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Categoría</dt>
+                    <dd className="wrap-anywhere">
+                      {entry.category ?? "Sin categorizar"}
+                    </dd>
+                  </div>
+                )}
               </>
             )}
             {entry.note && (
@@ -140,6 +150,12 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {cardLines.length > 0 && (
+            <CreditHistoryDetail
+              lines={cardLines}
+              payment={entry.kind === "card_payment"}
+            />
+          )}
           {revisions.length > 0 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -177,6 +193,14 @@ export default async function HistoryDetail({
               .
             </p>
           )}
+          {entry.status === "confirmed" &&
+            (entry.kind === "card_purchase" ||
+              entry.kind === "card_payment") && (
+              <CreditVoidForm
+                eventId={entry.id}
+                payment={entry.kind === "card_payment"}
+              />
+            )}
           {editable && (
             <HistoryEditor
               entry={entry}

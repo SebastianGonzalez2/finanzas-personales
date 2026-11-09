@@ -11,6 +11,12 @@ export const movementMethods = {
   transfer: "Transferencia bancaria",
 } as const;
 
+export const movementDisplayMethods = {
+  ...movementMethods,
+  credit: "Tarjeta de crédito",
+} as const;
+export type MovementDisplayMethod = keyof typeof movementDisplayMethods;
+
 export type MovementKind = "income" | "expense";
 export type MovementMethod = keyof typeof movementMethods;
 export type MovementCategory = { id: string; kind: MovementKind; name: string };
@@ -37,8 +43,8 @@ export type MovementRevision = RevisionTarget &
 
 export type RecentMovement = Pick<
   MovementInput,
-  "kind" | "currency" | "amount" | "effectiveOn" | "method" | "concept" | "note"
-> & { id: string; category: string | null };
+  "kind" | "currency" | "amount" | "effectiveOn" | "concept" | "note"
+> & { id: string; category: string | null; method: MovementDisplayMethod };
 
 export type MovementTotal = Pick<MovementInput, "kind" | "currency" | "amount">;
 

@@ -5,7 +5,7 @@ import {
   historyStates,
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
-import { movementMethods } from "@/domain/movements";
+import { movementDisplayMethods } from "@/domain/movements";
 import type { listHistoryCategories } from "@/server/history";
 import {
   historyButton,
@@ -136,7 +136,7 @@ export function HistoryFilters({
                 className={historyControl}
               >
                 <option value="">Todos</option>
-                {Object.entries(movementMethods).map(([key, label]) => (
+                {Object.entries(movementDisplayMethods).map(([key, label]) => (
                   <option key={key} value={key}>
                     {label}
                   </option>

@@ -2,6 +2,9 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { CardCommand, CatalogCard } from "../domain/cards.ts";
+import { lockBankWrites } from "./bank-balances.ts";
+import { lockCardWrites, saveOpeningDebt } from "./credit-operations.ts";
+import { creditOperationsReady, findReplay } from "./movements.ts";
 
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
@@ -38,10 +41,9 @@ export async function saveCard(
   ownerId: string,
   command: CardCommand,
 ) {
-  await client.query(
-    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:cards:' || $1::text, 0))",
-    [ownerId],
-  );
+  const opening = command.action === "create" ? command.opening : undefined;
+  if (opening) await lockBankWrites(client, ownerId);
+  await lockCardWrites(client, ownerId);
   const hash = createHash("sha256")
     .update(JSON.stringify(command))
     .digest("hex");
@@ -56,6 +58,15 @@ export async function saveCard(
     if (previous.hash !== hash)
       return conflict("Este envío ya se usó con otros datos.");
     return { status: "replayed", id: previous.id } as const;
+  }
+
+  if (opening) {
+    if (!(await creditOperationsReady(client)))
+      return conflict(
+        "La deuda inicial estará disponible cuando se actualice la base de datos.",
+      );
+    if (await findReplay(client, ownerId, command.idempotencyKey, hash))
+      return conflict("Este envío ya se usó con otros datos.");
   }
 
   const id = command.action === "create" ? randomUUID() : command.cardId;
@@ -127,6 +138,17 @@ export async function saveCard(
       );
     }
   }
+
+  if (command.action === "create" && opening)
+    await saveOpeningDebt(
+      client,
+      ownerId,
+      id,
+      command.name,
+      command.idempotencyKey,
+      opening,
+      hash,
+    );
 
   const configuration =
     command.action === "archive"

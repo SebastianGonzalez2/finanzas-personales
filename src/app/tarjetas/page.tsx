@@ -1,5 +1,12 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { bankReferenceToday } from "@/domain/bank-balances";
+import { listBankBalances } from "@/server/bank-balances";
+import { listCreditPurchaseOptions } from "@/server/credit-operations";
+import {
+  creditOperationsReady,
+  listMovementCategories,
+} from "@/server/movements";
 import { CardCatalog } from "@/components/card-catalog";
 import { FinanceShell } from "@/components/finance-shell";
 import { Card } from "@/components/ui/card";
@@ -18,7 +25,25 @@ export default async function CardsPage() {
           message:
             "El catálogo estará disponible cuando se actualice la base de datos.",
         };
-      return { cards: await listCards(client, ownerId) };
+      const cards = await listCards(client, ownerId);
+      const creditReady = await creditOperationsReady(client);
+      const hasCredit =
+        creditReady && cards.some(({ kind }) => kind === "credit");
+      return {
+        cards,
+        creditReady,
+        banks: hasCredit
+          ? (await listBankBalances(client, ownerId)).map(
+              ({ currency }) => currency,
+            )
+          : [],
+        categories: hasCredit
+          ? await listMovementCategories(client, ownerId)
+          : [],
+        purchases: hasCredit
+          ? await listCreditPurchaseOptions(client, ownerId)
+          : [],
+      };
     },
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
@@ -45,7 +70,11 @@ export default async function CardsPage() {
           </p>
         </header>
         {result.cards ? (
-          <CardCatalog cards={result.cards} />
+          <CardCatalog
+            {...result}
+            cards={result.cards}
+            today={bankReferenceToday()}
+          />
         ) : (
           <Card className="p-4">
             <p role="status">{result.message}</p>
