@@ -21,6 +21,7 @@
     "test:unit": "node --conditions=react-server --test tests/unit/*.test.mjs",
     "test:integration": "node --conditions=react-server --test --test-concurrency=1 tests/integration/*.test.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:finance": "playwright test --config playwright.finance.config.mjs",
     "auth:google:plan": "node scripts/prepare-google-auth.mjs",
     "auth:google:migrate": "node --env-file-if-exists=.env.local scripts/prepare-google-auth.mjs",
     "auth:google:allowlist": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.google-admin.local scripts/google-allowlist.mjs",

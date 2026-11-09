@@ -75,7 +75,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F1-05 | Ajuste manual de saldo y checkpoints por fecha/moneda; conciliación tras corrección histórica. | RF-008/012; CA-011/015 |
 | F1-06 | Transferencia entre saldos y cambio de moneda usando importes reales de ambos lados. | RF-009; CA-012 |
 | F1-07 | Historial permanente paginado, búsqueda/filtros base y edición/anulación segura. | RF-011; CA-017 |
-| F1-08 | Tests de regresión y aislamiento para dos cuentas y dos sesiones, reporte de errores. | RNF-01/02/04/12; CA-001/006 |
+| F1-08 | Tests de regresión y aislamiento para dos cuentas y dos sesiones, [reporte de verificación](32-regresion-aislamiento-f1-08.md). | RNF-01/02/04/12; CA-001/006 |
 
 **Demo F1:** una persona puede iniciar sesión, cargar saldo, registrar compras/ingresos, corregir, conciliar y consultar historial desde móvil. No se ofrece «versión completa» por faltar tarjetas, fondos, recurrencias y estadísticas.
 
