@@ -1,8 +1,8 @@
 # Finanzas personales
 
-> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. No implementar Neon Auth administrado, webhook, contraseña/OTP, SMTP de acceso ni código compartido de invitación. Referencia obligatoria: [ADR 0004](docs/adr/0004-google-only-allowlist-auth.md). Los pasos históricos de autenticación que figuran abajo quedan sustituidos; F0-04 sigue abierto.
+> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. El ADR 0004 sustituye la arquitectura histórica de Neon Auth administrado. [Decisión vigente](docs/adr/0004-google-only-allowlist-auth.md).
 
-Base Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. F0-05 aporta persistencia financiera con RLS. Esta rama implementa F0-04 Google-only, cerrado por defecto: SQL y runtime autorizados aplicados a development, pendientes pruebas Google reales. Ver [estado y SQL](docs/planning/25-google-only-f0-04.md), [guía local y callback exacto](docs/development-google-auth.md). La portada sigue siendo el scaffold; no hay operaciones de F1.
+Base Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. F0-05 aporta persistencia financiera con RLS. F0-04 aporta acceso Google-only, deshabilitado por defecto y comprobado localmente con dos cuentas reales en Neon development. [Evidencia y SQL](docs/planning/25-google-only-f0-04.md) · [Guía local y callback](docs/development-google-auth.md).
 
 ## Requisitos y arranque
 
@@ -74,6 +74,6 @@ Las versiones se cambian deliberadamente junto con `package-lock.json`, revisand
 
 F0-03 implementa el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md) y la evidencia técnica de [F0-03 en el plan](docs/planning/05-plan-de-implementacion.md). Prepara RF-052 y RNF-07/08 (español, legibilidad y responsive), sin cerrar RF-052 ni CA-066: todavía no existe navegación funcional. No aplica cierre de invariantes I-01…I-12 porque no se opera con dinero ni datos por titular.
 
-Para contribuir, seguir [AGENTS.md](AGENTS.md) y [las convenciones de Git](docs/planning/09-convenciones-git.md). El scaffold corresponde a **F0-03** y CI/tests a **F0-06**. **F0-04** continúa abierto por migración, OAuth propio y pruebas Google/A-B reales. **F0-05** está integrado y su DB development se conserva. Los gates de seguridad/coste de F0 siguen pendientes; no conectar datos financieros reales, desplegar ni habilitar pagos como parte de esta preparación.
+El titular aprobó el cierre técnico de F0 para integrar sus fundamentos en `main`. La prueba de acceso entre dispositivos en HTTPS y la comprobación del consumo del despliegue quedan como condiciones de publicación. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Convenciones de trabajo](AGENTS.md).
 
 Fuentes oficiales consultadas para esta implementación: [Next.js](https://nextjs.org/docs/app/getting-started/installation), [ESLint con Next.js](https://nextjs.org/docs/app/api-reference/config/eslint), [Tailwind con Next.js](https://tailwindcss.com/docs/installation/framework-guides/nextjs), [shadcn/ui](https://ui.shadcn.com/docs/installation/manual) y [Node LTS](https://nodejs.org/en/about/previous-releases).

@@ -134,15 +134,12 @@ nombre una tabla sin USAGE del esquema, y obtuvo 42501 correctamente. Se corrigi
 la inspección usando OID del catálogo; no se concedieron permisos adicionales.
 El guard de runtime de la aplicación pasó con ambos roles reales.
 
-Pendientes de aceptación: cliente Google propio, pruebas reales A/B y cuenta no autorizada, persistencia
-en dos navegadores, cambio de cuenta y revocación efectiva en Neon. La eliminación
-de cuenta/datos sigue en el alcance global con flujo explícito; el endpoint genérico
-delete-user permanece deshabilitado en este ticket para impedir borrar identidad
-sin el tratamiento financiero y respaldo correspondientes.
+La sección siguiente documenta las pruebas Google reales que completaron esta
+base. La eliminación de cuenta/datos sigue en el alcance global con un flujo
+financiero explícito y respaldo.
 
-F0-07: cuotas/términos Hobby y Neon Free, configuración/operación OAuth. SMTP,
-OTP y recuperación de contraseñas propias ya no son dependencias de acceso.
-F0-04/F0 abiertas, sin F1, merge, despliegue nuevo ni pago.
+Los planes Hobby y Neon Free y las condiciones de publicación se registran en
+el [informe F0-07](13-informe-f0-07.md).
 
 ## Avance OAuth real local (2026-11-08)
 
@@ -197,7 +194,14 @@ distintos con sesiones Google vigentes.
   auditoría con el rol administrativo verificó una sesión vigente de A, cero
   sesiones de B, la identidad de B conservada y el evento de revocación.
 
-La persistencia entre dispositivos requiere acordar y autorizar el destino HTTPS.
+El titular confirmó el resultado en ambas ventanas y aprobó el cierre técnico de
+F0 y la integración del PR #14 a `main`. La prueba entre dispositivos se difiere
+hasta la preparación del destino HTTPS autorizado, como condición de acceso con
+datos financieros reales según ADR 0004.
+
+La última ejecución del código probado reportó 11 pruebas unitarias, 22 de
+integración, 4 de navegador y los seis checks de `main` aprobados.
+[Ejecución CI del commit 7b26569](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/42538785040).
 
 Guía paso a paso del titular: [Google Cloud y pruebas](../development-google-auth.md).
 

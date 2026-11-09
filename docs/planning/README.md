@@ -1,7 +1,8 @@
 # Plan maestro de implementación — Finanzas personales
 
-**Estado:** planificación funcional cerrada (decisiones del producto **v9.49**); scaffold, CI y spikes F0 integrados. **F0 sigue abierta** por Better Auth Google-only, allowlist y verificación real;  persistencia development F0-05 probada y revisada técnicamente en PR #11. Ver [revisión y corrección F0-05](20-revision-f0-05.md), [informe original](19-informe-f0-05.md) e [integración previa](16-integracion-controlada-f0.md).
-**Fecha:** 2026-11-07.  
+**Estado:** cierre técnico de F0 aprobado por el titular para integración en `main`, sobre las decisiones del producto **v9.49**. OAuth Google, revocación y aislamiento A/B se probaron con Neon development. La validación HTTPS entre dispositivos se mantiene como condición de publicación. [Cierre F0-04](25-google-only-f0-04.md) · [Persistencia F0-05](20-revision-f0-05.md).
+**Fecha:** 2026-11-08.
+
 **Repositorio:** `SebastianGonzalez2/finanzas-personales`, rama `main`.  
 **Fuente del producto:** [registro histórico completo](../product/decisiones-producto.md).  
 **Referencia visual:** [Fintrack original](../fintrack-original.jpeg); [guía visual F0-02 y evidencia](10-informe-f0-02.md).
@@ -29,13 +30,13 @@ Construir una aplicación personal de finanzas en **español**, responsive y PWA
 | 12 | [Auditoría de integración F0](15-auditoria-integracion-f0.md) | Revisión técnica de PR #1–#8, correcciones, compatibilidad conjunta y configuración pendiente. |
 | 13 | [Integración controlada F0](16-integracion-controlada-f0.md) | Merges reales, protección de main, estado vigente y configuración Neon/Google/SMTP pendiente. |
 
-**DECISIÓN ACTUAL DE AUTENTICACIÓN (v9.49):** [ADR 0004 — Google-only, Better Auth autogestionado y allowlist](../adr/0004-google-only-allowlist-auth.md). **Este documento tiene precedencia sobre referencias históricas a Neon Auth, webhook, código grupal, OTP, contraseñas y SMTP de login.** El PR #12 está basado en la alternativa anterior y no debe fusionarse sin reconversión. F0-04 sigue pendiente de implementación y pruebas Google/OAuth + aislamiento real.
+**Decisión vigente de autenticación (v9.49).** El ADR 0004 define Google-only con Better Auth autogestionado y lista privada, y tiene precedencia sobre las referencias históricas a Neon Auth, webhook, invitaciones, OTP, contraseña y SMTP de login. [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
 **Instrucciones persistentes para agentes:** [`/AGENTS.md`](../../AGENTS.md).
 
-**Implementación nueva F0-04:** [Google-only, SQL autorizado y límites de pruebas](25-google-only-f0-04.md), en PR #14 separado del histórico #12. [Guía del entorno local y Google Cloud](../development-google-auth.md). SQL y runtime aplicados con autorización solo a development y verificados; Auth cerrada, pendiente de OAuth Google real.
+**F0-04 implementado en PR #14.** SQL y runtime aplicados con autorización a development. Dos cuentas Google verificaron alta, rechazo, revocación y aislamiento. [Informe y evidencia](25-google-only-f0-04.md) · [Guía local](../development-google-auth.md).
 
-**F0-03 integrado:** [esqueleto web, evidencia y límites](11-informe-f0-03.md). La aplicación base ejecutable está documentada en el [README de desarrollo](../../README.md); auth, DB y los demás módulos siguen pendientes según el plan.
+**Base del proyecto.** El informe F0-01 conserva el inventario de arranque. F0-03 aporta el esqueleto web documentado en el README. [Inventario F0-01](09-informe-f0-01.md) · [Informe F0-03](11-informe-f0-03.md) · [Arranque local](../../README.md).
 
 ## Autoridad y resolución de conflictos
 
@@ -48,12 +49,13 @@ Auth segura ni cierra F0-04, puerta F0 o revisión humana del PR.
 El estado de integración y los checks del commit final se consultan en PR #11;
 las menciones anteriores de revisión pendiente describen la entrega original.
 
-**Avance F0-NEON:** [conexión de development y evidencia real](17-informe-f0-neon.md),
-con [configuración privada y pasos manuales](../development-neon.md). Sustituye
-la ausencia de proyecto de prueba indicada en informes anteriores; F0-04/F0-05
-siguen abiertos, sin autorización de publicación.
+**F0-NEON.** La conexión de development y su configuración privada sirvieron
+para las pruebas de persistencia y autenticación. [Evidencia](17-informe-f0-neon.md)
+· [Configuración](../development-neon.md).
 
-**F0-04 integrado parcialmente:** [Neon Auth, invitaciones y configuración por el titular](12-informe-f0-04.md), con [spike aislado](../../spikes/neon-auth/README.md). Investigación/pruebas locales entregadas; implementación y validación real pendientes por ausencia de entorno Neon. No declara auth de la aplicación implementada ni cierre de F0.
+**Investigación histórica de F0-04.** El informe y spike de Neon Auth documentan la
+alternativa anterior, sustituida por v9.49. [Informe anterior](12-informe-f0-04.md)
+· [Spike aislado](../../spikes/neon-auth/README.md).
 
 1. Mandan las **decisiones explícitamente confirmadas**, dando prioridad a la **versión más reciente** cuando una regla posterior rectifica otra anterior. Ejemplo crítico: reembolso de compra de enero recibido en febrero **NO modifica** las compras ni el presupuesto de Ropa de febrero (v9.42, §9.6.1).
 2. Este paquete transforma decisiones en **criterios implementables**, pero sus diagramas, nombres de tablas, orden de tareas y opciones de bibliotecas son **propuestas de ingeniería**, no nuevas funciones aprobadas.

@@ -83,5 +83,6 @@
   "financialFixturesPersisted": false,
   "publicHttpsDeployment": false,
   "crossDevicePersistence": "pending",
-  "acceptanceComplete": false
+  "technicalAcceptanceApprovedByOwner": true,
+  "releaseValidationComplete": false
 }

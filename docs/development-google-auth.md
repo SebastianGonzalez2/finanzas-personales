@@ -1,6 +1,6 @@
 # Google-only: pruebas locales con Neon development
 
-F0-04, v9.49, ADR 0004. PR #14 en borrador. No es habilitación del sistema.
+F0-04, v9.49, ADR 0004. Guía de desarrollo para la implementación del PR #14.
 
 OAuth Google real comprobado localmente con A y B. Ambas sesiones pasaron las
 pruebas de API y el aislamiento de PostgreSQL se comprobó con preferencias
