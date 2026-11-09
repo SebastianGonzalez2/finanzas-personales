@@ -5,10 +5,18 @@ import type {
   MovementCategory,
   MovementInput,
   MovementKind,
+  MovementRevision,
   MovementTotal,
   RecentMovement,
 } from "../domain/movements.ts";
-import { listBankBalances } from "./bank-balances.ts";
+import type { Currency } from "../domain/money.ts";
+import {
+  bankEventPosition,
+  bankEventSource,
+  bankReconciliationReady,
+  listBankBalances,
+  lockBankWrites,
+} from "./bank-balances.ts";
 
 const defaultNames = {
   income: [
@@ -52,15 +60,14 @@ const defaultCategories = (
 
 type CatalogRow = MovementCategory & { archived: boolean };
 
-export async function isMovementRegistrationReady(
-  client: pg.PoolClient,
-): Promise<boolean> {
+export async function movementAvailability(client: pg.PoolClient) {
   const {
     rows: [state],
-  } = await client.query<{ ready: boolean }>(
-    "SELECT to_regclass('finance.ordinary_movements') IS NOT NULL AS ready",
+  } = await client.query<{ readable: boolean; writable: boolean }>(
+    `SELECT to_regclass('finance.ordinary_movements') IS NOT NULL AS readable,
+            to_regclass('finance.audit_void_command_key') IS NOT NULL AS writable`,
   );
-  return state.ready;
+  return state;
 }
 
 export async function listMovementCategories(
@@ -88,10 +95,65 @@ export async function listMovementCategories(
   ].sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
+type Replay = { status: "replayed"; id: string } | { status: "conflict" };
+type Shortfall = {
+  status: "insufficient-funds";
+  shortfall: string;
+  currency: Currency;
+};
 type SaveResult =
-  | { status: "created" | "replayed"; id: string }
-  | { status: "insufficient-funds"; shortfall: string }
-  | { status: "conflict" | "unconfigured" | "invalid-category" };
+  | Replay
+  | Omit<Shortfall, "currency">
+  | { status: "created"; id: string }
+  | { status: "unconfigured" | "invalid-category" };
+
+function commandHash(fields: readonly (string | null)[]) {
+  return createHash("sha256").update(JSON.stringify(fields)).digest("hex");
+}
+
+async function findReplay(
+  client: pg.PoolClient,
+  ownerId: string,
+  key: string,
+  hash: string,
+): Promise<Replay | undefined> {
+  const {
+    rows: [saved],
+  } = await client.query<{ id: string; command_hash: string }>(
+    `SELECT id, command_hash FROM finance.financial_events
+      WHERE owner_id = $1 AND idempotency_key = $2
+     UNION ALL
+     SELECT event_id AS id, command_hash FROM finance.audit_changes
+      WHERE owner_id = $1 AND idempotency_key = $2`,
+    [ownerId, key],
+  );
+  if (saved)
+    return saved.command_hash === hash
+      ? { status: "replayed", id: saved.id }
+      : { status: "conflict" };
+}
+
+function signedAmount(kind: MovementKind, amount: string) {
+  return kind === "expense" ? `-${amount}` : amount;
+}
+
+async function bankShortfall(
+  client: pg.PoolClient,
+  currency: Currency,
+  available: string,
+  before: string,
+  after: string,
+): Promise<Shortfall | undefined> {
+  const {
+    rows: [gap],
+  } = await client.query<{ shortfall: string }>(
+    `SELECT ($2::numeric - $3::numeric - greatest($1::numeric, 0))::text AS shortfall
+      WHERE $2::numeric - $3::numeric > greatest($1::numeric, 0)`,
+    [available, before, after],
+  );
+  if (gap)
+    return { status: "insufficient-funds", shortfall: gap.shortfall, currency };
+}
 
 export async function saveMovement(
   client: pg.PoolClient,
@@ -104,61 +166,39 @@ export async function saveMovement(
     currency,
     amount,
     effectiveOn,
-    method,
     concept,
     note,
     categoryId,
   } = movement;
-  const hash = createHash("sha256")
-    .update(
-      JSON.stringify([
-        "ordinary-movement-v1",
-        kind,
-        currency,
-        amount,
-        effectiveOn,
-        method,
-        concept,
-        note,
-        categoryId,
-      ]),
-    )
-    .digest("hex");
+  // Preserve the hash of commands already recorded by F1-03.
+  const hash = commandHash([
+    "ordinary-movement-v1",
+    kind,
+    currency,
+    amount,
+    effectiveOn,
+    movement.method,
+    concept,
+    note,
+    categoryId,
+  ]);
 
-  async function findReplay(): Promise<SaveResult | undefined> {
-    const {
-      rows: [saved],
-    } = await client.query<{ id: string; command_hash: string }>(
-      "SELECT id, command_hash FROM finance.financial_events WHERE owner_id = $1 AND idempotency_key = $2",
-      [ownerId, idempotencyKey],
-    );
-    if (saved)
-      return saved.command_hash === hash
-        ? { status: "replayed", id: saved.id }
-        : { status: "conflict" };
-  }
-
-  // Serialize bank-backed writes against the same owner's balance and currency.
-  // The balance and idempotency lookup below see the preceding commit.
-  await client.query(
-    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:bank:' || $1::text || ':' || $2::text, 0))",
-    [ownerId, currency],
-  );
-  const replay = await findReplay();
+  await lockBankWrites(client, ownerId);
+  const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
 
   const [balance] = await listBankBalances(client, ownerId, [currency]);
   if (!balance) return { status: "unconfigured" };
   // Dates before the anchor are historical: they cannot spend its balance.
   if (kind === "expense" && effectiveOn >= balance.asOfDate) {
-    const {
-      rows: [gap],
-    } = await client.query<{ shortfall: string }>(
-      `SELECT ($2::numeric - greatest($1::numeric, 0))::text AS shortfall
-        WHERE $1::numeric < $2::numeric`,
-      [balance.calculatedAmount ?? balance.amount, amount],
+    const gap = await bankShortfall(
+      client,
+      currency,
+      balance.calculatedAmount ?? balance.amount,
+      "0",
+      signedAmount(kind, amount),
     );
-    if (gap) return { status: "insufficient-funds", shortfall: gap.shortfall };
+    if (gap) return { status: gap.status, shortfall: gap.shortfall };
   }
 
   const suggestion = defaultCategories.find(
@@ -185,12 +225,47 @@ export async function saveMovement(
     }
   }
 
+  if (suggestion && selectedCategoryId === suggestion.id) {
+    await client.query(
+      `INSERT INTO finance.categories (owner_id, id, kind, name)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (owner_id, id) DO NOTHING`,
+      [ownerId, suggestion.id, kind, suggestion.name],
+    );
+  }
+  const id = await insertMovement(
+    client,
+    ownerId,
+    {
+      ...movement,
+      categoryId: selectedCategoryId,
+    },
+    hash,
+  );
+  return { status: "created", id };
+}
+
+async function insertMovement(
+  client: pg.PoolClient,
+  ownerId: string,
+  movement: MovementInput,
+  hash: string,
+) {
+  const {
+    kind,
+    concept,
+    effectiveOn,
+    idempotencyKey,
+    categoryId,
+    method,
+    note,
+    currency,
+    amount,
+  } = movement;
   const id = randomUUID();
-  const created = await client.query(
+  await client.query(
     `INSERT INTO finance.financial_events
        (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, clock_timestamp())
-     ON CONFLICT (owner_id, idempotency_key) DO NOTHING`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, clock_timestamp())`,
     [
       ownerId,
       id,
@@ -201,36 +276,123 @@ export async function saveMovement(
       hash,
     ],
   );
-  if (!created.rowCount) return (await findReplay()) ?? { status: "conflict" };
-
-  if (suggestion && selectedCategoryId === suggestion.id) {
-    await client.query(
-      `INSERT INTO finance.categories (owner_id, id, kind, name)
-       VALUES ($1, $2, $3, $4) ON CONFLICT (owner_id, id) DO NOTHING`,
-      [ownerId, suggestion.id, kind, suggestion.name],
-    );
-  }
   await client.query(
     `INSERT INTO finance.ordinary_movements (owner_id, event_id, category_id, method, note)
      VALUES ($1, $2, $3, $4, $5)`,
-    [ownerId, id, selectedCategoryId, method, note],
+    [ownerId, id, categoryId, method, note],
   );
   await client.query(
     `INSERT INTO finance.bank_effects (owner_id, id, event_id, currency, amount_signed, effective_on)
      VALUES ($1, $2, $2, $3, $4, $5)`,
-    [
-      ownerId,
-      id,
-      currency,
-      kind === "expense" ? `-${amount}` : amount,
-      effectiveOn,
-    ],
+    [ownerId, id, currency, signedAmount(kind, amount), effectiveOn],
   );
   await client.query(
     "INSERT INTO finance.audit_changes (owner_id, id, event_id, change_type) VALUES ($1, $2, $2, 'created')",
     [ownerId, id],
   );
-  return { status: "created", id };
+  return id;
+}
+
+type RevisionResult =
+  | Replay
+  | Shortfall
+  | { status: "revised"; id: string }
+  | { status: "not-found" | "inactive" | "checkpoint" | "unconfigured" };
+
+export async function reviseMovement(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: MovementRevision,
+): Promise<RevisionResult> {
+  const { action, eventId, idempotencyKey } = command;
+  const amount = action === "correct" ? command.amount : null;
+  const hash = commandHash(["movement-revision-v1", action, eventId, amount]);
+  await lockBankWrites(client, ownerId);
+  const replay = await findReplay(client, ownerId, idempotencyKey, hash);
+  if (replay) return replay;
+  const reconciliationReady = await bankReconciliationReady(client);
+
+  const {
+    rows: [original],
+  } = await client.query<
+    Omit<MovementInput, "idempotencyKey" | "amount"> & {
+      status: string;
+      signed: string;
+      covered: boolean;
+    }
+  >(
+    `SELECT f.kind, f.concept, f.status, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+            m.category_id AS "categoryId", m.method, m.note, e.currency, e.amount_signed::text AS signed,
+            EXISTS (
+              SELECT 1 FROM finance.balance_checkpoints b
+               WHERE b.owner_id = f.owner_id AND b.currency = e.currency
+                 AND ${
+                   reconciliationReady
+                     ? `(b.as_of_date, b.created_at) >= ${bankEventPosition(true)}`
+                     : "b.as_of_date >= e.effective_on AND b.created_at >= f.created_at"
+                 }
+            ) AS covered
+       FROM ${bankEventSource(reconciliationReady)} f
+       JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
+       JOIN finance.bank_effects e
+         ON (e.owner_id, e.event_id, e.id) = (m.owner_id, m.event_id, m.event_id)
+      WHERE f.owner_id = $1 AND f.id = $2 AND f.kind IN ('income', 'expense')`,
+    [ownerId, eventId],
+  );
+  if (!original) return { status: "not-found" };
+  if (original.status !== "confirmed") return { status: "inactive" };
+  if (original.covered && !reconciliationReady) return { status: "checkpoint" };
+
+  const { currency, kind, effectiveOn } = original;
+  const [balance] = await listBankBalances(
+    client,
+    ownerId,
+    [currency],
+    reconciliationReady,
+  );
+  if (!balance) return { status: "unconfigured" };
+  if (!original.covered && effectiveOn >= balance.asOfDate) {
+    const gap = await bankShortfall(
+      client,
+      currency,
+      balance.calculatedAmount ?? balance.amount,
+      original.signed,
+      amount === null ? "0" : signedAmount(kind, amount),
+    );
+    if (gap) return gap;
+  }
+
+  const replacement =
+    amount === null
+      ? null
+      : await insertMovement(
+          client,
+          ownerId,
+          { ...original, amount, idempotencyKey },
+          hash,
+        );
+  const state = replacement === null ? "voided" : "corrected";
+  await client.query(
+    `INSERT INTO finance.audit_changes
+       (owner_id, id, event_id, change_type, replacement_event_id, idempotency_key, command_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      ownerId,
+      randomUUID(),
+      eventId,
+      state,
+      replacement,
+      replacement === null ? idempotencyKey : null,
+      replacement === null ? hash : null,
+    ],
+  );
+  const changed = await client.query(
+    `UPDATE finance.financial_events SET status = $3
+      WHERE owner_id = $1 AND id = $2 AND status = 'confirmed'`,
+    [ownerId, eventId, state],
+  );
+  if (changed.rowCount !== 1) throw new Error("Revisión no confirmada");
+  return { status: "revised", id: replacement ?? eventId };
 }
 
 export async function listMovementTotals(

@@ -98,3 +98,50 @@ test("F1-03: un movimiento requiere sesión, mismo origen y datos sin titular ex
     expect(await response.json()).toHaveProperty("error");
   }
 });
+
+test("F1-04: la revisión exige sesión y origen propios", async ({
+  request,
+}) => {
+  const data = {
+    action: "void",
+    eventId: "11075139-c46d-4cb4-9a2c-92ae733e6e57",
+    idempotencyKey: "e8ec105e-847e-4650-8267-3423bf72ac27",
+  };
+  for (const [origin, payload, status] of [
+    ["https://other.example", data, 403],
+    ["http://localhost:3106", data, 401],
+    ["http://localhost:3106", { ...data, ownerId: "B" }, 400],
+  ] as const) {
+    const response = await request.patch("/api/movements", {
+      data: payload,
+      headers: { origin },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+  }
+});
+
+test("F1-05: confirmar saldo requiere sesión, mismo origen y datos sin titular externo", async ({
+  request,
+}) => {
+  const data = {
+    currency: "UYU",
+    amount: "8700.0000",
+    asOfDate: "2026-03-01",
+    note: "Estado de cuenta de prueba",
+    idempotencyKey: "8c9c069f-679a-4d1e-b7f4-7e0408b0fadd",
+  };
+  for (const [origin, payload, status] of [
+    ["https://other.example", data, 403],
+    ["http://localhost:3106", data, 401],
+    ["http://localhost:3106", { ...data, ownerId: "B" }, 400],
+  ] as const) {
+    const response = await request.post("/api/bank-balances/adjustments", {
+      data: payload,
+      headers: { origin },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+    expect(await response.json()).toHaveProperty("error");
+  }
+});

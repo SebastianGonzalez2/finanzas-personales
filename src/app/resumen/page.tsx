@@ -2,14 +2,18 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
-import { bankReferenceToday } from "@/domain/bank-balances";
-import { listBankBalances } from "@/server/bank-balances";
+import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
+import {
+  bankReconciliationReady,
+  listBankBalances,
+  listBankCheckpoints,
+} from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
-  isMovementRegistrationReady,
   listMovementCategories,
   listMovementTotals,
   listRecentMovements,
+  movementAvailability,
 } from "@/server/movements";
 
 export const metadata = { title: "Resumen | Finanzas personales" };
@@ -20,22 +24,35 @@ export default async function SummaryPage() {
   const data = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
-      const balances = await listBankBalances(client, ownerId);
-      const movementRegistrationReady =
-        await isMovementRegistrationReady(client);
-      if (!movementRegistrationReady)
+      const reconciliationReady = await bankReconciliationReady(client);
+      const bankData = {
+        balances: await listBankBalances(
+          client,
+          ownerId,
+          bankCurrencies,
+          reconciliationReady,
+        ),
+        checkpoints: reconciliationReady
+          ? await listBankCheckpoints(client, ownerId)
+          : [],
+        reconciliationReady,
+      };
+      const { readable, writable } = await movementAvailability(client);
+      if (!readable)
         return {
-          balances,
-          movementRegistrationReady,
+          ...bankData,
+          movementRegistrationReady: false,
           categories: [],
           totals: [],
           expenses: [],
           incomes: [],
         };
       return {
-        balances,
-        movementRegistrationReady,
-        categories: await listMovementCategories(client, ownerId),
+        ...bankData,
+        movementRegistrationReady: writable,
+        categories: writable
+          ? await listMovementCategories(client, ownerId)
+          : [],
         totals: await listMovementTotals(
           client,
           ownerId,

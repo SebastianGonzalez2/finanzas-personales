@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   bankCurrencies,
   formatBankReference,
@@ -39,11 +39,21 @@ export function MovementForm({
   const [uncertain, setUncertain] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [revisionError, setRevisionError] = useState("");
+  const [revisionUncertain, setRevisionUncertain] = useState(false);
   const submitLock = useRef(false);
   const requestKey = useRef<string>(null);
   const sentBody = useRef<string>(null);
+  const sentRevision = useRef<{ action: "void" | "correct"; body: string }>(
+    null,
+  );
   const trigger = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const correctionInput = useRef<HTMLInputElement>(null);
+  const correctionTrigger = useRef<HTMLButtonElement>(null);
+  const retryRevision = useRef<HTMLButtonElement>(null);
   const configured = bankCurrencies.filter((code) =>
     balances.some((balance) => balance.currency === code),
   );
@@ -53,8 +63,12 @@ export function MovementForm({
   );
   const income = kind === "income";
 
+  useEffect(() => {
+    if (revisionUncertain && !pending) retryRevision.current?.focus();
+  }, [pending, revisionUncertain]);
+
   function toggle() {
-    if (submitLock.current) return;
+    if (submitLock.current || revisionUncertain) return;
     if (open) {
       setOpen(false);
       trigger.current?.focus();
@@ -65,6 +79,9 @@ export function MovementForm({
       setCurrency(configured[0]);
       setError("");
       setMessage("");
+      setSavedId(null);
+      setEditing(false);
+      setRevisionError("");
       requestKey.current = null;
       sentBody.current = null;
     }
@@ -94,13 +111,21 @@ export function MovementForm({
       const data: { id?: string; error?: string } = await response.json();
       if (response.ok && data.id) {
         setUncertain(false);
+        setSavedId(data.id);
         setMessage(income ? "Ingreso registrado." : "Gasto registrado.");
         setOpen(false);
         trigger.current?.focus();
         router.refresh();
-      } else if (response.status >= 500 || !data.error) {
+      } else if (
+        response.status >= 500 ||
+        !data.error ||
+        (uncertain && response.status === 401)
+      ) {
         throw new Error();
       } else {
+        setUncertain(false);
+        requestKey.current = null;
+        sentBody.current = null;
         setError(data.error);
       }
     } catch {
@@ -115,6 +140,63 @@ export function MovementForm({
     }
   }
 
+  async function revise(
+    action: "void" | "correct",
+    amount?: FormDataEntryValue | null,
+  ) {
+    if (!savedId || submitLock.current) return;
+    submitLock.current = true;
+    setPending(true);
+    setRevisionError("");
+    try {
+      const command = (sentRevision.current ??= {
+        action,
+        body: JSON.stringify({
+          action,
+          eventId: savedId,
+          idempotencyKey: crypto.randomUUID(),
+          ...(action === "correct" ? { amount } : {}),
+        }),
+      });
+      const response = await fetch("/api/movements", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: command.body,
+      });
+      const data: { id?: string; error?: string } = await response.json();
+      if (response.ok && data.id) {
+        setMessage(
+          command.action === "void"
+            ? "Registro anulado."
+            : "Importe corregido.",
+        );
+        setSavedId(null);
+        setEditing(false);
+        trigger.current?.focus();
+        router.refresh();
+      } else if (
+        response.status >= 500 ||
+        !data.error ||
+        (revisionUncertain && response.status === 401)
+      ) {
+        throw new Error();
+      } else {
+        setRevisionError(data.error);
+        router.refresh();
+      }
+      sentRevision.current = null;
+      setRevisionUncertain(false);
+    } catch {
+      setRevisionUncertain(sentRevision.current !== null);
+      setRevisionError(
+        "No pudimos confirmar el cambio. Reintentá el mismo envío.",
+      );
+    } finally {
+      submitLock.current = false;
+      setPending(false);
+    }
+  }
+
   return (
     <div className="mt-4">
       <button
@@ -123,7 +205,7 @@ export function MovementForm({
         className={primary}
         aria-expanded={open}
         aria-controls="nueva-transaccion"
-        aria-disabled={pending}
+        aria-disabled={pending || revisionUncertain}
         onClick={toggle}
       >
         + Nueva transacción
@@ -131,6 +213,99 @@ export function MovementForm({
       <p role="status" className={message ? "mt-2 text-sm" : "sr-only"}>
         {message}
       </p>
+      {savedId && (
+        <div className="mt-2 grid gap-2 text-sm">
+          <p className="text-muted-foreground">
+            Estas acciones solo cambian el registro en la aplicación.
+          </p>
+          {revisionUncertain ? (
+            <button
+              ref={retryRevision}
+              type="button"
+              className={`${primary} justify-self-start`}
+              disabled={pending}
+              onClick={() => {
+                const action = sentRevision.current?.action;
+                if (action) void revise(action);
+              }}
+            >
+              Reintentar cambio
+            </button>
+          ) : editing ? (
+            <form
+              method="post"
+              action="/api/movements"
+              aria-label="Corregir importe"
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void revise(
+                  "correct",
+                  new FormData(event.currentTarget).get("amount"),
+                );
+              }}
+            >
+              <label className="min-w-0 space-y-1">
+                <span>Importe correcto</span>
+                <input
+                  ref={correctionInput}
+                  name="amount"
+                  required
+                  inputMode="decimal"
+                  maxLength={22}
+                  autoComplete="off"
+                  disabled={pending}
+                  className={control}
+                />
+              </label>
+              <button type="submit" className={primary} disabled={pending}>
+                Guardar corrección
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                className="min-h-11 rounded-lg px-2 hover:bg-accent"
+                onClick={() => {
+                  setEditing(false);
+                  setRevisionError("");
+                  requestAnimationFrame(() =>
+                    correctionTrigger.current?.focus(),
+                  );
+                }}
+              >
+                Cancelar
+              </button>
+            </form>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                className={primary}
+                onClick={() => void revise("void")}
+              >
+                Deshacer
+              </button>
+              <button
+                ref={correctionTrigger}
+                type="button"
+                disabled={pending}
+                className="min-h-11 rounded-lg px-2 font-semibold hover:bg-accent"
+                onClick={() => {
+                  setRevisionError("");
+                  setEditing(true);
+                  requestAnimationFrame(() => correctionInput.current?.focus());
+                }}
+              >
+                Corregir importe
+              </button>
+            </div>
+          )}
+          <p role="alert" className={revisionError ? "" : "sr-only"}>
+            {revisionError}
+          </p>
+        </div>
+      )}
       <div id="nueva-transaccion" hidden={!open}>
         {(open || uncertain) && (
           <Card className="mt-3 gap-3 rounded-[1.125rem] p-4 shadow-none sm:p-6">

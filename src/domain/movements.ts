@@ -1,5 +1,5 @@
 import { isBankReferenceDate } from "./bank-balances.ts";
-import { Money, type Currency } from "./money.ts";
+import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const movementMethods = {
   deposit: "Acreditación bancaria",
@@ -23,6 +23,10 @@ export type MovementInput = {
   idempotencyKey: string;
 };
 
+type RevisionTarget = { eventId: string; idempotencyKey: string };
+export type MovementRevision = RevisionTarget &
+  ({ action: "void" } | { action: "correct"; amount: string });
+
 export type RecentMovement = Pick<
   MovementInput,
   "kind" | "currency" | "amount" | "effectiveOn" | "method" | "concept" | "note"
@@ -44,6 +48,53 @@ const inputKeys = [
   "categoryId",
   "idempotencyKey",
 ];
+
+function positiveAmount(amount: unknown) {
+  const decimal = normalizeDecimalAmount(
+    typeof amount === "string" ? amount.trim().replace(",", ".") : amount,
+  );
+  if (decimal.startsWith("-") || decimal === "0.0000")
+    throw new Error("Importe positivo requerido");
+  return decimal;
+}
+
+const amountError =
+  "Ingresá un importe positivo sin separador de miles y con hasta 4 decimales.";
+
+export function parseMovementRevision(
+  input: unknown,
+): MovementRevision | { error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return { error: "Solicitud inválida." };
+  const { action, eventId, idempotencyKey, amount } = input as Record<
+    string,
+    unknown
+  >;
+  if (
+    (action !== "void" && action !== "correct") ||
+    typeof eventId !== "string" ||
+    !uuid.test(eventId) ||
+    typeof idempotencyKey !== "string" ||
+    !uuid.test(idempotencyKey) ||
+    Object.keys(input).some(
+      (key) =>
+        !["action", "eventId", "idempotencyKey"].includes(key) &&
+        !(key === "amount" && action === "correct"),
+    )
+  )
+    return { error: "Solicitud inválida." };
+
+  const target = {
+    eventId: eventId.toLowerCase(),
+    idempotencyKey: idempotencyKey.toLowerCase(),
+  };
+  if (action === "void") return { action, ...target };
+  try {
+    return { action, ...target, amount: positiveAmount(amount) };
+  } catch {
+    return { error: amountError };
+  }
+}
 
 export function parseMovement(
   input: unknown,
@@ -84,16 +135,9 @@ export function parseMovement(
 
   let decimal: string;
   try {
-    decimal = Money.parse(
-      typeof amount === "string" ? amount.trim().replace(",", ".") : amount,
-      currency,
-    ).toDecimal();
-    if (decimal.startsWith("-") || decimal === "0.0000") throw new Error();
+    decimal = positiveAmount(amount);
   } catch {
-    return {
-      error:
-        "Ingresá un importe positivo sin separador de miles y con hasta 4 decimales.",
-    };
+    return { error: amountError };
   }
 
   const label = concept ?? "";
