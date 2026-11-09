@@ -22,12 +22,13 @@ El servidor verifica la sesión y ambos saldos del titular. Serializa las escrit
 - `npm run test:unit` · 19 pruebas.
 - `npm run test:integration` · 42 pruebas en PostgreSQL 17.6 desechable. Incluye CA-012, concurrencia, atomicidad ante fallos, permisos, deshacer y conciliación independiente por moneda.
 - `npm run test:e2e` · 16 pruebas en Chromium, incluidas las solicitudes anónimas y de otro origen.
-- Recorrido completo de formulario, API, PostgreSQL y recarga con identidad sintética en [móvil 390×844](../evidence/f1-06/formulario-movil.png) y [escritorio 1440×900](../evidence/f1-06/resultado-escritorio.png). Incluye saldo insuficiente, reintento después de perder la respuesta, deshacer y aislamiento A/B. La verificación con Google y Neon reales queda pendiente.
+- Recorrido completo de formulario, API, PostgreSQL y recarga con identidad sintética en [móvil 390×844](../evidence/f1-06/formulario-movil.png) y [escritorio 1440×900](../evidence/f1-06/resultado-escritorio.png). Incluye saldo insuficiente, reintento después de perder la respuesta, deshacer y aislamiento A/B.
+- En Neon development, el rol restringido de finanzas pasó los escenarios de alta, corrección, conciliación, cambio de moneda, reintento, deshacer y aislamiento con titulares sintéticos. Se verificó el rollback. Una sesión Google vigente pasó la autorización de la app y confirmó que el esquema estaba disponible. El inicio de una sesión OAuth nueva y la prueba HTTPS entre dispositivos quedan pendientes de verificación.
 
 ## Migración y permisos
 
 [0005_F1-06_bank_transfers.sql](../../src/db/migrations/0005_F1-06_bank_transfers.sql) agrega un índice parcial para la lista reciente y amplía la política de actualización de estado para permitir la anulación auditada de cambios de moneda. Reutiliza las tablas, el rol de la app y el aislamiento por titular existentes. La migración no reescribe filas.
 
-Destino previsto **Neon development / `neondb`**, después de F1-05. SHA-256 `7c7a062b69f2031bc38a2f208ff6aad115cfdaea2cf7f2c2e0b52dbf1655e5a0`. `npm run db:plan` muestra el SQL versionado por nombre y hash sin conectarse. La aplicación del SQL en Neon queda pendiente de la autorización correspondiente. [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
+Con autorización del titular, se aplicaron en **Neon development / `neondb`** las migraciones `0002` a `0005` en una sola transacción. Se verificaron la rama, los hashes de los cinco archivos y el registro final de migraciones. SHA-256 de `0005` · `7c7a062b69f2031bc38a2f208ff6aad115cfdaea2cf7f2c2e0b52dbf1655e5a0`. `npm run db:plan` muestra los nombres y hashes sin conectarse. [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
 **Siguiente ticket** · F1-07, historial permanente paginado, búsqueda y filtros base, edición y anulación segura.
