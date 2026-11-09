@@ -1,8 +1,8 @@
 # Finanzas personales
 
-> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. No implementar Neon Auth administrado, webhook, contraseña/OTP, SMTP de acceso ni código compartido de invitación. Referencia obligatoria: [ADR 0004](docs/adr/0004-google-only-allowlist-auth.md). Los pasos históricos de autenticación que figuran abajo quedan sustituidos; F0-04 sigue abierto.
+> **Decisión vigente v9.49 (2026-11-08):** la autenticación es **Better Auth autogestionado + Google OAuth exclusivo + lista privada de usuarios autorizados**. El ADR 0004 sustituye la arquitectura histórica de Neon Auth administrado. [Decisión vigente](docs/adr/0004-google-only-allowlist-auth.md).
 
-Base de desarrollo **F0-03**: Next.js App Router, TypeScript estricto, Tailwind CSS y un componente Card de shadcn/ui. La portada en español permite comprobar el stack; aún no hay autenticación, persistencia ni operaciones financieras.
+Base Next.js App Router, TypeScript estricto, Tailwind CSS y shadcn/ui. F0-05 aporta persistencia financiera con RLS. F0-04 aporta acceso Google-only, deshabilitado por defecto y comprobado localmente con dos cuentas reales en Neon development. [Evidencia y SQL](docs/planning/25-google-only-f0-04.md) · [Guía local y callback](docs/development-google-auth.md).
 
 ## Requisitos y arranque
 
@@ -15,7 +15,7 @@ npm run dev
 
 Abrir [http://127.0.0.1:3000](http://127.0.0.1:3000). El servidor escucha solo en loopback. Para cambiar el puerto: `npm run dev -- --port 3001`.
 
-Este ticket no necesita `.env` ni cuentas de proveedores. [.env.example](.env.example) documenta ese límite. Las variables futuras de Neon/Auth se definirán al verificar sus SDK en F0-04/F0-05; no guardar secretos en Git ni en variables `NEXT_PUBLIC_*`.
+El scaffold sin acceso puede iniciarse sin credenciales. Para Google-only, seguir la guía específica y usar `npm run dev:google` en `http://localhost:3000/auth/sign-in`; no intercambiar localhost con 127.0.0.1 en OAuth. [.env.example](.env.example) enumera las variables privadas de servidor. No guardar secretos en Git ni en variables `NEXT_PUBLIC_*`.
 
 ## Comandos
 
@@ -50,7 +50,7 @@ src/components/ui/       Código fuente local de shadcn/ui
 src/lib/                 Utilidad cn para clases Tailwind
 tests/                   Unidad, integración PostgreSQL desechable y E2E
 components.json          Configuración de shadcn/ui y alias @/*
-docs/product/            Decisiones del producto v9.48 (autoridad funcional)
+docs/product/            Decisiones del producto v9.49 (autoridad funcional)
 docs/planning/           Tickets, RF/RNF, CA, invariantes y riesgos
 ```
 
@@ -64,7 +64,7 @@ La instalación se hizo manualmente según las guías oficiales para conservar `
 - Override de `minimatch` a 11.0.5 por [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), que afecta a las versiones 7–10 transitivas de herramientas de desarrollo. Se verifica con instalación limpia, lint y build; revisar y retirar el override cuando las dependencias originales incorporen el parche. Licencia BlueOak-1.0.0, permisiva; las demás dependencias directas son MIT o Apache-2.0.
 - Fuente de sistema y CSS local: el build no descarga fuentes. Tema oscuro, contraste legible y tamaños adaptables; no se implementa el dashboard de F1-01.
 - Webpack explícito en desarrollo y build: Turbopack falló en este Windows al lanzar el proceso de PostCSS, incluso fuera del sandbox. Next documenta `--webpack` como alternativa soportada; no se ocultan errores de lint o TypeScript. `agentRules: false` evita que `next dev` modifique el `AGENTS.md` existente.
-- Sin ORM, biblioteca decimal, SDK de auth, gráficos ni servicios externos: se decidirán en sus tickets. No hay tablas, migraciones, permisos por usuario ni escrituras que probar todavía.
+- Better Auth 1.7.18 (MIT), pg 8.23.1 y Kysely 0.29.8 (MIT): adaptador PostgreSQL incorporado de Auth con esquema y transacciones explícitos. Finanzas conserva SQL y contratos F0-05; no se migra a otro ORM. Auth, allowlist y ledger nuevos requieren aprobación de su SQL antes de escribir en Neon.
 
 Las versiones se cambian deliberadamente junto con `package-lock.json`, revisando compatibilidad, licencia y checks. `npm ci` reproduce el árbol de dependencias para cada plataforma soportada; no garantiza un build binariamente idéntico entre sistemas.
 
@@ -74,6 +74,6 @@ Las versiones se cambian deliberadamente junto con `package-lock.json`, revisand
 
 F0-03 implementa el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md) y la evidencia técnica de [F0-03 en el plan](docs/planning/05-plan-de-implementacion.md). Prepara RF-052 y RNF-07/08 (español, legibilidad y responsive), sin cerrar RF-052 ni CA-066: todavía no existe navegación funcional. No aplica cierre de invariantes I-01…I-12 porque no se opera con dinero ni datos por titular.
 
-Para contribuir, seguir [AGENTS.md](AGENTS.md) y [las convenciones de Git](docs/planning/09-convenciones-git.md). El scaffold corresponde a **F0-03** y CI/tests a **F0-06**, con PR y commits separados. **F0-04** continúa pendiente de validar Neon Auth e invitaciones reales; **F0-05** requiere DB Neon aislada. Los gates de seguridad/coste de F0 siguen pendientes; no conectar datos reales, desplegar ni habilitar pagos como parte de esta preparación.
+El titular aprobó el cierre técnico de F0 para integrar sus fundamentos en `main`. La prueba de acceso entre dispositivos en HTTPS y la comprobación del consumo del despliegue quedan como condiciones de publicación. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Convenciones de trabajo](AGENTS.md).
 
 Fuentes oficiales consultadas para esta implementación: [Next.js](https://nextjs.org/docs/app/getting-started/installation), [ESLint con Next.js](https://nextjs.org/docs/app/api-reference/config/eslint), [Tailwind con Next.js](https://tailwindcss.com/docs/installation/framework-guides/nextjs), [shadcn/ui](https://ui.shadcn.com/docs/installation/manual) y [Node LTS](https://nodejs.org/en/about/previous-releases).

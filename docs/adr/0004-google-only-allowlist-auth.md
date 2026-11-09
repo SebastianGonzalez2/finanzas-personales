@@ -1,7 +1,8 @@
 # ADR 0004 — Acceso exclusivo con Google y lista privada de autorizados
 
 **Fecha:** 2026-11-08  
-**Estado:** decisión de producto confirmada (v9.49); **implementación pendiente**.  
+**Estado:** decisión confirmada (v9.49), implementada y verificada en desarrollo. [Evidencia F0-04](../planning/25-google-only-f0-04.md).
+
 **Ticket:** F0-04 (sustituye la estrategia anterior de autenticación).  
 **Motivo:** aplicación privada para aproximadamente cinco o seis familiares/amigos. El webhook administrado `user.before_create` de Neon Auth presentó una discrepancia de identificación de rama y bloqueó las pruebas reales; se prioriza sencillez sin sacrificar aislamiento financiero. Véase `docs/planning/24-bloqueo-webhook-f0-04.md` en la rama histórica del PR #12.
 

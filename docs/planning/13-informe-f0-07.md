@@ -1,5 +1,18 @@
 # F0-07 — Viabilidad de proveedores y cotizaciones
 
+**Actualización de cierre técnico — 2026-11-08.** La integración de proveedores
+usa Vercel Hobby y el proyecto Neon development en una organización Free. Se
+verificaron ambos planes en sus cuentas. Hobby se destina al uso personal no
+comercial y publica 4 horas de CPU activa y 1 millón de invocaciones. Neon Free
+incluye por proyecto 100 CU-horas al mes, 1 GB de PostgreSQL y 5 GB mensuales de
+transferencia pública. Las pruebas Google-only con A/B funcionaron en el entorno
+local conectado a Neon. SMTP, OTP y recuperación de claves de la app quedan fuera
+del acceso vigente según v9.49. La confirmación de consumo en un despliegue y la
+prueba HTTPS entre dispositivos se reservan para la publicación. Las secciones
+siguientes preservan la investigación original y las muestras de cotizaciones.
+[Vercel Hobby](https://vercel.com/docs/plans/hobby) · [Neon Free](https://neon.com/docs/introduction/plans)
+· [Evidencia Google-only](25-google-only-f0-04.md).
+
 Fecha de consulta: **2026-11-07**, America/Montevideo. Estado: investigación documental y pruebas públicas entregadas; **SMTP real y consumo de cuentas no validados**, por lo que F0-07 sigue parcialmente bloqueado. Rama `codex/F0-07-viabilidad-proveedores`, base `origin/main` e493658. Ninguna cuenta, servicio, configuración de facturación ni dato financiero real modificados. F0-04 continúa en su conversación/PR #3 y no se reproduce.
 
 ## Vercel

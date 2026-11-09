@@ -1,5 +1,10 @@
 # Componentes de terceros
 
+F0-04 Google-only usa Better Auth 1.7.18 y Kysely 0.29.8, ambos MIT.
+Kysely es el adaptador SQL incorporado de Better Auth, con esquema y transacción
+explícitos; no reemplaza el SQL financiero F0-05. Las licencias completas están
+en sus paquetes y las versiones exactas en package-lock.json.
+
 F0-NEON usa `pg` 8.23.1 (MIT), ya utilizado por CI y ahora disponible para
 la conexión de desarrollo, `@types/pg` 8.23.1 (MIT, solo desarrollo) y
 `server-only` 0.0.1 (MIT, impide importar el adaptador en un Client Component).

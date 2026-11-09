@@ -1,8 +1,8 @@
 # Plan de implementación por fases y entregables para Codex
 
-**CAMBIO VIGENTE v9.49 — 2026-11-08:** [ADR 0004](../adr/0004-google-only-allowlist-auth.md) sustituye Neon Auth administrado, webhook e invitación grupal por **Better Auth propio con acceso solo Google y allowlist privada**. El PR #12 es borrador legado y **no puede fusionarse tal cual**. Continuar F0-04 para adaptar código y probar cuentas reales sin habilitar altas antiguas. F0-05 sigue integrado; no abrir F1.
+**Decisión vigente v9.49.** Better Auth autogestionado ofrece acceso solo con Google y lista privada. El PR #14 contiene la implementación vigente. El PR #12 registra la arquitectura anterior. [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
-**Seguimiento vigente de F0:** [integración controlada previa](16-integracion-controlada-f0.md), [informe F0-05](19-informe-f0-05.md) y [revisión independiente](20-revision-f0-05.md). Scaffold, CI protegido y spikes integrados; persistencia F0-05 aplicada/probada en development y revisada técnicamente en PR #11. Consultar allí integración/checks vigentes. F0-04 y verificaciones de proveedores siguen pendientes. No se cierra la fase.
+**Cierre técnico de F0 — 2026-11-08.** El titular aprobó el cierre y la integración en `main`. Los fundamentos incluyen el scaffold, CI protegido, los contratos y prototipos monetarios, persistencia con RLS y OAuth Google probado en development. La prueba HTTPS desde otro dispositivo y la medición de consumo se retoman antes del uso con datos financieros reales. [F0-04](25-google-only-f0-04.md) · [F0-05](20-revision-f0-05.md) · [F0-07](13-informe-f0-07.md).
 
 **Tipo:** backlog técnico priorizado, **no cronograma ni compromiso de fechas**.  
 **Base:** requisito funcional aprobado v9.48, [requisitos](01-alcance-y-requisitos.md), [modelo/invariantes](02-modelo-de-dominio-y-datos.md) y [criterios](03-criterios-de-aceptacion.md).  
@@ -29,7 +29,7 @@ existente para F0-04/F0-05, sin cerrar sus CA. Ver [evidencia vigente](17-inform
 Se verificó development/Better Auth por API/SQL y sonda pública; conexiones
 locales pooled/direct pasan en READ ONLY. No sustituye migraciones ni pruebas reales A/B.
 
-**Seguimiento F0-04 — 2026-11-07:** investigación y [experimento local reproducible](../../spikes/neon-auth/README.md) entregados para revisión; ver [hallazgos, acciones exactas del titular y matriz real pendiente](12-informe-f0-04.md). Pruebas locales y contrato SDK no equivalen a alta real. El titular confirmó que aún no tiene proyecto Neon de prueba: Google, OTP, recuperación, sesiones e invitación real permanecen pendientes, y F0-04 no está aceptado funcionalmente. No se supera la puerta F0 ni se autoriza publicación. Siguiente ticket del plan: F0-05, sin iniciar.
+**Seguimiento F0-04 — 2026-11-08.** Google OAuth y Neon development se probaron con A/B, rechazo antes del alta, cierre de sesión, revocación y consultas manipuladas. La evidencia del spike anterior se conserva como investigación histórica. [Evidencia vigente](25-google-only-f0-04.md) · [Informe anterior](12-informe-f0-04.md).
 
 **Objetivo:** base reproducible sin secretos, proveedor de identidad y persistencia validados, modelo claro, herramienta de QA y diseño visual recuperado.
 
@@ -60,7 +60,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 
 **Seguimiento F0-02 — 2026-11-07:** entrega documental en revisión en la rama `codex/F0-02-diseno-visual`. [Guía consolidada](../design/fintrack-visual-spec.md) y [verificaciones/límites](10-informe-f0-02.md): referencia preservada, responsive, componentes, formularios y estados especificados. No hay UI ni CA funcional aprobado. Aceptación humana pendiente; siguiente ticket propuesto F0-03, sin iniciarlo ni autorizar merge/despliegue.
 
-**Puerta F0:** documentación técnica de hallazgos; stack probado (no únicamente elegido), guardas de acceso testeadas, costo sin facturación, reglas monetarias validadas. Si falla Google OAuth, allowlist previa al alta, revocación o aislamiento A/B, **no simular** que el acceso es seguro ni publicar con un bypass. Neon Managed Auth y SMTP para login ya no son dependencias del producto (v9.49).
+**Puerta F0.** El cierre técnico reúne evidencia del stack, guardas de acceso, límites de proveedores y reglas monetarias del prototipo. El uso con datos financieros reales requiere las verificaciones de publicación del ADR 0004 y el cierre de riesgos aplicables. [ADR 0004](../adr/0004-google-only-allowlist-auth.md) · [Riesgos](06-riesgos-y-pendientes.md).
 
 **Seguimiento F0-03 — 2026-11-07:** esqueleto Next.js/TypeScript/Tailwind/shadcn con lockfile y herramientas de formato/lint, **en revisión** en `codex/F0-03-scaffold-nextjs`. Ver [implementación, checks y límites](11-informe-f0-03.md). Dev server, instalación limpia, typecheck/lint/build y revisión de portada en Chromium móvil/escritorio ejecutados; no implica auth, DB, CI, cierre de CA funcionales ni puerta F0. Siguiente ticket: F0-04.
 

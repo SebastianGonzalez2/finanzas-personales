@@ -1,5 +1,27 @@
 # F0-06 — Pruebas y CI
 
+## Actualización F0-04 Google-only (v9.49)
+
+La rama nueva agrega casos unitarios de perfil verificado, runtime limitado,
+orígenes y rutas permitidas; Playwright prueba la pantalla cerrada y API anónima
+en escritorio/móvil. La suite PostgreSQL usa conexiones LOGIN reales distintas
+para Auth y finanzas, Better Auth instalado y el SQL propuesto de la aplicación.
+Google token endpoint y JWKS están simulados; los JWT se firman con RSA de prueba
+y se verifican mediante el verificador oficial, con casos de firma/issuer/aud/exp
+inválidos. Incluye OAuth/state/PKCE, alta previa a usuario/sesión, binding inmutable,
+RLS A/B, revocación concurrente, logout, fallo DB/red y rate limit persistente.
+
+No hay parámetro para omitir verificación Google en producción. El mock de fetch
+existe exclusivamente en el test y rechaza redes ajenas. Solo el administrador del
+contenedor puede atrasar el reloj de fixtures de rateLimit entre escenarios; el
+caso específico verifica el 429 real sin ese ajuste. El harness crea y elimina
+esquemas solo dentro de `localhost:55432/finanzas_test`, con la guarda F0-05 intacta;
+no se ejecuta contra Neon. Las suites se serializan para compartir ese contenedor.
+
+[SQL pendiente de aprobación y resultados](planning/25-google-only-f0-04.md).
+Las pruebas Google/Neon con cuentas reales siguen siendo obligatorias según ADR
+0004. El éxito de CI no sustituye esa aceptación.
+
 Base: scaffold F0-03, PR #2 integrado; F0-06 también integrado. Este ticket agrega infraestructura de pruebas; no implementa auth, esquema ni motor financiero de aplicación. Estado vigente: [integración controlada](planning/16-integracion-controlada-f0.md).
 
 Los spikes aislados llevan sus propios package/tsconfig/pruebas y quedan fuera del formato/lint/tsconfig de la app. Evita que el target ES2017 de Next compile contratos Node/BigInt o que la app requiera dependencias de un experimento. Al incorporar un spike hay que ejecutar sus verificaciones propias; F0-09 incluye workflow dedicado. Esto no excluye src ni tests de aplicación.
