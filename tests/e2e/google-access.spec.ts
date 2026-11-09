@@ -72,6 +72,45 @@ test("F1-02: la ruta de saldos rechaza POST anónimo y de otro origen", async ({
   }
 });
 
+test("F1-07: historial, detalle y edición requieren una sesión propia", async ({
+  request,
+}) => {
+  const eventId = "11075139-c46d-4cb4-9a2c-92ae733e6e57";
+  for (const path of [
+    "/historial?q=alquiler",
+    `/historial/movimientos/${eventId}`,
+  ]) {
+    const response = await request.get(path, { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers().location).toBe("/auth/sign-in");
+    expect(response.headers()["cache-control"]).toContain("no-store");
+  }
+  const edit = {
+    action: "edit",
+    eventId,
+    idempotencyKey: "e8ec105e-847e-4650-8267-3423bf72ac27",
+    movement: {
+      kind: "expense",
+      currency: "UYU",
+      amount: "500",
+      effectiveOn: "2024-02-29",
+      method: "debit",
+      concept: "Alquiler",
+    },
+  };
+  for (const [origin, status] of [
+    ["https://other.example", 403],
+    ["http://localhost:3106", 401],
+  ] as const) {
+    const response = await request.patch("/api/movements", {
+      data: edit,
+      headers: { origin },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+  }
+});
+
 test("F1-03: un movimiento requiere sesión, mismo origen y datos sin titular externo", async ({
   request,
 }) => {

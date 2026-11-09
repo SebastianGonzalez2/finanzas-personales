@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { URLSearchParams } from "node:url";
+import { historySearch, parseHistoryParams } from "../../src/domain/history.ts";
 import {
   parseBankTransfer,
   parseMovement,
@@ -17,6 +19,60 @@ const expense = {
   concept: " Compra ",
   idempotencyKey: randomUUID(),
 };
+
+test("F1-07: valida rangos exactos y el cursor de un cambio de moneda", () => {
+  const cursor = { date: today, id: randomUUID(), kind: "bank_transfer" };
+  const filters = {
+    q: "alquiler %",
+    min: "9007199254740993,0001",
+    max: "9007199254740993,0002",
+  };
+  const input = Object.fromEntries(
+    new URLSearchParams(historySearch(filters, cursor)),
+  );
+  assert.deepEqual(parseHistoryParams(input), {
+    filters,
+    minimum: "9007199254740993.0001",
+    maximum: "9007199254740993.0002",
+    cursor,
+  });
+  for (const invalid of [
+    { min: filters.max, max: filters.min },
+    { from: "2025-02-29" },
+    { q: ["uno", "dos"] },
+    { before: "2025-01-01.falso.expense" },
+    { status: "pending" },
+  ]) {
+    assert.ok(parseHistoryParams(invalid).error);
+  }
+});
+
+test("F1-07: edición reusa la validación de alta y rechaza campos de autoridad", () => {
+  const { idempotencyKey, ...movement } = expense;
+  const edit = {
+    action: "edit",
+    eventId: randomUUID(),
+    idempotencyKey,
+    movement,
+  };
+  assert.deepEqual(parseMovementRevision(edit, today), {
+    ...edit,
+    movement: parseMovement(expense, today),
+  });
+  for (const invalid of [
+    { ownerId: "ajeno" },
+    { idempotencyKey: randomUUID() },
+    { effectiveOn: "2026-11-09" },
+    { amount: 50 },
+  ]) {
+    assert.ok(
+      parseMovementRevision(
+        { ...edit, movement: { ...movement, ...invalid } },
+        today,
+      ).error,
+    );
+  }
+});
 
 test("F1-06: los dos importes se validan y normalizan por separado", () => {
   const payload = {

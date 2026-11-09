@@ -32,6 +32,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0003_F1-04_movement_revisions.sql",
       "0004_F1-05_balance_reconciliation.sql",
       "0005_F1-06_bank_transfers.sql",
+      "0006_F1-07_movement_history.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -47,12 +48,12 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F1-06: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F1-07: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
     await client.query("BEGIN");
-    const [initial, movement, revisions, reconciliation, transfers] =
+    const [initial, movement, revisions, reconciliation, transfers, history] =
       await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -91,8 +92,14 @@ test("F1-06: aplica solo el SQL autorizado y conserva el historial previo", asyn
       [reconciliation.version, reconciliation.sha256],
     );
     await assert.rejects(migrateInTransaction(client, reconciliation.sha256));
-    assert.deepEqual(await migrateInTransaction(client, transfers.sha256), [
-      transfers.version,
+    await assert.rejects(migrateInTransaction(client, transfers.sha256));
+    await client.query(transfers.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [transfers.version, transfers.sha256],
+    );
+    assert.deepEqual(await migrateInTransaction(client, history.sha256), [
+      history.version,
     ]);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(
@@ -134,11 +141,11 @@ test(
         "dos migradores aplican una sola vez y conservan el ledger",
         async () => {
           const results = await Promise.all([migrate(), migrate()]);
-          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 5]);
+          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 6]);
           assert.equal(
             (await pool.query("SELECT * FROM finance_meta.schema_migrations"))
               .rowCount,
-            5,
+            6,
           );
         },
       );

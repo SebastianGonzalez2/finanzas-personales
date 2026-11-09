@@ -216,6 +216,25 @@ export async function saveBankTransfer(
     if (gap) return gap;
   }
 
+  return {
+    status: "created",
+    id: await insertBankTransfer(client, ownerId, transfer, hash),
+  };
+}
+
+async function insertBankTransfer(
+  client: pg.PoolClient,
+  ownerId: string,
+  {
+    sourceCurrency,
+    sourceAmount,
+    destinationCurrency,
+    destinationAmount,
+    effectiveOn,
+    idempotencyKey,
+  }: BankTransfer,
+  hash: string,
+) {
   const id = randomUUID();
   await client.query(
     `WITH saved AS (
@@ -247,7 +266,7 @@ export async function saveBankTransfer(
       destinationAmount,
     ],
   );
-  return { status: "created", id };
+  return id;
 }
 
 export async function listRecentBankTransfers(
@@ -317,6 +336,28 @@ export async function saveMovement(
     if (gap) return { status: gap.status, shortfall: gap.shortfall };
   }
 
+  const selectedCategoryId = await resolveMovementCategory(
+    client,
+    ownerId,
+    kind,
+    categoryId,
+  );
+  if (selectedCategoryId === undefined) return { status: "invalid-category" };
+  const id = await insertMovement(
+    client,
+    ownerId,
+    { ...movement, categoryId: selectedCategoryId },
+    hash,
+  );
+  return { status: "created", id };
+}
+
+async function resolveMovementCategory(
+  client: pg.PoolClient,
+  ownerId: string,
+  kind: MovementKind,
+  categoryId: string | null,
+) {
   const suggestion = defaultCategories.find(
     (category) => category.id === categoryId && category.kind === kind,
   );
@@ -333,11 +374,10 @@ export async function saveMovement(
       [ownerId, categoryId, kind, suggestion?.name ?? null],
     );
     if (existing) {
-      if (existing.archived || existing.kind !== kind)
-        return { status: "invalid-category" };
+      if (existing.archived || existing.kind !== kind) return undefined;
       selectedCategoryId = existing.id;
     } else if (!suggestion) {
-      return { status: "invalid-category" };
+      return undefined;
     }
   }
 
@@ -348,16 +388,7 @@ export async function saveMovement(
       [ownerId, suggestion.id, kind, suggestion.name],
     );
   }
-  const id = await insertMovement(
-    client,
-    ownerId,
-    {
-      ...movement,
-      categoryId: selectedCategoryId,
-    },
-    hash,
-  );
-  return { status: "created", id };
+  return selectedCategoryId;
 }
 
 async function insertMovement(
@@ -413,7 +444,16 @@ type RevisionResult =
   | Replay
   | Shortfall
   | { status: "revised"; id: string }
-  | { status: "not-found" | "inactive" | "checkpoint" | "unconfigured" };
+  | {
+      status:
+        | "not-found"
+        | "inactive"
+        | "checkpoint"
+        | "unconfigured"
+        | "invalid-category"
+        | "invalid-kind"
+        | "unavailable";
+    };
 
 export async function reviseMovement(
   client: pg.PoolClient,
@@ -421,6 +461,7 @@ export async function reviseMovement(
   command: MovementRevision,
 ): Promise<RevisionResult> {
   const { action, eventId, idempotencyKey } = command;
+  if (action === "edit") return editMovement(client, ownerId, command);
   const amount = action === "correct" ? command.amount : null;
   const hash = commandHash(["movement-revision-v1", action, eventId, amount]);
   await lockBankWrites(client, ownerId);
@@ -495,6 +536,166 @@ export async function reviseMovement(
           { ...original, amount, idempotencyKey },
           hash,
         );
+  return recordRevision(client, ownerId, command, hash, replacement);
+}
+
+export async function historyReady(client: pg.PoolClient) {
+  const {
+    rows: [state],
+  } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.financial_events_history') IS NOT NULL AS ready",
+  );
+  return state.ready;
+}
+
+async function editMovement(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: Extract<MovementRevision, { action: "edit" }>,
+): Promise<RevisionResult> {
+  const { eventId, idempotencyKey, movement } = command;
+  const transfer = movement.kind === "bank_transfer";
+  const fields = transfer
+    ? [
+        movement.sourceCurrency,
+        movement.sourceAmount,
+        movement.destinationCurrency,
+        movement.destinationAmount,
+      ]
+    : [
+        movement.currency,
+        movement.amount,
+        movement.method,
+        movement.concept,
+        movement.note,
+        movement.categoryId,
+      ];
+  const hash = commandHash([
+    "movement-edit-v1",
+    eventId,
+    movement.kind,
+    movement.effectiveOn,
+    ...fields,
+  ]);
+  await lockBankWrites(client, ownerId);
+  if (!(await historyReady(client))) return { status: "unavailable" };
+  const replay = await findReplay(client, ownerId, idempotencyKey, hash);
+  if (replay) return replay;
+
+  const {
+    rows: [original],
+  } = await client.query<{
+    kind: string;
+    status: string;
+    categoryId: string | null;
+    recordedAt: string;
+    effectiveOn: string;
+  }>(
+    `SELECT f.kind, f.status, m.category_id AS "categoryId",
+            f.bank_recorded_at::text AS "recordedAt", f.effective_on::text AS "effectiveOn"
+       FROM finance.bank_event_positions f
+       LEFT JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
+      WHERE f.owner_id = $1 AND f.id = $2
+        AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')`,
+    [ownerId, eventId],
+  );
+  if (!original) return { status: "not-found" };
+  if (original.status !== "confirmed") return { status: "inactive" };
+  if (original.kind !== movement.kind) return { status: "invalid-kind" };
+
+  const newEffects: { currency: Currency; signed: string }[] = transfer
+    ? [
+        {
+          currency: movement.sourceCurrency,
+          signed: `-${movement.sourceAmount}`,
+        },
+        {
+          currency: movement.destinationCurrency,
+          signed: movement.destinationAmount,
+        },
+      ]
+    : [
+        {
+          currency: movement.currency,
+          signed: signedAmount(movement.kind, movement.amount),
+        },
+      ];
+  const { rows: effects } = await client.query<{
+    currency: Currency;
+    before: string;
+    after: string;
+  }>(
+    `WITH replacement AS (
+       SELECT * FROM unnest($6::finance.currency[], $7::numeric[]) AS e(currency, amount_signed)
+     ), original AS (
+       SELECT currency, amount_signed FROM finance.bank_effects WHERE owner_id = $1 AND event_id = $2
+     )
+     SELECT coalesce(o.currency, r.currency) AS currency,
+            CASE WHEN ($3::date, $5::timestamptz) > (b.as_of_date, b.created_at)
+                 THEN coalesce(o.amount_signed, 0)::text ELSE '0' END AS before,
+            CASE WHEN ($4::date, $5::timestamptz) > (b.as_of_date, b.created_at)
+                 THEN coalesce(r.amount_signed, 0)::text ELSE '0' END AS after
+       FROM original o FULL JOIN replacement r USING (currency)
+       LEFT JOIN LATERAL (
+         SELECT as_of_date, created_at FROM finance.balance_checkpoints
+          WHERE owner_id = $1 AND currency = coalesce(o.currency, r.currency)
+          ORDER BY as_of_date DESC, created_at DESC, id DESC LIMIT 1
+       ) b ON true`,
+    [
+      ownerId,
+      eventId,
+      original.effectiveOn,
+      movement.effectiveOn,
+      original.recordedAt,
+      newEffects.map(({ currency }) => currency),
+      newEffects.map(({ signed }) => signed),
+    ],
+  );
+  const balances = await listBankBalances(
+    client,
+    ownerId,
+    effects.map(({ currency }) => currency),
+    true,
+  );
+  for (const { currency, before, after } of effects) {
+    const balance = balances.find((entry) => entry.currency === currency);
+    if (!balance) return { status: "unconfigured" };
+    const gap = await bankShortfall(
+      client,
+      currency,
+      balance.calculatedAmount ?? balance.amount,
+      before,
+      after,
+    );
+    if (gap) return gap;
+  }
+
+  let replacement: string;
+  if (transfer) {
+    replacement = await insertBankTransfer(
+      client,
+      ownerId,
+      { ...movement, idempotencyKey },
+      hash,
+    );
+  } else {
+    const categoryId =
+      movement.categoryId === original.categoryId
+        ? original.categoryId
+        : await resolveMovementCategory(
+            client,
+            ownerId,
+            movement.kind,
+            movement.categoryId,
+          );
+    if (categoryId === undefined) return { status: "invalid-category" };
+    replacement = await insertMovement(
+      client,
+      ownerId,
+      { ...movement, idempotencyKey, categoryId },
+      hash,
+    );
+  }
   return recordRevision(client, ownerId, command, hash, replacement);
 }
 
