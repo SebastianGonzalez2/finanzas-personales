@@ -15,6 +15,8 @@ import {
   type MovementKind,
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
+import type { CatalogCard } from "@/domain/cards";
+import { CreditOperationForm } from "./credit-operation-form";
 import { Card } from "./ui/card";
 
 const control =
@@ -27,14 +29,17 @@ export function MovementForm({
   balances,
   categories,
   bankTransfersReady,
+  creditCards,
 }: {
   today: string;
   balances: BankBalance[];
   categories: MovementCategory[];
   bankTransfersReady: boolean;
+  creditCards: CatalogCard[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [creditOpen, setCreditOpen] = useState(false);
   const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
   const [pending, setPending] = useState(false);
@@ -72,7 +77,7 @@ export function MovementForm({
   }, [pending, revisionUncertain]);
 
   function toggle() {
-    if (submitLock.current || revisionUncertain) return;
+    if (creditOpen || submitLock.current || revisionUncertain) return;
     if (open) {
       setOpen(false);
       trigger.current?.focus();
@@ -215,7 +220,7 @@ export function MovementForm({
         className={primary}
         aria-expanded={open}
         aria-controls="nueva-transaccion"
-        aria-disabled={pending || revisionUncertain}
+        aria-disabled={pending || revisionUncertain || creditOpen}
         onClick={toggle}
       >
         + Nueva transacción
@@ -331,7 +336,41 @@ export function MovementForm({
             >
               Nueva transacción
             </h2>
-            {!configured.length ? (
+            {!creditOpen &&
+              !pending &&
+              !uncertain &&
+              creditCards.length > 0 && (
+                <button
+                  type="button"
+                  className="min-h-11 justify-self-start rounded-lg border px-3 text-sm font-semibold"
+                  onClick={() => {
+                    setMessage("");
+                    setCreditOpen(true);
+                  }}
+                >
+                  Compra con tarjeta de crédito
+                </button>
+              )}
+            {creditOpen ? (
+              <CreditOperationForm
+                action="purchase"
+                cards={creditCards}
+                banks={configured}
+                categories={categories}
+                today={today}
+                close={(result) => {
+                  setCreditOpen(false);
+                  if (result) {
+                    setMessage(result);
+                    setOpen(false);
+                    router.refresh();
+                  }
+                  requestAnimationFrame(() =>
+                    (result ? trigger.current : heading.current)?.focus(),
+                  );
+                }}
+              />
+            ) : !configured.length ? (
               <p className="text-sm text-muted-foreground">
                 Configurá un saldo inicial en «Dinero disponible» para registrar
                 un ingreso o gasto.

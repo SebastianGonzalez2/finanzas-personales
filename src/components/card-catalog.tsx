@@ -4,6 +4,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
 import { cardKinds, type CardKind, type CatalogCard } from "@/domain/cards";
+import type {
+  CreditAction,
+  CreditPurchaseOption,
+} from "@/domain/credit-operations";
+import type { Currency } from "@/domain/money";
+import type { MovementCategory } from "@/domain/movements";
+import {
+  CreditOperationForm,
+  creditActionLabels,
+} from "./credit-operation-form";
 import { useFinancialCommand } from "./financial-command";
 import { Card } from "./ui/card";
 
@@ -13,16 +23,38 @@ const primary = `${button} border-primary bg-primary text-primary-foreground hov
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
 
-export function CardCatalog({ cards }: { cards: CatalogCard[] }) {
+type Operation = { card: CatalogCard; action: CreditAction };
+const creditActions = ["purchase", "payment", "adjustment"] as const;
+
+export function CardCatalog({
+  cards,
+  today,
+  creditReady,
+  banks,
+  categories,
+  purchases,
+}: {
+  cards: CatalogCard[];
+  today: string;
+  creditReady: boolean;
+  banks: Currency[];
+  categories: MovementCategory[];
+  purchases: CreditPurchaseOption[];
+}) {
   const router = useRouter();
-  const [editor, setEditor] = useState<CatalogCard | "new" | null>(null);
+  const [editor, setEditor] = useState<CatalogCard | Operation | "new" | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
   const add = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const active = cards.filter((card) => !card.archived);
   const archived = cards.filter((card) => card.archived);
 
-  function open(card: CatalogCard | "new", from: HTMLButtonElement) {
+  function open(
+    card: CatalogCard | Operation | "new",
+    from: HTMLButtonElement,
+  ) {
     trigger.current = from;
     setMessage("");
     setEditor(card);
@@ -54,12 +86,27 @@ export function CardCatalog({ cards }: { cards: CatalogCard[] }) {
       >
         Agregar tarjeta
       </button>
-      {editor && (
-        <CardEditor
-          card={editor === "new" ? undefined : editor}
-          close={close}
-        />
-      )}
+      {editor &&
+        (typeof editor === "object" && "action" in editor ? (
+          <Card className="p-4 sm:p-5">
+            <CreditOperationForm
+              action={editor.action}
+              cards={[editor.card]}
+              today={today}
+              banks={banks}
+              categories={categories}
+              purchases={purchases}
+              close={close}
+            />
+          </Card>
+        ) : (
+          <CardEditor
+            card={editor === "new" ? undefined : editor}
+            close={close}
+            today={today}
+            creditReady={creditReady}
+          />
+        ))}
       <section aria-labelledby="tarjetas-activas" className="grid gap-3">
         <h2 id="tarjetas-activas" className="font-semibold">
           Activas
@@ -76,6 +123,11 @@ export function CardCatalog({ cards }: { cards: CatalogCard[] }) {
                 card={card}
                 editDisabled={editor !== null}
                 edit={(from) => open(card, from)}
+                operate={
+                  creditReady
+                    ? (action, from) => open({ card, action }, from)
+                    : undefined
+                }
               />
             ))}
           </ul>
@@ -91,7 +143,16 @@ export function CardCatalog({ cards }: { cards: CatalogCard[] }) {
           </summary>
           <ul className="mt-3 grid gap-3 xl:grid-cols-2">
             {archived.map((card) => (
-              <CardEntry key={card.id} card={card} />
+              <CardEntry
+                key={card.id}
+                card={card}
+                editDisabled={editor !== null}
+                operate={
+                  creditReady
+                    ? (action, from) => open({ card, action }, from)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         </details>
@@ -104,10 +165,12 @@ function CardEntry({
   card,
   edit,
   editDisabled,
+  operate,
 }: {
   card: CatalogCard;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
+  operate?: (action: CreditAction, from: HTMLButtonElement) => void;
 }) {
   return (
     <li className="min-w-0">
@@ -168,6 +231,23 @@ function CardEntry({
             </li>
           ))}
         </ul>
+        {card.kind === "credit" && operate && (
+          <div className="flex flex-wrap gap-2">
+            {creditActions
+              .filter((action) => !card.archived || action !== "purchase")
+              .map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  className={button}
+                  disabled={editDisabled}
+                  onClick={(event) => operate(action, event.currentTarget)}
+                >
+                  {creditActionLabels[action]}
+                </button>
+              ))}
+          </div>
+        )}
       </Card>
     </li>
   );
@@ -185,9 +265,13 @@ function CardAmount({ label, amount }: { label: string; amount: string }) {
 function CardEditor({
   card,
   close,
+  today,
+  creditReady,
 }: {
   card?: CatalogCard;
   close: (message?: string) => void;
+  today: string;
+  creditReady: boolean;
 }) {
   const [kind, setKind] = useState<CardKind>(card?.kind ?? "debit");
   const [selected, setSelected] = useState(
@@ -215,12 +299,21 @@ function CardEditor({
         limit: form.get(`limit-${currency}`),
       })),
     };
+    const initial = selected.flatMap((currency) => {
+      const amount = form.get(`debt-${currency}`);
+      return typeof amount === "string" && amount.trim()
+        ? [{ currency, amount }]
+        : [];
+    });
+    const opening = initial.length
+      ? { opening: { effectiveOn: form.get("openingOn"), lines: initial } }
+      : {};
     const saved = await send(
       archive
         ? { action: "archive", ...target }
         : card
           ? { action: "update", ...target, ...fields }
-          : { action: "create", kind, ...fields },
+          : { action: "create", kind, ...fields, ...opening },
     );
     if (saved) close(archive ? "Tarjeta archivada." : "Tarjeta guardada.");
   }
@@ -339,6 +432,41 @@ function CardEditor({
                 );
               })}
             </fieldset>
+            {creditReady &&
+              !card &&
+              kind === "credit" &&
+              selected.length > 0 && (
+                <fieldset className="grid min-w-0 gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-2">
+                  <legend className="px-1 text-sm font-medium">
+                    Deuda inicial (opcional)
+                  </legend>
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    Ingresá la deuda existente a la fecha de referencia. Dejá
+                    vacío si no hay deuda en esa moneda.
+                  </p>
+                  <label className="grid gap-1 text-sm">
+                    Fecha de deuda inicial
+                    <input
+                      className={control}
+                      type="date"
+                      name="openingOn"
+                      max={today}
+                      defaultValue={today}
+                    />
+                  </label>
+                  {selected.map((currency) => (
+                    <label key={currency} className="grid gap-1 text-sm">
+                      Deuda inicial {currency}
+                      <input
+                        className={control}
+                        name={`debt-${currency}`}
+                        inputMode="decimal"
+                        maxLength={22}
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              )}
           </fieldset>
         )}
         <p role="alert" className={error ? "text-sm" : "sr-only"}>

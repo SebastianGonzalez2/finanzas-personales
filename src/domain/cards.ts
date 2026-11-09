@@ -1,5 +1,6 @@
 import { bankCurrencies } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import { parseOpeningDebt, type OpeningDebt } from "./credit-operations.ts";
 import { movementUuid as uuid } from "./movements.ts";
 
 export const cardKinds = { debit: "Débito", credit: "Crédito" } as const;
@@ -12,7 +13,7 @@ type CardFields = {
 };
 type CardTarget = { cardId: string; version: number };
 export type CardCommand = { idempotencyKey: string } & (
-  | ({ action: "create"; kind: CardKind } & CardFields)
+  | ({ action: "create"; kind: CardKind; opening?: OpeningDebt } & CardFields)
   | ({ action: "update" } & CardTarget & CardFields)
   | ({ action: "archive" } & CardTarget)
 );
@@ -28,7 +29,7 @@ export type CatalogCard = Omit<CardFields, "currencies"> & {
 };
 
 const keys = {
-  create: ["kind", "name", "issuer", "currencies"],
+  create: ["kind", "name", "issuer", "currencies", "opening"],
   update: ["cardId", "version", "name", "issuer", "currencies"],
   archive: ["cardId", "version"],
 };
@@ -48,6 +49,7 @@ export function parseCardCommand(
     issuer,
     currencies,
     idempotencyKey,
+    opening,
   } = input as Record<string, unknown>;
   if (action !== "create" && action !== "update" && action !== "archive")
     return invalid;
@@ -130,7 +132,22 @@ export function parseCardCommand(
     idempotencyKey: commandKey,
   };
   if (action === "update" && target) return { action, ...target, ...fields };
-  if (action === "create" && (kind === "credit" || kind === "debit"))
-    return { action, kind, ...fields };
+  if (action === "create" && (kind === "credit" || kind === "debit")) {
+    if (opening === undefined) return { action, kind, ...fields };
+    try {
+      const debt = parseOpeningDebt(opening);
+      if (
+        kind !== "credit" ||
+        debt.lines.some(({ currency }) => !positions.has(currency))
+      )
+        throw new Error();
+      return { action, kind, ...fields, opening: debt };
+    } catch {
+      return {
+        error:
+          "Revisá la fecha, las monedas y los importes de la deuda inicial.",
+      };
+    }
+  }
   return invalid;
 }

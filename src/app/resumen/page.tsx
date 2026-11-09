@@ -8,8 +8,10 @@ import {
   listBankBalances,
   listBankCheckpoints,
 } from "@/server/bank-balances";
+import { listCards } from "@/server/cards";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
+  creditOperationsReady,
   listMovementCategories,
   listMovementTotals,
   listRecentBankTransfers,
@@ -47,6 +49,7 @@ export default async function SummaryPage() {
           bankTransfersReady: false,
           bankTransfers: [],
           categories: [],
+          creditCards: [],
           totals: [],
           expenses: [],
           incomes: [],
@@ -60,6 +63,11 @@ export default async function SummaryPage() {
           : [],
         categories: writable
           ? await listMovementCategories(client, ownerId)
+          : [],
+        creditCards: (await creditOperationsReady(client))
+          ? (await listCards(client, ownerId)).filter(
+              ({ kind, archived }) => kind === "credit" && !archived,
+            )
           : [],
         totals: await listMovementTotals(
           client,

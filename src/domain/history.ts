@@ -1,9 +1,9 @@
 import { bankCurrencies, isBankReferenceDate } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 import {
-  movementMethods,
+  movementDisplayMethods,
   movementUuid,
-  type MovementMethod,
+  type MovementDisplayMethod,
 } from "./movements.ts";
 
 export const historyKinds = {
@@ -11,6 +11,10 @@ export const historyKinds = {
   expense: "Gasto",
   bank_transfer: "Cambio de moneda",
   checkpoint: "Saldo confirmado",
+  card_purchase: "Compra con tarjeta",
+  card_payment: "Pago de tarjeta",
+  card_opening: "Deuda inicial de tarjeta",
+  card_adjustment: "Ajuste de deuda de tarjeta",
 } as const;
 
 export const historyStates = {
@@ -34,7 +38,8 @@ export type HistoryEntry = {
   otherAmount: string | null;
   categoryId: string | null;
   category: string | null;
-  method: MovementMethod | null;
+  method: MovementDisplayMethod | null;
+  cardAmounts?: { currency: Currency; amount: string }[] | null;
 };
 
 const filterKeys = [
@@ -88,7 +93,7 @@ export function parseHistoryParams(
     (currency && !bankCurrencies.some((code) => code === currency)) ||
     (kind && !Object.hasOwn(historyKinds, kind)) ||
     (category && category !== "none" && !movementUuid.test(category)) ||
-    (method && !Object.hasOwn(movementMethods, method)) ||
+    (method && !Object.hasOwn(movementDisplayMethods, method)) ||
     (status && !Object.hasOwn(historyStates, status))
   )
     return invalid;

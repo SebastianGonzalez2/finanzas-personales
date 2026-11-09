@@ -114,11 +114,11 @@ type SaveResult =
   | { status: "created"; id: string }
   | { status: "unconfigured" | "invalid-category" };
 
-function commandHash(fields: readonly (string | null)[]) {
+export function commandHash(fields: readonly (string | null)[]) {
   return createHash("sha256").update(JSON.stringify(fields)).digest("hex");
 }
 
-async function findReplay(
+export async function findReplay(
   client: pg.PoolClient,
   ownerId: string,
   key: string,
@@ -352,7 +352,7 @@ export async function saveMovement(
   return { status: "created", id };
 }
 
-async function resolveMovementCategory(
+export async function resolveMovementCategory(
   client: pg.PoolClient,
   ownerId: string,
   kind: MovementKind,
@@ -748,13 +748,16 @@ async function voidBankTransfer(
   return recordRevision(client, ownerId, command, hash, null);
 }
 
-async function recordRevision(
+export async function recordRevision(
   client: pg.PoolClient,
   ownerId: string,
-  { eventId, idempotencyKey }: MovementRevision,
+  {
+    eventId,
+    idempotencyKey,
+  }: Pick<MovementRevision, "eventId" | "idempotencyKey">,
   hash: string,
   replacement: string | null,
-): Promise<RevisionResult> {
+) {
   const state = replacement === null ? "voided" : "corrected";
   await client.query(
     `INSERT INTO finance.audit_changes
@@ -776,7 +779,14 @@ async function recordRevision(
     [ownerId, eventId, state],
   );
   if (changed.rowCount !== 1) throw new Error("Revisión no confirmada");
-  return { status: "revised", id: replacement ?? eventId };
+  return { status: "revised", id: replacement ?? eventId } as const;
+}
+
+export async function creditOperationsReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.credit_expenses') IS NOT NULL AS ready",
+  );
+  return rows[0].ready;
 }
 
 export async function listMovementTotals(
@@ -784,15 +794,25 @@ export async function listMovementTotals(
   ownerId: string,
   monthStart: string,
 ) {
+  const credit = await creditOperationsReady(client);
   const { rows } = await client.query<MovementTotal>(
-    `SELECT f.kind, e.currency, sum(abs(e.amount_signed))::text AS amount
+    `SELECT kind, currency, sum(amount)::text AS amount FROM (
+       SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
        FROM finance.financial_events f
        JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
        JOIN finance.bank_effects e
          ON (e.owner_id, e.event_id, e.id) = (m.owner_id, m.event_id, m.event_id)
       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.effective_on >= $2::date
         AND f.effective_on < $2::date + interval '1 month'
-      GROUP BY f.kind, e.currency`,
+      ${
+        credit
+          ? `UNION ALL
+        SELECT 'expense', currency, amount FROM finance.credit_expenses
+         WHERE owner_id = $1 AND effective_on >= $2::date
+           AND effective_on < $2::date + interval '1 month'`
+          : ""
+      }
+      ) amounts GROUP BY kind, currency`,
     [ownerId, monthStart],
   );
   return rows;
@@ -803,8 +823,11 @@ export async function listRecentMovements(
   ownerId: string,
   kind: MovementKind,
 ) {
+  const credit = kind === "expense" && (await creditOperationsReady(client));
   const { rows } = await client.query<RecentMovement>(
-    `SELECT f.id, f.kind, f.concept, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+    `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+            currency, amount, method, note, category FROM (
+      SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,
             e.currency, abs(e.amount_signed)::text AS amount, m.method, m.note, c.name AS category
        FROM finance.financial_events f
        JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
@@ -812,8 +835,19 @@ export async function listRecentMovements(
          ON (e.owner_id, e.event_id, e.id) = (m.owner_id, m.event_id, m.event_id)
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (m.owner_id, m.category_id)
       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.kind = $2
-      ORDER BY f.effective_on DESC, f.created_at DESC, f.id DESC
-      LIMIT 5`,
+      ${
+        credit
+          ? `UNION ALL
+        SELECT x.id, 'expense', x.concept, x.effective_on, x.created_at,
+               x.currency, x.amount::text, x.method, x.note,
+               CASE WHEN f.kind = 'card_payment' THEN 'Comisiones bancarias' ELSE c.name END
+          FROM finance.credit_expenses x
+          JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.id)
+          LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
+         WHERE x.owner_id = $1`
+          : ""
+      }
+      ) recent ORDER BY effective_on DESC, created_at DESC, id DESC, currency LIMIT 5`,
     [ownerId, kind],
   );
   return rows;

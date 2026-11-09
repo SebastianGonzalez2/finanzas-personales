@@ -84,7 +84,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | Ticket | Entrega | RF/CA principal |
 |---|---|---|
 | F2-01 | Catálogo de tarjetas débito/crédito, tipos, monedas, deuda/saldo a favor y límites opcionales. [Contrato del catálogo](33-catalogo-tarjetas-f2-01.md). | RF-014; configuración de RF-017; base de CA-020 |
-| F2-02 | Compra con tarjeta de crédito y pago de resumen, deuda inicial, parcial y total sin doble gasto. | RF-015/017/018; CA-020/021/024 |
+| F2-02 | Compra con tarjeta de crédito y pago de resumen, deuda inicial, parcial y total sin doble gasto. [Contrato de compras y pagos](34-operaciones-credito-f2-02.md). | RF-015/017/018; CA-020/021/024 |
 | F2-03 | Cuotas iguales, mes inicial, cargo real al emisor, reporte mensual, cancelación/edición con auditoría. | RF-016; CA-022 |
 | F2-04 | Ciclos de cierre, mínimos/resumen oficial, estimaciones, alertas, fechas excepcionales y reconciliación de ciclo. | RF-017/037; CA-023 |
 | F2-05 | Compra con dos medios y porción crédito financiada en cuotas; categorías repartidas. | RF-019/040; CA-025/026 |
