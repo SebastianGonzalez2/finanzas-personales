@@ -1,0 +1,84 @@
+import { Money, type Currency } from "./money.ts";
+
+export const bankCurrencies = ["UYU", "USD", "EUR"] as const;
+
+export type BankBalance = {
+  currency: Currency;
+  amount: string;
+  asOfDate: string;
+};
+
+const montevideoDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Montevideo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function bankReferenceToday(now = new Date()): string {
+  const parts = montevideoDate.formatToParts(now);
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function parseOpeningBalance(
+  input: unknown,
+  today: string,
+): BankBalance | { error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return { error: "Solicitud inválida." };
+  if (
+    Object.keys(input).some(
+      (key) => !["currency", "amount", "asOfDate"].includes(key),
+    )
+  )
+    return { error: "Solicitud inválida." };
+  const { currency, amount, asOfDate } = input as Record<string, unknown>;
+  if (currency !== "UYU" && currency !== "USD" && currency !== "EUR")
+    return { error: "Elegí una moneda válida." };
+
+  let money: Money;
+  try {
+    money = Money.parse(
+      typeof amount === "string" ? amount.trim().replace(",", ".") : amount,
+      currency,
+    );
+  } catch {
+    return {
+      error:
+        "Ingresá un importe sin separador de miles y con hasta 4 decimales.",
+    };
+  }
+
+  if (
+    typeof asOfDate !== "string" ||
+    asOfDate.length !== 10 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ||
+    asOfDate.startsWith("0000") ||
+    asOfDate > today
+  )
+    return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
+  const parsed = new Date(`${asOfDate}T00:00:00.000Z`);
+  if (
+    !Number.isFinite(parsed.getTime()) ||
+    !parsed.toISOString().startsWith(asOfDate)
+  )
+    return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
+
+  return { currency, amount: money.toDecimal(), asOfDate };
+}
+
+const wholeAmount = new Intl.NumberFormat("es-UY", { useGrouping: "always" });
+
+export function formatBankAmount(balance: BankBalance): string {
+  const [whole, fraction] = balance.amount.split(".");
+  const negative = whole.startsWith("-");
+  const grouped = wholeAmount.format(BigInt(negative ? whole.slice(1) : whole));
+  const decimals = (fraction ?? "").replace(/0+$/, "").padEnd(2, "0");
+  return `${negative ? "−" : ""}${grouped},${decimals} ${balance.currency}`;
+}
+
+export function formatBankReference(asOfDate: string): string {
+  return asOfDate.split("-").reverse().join("/");
+}

@@ -24,6 +24,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm start -- --port 3106",
+    env: {
+      GOOGLE_AUTH_READY: "false",
+      GOOGLE_AUTH_ORIGIN: "http://localhost:3106",
+    },
     url: "http://127.0.0.1:3106",
     reuseExistingServer: false,
     timeout: 60000,

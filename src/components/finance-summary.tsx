@@ -1,14 +1,9 @@
+import { bankCurrencies, type BankBalance } from "@/domain/bank-balances";
+import { BankBalanceRow } from "./bank-balance-row";
 import { FinanceIcon } from "./finance-icon";
 import { Card } from "./ui/card";
 
 const indicators = [
-  {
-    title: "Dinero disponible",
-    icon: "wallet",
-    accent: "text-[#fb713f]",
-    state: "Sin configurar",
-    description: "Todavía no configuraste tus saldos.",
-  },
   {
     title: "Ingresos del mes",
     icon: "income",
@@ -32,7 +27,13 @@ const sections = [
   { title: "Ingresos recientes", icon: "income" },
 ] as const;
 
-export function FinanceSummary() {
+export function FinanceSummary({
+  balances,
+  today,
+}: {
+  balances: BankBalance[];
+  today: string;
+}) {
   const period = new Intl.DateTimeFormat("es-UY", {
     month: "long",
     year: "numeric",
@@ -54,6 +55,24 @@ export function FinanceSummary() {
 
       <section aria-label="Indicadores financieros" className="mt-6">
         <div className="finance-indicators">
+          <Card className="min-w-0 gap-3 rounded-[1.125rem] p-6 shadow-none">
+            <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
+              <FinanceIcon name="wallet" className="text-[#fb713f]" />
+              Dinero disponible
+            </h2>
+            <ul aria-label="Saldos bancarios por moneda">
+              {bankCurrencies.map((currency) => (
+                <BankBalanceRow
+                  key={currency}
+                  currency={currency}
+                  initialBalance={balances.find(
+                    (balance) => balance.currency === currency,
+                  )}
+                  today={today}
+                />
+              ))}
+            </ul>
+          </Card>
           {indicators.map(({ title, icon, accent, state, description }) => (
             <Card
               key={title}
