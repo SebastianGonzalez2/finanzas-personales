@@ -12,6 +12,7 @@ import { FinanceShell } from "@/components/finance-shell";
 import { Card } from "@/components/ui/card";
 import { cardsReady, listCards } from "@/server/cards";
 import { withGoogleOwner } from "@/server/google-auth";
+import { installmentsReady, listCardInstallments } from "@/server/installments";
 
 export const metadata = { title: "Tarjetas | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -27,11 +28,14 @@ export default async function CardsPage() {
         };
       const cards = await listCards(client, ownerId);
       const creditReady = await creditOperationsReady(client);
+      const plansReady = creditReady && (await installmentsReady(client));
       const hasCredit =
         creditReady && cards.some(({ kind }) => kind === "credit");
       return {
         cards,
         creditReady,
+        installmentsReady: plansReady,
+        plans: plansReady ? await listCardInstallments(client, ownerId) : [],
         banks: hasCredit
           ? (await listBankBalances(client, ownerId)).map(
               ({ currency }) => currency,

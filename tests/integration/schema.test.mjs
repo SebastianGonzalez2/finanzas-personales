@@ -12,6 +12,8 @@ import {
   withOwnerTransaction,
 } from "../../src/db/owner-context.mts";
 import { randomUUID } from "node:crypto";
+import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import { installmentsReady } from "../../src/server/installments.ts";
 
 test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures persistentes", async () => {
   const client = new pg.Client(testDatabaseConfig());
@@ -35,6 +37,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0006_F1-07_movement_history.sql",
       "0007_F2-01_card_catalog.sql",
       "0008_F2-02_credit_operations.sql",
+      "0009_F2-03_credit_installments.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -50,7 +53,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F2-02: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F2-03: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -64,6 +67,7 @@ test("F2-02: aplica solo el SQL autorizado y conserva el historial previo", asyn
       history,
       cards,
       credit,
+      installments,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -120,13 +124,61 @@ test("F2-02: aplica solo el SQL autorizado y conserva el historial previo", asyn
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [cards.version, cards.sha256],
     );
-    assert.deepEqual(await migrateInTransaction(client, credit.sha256), [
-      credit.version,
-    ]);
+    await assert.rejects(migrateInTransaction(client, credit.sha256));
+    await assert.rejects(migrateInTransaction(client, installments.sha256));
+    await client.query(credit.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [credit.version, credit.sha256],
+    );
     await setOwnerContext(client, "legacy-fixture");
+    assert.equal(await installmentsReady(client), false);
+    const cardId = randomUUID();
+    await client.query(
+      "INSERT INTO finance.cards (owner_id,id,kind,name) VALUES ('legacy-fixture',$1,'credit','Prueba')",
+      [cardId],
+    );
+    await client.query(
+      "INSERT INTO finance.card_currencies (owner_id,card_id,kind,currency) VALUES ('legacy-fixture',$1,'credit','UYU')",
+      [cardId],
+    );
+    const purchase = await saveCreditOperation(client, "legacy-fixture", {
+      action: "purchase",
+      cardId,
+      currency: "UYU",
+      amount: "17.0001",
+      concept: "Compra previa",
+      note: null,
+      categoryId: null,
+      covered: false,
+      effectiveOn: "2026-01-15",
+      idempotencyKey: randomUUID(),
+    });
+    assert.equal(purchase.status, "created");
+    await client.query("RESET ROLE");
+    assert.deepEqual(await migrateInTransaction(client, installments.sha256), [
+      installments.version,
+    ]);
+    assert.deepEqual(
+      await migrateInTransaction(client, installments.sha256),
+      [],
+    );
+    await setOwnerContext(client, "legacy-fixture");
+    assert.equal(await installmentsReady(client), true);
+    assert.deepEqual(
+      (
+        await client.query(
+          "SELECT id, amount::text, installment_ordinal FROM finance.credit_expenses",
+        )
+      ).rows,
+      [{ id: purchase.id, amount: "17.0001", installment_ordinal: null }],
+    );
     assert.equal(
-      (await client.query("SELECT id FROM finance.financial_events")).rows[0]
-        .id,
+      (
+        await client.query(
+          "SELECT id FROM finance.financial_events WHERE kind = 'expense'",
+        )
+      ).rows[0].id,
       id,
     );
     assert.equal(

@@ -7,10 +7,18 @@ import type {
   CreditPurchaseOption,
   CreditVoid,
   DebtAmount,
+  InstallmentRevision,
   OpeningDebt,
 } from "../domain/credit-operations.ts";
+import { bankReferenceToday } from "../domain/bank-balances.ts";
+import {
+  installmentPeriodAt,
+  installmentTotal,
+  type InstallmentVersion,
+} from "../domain/installments.ts";
 import { Money, type Currency } from "../domain/money.ts";
 import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
+import { insertInstallmentVersion } from "./installments.ts";
 import {
   commandHash,
   findReplay,
@@ -518,6 +526,7 @@ export async function saveCreditOperation(
     );
   if (
     !command.covered &&
+    amount !== zero &&
     position.reference &&
     effectiveOn < position.reference
   )
@@ -559,5 +568,94 @@ export async function saveCreditOperation(
     },
     hash,
   );
+  if (command.plan) {
+    await insertInstallmentVersion(client, ownerId, id, currency, {
+      ...command.plan,
+      version: 1,
+      activeCount: command.plan.count,
+      change: "created",
+    });
+  }
   return { status: "created", id } as const;
+}
+
+export async function reviseInstallments(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: InstallmentRevision,
+  today = bankReferenceToday(),
+) {
+  const { eventId, idempotencyKey, expectedVersion } = command;
+  const hash = commandHash(["credit-installments-v1", JSON.stringify(command)]);
+  // Share the event/void idempotency namespace and lock order with credit writes.
+  await lockBankWrites(client, ownerId);
+  await lockCardWrites(client, ownerId);
+  const replay = await findReplay(client, ownerId, idempotencyKey, hash);
+  if (replay)
+    return replay.status === "replayed"
+      ? replay
+      : conflict("Este envío ya se usó con otros datos.");
+
+  const {
+    rows: [current],
+  } = await client.query<
+    InstallmentVersion & { currency: Currency; status: string }
+  >(
+    `SELECT p.version, p.currency, f.status, p.installment_amount::text AS "installmentAmount",
+            p.installment_count AS count, p.active_count AS "activeCount", to_char(p.first_period, 'YYYY-MM') AS "firstPeriod"
+       FROM finance.current_installment_plans p
+       JOIN finance.financial_events f ON (f.owner_id, f.id) = (p.owner_id, p.event_id)
+      WHERE p.owner_id = $1 AND p.event_id = $2 AND f.kind = 'card_purchase'`,
+    [ownerId, eventId],
+  );
+  if (!current) return { status: "not-found" } as const;
+  if (current.status !== "confirmed")
+    return conflict("La compra ya fue anulada.");
+  if (current.version !== expectedVersion)
+    return conflict("El plan cambió. Actualizá la página antes de corregirlo.");
+
+  const editing = command.action === "edit-installments";
+  const terms = editing ? command.plan : current;
+  const hasCancellations = current.activeCount !== current.count;
+  let activeCount = current.activeCount;
+  if (editing) {
+    if (hasCancellations && terms.count !== current.count)
+      return conflict(
+        "La cantidad original queda fija después de confirmar una cancelación.",
+      );
+    try {
+      installmentTotal(terms, current.currency);
+    } catch {
+      return conflict("El total financiado está fuera de rango.");
+    }
+    if (!hasCancellations) activeCount = terms.count;
+  } else {
+    activeCount = Array.from({ length: current.activeCount }, (_, offset) =>
+      installmentPeriodAt(current.firstPeriod, offset),
+    ).indexOf(command.fromPeriod);
+    if (activeCount === -1 || command.fromPeriod <= today.slice(0, 7))
+      return conflict(
+        "Elegí el primer mes futuro de las cuotas que canceló el emisor.",
+      );
+  }
+
+  await insertInstallmentVersion(client, ownerId, eventId, current.currency, {
+    ...terms,
+    version: current.version + 1,
+    activeCount,
+    change: editing ? "edited" : "cancelled",
+  });
+  await client.query(
+    `INSERT INTO finance.audit_changes (owner_id, id, event_id, change_type, idempotency_key, command_hash)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      ownerId,
+      randomUUID(),
+      eventId,
+      editing ? "installment_edited" : "installment_cancelled",
+      idempotencyKey,
+      hash,
+    ],
+  );
+  return { status: "created", id: eventId } as const;
 }

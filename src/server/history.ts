@@ -2,6 +2,7 @@ import "server-only";
 import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
 import { creditOperationsReady } from "./movements.ts";
+import { installmentsReady } from "./installments.ts";
 import type { Currency } from "../domain/money.ts";
 import {
   type HistoryEntry,
@@ -39,14 +40,23 @@ const cardFields = `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
   o.category_id AS "categoryId", c.name AS category,
   CASE WHEN f.kind IN ('card_purchase', 'card_payment') THEN 'credit' END AS method,
   amounts.data AS "cardAmounts"`;
-const cardSource = `FROM finance.financial_events f
+function cardSource(withPlans: boolean) {
+  return `FROM finance.financial_events f
   JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)
   JOIN finance.cards card ON (card.owner_id, card.id) = (o.owner_id, o.card_id)
   LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (o.owner_id, o.category_id)
+  ${withPlans ? "LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (f.owner_id, f.id)" : ""}
   CROSS JOIN LATERAL (
-    SELECT jsonb_agg(jsonb_build_object('currency', l.currency, 'amount', l.amount::text) ORDER BY l.currency) AS data
+    SELECT jsonb_agg(jsonb_build_object('currency', l.currency, 'amount', (${cardPurchaseAmount(withPlans)})::text) ORDER BY l.currency) AS data
       FROM finance.credit_lines l WHERE (l.owner_id, l.event_id) = (o.owner_id, o.event_id)
   ) amounts`;
+}
+
+function cardPurchaseAmount(withPlans: boolean) {
+  return withPlans
+    ? "coalesce(p.installment_amount * p.installment_count, l.amount)"
+    : "l.amount";
+}
 
 export async function listHistory(
   client: pg.PoolClient,
@@ -55,6 +65,7 @@ export async function listHistory(
 ) {
   const { filters, minimum, maximum, cursor } = query;
   const credit = await creditOperationsReady(client);
+  const withPlans = credit && (await installmentsReady(client));
   const { rows } = await client.query<HistoryEntry>(
     `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn"
        FROM (
@@ -87,7 +98,7 @@ export async function listHistory(
        ${
          credit
            ? `UNION ALL
-       (SELECT ${cardFields} ${cardSource}
+       (SELECT ${cardFields} ${cardSource(withPlans)}
          WHERE f.owner_id = $1
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
@@ -98,7 +109,7 @@ export async function listHistory(
            AND ($8 IS NULL OR ($8 = 'credit' AND f.kind IN ('card_purchase', 'card_payment')))
            AND EXISTS (
              SELECT 1 FROM finance.credit_lines l
-             CROSS JOIN LATERAL (VALUES (l.currency, l.amount), (l.bank_currency, l.bank_amount + l.fee)) v(currency, amount)
+             CROSS JOIN LATERAL (VALUES (l.currency, ${cardPurchaseAmount(withPlans)}), (l.bank_currency, l.bank_amount + l.fee)) v(currency, amount)
              WHERE (l.owner_id, l.event_id) = (f.owner_id, f.id) AND v.currency IS NOT NULL
                AND ($9 IS NULL OR v.currency = $9) AND ($10 IS NULL OR v.amount >= $10)
                AND ($11 IS NULL OR v.amount <= $11))
@@ -153,7 +164,7 @@ export async function findHistoryEntry(
     return entry;
   const result = await client.query<HistoryEntry>(
     `SELECT ${cardFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
-      ${cardSource} WHERE f.owner_id = $1 AND f.id = $2`,
+      ${cardSource(await installmentsReady(client))} WHERE f.owner_id = $1 AND f.id = $2`,
     [ownerId, id],
   );
   return result.rows[0];

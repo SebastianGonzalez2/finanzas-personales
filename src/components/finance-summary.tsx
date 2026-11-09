@@ -13,12 +13,17 @@ import {
   type RecentMovement,
 } from "@/domain/movements";
 import type { CatalogCard } from "@/domain/cards";
+import {
+  formatInstallmentPeriod,
+  type MonthlyInstallment,
+} from "@/domain/installments";
 import { BankBalanceRow } from "./bank-balance-row";
 import { BankCheckpointHistory } from "./bank-checkpoint-history";
 import { BalanceAdjustmentForm } from "./balance-adjustment-form";
 import { FinanceIcon } from "./finance-icon";
 import { MovementForm } from "./movement-form";
 import { RecentAmountCorrection } from "./recent-amount-correction";
+import { HistoryField, historyButton, historyControl } from "./history-fields";
 import { Card } from "./ui/card";
 
 const indicators = [
@@ -48,8 +53,11 @@ export function FinanceSummary({
   checkpoints,
   reconciliationReady,
   today,
+  period,
   categories,
   creditCards,
+  installmentsReady,
+  monthlyInstallments,
   totals,
   expenses,
   incomes,
@@ -61,8 +69,11 @@ export function FinanceSummary({
   checkpoints: BankCheckpoint[];
   reconciliationReady: boolean;
   today: string;
+  period: string;
   categories: MovementCategory[];
   creditCards: CatalogCard[];
+  installmentsReady: boolean;
+  monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
   expenses: RecentMovement[];
   incomes: RecentMovement[];
@@ -70,11 +81,6 @@ export function FinanceSummary({
   bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
 }) {
-  const period = new Intl.DateTimeFormat("es-UY", {
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Montevideo",
-  }).format(new Date(`${today}T12:00:00Z`));
   const recent = { expenses, incomes };
 
   return (
@@ -87,7 +93,7 @@ export function FinanceSummary({
         Resumen financiero
       </h1>
       <p className="mt-1 text-muted-foreground first-letter:uppercase">
-        {period}
+        {formatInstallmentPeriod(period)}
       </p>
       {movementRegistrationReady ? (
         <MovementForm
@@ -96,6 +102,7 @@ export function FinanceSummary({
           balances={balances}
           categories={categories}
           creditCards={creditCards}
+          installmentsReady={installmentsReady}
         />
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -104,6 +111,30 @@ export function FinanceSummary({
       )}
 
       <section aria-label="Indicadores financieros" className="mt-6">
+        {installmentsReady && (
+          <form
+            action="/resumen"
+            method="get"
+            className="mb-4 flex flex-wrap items-end gap-2"
+          >
+            <HistoryField label="Mes del reporte">
+              <input
+                type="month"
+                placeholder="AAAA-MM"
+                pattern="[0-9]{4}-(0[1-9]|1[0-2])"
+                name="month"
+                required
+                min="0001-01"
+                max="9999-12"
+                defaultValue={period}
+                className={historyControl}
+              />
+            </HistoryField>
+            <button type="submit" className={historyButton}>
+              Ver mes
+            </button>
+          </form>
+        )}
         <div className="finance-indicators">
           <Card className="min-w-0 gap-3 rounded-[1.125rem] p-6 shadow-none">
             <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
@@ -180,6 +211,41 @@ export function FinanceSummary({
             );
           })}
         </div>
+        {monthlyInstallments.length > 0 && (
+          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+            <h3 className="font-semibold">
+              Cuotas incluidas en los gastos del mes
+            </h3>
+            <p className="text-muted-foreground">
+              {period > today.slice(0, 7)
+                ? "Proyección según el calendario vigente."
+                : "Importes imputados al mes según el calendario vigente."}{" "}
+              La facturación y los pagos se registran aparte.
+            </p>
+            <ul aria-label="Cuotas del mes" className="divide-y">
+              {monthlyInstallments.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap justify-between gap-x-3 py-2 wrap-anywhere"
+                >
+                  <span>
+                    <a
+                      href={`/historial/movimientos/${item.id}`}
+                      className="underline"
+                    >
+                      {item.concept}
+                    </a>{" "}
+                    · Cuota {item.ordinal} ·{" "}
+                    {item.category ?? "Sin categorizar"}
+                  </span>
+                  <span className="font-semibold">
+                    {formatBankAmount(item)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         {bankTransfersReady && (
           <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
             <h3 className="font-semibold">Cambios de moneda recientes</h3>

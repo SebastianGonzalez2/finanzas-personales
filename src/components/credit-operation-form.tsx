@@ -8,6 +8,7 @@ import type {
   CreditPurchaseOption,
 } from "@/domain/credit-operations";
 import type { Currency } from "@/domain/money";
+import { InstallmentFields } from "./installment-fields";
 import {
   conceptLimit,
   noteLimit,
@@ -40,6 +41,7 @@ type Props = {
   banks: Currency[];
   categories: MovementCategory[];
   purchases?: CreditPurchaseOption[];
+  installmentsReady: boolean;
   close: (message?: string) => void;
 };
 
@@ -50,9 +52,12 @@ export function CreditOperationForm({
   banks,
   categories,
   purchases = [],
+  installmentsReady,
   close,
 }: Props) {
   const [cardId, setCardId] = useState(cards[0]?.id);
+  const [currency, setCurrency] = useState<Currency>();
+  const [financed, setFinanced] = useState(false);
   const card = cards.find(({ id }) => id === cardId) ?? cards[0];
   const { send, pending, uncertain, error } = useFinancialCommand(
     "/api/cards/operations",
@@ -63,6 +68,9 @@ export function CreditOperationForm({
   useEffect(() => heading.current?.focus(), []);
 
   if (!card) return null;
+  const selectedCurrency =
+    card.currencies.find((row) => row.currency === currency)?.currency ??
+    card.currencies[0].currency;
   const payable = card.currencies.filter(({ debt }) =>
     /[1-9]/.test(debt ?? ""),
   );
@@ -122,6 +130,14 @@ export function CreditOperationForm({
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
+              ...(financed && {
+                amount: form.get("issuerCharge") || "0",
+                plan: {
+                  installmentAmount: form.get("installmentAmount"),
+                  count: Number(form.get("count")),
+                  firstPeriod: form.get("firstPeriod"),
+                },
+              }),
             }
           : { ...entry, expectedDebt: position?.debt };
     }
@@ -142,7 +158,9 @@ export function CreditOperationForm({
       </h3>
       <p className="text-sm text-muted-foreground">
         {action === "purchase"
-          ? "La compra se registra como gasto. Bancos se debita cuando pagás la tarjeta."
+          ? financed
+            ? "Cada cuota se registra como gasto en su mes. La deuda refleja el cargo confirmado y Bancos se debita al pagar la tarjeta."
+            : "La compra se registra como gasto. Bancos se debita cuando pagás la tarjeta."
           : action === "payment"
             ? "Ingresá los importes efectivamente pagados desde Bancos. Podés pagar una parte o toda la deuda."
             : "Ingresá el total de deuda confirmado por el emisor. El ajuste conserva la diferencia en el historial."}
@@ -206,7 +224,14 @@ export function CreditOperationForm({
         ) : (
           <>
             <HistoryField label="Moneda">
-              <select key={card.id} name="currency" className={historyControl}>
+              <select
+                name="currency"
+                className={historyControl}
+                value={selectedCurrency}
+                onChange={(event) =>
+                  setCurrency(event.target.value as Currency)
+                }
+              >
                 {card.currencies.map(({ currency, debt }) => (
                   <option key={currency} value={currency}>
                     {action === "adjustment"
@@ -216,15 +241,43 @@ export function CreditOperationForm({
                 ))}
               </select>
             </HistoryField>
-            <HistoryField
-              label={action === "adjustment" ? "Total confirmado" : "Importe"}
-            >
-              <AmountInput name="amount" required />
-            </HistoryField>
+            {!financed && (
+              <HistoryField
+                label={action === "adjustment" ? "Total confirmado" : "Importe"}
+              >
+                <AmountInput name="amount" required />
+              </HistoryField>
+            )}
           </>
         )}
         {action === "purchase" && (
           <>
+            {installmentsReady && (
+              <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={financed}
+                  onChange={(event) => setFinanced(event.target.checked)}
+                  className="size-5 shrink-0"
+                />
+                Compra en cuotas iguales
+              </label>
+            )}
+            {financed && (
+              <>
+                <InstallmentFields
+                  currency={selectedCurrency}
+                  firstPeriod={today.slice(0, 7)}
+                />
+                <HistoryField label="Cargo confirmado por el emisor (opcional)">
+                  <AmountInput name="issuerCharge" />
+                </HistoryField>
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Ingresá solo el importe reflejado por el emisor. Dejalo vacío
+                  si aún no figura un cargo.
+                </p>
+              </>
+            )}
             <HistoryField label="Concepto">
               <input
                 className={historyControl}
@@ -258,7 +311,9 @@ export function CreditOperationForm({
                 name="covered"
                 className="size-5 shrink-0"
               />
-              La compra ya está incluida en la deuda confirmada de la tarjeta
+              {financed
+                ? "El cargo ya está incluido en la deuda confirmada de la tarjeta"
+                : "La compra ya está incluida en la deuda confirmada de la tarjeta"}
             </label>
           </>
         )}

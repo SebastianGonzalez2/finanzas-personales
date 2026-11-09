@@ -64,6 +64,10 @@ export class Money {
     return new Money(-this.#units, this.#currency);
   }
 
+  multiply(count: bigint): Money {
+    return new Money(this.#units * count, this.#currency);
+  }
+
   /** Equal installments only when exact; caller must resolve any remainder explicitly. */
   divideEqually(count: bigint): Money {
     if (

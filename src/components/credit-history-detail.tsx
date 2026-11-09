@@ -4,9 +4,11 @@ import type { CreditHistoryLine } from "@/domain/credit-operations";
 export function CreditHistoryDetail({
   lines,
   payment,
+  installmentPurchase,
 }: {
   lines: (CreditHistoryLine & { card: string; effectiveRate: string | null })[];
   payment: boolean;
+  installmentPurchase: boolean;
 }) {
   return (
     <section className="grid gap-3 border-t pt-4">
@@ -66,13 +68,22 @@ export function CreditHistoryDetail({
                 </p>
               </>
             ) : (
-              <p>
-                Variación de deuda ·{" "}
-                {formatBankAmount({
-                  currency: line.currency,
-                  amount: line.debtDelta,
-                })}
-              </p>
+              <>
+                {installmentPurchase && (
+                  <p>
+                    {/[1-9]/.test(line.amount)
+                      ? `Cargo confirmado por el emisor · ${formatBankAmount(line)}`
+                      : "Sin cargo del emisor informado al registrar la compra."}
+                  </p>
+                )}
+                <p>
+                  Variación de deuda ·{" "}
+                  {formatBankAmount({
+                    currency: line.currency,
+                    amount: line.debtDelta,
+                  })}
+                </p>
+              </>
             )}
             <p>
               Deuda registrada después de guardar ·{" "}

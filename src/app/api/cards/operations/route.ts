@@ -1,8 +1,10 @@
 import { parseCreditCommand } from "@/domain/credit-operations";
 import {
+  reviseInstallments,
   saveCreditOperation,
   voidCreditOperation,
 } from "@/server/credit-operations";
+import { installmentsReady } from "@/server/installments";
 import { creditOperationsReady } from "@/server/movements";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
@@ -41,8 +43,23 @@ export async function POST(request: Request) {
           },
           409,
         );
-      const result =
-        command.action === "void"
+      const revision =
+        command.action === "edit-installments" ||
+        command.action === "cancel-installments";
+      if (
+        (revision || (command.action === "purchase" && command.plan)) &&
+        !(await installmentsReady(client))
+      )
+        return reply(
+          {
+            error:
+              "Actualizá la base de datos para registrar compras en cuotas.",
+          },
+          409,
+        );
+      const result = revision
+        ? await reviseInstallments(client, ownerId, command)
+        : command.action === "void"
           ? await voidCreditOperation(client, ownerId, command)
           : await saveCreditOperation(client, ownerId, command);
       if (result.status === "not-found")
