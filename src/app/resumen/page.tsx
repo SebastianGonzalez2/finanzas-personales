@@ -12,6 +12,7 @@ import { withGoogleOwner } from "@/server/google-auth";
 import {
   listMovementCategories,
   listMovementTotals,
+  listRecentBankTransfers,
   listRecentMovements,
   movementAvailability,
 } from "@/server/movements";
@@ -37,11 +38,14 @@ export default async function SummaryPage() {
           : [],
         reconciliationReady,
       };
-      const { readable, writable } = await movementAvailability(client);
+      const { readable, writable, transfers } =
+        await movementAvailability(client);
       if (!readable)
         return {
           ...bankData,
           movementRegistrationReady: false,
+          bankTransfersReady: false,
+          bankTransfers: [],
           categories: [],
           totals: [],
           expenses: [],
@@ -50,6 +54,10 @@ export default async function SummaryPage() {
       return {
         ...bankData,
         movementRegistrationReady: writable,
+        bankTransfersReady: transfers,
+        bankTransfers: transfers
+          ? await listRecentBankTransfers(client, ownerId)
+          : [],
         categories: writable
           ? await listMovementCategories(client, ownerId)
           : [],

@@ -145,3 +145,31 @@ test("F1-05: confirmar saldo requiere sesión, mismo origen y datos sin titular 
     expect(await response.json()).toHaveProperty("error");
   }
 });
+
+test("F1-06: el cambio requiere sesión, mismo origen y dos monedas distintas", async ({
+  request,
+}) => {
+  const data = {
+    kind: "bank_transfer",
+    sourceCurrency: "UYU",
+    sourceAmount: "4000",
+    destinationCurrency: "USD",
+    destinationAmount: "100",
+    effectiveOn: "2024-02-29",
+    idempotencyKey: "8c9c069f-679a-4d1e-b7f4-7e0408b0fadd",
+  };
+  for (const [origin, payload, status] of [
+    ["https://other.example", data, 403],
+    ["http://localhost:3106", data, 401],
+    ["http://localhost:3106", { ...data, ownerId: "B" }, 400],
+    ["http://localhost:3106", { ...data, destinationCurrency: "UYU" }, 400],
+  ] as const) {
+    const response = await request.post("/api/movements", {
+      data: payload,
+      headers: { origin },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+    expect(await response.json()).toHaveProperty("error");
+  }
+});
