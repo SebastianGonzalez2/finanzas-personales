@@ -4,6 +4,10 @@ import {
   parseCreditCommand,
   parseOpeningDebt,
 } from "../../src/domain/credit-operations.ts";
+import {
+  installmentPeriodAt,
+  installmentTotal,
+} from "../../src/domain/installments.ts";
 
 const cardId = "12345678-0000-0000-0000-000000000000";
 const idempotencyKey = "87654321-0000-0000-0000-000000000000";
@@ -83,5 +87,59 @@ test("F2-02: deuda inicial fechada y ajuste exacto sin parámetros de titular", 
   });
   assert.ok(
     "error" in parseCreditCommand({ ...adjustment, ownerId: "foreign" }, today),
+  );
+});
+
+test("F2-03: cuotas iguales exactas, meses válidos y cargo explícito", () => {
+  const input = {
+    ...base,
+    action: "purchase",
+    currency: "UYU",
+    amount: "0",
+    concept: "Prueba",
+    covered: false,
+    plan: { installmentAmount: "2000,0001", count: 3, firstPeriod: "2026-12" },
+  };
+  const parse = (fields) => parseCreditCommand({ ...input, ...fields }, today);
+  const command = parse({});
+  assert.equal(command.amount, "0.0000");
+  assert.equal(installmentTotal(command.plan, "UYU"), "6000.0003");
+  assert.equal(installmentPeriodAt(command.plan.firstPeriod, 2), "2027-02");
+  assert.equal(parse({ amount: "6000.0003" }).amount, "6000.0003");
+  for (const fields of [
+    { amount: "6000.0004" },
+    { amount: "-1" },
+    { covered: true },
+    { amount: 0 },
+    ...[
+      { count: 1 },
+      { count: 2.5 },
+      { count: 121 },
+      { count: "3" },
+      { firstPeriod: "2026-13" },
+      { firstPeriod: "9999-11" },
+      { firstPeriod: "0000-01" },
+      { installmentAmount: "0" },
+      { installmentAmount: "9999999999999999" },
+      { installmentAmount: "0.00001" },
+      { amounts: [1, 2, 3] },
+    ].map((fields) => ({ plan: { ...input.plan, ...fields } })),
+  ])
+    assert.ok("error" in parse(fields), JSON.stringify(fields));
+
+  const edit = {
+    action: "edit-installments",
+    eventId: cardId,
+    idempotencyKey,
+    expectedVersion: 1,
+    plan: input.plan,
+  };
+  assert.equal(
+    parseCreditCommand(edit, today).plan.installmentAmount,
+    "2000.0001",
+  );
+  assert.ok("error" in parseCreditCommand({ ...edit, amount: "10" }, today));
+  assert.ok(
+    "error" in parseCreditCommand({ ...edit, expectedVersion: 0 }, today),
   );
 });

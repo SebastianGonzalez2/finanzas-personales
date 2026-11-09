@@ -822,6 +822,7 @@ export async function listRecentMovements(
   client: pg.PoolClient,
   ownerId: string,
   kind: MovementKind,
+  installmentsReady = false,
 ) {
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const { rows } = await client.query<RecentMovement>(
@@ -844,7 +845,7 @@ export async function listRecentMovements(
           FROM finance.credit_expenses x
           JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.id)
           LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
-         WHERE x.owner_id = $1`
+         WHERE x.owner_id = $1 ${installmentsReady ? "AND x.installment_ordinal IS NULL" : ""}`
           : ""
       }
       ) recent ORDER BY effective_on DESC, created_at DESC, id DESC, currency LIMIT 5`,

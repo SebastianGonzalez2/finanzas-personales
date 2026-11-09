@@ -4,6 +4,8 @@ import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { HistoryEditor } from "@/components/history-editor";
+import { InstallmentEditor } from "@/components/installment-editor";
+import { InstallmentHistory } from "@/components/installment-history";
 import { HistoryAmount } from "@/components/history-entry";
 import { historyButton } from "@/components/history-fields";
 import { Card } from "@/components/ui/card";
@@ -19,6 +21,10 @@ import {
 } from "@/domain/history";
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { withGoogleOwner } from "@/server/google-auth";
+import {
+  installmentsReady,
+  listInstallmentVersions,
+} from "@/server/installments";
 import {
   creditHistoryDetail,
   findHistoryEntry,
@@ -56,6 +62,10 @@ export default async function HistoryDetail({
       const cardLines = entry.cardAmounts
         ? await creditHistoryDetail(client, ownerId, id)
         : [];
+      const plans =
+        entry.kind === "card_purchase" && (await installmentsReady(client))
+          ? await listInstallmentVersions(client, ownerId, id)
+          : [];
       const editable =
         !checkpoint && !entry.cardAmounts && entry.status === "confirmed";
       const categories =
@@ -67,7 +77,15 @@ export default async function HistoryDetail({
       const currencies = editable
         ? await listHistoryCurrencies(client, ownerId)
         : [];
-      return { entry, revisions, editable, categories, currencies, cardLines };
+      return {
+        entry,
+        revisions,
+        editable,
+        categories,
+        currencies,
+        cardLines,
+        plans,
+      };
     },
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
@@ -91,8 +109,17 @@ export default async function HistoryDetail({
       </FinanceShell>
     );
 
-  const { entry, revisions, editable, categories, currencies, cardLines } =
-    data;
+  const {
+    entry,
+    revisions,
+    editable,
+    categories,
+    currencies,
+    cardLines,
+    plans,
+  } = data;
+  const today = bankReferenceToday();
+  const plan = plans[0];
   return (
     <FinanceShell current="historial">
       <div className="grid max-w-3xl gap-4">
@@ -119,7 +146,9 @@ export default async function HistoryDetail({
               <dt className="text-sm text-muted-foreground">
                 {entry.kind === "bank_transfer"
                   ? "Entregado → Recibido"
-                  : "Importe"}
+                  : plan
+                    ? "Total financiado"
+                    : "Importe"}
               </dt>
               <dd>
                 <HistoryAmount entry={entry} />
@@ -154,7 +183,26 @@ export default async function HistoryDetail({
             <CreditHistoryDetail
               lines={cardLines}
               payment={entry.kind === "card_payment"}
+              installmentPurchase={!!plan}
             />
+          )}
+          {plan && cardLines[0] && (
+            <>
+              <InstallmentHistory
+                versions={plans}
+                currency={cardLines[0].currency}
+                today={today}
+                voided={entry.status === "voided"}
+              />
+              {entry.status === "confirmed" && (
+                <InstallmentEditor
+                  eventId={entry.id}
+                  plan={plan}
+                  currency={cardLines[0].currency}
+                  today={today}
+                />
+              )}
+            </>
           )}
           {revisions.length > 0 && (
             <section
@@ -206,7 +254,7 @@ export default async function HistoryDetail({
               entry={entry}
               categories={categories}
               currencies={currencies}
-              today={bankReferenceToday()}
+              today={today}
             />
           )}
         </Card>

@@ -9,6 +9,13 @@ import type {
   CreditPurchaseOption,
 } from "@/domain/credit-operations";
 import type { Currency } from "@/domain/money";
+import {
+  formatInstallmentPeriod,
+  formatInstallmentTotal,
+  futureInstallmentPeriods,
+  installmentPeriodAt,
+  type InstallmentSummary,
+} from "@/domain/installments";
 import type { MovementCategory } from "@/domain/movements";
 import {
   CreditOperationForm,
@@ -33,6 +40,8 @@ export function CardCatalog({
   banks,
   categories,
   purchases,
+  installmentsReady,
+  plans,
 }: {
   cards: CatalogCard[];
   today: string;
@@ -40,6 +49,8 @@ export function CardCatalog({
   banks: Currency[];
   categories: MovementCategory[];
   purchases: CreditPurchaseOption[];
+  installmentsReady: boolean;
+  plans: InstallmentSummary[];
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<CatalogCard | Operation | "new" | null>(
@@ -96,6 +107,7 @@ export function CardCatalog({
               banks={banks}
               categories={categories}
               purchases={purchases}
+              installmentsReady={installmentsReady}
               close={close}
             />
           </Card>
@@ -121,6 +133,8 @@ export function CardCatalog({
               <CardEntry
                 key={card.id}
                 card={card}
+                plans={plans.filter(({ cardId }) => cardId === card.id)}
+                today={today}
                 editDisabled={editor !== null}
                 edit={(from) => open(card, from)}
                 operate={
@@ -146,6 +160,8 @@ export function CardCatalog({
               <CardEntry
                 key={card.id}
                 card={card}
+                plans={plans.filter(({ cardId }) => cardId === card.id)}
+                today={today}
                 editDisabled={editor !== null}
                 operate={
                   creditReady
@@ -163,11 +179,15 @@ export function CardCatalog({
 
 function CardEntry({
   card,
+  plans,
+  today,
   edit,
   editDisabled,
   operate,
 }: {
   card: CatalogCard;
+  plans: InstallmentSummary[];
+  today: string;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   operate?: (action: CreditAction, from: HTMLButtonElement) => void;
@@ -231,6 +251,52 @@ function CardEntry({
             </li>
           ))}
         </ul>
+        {plans.length > 0 && (
+          <details className="rounded-lg border p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">
+              Compras en cuotas ({plans.length})
+            </summary>
+            <ul className="mt-2 divide-y">
+              {plans.map((plan) => {
+                const future = futureInstallmentPeriods(plan, today).length;
+                return (
+                  <li key={plan.id} className="py-2 wrap-anywhere">
+                    <a
+                      href={`/historial/movimientos/${plan.id}`}
+                      className="font-semibold underline"
+                    >
+                      {plan.concept}
+                    </a>
+                    <p>
+                      {plan.count} ×{" "}
+                      {formatBankAmount({
+                        currency: plan.currency,
+                        amount: plan.installmentAmount,
+                      })}{" "}
+                      · Total financiado{" "}
+                      {formatInstallmentTotal(plan, plan.currency)}
+                    </p>
+                    <p>
+                      De {formatInstallmentPeriod(plan.firstPeriod)} a{" "}
+                      {formatInstallmentPeriod(
+                        installmentPeriodAt(plan.firstPeriod, plan.count - 1),
+                      )}
+                    </p>
+                    <p>
+                      {future} futuras · Compromiso futuro{" "}
+                      {formatInstallmentTotal(plan, plan.currency, future)}
+                    </p>
+                    {plan.count > plan.activeCount && (
+                      <p>
+                        {plan.count - plan.activeCount} canceladas por el emisor
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
         {card.kind === "credit" && operate && (
           <div className="flex flex-wrap gap-2">
             {creditActions

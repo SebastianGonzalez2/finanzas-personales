@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
 import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
+import { isInstallmentPeriod } from "@/domain/installments";
 import {
   bankReconciliationReady,
   listBankBalances,
@@ -10,6 +11,10 @@ import {
 } from "@/server/bank-balances";
 import { listCards } from "@/server/cards";
 import { withGoogleOwner } from "@/server/google-auth";
+import {
+  installmentsReady,
+  listMonthlyInstallments,
+} from "@/server/installments";
 import {
   creditOperationsReady,
   listMovementCategories,
@@ -22,8 +27,13 @@ import {
 export const metadata = { title: "Resumen | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
-export default async function SummaryPage() {
+export default async function SummaryPage({
+  searchParams,
+}: PageProps<"/resumen">) {
   const today = bankReferenceToday();
+  const { month } = await searchParams;
+  const period = isInstallmentPeriod(month) ? month : today.slice(0, 7);
+  const monthStart = `${period}-01`;
   const data = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
@@ -50,10 +60,13 @@ export default async function SummaryPage() {
           bankTransfers: [],
           categories: [],
           creditCards: [],
+          installmentsReady: false,
+          monthlyInstallments: [],
           totals: [],
           expenses: [],
           incomes: [],
         };
+      const plansReady = await installmentsReady(client);
       return {
         ...bankData,
         movementRegistrationReady: writable,
@@ -69,12 +82,17 @@ export default async function SummaryPage() {
               ({ kind, archived }) => kind === "credit" && !archived,
             )
           : [],
-        totals: await listMovementTotals(
+        installmentsReady: plansReady,
+        monthlyInstallments: plansReady
+          ? await listMonthlyInstallments(client, ownerId, monthStart)
+          : [],
+        totals: await listMovementTotals(client, ownerId, monthStart),
+        expenses: await listRecentMovements(
           client,
           ownerId,
-          `${today.slice(0, 7)}-01`,
+          "expense",
+          plansReady,
         ),
-        expenses: await listRecentMovements(client, ownerId, "expense"),
         incomes: await listRecentMovements(client, ownerId, "income"),
       };
     },
@@ -82,7 +100,7 @@ export default async function SummaryPage() {
 
   return (
     <FinanceShell current="resumen">
-      <FinanceSummary {...data} today={today} />
+      <FinanceSummary {...data} today={today} period={period} />
     </FinanceShell>
   );
 }

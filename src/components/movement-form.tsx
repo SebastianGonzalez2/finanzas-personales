@@ -30,12 +30,14 @@ export function MovementForm({
   categories,
   bankTransfersReady,
   creditCards,
+  installmentsReady,
 }: {
   today: string;
   balances: BankBalance[];
   categories: MovementCategory[];
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
+  installmentsReady: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -358,6 +360,7 @@ export function MovementForm({
                 banks={configured}
                 categories={categories}
                 today={today}
+                installmentsReady={installmentsReady}
                 close={(result) => {
                   setCreditOpen(false);
                   if (result) {

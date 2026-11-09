@@ -4,6 +4,13 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { conceptLimit, movementUuid, noteLimit } from "./movements.ts";
+import {
+  installmentCount,
+  installmentPeriodAt,
+  installmentTotal,
+  isInstallmentPeriod,
+  type InstallmentTerms,
+} from "./installments.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export type DebtAmount = { currency: Currency; amount: string };
@@ -27,6 +34,7 @@ export type CreditCommand = {
       note: string | null;
       categoryId: string | null;
       covered: boolean;
+      plan?: InstallmentTerms;
     } & DebtAmount)
   | ({ action: "adjustment"; expectedDebt: string } & DebtAmount)
   | { action: "payment"; lines: CreditPaymentLine[] }
@@ -37,6 +45,15 @@ export type CreditVoid = {
   eventId: string;
   idempotencyKey: string;
 };
+
+export type InstallmentRevision = {
+  eventId: string;
+  idempotencyKey: string;
+  expectedVersion: number;
+} & (
+  | { action: "edit-installments"; plan: InstallmentTerms }
+  | { action: "cancel-installments"; fromPeriod: string }
+);
 
 export type CreditPurchaseOption = DebtAmount & {
   id: string;
@@ -175,10 +192,26 @@ function paymentLine(input: unknown): CreditPaymentLine {
 
 const common = ["action", "cardId", "effectiveOn", "idempotencyKey"];
 
+function installmentTerms(input: unknown): InstallmentTerms {
+  const plan = record(input, ["installmentAmount", "count", "firstPeriod"]);
+  const { count, firstPeriod } = plan;
+  if (
+    !installmentCount(count) ||
+    !isInstallmentPeriod(firstPeriod) ||
+    !isInstallmentPeriod(installmentPeriodAt(firstPeriod, count - 1))
+  )
+    throw new Error();
+  return {
+    count,
+    firstPeriod,
+    installmentAmount: amount(plan.installmentAmount),
+  };
+}
+
 export function parseCreditCommand(
   input: unknown,
   today = bankReferenceToday(),
-): CreditCommand | CreditVoid | { error: string } {
+): CreditCommand | CreditVoid | InstallmentRevision | { error: string } {
   const error = {
     error:
       "Revisá la fecha, la tarjeta y los importes. Usá hasta cuatro decimales, sin separador de miles.",
@@ -193,9 +226,43 @@ export function parseCreditCommand(
         idempotencyKey: id(data.idempotencyKey),
       };
     }
+    if (action === "edit-installments" || action === "cancel-installments") {
+      const data = record(input, [
+        "action",
+        "eventId",
+        "idempotencyKey",
+        "expectedVersion",
+        action === "edit-installments" ? "plan" : "fromPeriod",
+      ]);
+      const expectedVersion = data.expectedVersion;
+      if (
+        typeof expectedVersion !== "number" ||
+        !Number.isSafeInteger(expectedVersion) ||
+        expectedVersion < 1
+      )
+        return error;
+      const target = {
+        eventId: id(data.eventId),
+        idempotencyKey: id(data.idempotencyKey),
+        expectedVersion,
+      };
+      if (action === "edit-installments") {
+        return { ...target, action, plan: installmentTerms(data.plan) };
+      }
+      if (!isInstallmentPeriod(data.fromPeriod)) return error;
+      return { ...target, action, fromPeriod: data.fromPeriod };
+    }
     const fields =
       action === "purchase"
-        ? ["currency", "amount", "concept", "note", "categoryId", "covered"]
+        ? [
+            "currency",
+            "amount",
+            "concept",
+            "note",
+            "categoryId",
+            "covered",
+            "plan",
+          ]
         : action === "payment"
           ? ["lines"]
           : ["currency", "amount", "expectedDebt"];
@@ -224,11 +291,25 @@ export function parseCreditCommand(
       return error;
     const concept = optionalText(data.concept, conceptLimit);
     if (!concept) return { error: "Ingresá un concepto para la compra." };
+    const plan =
+      data.plan === undefined ? undefined : installmentTerms(data.plan);
+    const charge = amount(data.amount, !!plan);
+    if (plan) {
+      const total = installmentTotal(plan, code);
+      if (
+        (charge === "0.0000" && data.covered) ||
+        charge.padStart(21, "0") > total.padStart(21, "0")
+      )
+        return {
+          error:
+            "Ingresá solo el cargo confirmado por el emisor, hasta el total financiado.",
+        };
+    }
     return {
       ...target,
       action,
       currency: code,
-      amount: amount(data.amount),
+      amount: charge,
       concept,
       note: optionalText(data.note, noteLimit),
       categoryId:
@@ -236,6 +317,7 @@ export function parseCreditCommand(
           ? null
           : id(data.categoryId),
       covered: data.covered,
+      ...(plan && { plan }),
     };
   } catch {
     return error;
