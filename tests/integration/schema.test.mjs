@@ -33,6 +33,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0004_F1-05_balance_reconciliation.sql",
       "0005_F1-06_bank_transfers.sql",
       "0006_F1-07_movement_history.sql",
+      "0007_F2-01_card_catalog.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -48,13 +49,20 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F1-07: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F2-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
     await client.query("BEGIN");
-    const [initial, movement, revisions, reconciliation, transfers, history] =
-      await readMigrations();
+    const [
+      initial,
+      movement,
+      revisions,
+      reconciliation,
+      transfers,
+      history,
+      cards,
+    ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
     });
@@ -98,8 +106,14 @@ test("F1-07: aplica solo el SQL autorizado y conserva el historial previo", asyn
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [transfers.version, transfers.sha256],
     );
-    assert.deepEqual(await migrateInTransaction(client, history.sha256), [
-      history.version,
+    await assert.rejects(migrateInTransaction(client, history.sha256));
+    await client.query(history.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [history.version, history.sha256],
+    );
+    assert.deepEqual(await migrateInTransaction(client, cards.sha256), [
+      cards.version,
     ]);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(
@@ -110,6 +124,68 @@ test("F1-07: aplica solo el SQL autorizado y conserva el historial previo", asyn
     assert.equal(
       (await client.query("SELECT 1 FROM finance.ordinary_movements")).rowCount,
       0,
+    );
+  } finally {
+    await client.query("ROLLBACK");
+    await client.end();
+  }
+});
+
+test("F2-01: RLS, FK por titular y permisos de catálogo independientes de los saldos", async () => {
+  const client = new pg.Client(testDatabaseConfig());
+  await client.connect();
+  const cardId = randomUUID();
+  const insertCurrency = `INSERT INTO finance.card_currencies (owner_id, card_id, kind, currency) VALUES ($1,$2,$3,'UYU')`;
+  try {
+    await client.query("BEGIN");
+    await migrateInTransaction(client);
+    await setOwnerContext(client, "cards-a");
+    await client.query(
+      `INSERT INTO finance.cards (owner_id, id, kind, name) VALUES ('cards-a',$1,'debit','Prueba')`,
+      [cardId],
+    );
+    await client.query(insertCurrency, ["cards-a", cardId, "debit"]);
+    await client.query(
+      `INSERT INTO finance.card_changes (owner_id,idempotency_key,command_hash,card_id,version,action,configuration)
+      VALUES ('cards-a',$1,repeat('a',64),$1,1,'create','{}')`,
+      [cardId],
+    );
+
+    await client.query("SAVEPOINT before_denial");
+    await assert.rejects(
+      client.query("UPDATE finance.card_currencies SET debt = 5"),
+      { code: "42501" },
+    );
+    await client.query("ROLLBACK TO before_denial");
+    await assert.rejects(
+      client.query("UPDATE finance.card_currencies SET credit_limit = 5"),
+      { code: "23514" },
+    );
+    await client.query("ROLLBACK TO before_denial");
+    await assert.rejects(client.query("DELETE FROM finance.card_changes"), {
+      code: "42501",
+    });
+    await client.query("ROLLBACK TO before_denial");
+
+    await setOwnerContext(client, "cards-b");
+    for (const relation of ["cards", "card_currencies", "card_changes"]) {
+      assert.equal(
+        (await client.query(`SELECT 1 FROM finance.${relation}`)).rowCount,
+        0,
+      );
+    }
+    assert.equal(
+      (
+        await client.query(
+          "UPDATE finance.cards SET name = 'Ajena' WHERE id = $1",
+          [cardId],
+        )
+      ).rowCount,
+      0,
+    );
+    await assert.rejects(
+      client.query(insertCurrency, ["cards-b", cardId, "debit"]),
+      { code: "23503" },
     );
   } finally {
     await client.query("ROLLBACK");
@@ -141,11 +217,11 @@ test(
         "dos migradores aplican una sola vez y conservan el ledger",
         async () => {
           const results = await Promise.all([migrate(), migrate()]);
-          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 6]);
+          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 7]);
           assert.equal(
             (await pool.query("SELECT * FROM finance_meta.schema_migrations"))
               .rowCount,
-            6,
+            7,
           );
         },
       );

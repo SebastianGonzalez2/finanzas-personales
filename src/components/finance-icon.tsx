@@ -7,6 +7,7 @@ const paths = {
   close: "m6 6 12 12M6 18 18 6",
   chevron: "m9 6 6 6-6 6",
   wallet: "M19 8V5H6a3 3 0 0 0 0 6h15v9H6a3 3 0 0 1-3-3V8m18 6h-5v3h5",
+  card: "M3 5h18v14H3V5Zm0 5h18M7 15h3",
   income: "M12 4v12m-4-4 4 4 4-4M4 17v3h16v-3",
   expense: "M12 16V4m-4 4 4-4 4 4M4 17v3h16v-3",
   calendar: "M4 7h16v13H4V7Zm0 4h16M8 4v5m8-5v5",

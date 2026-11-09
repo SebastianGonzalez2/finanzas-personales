@@ -6,6 +6,7 @@ import { FinanceIcon } from "./finance-icon";
 const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
   historial: { href: "/historial", label: "Historial", icon: "calendar" },
+  tarjetas: { href: "/tarjetas", label: "Tarjetas", icon: "card" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
 } as const;
 

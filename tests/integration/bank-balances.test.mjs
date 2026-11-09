@@ -36,6 +36,7 @@ test("F1-02: anclas exactas por titular y moneda con reintento, concurrencia y r
         "0004_F1-05_balance_reconciliation.sql",
         "0005_F1-06_bank_transfers.sql",
         "0006_F1-07_movement_history.sql",
+        "0007_F2-01_card_catalog.sql",
       ]);
       await admin.query("COMMIT");
       ownsSchema = true;
