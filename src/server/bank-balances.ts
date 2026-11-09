@@ -11,6 +11,14 @@ const openingIds = {
   EUR: "23fd4829-321d-4f84-8f5b-d290c9bd51d2",
 } as const;
 
+export async function lockBankWrites(client: pg.PoolClient, ownerId: string) {
+  // All bank mutations share the owner lock, including cross-currency retries.
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:bank:' || $1::text, 0))",
+    [ownerId],
+  );
+}
+
 export async function listBankBalances(
   client: pg.PoolClient,
   ownerId: string,
@@ -52,6 +60,7 @@ export async function saveOpeningBalance(
   ownerId: string,
   balance: BankBalance,
 ): Promise<"created" | "replayed" | "conflict"> {
+  await lockBankWrites(client, ownerId);
   const { currency, amount, asOfDate } = balance;
   const id = openingIds[currency];
   const inserted = await client.query(

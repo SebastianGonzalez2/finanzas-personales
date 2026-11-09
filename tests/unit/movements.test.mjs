@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { parseMovement } from "../../src/domain/movements.ts";
+import {
+  parseMovement,
+  parseMovementRevision,
+} from "../../src/domain/movements.ts";
 
 const today = "2026-11-08";
 const expense = {
@@ -40,6 +43,52 @@ test("F1-03: registra importes exactos y normaliza campos opcionales", () => {
   assert.equal(income.note, "Recibido");
   assert.equal(income.amount, "9999999999999999.9999");
   assert.equal(income.categoryId, categoryId);
+});
+
+test("F1-04: valida revisiones y conserva importes superiores a la precisión binaria", () => {
+  const idempotencyKey = randomUUID();
+  const eventId = randomUUID();
+  const payload = {
+    action: "correct",
+    eventId: eventId.toUpperCase(),
+    idempotencyKey,
+  };
+  assert.deepEqual(
+    parseMovementRevision({ ...payload, amount: "9007199254740993,0001" }),
+    {
+      ...payload,
+      eventId,
+      amount: "9007199254740993.0001",
+    },
+  );
+  assert.deepEqual(parseMovementRevision({ ...payload, action: "void" }), {
+    ...payload,
+    eventId,
+    action: "void",
+  });
+  for (const amount of [
+    undefined,
+    500,
+    "5e2",
+    "0",
+    "-1",
+    "1.00001",
+    "10000000000000000",
+    "1.500,00",
+  ]) {
+    assert.ok("error" in parseMovementRevision({ ...payload, amount }));
+  }
+  for (const fields of [
+    { ownerId: "otro" },
+    { currency: "USD" },
+    { eventId: "inválido" },
+    { idempotencyKey: null },
+    { action: "void", amount: "1" },
+  ]) {
+    assert.ok(
+      "error" in parseMovementRevision({ ...payload, amount: "1", ...fields }),
+    );
+  }
 });
 
 test("F1-03: rechaza datos no permitidos para un movimiento real", () => {

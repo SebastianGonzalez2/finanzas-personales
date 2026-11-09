@@ -6,10 +6,10 @@ import { bankReferenceToday } from "@/domain/bank-balances";
 import { listBankBalances } from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
-  isMovementRegistrationReady,
   listMovementCategories,
   listMovementTotals,
   listRecentMovements,
+  movementAvailability,
 } from "@/server/movements";
 
 export const metadata = { title: "Resumen | Finanzas personales" };
@@ -21,12 +21,11 @@ export default async function SummaryPage() {
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
       const balances = await listBankBalances(client, ownerId);
-      const movementRegistrationReady =
-        await isMovementRegistrationReady(client);
-      if (!movementRegistrationReady)
+      const { readable, writable } = await movementAvailability(client);
+      if (!readable)
         return {
           balances,
-          movementRegistrationReady,
+          movementRegistrationReady: false,
           categories: [],
           totals: [],
           expenses: [],
@@ -34,8 +33,10 @@ export default async function SummaryPage() {
         };
       return {
         balances,
-        movementRegistrationReady,
-        categories: await listMovementCategories(client, ownerId),
+        movementRegistrationReady: writable,
+        categories: writable
+          ? await listMovementCategories(client, ownerId)
+          : [],
         totals: await listMovementTotals(
           client,
           ownerId,

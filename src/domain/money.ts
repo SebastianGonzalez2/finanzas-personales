@@ -8,7 +8,31 @@ function currency(value: unknown): asserts value is Currency {
   }
 }
 
-/** Experimental exact transport contract. No implicit rounding or FX. */
+function parseUnits(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    value.trim() !== value ||
+    value.length > 22 ||
+    !/^-?(0|[1-9]\d{0,15})(\.\d{1,4})?$/.test(value)
+  ) {
+    throw new Error("Importe decimal inválido");
+  }
+  const negative = value.startsWith("-");
+  const [whole, fraction = ""] = (negative ? value.slice(1) : value).split(".");
+  const units = BigInt(whole) * scale + BigInt(fraction.padEnd(4, "0"));
+  return negative ? -units : units;
+}
+
+function decimal(units: bigint) {
+  const absolute = units < BigInt(0) ? -units : units;
+  return `${units < BigInt(0) ? "-" : ""}${absolute / scale}.${(absolute % scale).toString().padStart(4, "0")}`;
+}
+
+export function normalizeDecimalAmount(value: unknown) {
+  return decimal(parseUnits(value));
+}
+
+/** Exact transport contract for monetary values. */
 export class Money {
   readonly #units: bigint;
   readonly #currency: Currency;
@@ -23,20 +47,7 @@ export class Money {
 
   static parse(value: unknown, code: unknown): Money {
     currency(code);
-    if (
-      typeof value !== "string" ||
-      value.trim() !== value ||
-      value.length > 22 ||
-      !/^-?(0|[1-9]\d{0,15})(\.\d{1,4})?$/.test(value)
-    ) {
-      throw new Error("Importe decimal inválido");
-    }
-    const negative = value.startsWith("-");
-    const [whole, fraction = ""] = (negative ? value.slice(1) : value).split(
-      ".",
-    );
-    const units = BigInt(whole) * scale + BigInt(fraction.padEnd(4, "0"));
-    return new Money(negative ? -units : units, code);
+    return new Money(parseUnits(value), code);
   }
 
   get currency(): Currency {
@@ -66,8 +77,7 @@ export class Money {
   }
 
   toDecimal(): string {
-    const absolute = this.#units < BigInt(0) ? -this.#units : this.#units;
-    return `${this.#units < BigInt(0) ? "-" : ""}${absolute / scale}.${(absolute % scale).toString().padStart(4, "0")}`;
+    return decimal(this.#units);
   }
 
   toJSON(): { amount: string; currency: Currency } {
