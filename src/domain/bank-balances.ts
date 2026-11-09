@@ -6,6 +6,7 @@ export type BankBalance = {
   currency: Currency;
   amount: string;
   asOfDate: string;
+  calculatedAmount?: string;
 };
 
 const montevideoDate = new Intl.DateTimeFormat("en-CA", {
@@ -20,6 +21,24 @@ export function bankReferenceToday(now = new Date()): string {
   const part = (type: string) =>
     parts.find((item) => item.type === type)?.value;
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function isBankReferenceDate(
+  value: unknown,
+  today: string,
+): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length !== 10 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    value.startsWith("0000") ||
+    value > today
+  )
+    return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return (
+    Number.isFinite(parsed.getTime()) && parsed.toISOString().startsWith(value)
+  );
 }
 
 export function parseOpeningBalance(
@@ -51,19 +70,7 @@ export function parseOpeningBalance(
     };
   }
 
-  if (
-    typeof asOfDate !== "string" ||
-    asOfDate.length !== 10 ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ||
-    asOfDate.startsWith("0000") ||
-    asOfDate > today
-  )
-    return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
-  const parsed = new Date(`${asOfDate}T00:00:00.000Z`);
-  if (
-    !Number.isFinite(parsed.getTime()) ||
-    !parsed.toISOString().startsWith(asOfDate)
-  )
+  if (!isBankReferenceDate(asOfDate, today))
     return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
 
   return { currency, amount: money.toDecimal(), asOfDate };
@@ -71,7 +78,9 @@ export function parseOpeningBalance(
 
 const wholeAmount = new Intl.NumberFormat("es-UY", { useGrouping: "always" });
 
-export function formatBankAmount(balance: BankBalance): string {
+export function formatBankAmount(
+  balance: Pick<BankBalance, "amount" | "currency">,
+): string {
   const [whole, fraction] = balance.amount.split(".");
   const negative = whole.startsWith("-");
   const grouped = wholeAmount.format(BigInt(negative ? whole.slice(1) : whole));

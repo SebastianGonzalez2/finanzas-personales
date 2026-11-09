@@ -27,8 +27,7 @@ if (args.length === 0) {
 } else if (
   args.length !== 2 ||
   args[0] !== "--apply" ||
-  migrations.length !== 1 ||
-  args[1] !== migrations[0].sha256
+  !migrations.some(({ sha256 }) => sha256 === args[1])
 ) {
   console.error(
     "Uso: db:migrate -- --apply <sha256 del SQL expresamente autorizado>",
@@ -49,7 +48,7 @@ if (args.length === 0) {
     );
     if (target.rows[0]?.matches !== true)
       throw new Error("Destino no autorizado");
-    const applied = await migrateInTransaction(client);
+    const applied = await migrateInTransaction(client, args[1]);
     await client.query("COMMIT");
     console.log(JSON.stringify({ development: true, applied, pending: 0 }));
   } catch {
