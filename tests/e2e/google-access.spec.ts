@@ -71,3 +71,30 @@ test("F1-02: la ruta de saldos rechaza POST anónimo y de otro origen", async ({
     expect(await response.json()).toHaveProperty("error");
   }
 });
+
+test("F1-03: un movimiento requiere sesión, mismo origen y datos sin titular externo", async ({
+  request,
+}) => {
+  const data = {
+    kind: "expense",
+    currency: "UYU",
+    amount: "1500.0000",
+    effectiveOn: "2024-02-29",
+    concept: "Compra de prueba",
+    method: "debit",
+    idempotencyKey: "8c9c069f-679a-4d1e-b7f4-7e0408b0fadd",
+  };
+  for (const [origin, payload, status] of [
+    ["https://other.example", data, 403],
+    ["http://localhost:3106", data, 401],
+    ["http://localhost:3106", { ...data, ownerId: "B" }, 400],
+  ] as const) {
+    const response = await request.post("/api/movements", {
+      data: payload,
+      headers: { origin, cookie: "better-auth.session_token=invalid" },
+    });
+    expect(response.status()).toBe(status);
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+    expect(await response.json()).toHaveProperty("error");
+  }
+});

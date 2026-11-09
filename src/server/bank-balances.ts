@@ -1,6 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import { bankCurrencies, type BankBalance } from "../domain/bank-balances.ts";
+import type { Currency } from "../domain/money.ts";
 
 // Stable opening IDs scoped by the existing (owner_id, id) primary key.
 // Later manual checkpoints use their own IDs. No DDL or new grants required.
@@ -13,22 +14,35 @@ const openingIds = {
 export async function listBankBalances(
   client: pg.PoolClient,
   ownerId: string,
+  currencies: readonly Currency[] = bankCurrencies,
 ): Promise<BankBalance[]> {
   const { rows } = await client.query<BankBalance>(
     `SELECT b.currency, b.confirmed_amount::text AS amount,
-            to_char(b.as_of_date, 'YYYY-MM-DD') AS "asOfDate"
+            to_char(b.as_of_date, 'YYYY-MM-DD') AS "asOfDate",
+            (b.confirmed_amount + effects.delta)::text AS "calculatedAmount"
        FROM unnest($2::finance.currency[]) WITH ORDINALITY AS c(currency, position)
        CROSS JOIN LATERAL (
-         SELECT currency, confirmed_amount, as_of_date
+         SELECT currency, confirmed_amount, as_of_date, created_at
            FROM finance.balance_checkpoints
           WHERE owner_id = $1 AND currency = c.currency
           ORDER BY as_of_date DESC, created_at DESC, id DESC
           LIMIT 1
        ) b
+       CROSS JOIN LATERAL (
+         SELECT sum(e.amount_signed) AS delta
+           FROM finance.bank_effects e
+           JOIN finance.financial_events f
+             ON (f.owner_id, f.id) = (e.owner_id, e.event_id)
+          WHERE e.owner_id = $1 AND e.currency = b.currency
+            AND f.status = 'confirmed' AND e.effective_on >= b.as_of_date
+            AND (e.effective_on > b.as_of_date OR f.created_at > b.created_at)
+       ) effects
       ORDER BY c.position`,
-    [ownerId, bankCurrencies],
+    [ownerId, currencies],
   );
-  return rows;
+  return rows.map(({ calculatedAmount, ...balance }) =>
+    calculatedAmount == null ? balance : { ...balance, calculatedAmount },
+  );
 }
 
 // Call within the authorized owner's transaction. The checkpoint and audit

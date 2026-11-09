@@ -1,6 +1,18 @@
-import { bankCurrencies, type BankBalance } from "@/domain/bank-balances";
+import {
+  bankCurrencies,
+  formatBankAmount,
+  formatBankReference,
+  type BankBalance,
+} from "@/domain/bank-balances";
+import {
+  movementMethods,
+  type MovementCategory,
+  type MovementTotal,
+  type RecentMovement,
+} from "@/domain/movements";
 import { BankBalanceRow } from "./bank-balance-row";
 import { FinanceIcon } from "./finance-icon";
+import { MovementForm } from "./movement-form";
 import { Card } from "./ui/card";
 
 const indicators = [
@@ -8,37 +20,46 @@ const indicators = [
     title: "Ingresos del mes",
     icon: "income",
     accent: "text-[#8196ff]",
-    state: "Sin datos",
     description: "Los ingresos registrados aparecerán acá.",
   },
   {
     title: "Gastos del mes",
     icon: "expense",
     accent: "text-[#4ade80]",
-    state: "Sin datos",
     description: "Los gastos registrados aparecerán acá.",
   },
 ] as const;
 
 const sections = [
   { title: "Recurrentes", icon: "calendar" },
-  { title: "Gastos recientes", icon: "expense" },
+  { title: "Gastos recientes", icon: "expense", list: "expenses" },
   { title: "Fondos de ahorro", icon: "savings" },
-  { title: "Ingresos recientes", icon: "income" },
+  { title: "Ingresos recientes", icon: "income", list: "incomes" },
 ] as const;
 
 export function FinanceSummary({
   balances,
   today,
+  categories,
+  totals,
+  expenses,
+  incomes,
+  movementRegistrationReady,
 }: {
   balances: BankBalance[];
   today: string;
+  categories: MovementCategory[];
+  totals: MovementTotal[];
+  expenses: RecentMovement[];
+  incomes: RecentMovement[];
+  movementRegistrationReady: boolean;
 }) {
   const period = new Intl.DateTimeFormat("es-UY", {
     month: "long",
     year: "numeric",
     timeZone: "America/Montevideo",
-  }).format(new Date());
+  }).format(new Date(`${today}T12:00:00Z`));
+  const recent = { expenses, incomes };
 
   return (
     <>
@@ -52,6 +73,17 @@ export function FinanceSummary({
       <p className="mt-1 text-muted-foreground first-letter:uppercase">
         {period}
       </p>
+      {movementRegistrationReady ? (
+        <MovementForm
+          today={today}
+          balances={balances}
+          categories={categories}
+        />
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">
+          El registro de movimientos todavía no está disponible.
+        </p>
+      )}
 
       <section aria-label="Indicadores financieros" className="mt-6">
         <div className="finance-indicators">
@@ -73,25 +105,45 @@ export function FinanceSummary({
               ))}
             </ul>
           </Card>
-          {indicators.map(({ title, icon, accent, state, description }) => (
-            <Card
-              key={title}
-              className="min-h-[13.0625rem] min-w-0 gap-6 rounded-[1.125rem] p-6 shadow-none"
-            >
-              <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
-                <FinanceIcon name={icon} className={accent} />
-                {title}
-              </h2>
-              <div>
-                <p className="text-[1.625rem] leading-8 font-semibold">
-                  {state}
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {description}
-                </p>
-              </div>
-            </Card>
-          ))}
+          {indicators.map(({ title, icon, accent, description }) => {
+            const monthly = bankCurrencies.flatMap((currency) =>
+              totals.filter(
+                (total) => total.kind === icon && total.currency === currency,
+              ),
+            );
+            return (
+              <Card
+                key={title}
+                className="min-h-[13.0625rem] min-w-0 gap-6 rounded-[1.125rem] p-6 shadow-none"
+              >
+                <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <FinanceIcon name={icon} className={accent} />
+                  {title}
+                </h2>
+                {monthly.length ? (
+                  <ul
+                    aria-label={title}
+                    className="space-y-1 text-lg font-semibold tabular-nums"
+                  >
+                    {monthly.map((total) => (
+                      <li key={total.currency} className="wrap-anywhere">
+                        {formatBankAmount(total)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div>
+                    <p className="text-[1.625rem] leading-8 font-semibold">
+                      Sin datos
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {description}
+                    </p>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       </section>
 
@@ -112,22 +164,61 @@ export function FinanceSummary({
           </nav>
         </div>
         <div className="finance-board">
-          {sections.map(({ title, icon }) => (
+          {sections.map((section) => (
             <div
-              key={title}
+              key={section.title}
               className="min-w-0 rounded-2xl border bg-[var(--finance-well)] p-2"
             >
               <h3 className="flex items-center gap-2 px-2 py-2 text-sm font-semibold">
-                <FinanceIcon name={icon} className="text-muted-foreground" />
-                {title}
+                <FinanceIcon
+                  name={section.icon}
+                  className="text-muted-foreground"
+                />
+                {section.title}
               </h3>
               <Card className="min-h-24 justify-center p-4 text-sm text-muted-foreground shadow-none">
-                <p>Disponible en una próxima etapa.</p>
+                {"list" in section ? (
+                  <RecentMovements movements={recent[section.list]} />
+                ) : (
+                  <p>Disponible en una próxima etapa.</p>
+                )}
               </Card>
             </div>
           ))}
         </div>
       </section>
     </>
+  );
+}
+
+function RecentMovements({ movements }: { movements: RecentMovement[] }) {
+  if (!movements.length) return <p>Todavía no hay movimientos de este tipo.</p>;
+
+  return (
+    <ul className="divide-y">
+      {movements.map((movement) => (
+        <li
+          key={movement.id}
+          className="space-y-1 py-2 first:pt-0 last:pb-0 wrap-anywhere"
+        >
+          <div className="flex flex-wrap justify-between gap-x-3 font-medium text-foreground">
+            <p>{movement.concept}</p>
+            <p className="tabular-nums">{formatBankAmount(movement)}</p>
+          </div>
+          <p>
+            <time dateTime={movement.effectiveOn}>
+              {formatBankReference(movement.effectiveOn)}
+            </time>
+            {" · "}
+            {movement.category ?? "Sin categorizar"}
+            {" · "}
+            {movementMethods[movement.method]}
+          </p>
+          {movement.note && (
+            <p className="whitespace-pre-wrap">{movement.note}</p>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

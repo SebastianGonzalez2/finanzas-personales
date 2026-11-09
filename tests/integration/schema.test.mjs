@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import pg from "pg";
-import { migrateInTransaction } from "../../src/db/migrations.mts";
+import {
+  migrateInTransaction,
+  readMigrations,
+} from "../../src/db/migrations.mts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 import { schemaContract } from "../support/schema-contract.mjs";
 import {
@@ -25,6 +28,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
     );
     assert.deepEqual(await migrateInTransaction(client), [
       "0001_F0-05_initial.sql",
+      "0002_F1-03_ordinary_movements.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -36,6 +40,49 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
     );
   } finally {
     await client.query("ROLLBACK").catch(() => {});
+    await client.end();
+  }
+});
+
+test("F1-03: aplica solo el SQL autorizado y conserva los eventos existentes", async () => {
+  const client = new pg.Client(testDatabaseConfig());
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    const [initial, movement] = await readMigrations();
+    await assert.rejects(migrateInTransaction(client, movement.sha256), {
+      message: "La migración pendiente no coincide con el SQL autorizado",
+    });
+    await client.query(initial.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [initial.version, initial.sha256],
+    );
+    await setOwnerContext(client, "legacy-fixture");
+    const id = randomUUID();
+    await client.query(
+      `INSERT INTO finance.financial_events
+        (owner_id,id,kind,concept,effective_on,idempotency_key,command_hash)
+        VALUES ('legacy-fixture',$1,'expense','Registro anterior','2026-01-01',$1,repeat('a',64))`,
+      [id],
+    );
+    await client.query("RESET ROLE");
+    await assert.rejects(migrateInTransaction(client, initial.sha256));
+    assert.deepEqual(await migrateInTransaction(client, movement.sha256), [
+      movement.version,
+    ]);
+    await setOwnerContext(client, "legacy-fixture");
+    assert.equal(
+      (await client.query("SELECT id FROM finance.financial_events")).rows[0]
+        .id,
+      id,
+    );
+    assert.equal(
+      (await client.query("SELECT 1 FROM finance.ordinary_movements")).rowCount,
+      0,
+    );
+  } finally {
+    await client.query("ROLLBACK");
     await client.end();
   }
 });
@@ -64,11 +111,11 @@ test(
         "dos migradores aplican una sola vez y conservan el ledger",
         async () => {
           const results = await Promise.all([migrate(), migrate()]);
-          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 1]);
+          assert.deepEqual(results.map((rows) => rows.length).sort(), [0, 2]);
           assert.equal(
             (await pool.query("SELECT * FROM finance_meta.schema_migrations"))
               .rowCount,
-            1,
+            2,
           );
         },
       );
@@ -86,6 +133,7 @@ test(
               await assert.rejects(migrateInTransaction(client), {
                 message: "Historial de migraciones divergente",
               });
+
               await client.query("ROLLBACK");
             }
             await client.query("BEGIN");

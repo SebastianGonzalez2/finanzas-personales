@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   formatBankAmount,
   formatBankReference,
@@ -20,6 +21,7 @@ export function BankBalanceRow({
   initialBalance?: BankBalance;
   today: string;
 }) {
+  const router = useRouter();
   const [saved, setSaved] = useState<BankBalance>();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -55,6 +57,7 @@ export function BankBalanceRow({
       if (response.ok && data.balance?.currency === currency) {
         setSaved(data.balance);
         setOpen(false);
+        router.refresh();
       } else {
         setError(
           data.error ?? "No pudimos confirmar el guardado. Intentá de nuevo.",
@@ -102,10 +105,16 @@ export function BankBalanceRow({
         {balance ? (
           <>
             <p className="mt-1 text-lg font-semibold wrap-anywhere tabular-nums">
-              {formatBankAmount(balance)}
+              {formatBankAmount({
+                currency,
+                amount: balance.calculatedAmount ?? balance.amount,
+              })}
             </p>
             <p className="text-xs text-muted-foreground">
-              Confirmado al{" "}
+              {balance.calculatedAmount !== undefined && (
+                <>Calculado · {formatBankAmount(balance)} confirmado al </>
+              )}
+              {balance.calculatedAmount === undefined && "Confirmado al "}
               <time dateTime={balance.asOfDate}>
                 {formatBankReference(balance.asOfDate)}
               </time>
