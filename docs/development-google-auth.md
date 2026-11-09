@@ -2,9 +2,10 @@
 
 F0-04, v9.49, ADR 0004. PR #14 en borrador. No es habilitación del sistema.
 
-Avance: OAuth Google real comprobado localmente con A (rechazo inicial, alta,
-logout, persistencia en dos ventanas y revocación). A/B real espera una segunda
-cuenta Google. Ver [evidencia sin datos personales](evidence/f0-04-google-oauth-local.json).
+OAuth Google real comprobado localmente con A y B. Ambas sesiones pasaron las
+pruebas de API y el aislamiento de PostgreSQL se comprobó con preferencias
+temporales revertidas. B fue revocada y A conservó su sesión.
+Ver [evidencia sin datos personales](evidence/f0-04-google-oauth-local.json).
 
 ## Destino definido
 

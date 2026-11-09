@@ -180,10 +180,24 @@ no se guardan en archivos, logs ni argv. La allowlist contiene únicamente A.
 La inspección de runtime cerrado/vacío anterior es una evidencia inicial, no una
 expectativa posterior al alta de prueba.
 
-**Limitación comunicada por el titular:** no dispone de una segunda cuenta de
-prueba. Sesiones y revocación de A probadas; A/B real y continuidad de A al
-revocar B siguen pendientes. No sustituir B por otra sesión o alias de A.
-La persistencia entre dispositivos requiere el destino HTTPS autorizado posterior.
+El titular completó OAuth con una segunda cuenta Google. Antes de autorizar B,
+la app rechazó su intento y Neon confirmó que el correo seleccionado no tenía
+usuario, autorización ni sesión. Tras autorizarla, se verificaron dos titulares
+distintos con sesiones Google vigentes.
+
+- La API local devolvió 200 para cada sesión, 400 al pasar el ID del otro titular
+  en la URL y 401 sin sesión. Cambiar el encabezado `x-owner-id` por el ID ajeno
+  dejó la respuesta de cada titular igual.
+- Neon, con el rol de aplicación y las dos sesiones verificadas, mostró a cada
+  titular solo su preferencia temporal (UYU para A, EUR para B). Las consultas
+  con el ID ajeno devolvieron cero filas y el INSERT cruzado falló con 42501.
+  `ROLLBACK` revirtió ambas preferencias. La prueba HTTP se hizo con el estado
+  inicial de preferencias, y la prueba con filas distintas dentro de Neon.
+- Revocar B dejó su cookie anterior en 401 y la de A en 200. Una consulta de
+  auditoría con el rol administrativo verificó una sesión vigente de A, cero
+  sesiones de B, la identidad de B conservada y el evento de revocación.
+
+La persistencia entre dispositivos requiere acordar y autorizar el destino HTTPS.
 
 Guía paso a paso del titular: [Google Cloud y pruebas](../development-google-auth.md).
 
