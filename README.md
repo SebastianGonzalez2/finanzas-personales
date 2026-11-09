@@ -15,7 +15,7 @@ npm run dev
 
 Abrir [http://127.0.0.1:3000](http://127.0.0.1:3000). El servidor escucha solo en loopback. Para cambiar el puerto: `npm run dev -- --port 3001`.
 
-El scaffold sin acceso puede iniciarse sin credenciales. Para Google-only, seguir la guía específica y usar `npm run dev:google` en `http://localhost:3000/auth/sign-in`; no intercambiar localhost con 127.0.0.1 en OAuth. [.env.example](.env.example) enumera las variables privadas de servidor. No guardar secretos en Git ni en variables `NEXT_PUBLIC_*`.
+La pantalla de acceso puede iniciarse sin credenciales. Para revisar el Resumen con una cuenta autorizada, seguir la [guía de Google-only](docs/development-google-auth.md) y usar `npm run dev:google` en `http://localhost:3000/auth/sign-in`. Después de iniciar sesión, la aplicación abre `/resumen`. Usar `localhost` para OAuth. [.env.example](.env.example) enumera las variables privadas de servidor. No guardar secretos en Git ni en variables `NEXT_PUBLIC_*`.
 
 ## Comandos
 
@@ -62,7 +62,7 @@ La instalación se hizo manualmente según las guías oficiales para conservar `
 - TypeScript 5.9.3: dentro del rango soportado por `typescript-eslint` (`>=4.8.4 <6.1.0`), frente a TypeScript 7 publicado pero fuera de ese rango al verificar este ticket.
 - ESLint 10.14.0 usa configuración plana con reglas recomendadas de JavaScript, TypeScript, React Hooks y el plugin oficial Next/Core Web Vitals. Se usa el plugin directamente (ruta documentada por Next) porque el preset completo incluye plugins cuyos peers aún no admiten ESLint 10; ESLint 9 ya está fuera de soporte. Prettier y `eslint-config-prettier` separan formato y reglas de calidad.
 - Override de `minimatch` a 11.0.5 por [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), que afecta a las versiones 7–10 transitivas de herramientas de desarrollo. Se verifica con instalación limpia, lint y build; revisar y retirar el override cuando las dependencias originales incorporen el parche. Licencia BlueOak-1.0.0, permisiva; las demás dependencias directas son MIT o Apache-2.0.
-- Fuente de sistema y CSS local: el build no descarga fuentes. Tema oscuro, contraste legible y tamaños adaptables; no se implementa el dashboard de F1-01.
+- Fuente de sistema y CSS local: el build no descarga fuentes. El Resumen aplica el tema oscuro, los tokens y la composición responsive de la [guía visual](docs/design/fintrack-visual-spec.md).
 - Webpack explícito en desarrollo y build: Turbopack falló en este Windows al lanzar el proceso de PostCSS, incluso fuera del sandbox. Next documenta `--webpack` como alternativa soportada; no se ocultan errores de lint o TypeScript. `agentRules: false` evita que `next dev` modifique el `AGENTS.md` existente.
 - Better Auth 1.7.18 (MIT), pg 8.23.1 y Kysely 0.29.8 (MIT): adaptador PostgreSQL incorporado de Auth con esquema y transacciones explícitos. Finanzas conserva SQL y contratos F0-05; no se migra a otro ORM. Auth, allowlist y ledger nuevos requieren aprobación de su SQL antes de escribir en Neon.
 
@@ -72,7 +72,7 @@ Las versiones se cambian deliberadamente junto con `package-lock.json`, revisand
 
 ## Alcance y trazabilidad
 
-F0-03 implementa el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md) y la evidencia técnica de [F0-03 en el plan](docs/planning/05-plan-de-implementacion.md). Prepara RF-052 y RNF-07/08 (español, legibilidad y responsive), sin cerrar RF-052 ni CA-066: todavía no existe navegación funcional. No aplica cierre de invariantes I-01…I-12 porque no se opera con dinero ni datos por titular.
+F0-03 implementó el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md). F1-01 incorpora el Resumen fijo y la navegación a Mi cuenta con estados vacíos, para RF-052 y CA-066 en esta fase. Los saldos por moneda empiezan en F1-02. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Captura de escritorio](docs/evidence/f1-01/escritorio-1484.png) · [Captura móvil](docs/evidence/f1-01/movil-390.png).
 
 El titular aprobó el cierre técnico de F0 para integrar sus fundamentos en `main`. La prueba de acceso entre dispositivos en HTTPS y la comprobación del consumo del despliegue quedan como condiciones de publicación. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Convenciones de trabajo](AGENTS.md).
 

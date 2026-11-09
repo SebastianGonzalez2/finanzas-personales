@@ -34,3 +34,22 @@ test("Google-only cerrado: sin contraseñas ni rutas heredadas; API financiera a
   await page.goto("/account");
   await expect(page).toHaveURL(/\/auth\/sign-in$/);
 });
+
+test("Resumen no entrega el tablero ante una visita directa con sesión inválida", async ({
+  page,
+  request,
+}) => {
+  const response = await request.get("/resumen?owner_id=B", {
+    headers: { cookie: "better-auth.session_token=invalid" },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(307);
+  expect(response.headers().location).toBe("/auth/sign-in");
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(await response.text()).not.toContain("Dinero disponible");
+
+  await page.goto("/resumen");
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByText("Resumen financiero")).toHaveCount(0);
+});

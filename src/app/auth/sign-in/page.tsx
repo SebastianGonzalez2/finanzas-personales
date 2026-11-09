@@ -10,6 +10,7 @@ export default async function SignIn({
   return (
     <main
       id="contenido"
+      tabIndex={-1}
       className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-5 px-5 py-12"
     >
       <p className="text-sm text-muted-foreground">Finanzas personales</p>

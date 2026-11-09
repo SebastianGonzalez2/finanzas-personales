@@ -40,7 +40,7 @@ export function GoogleAccess({ signOut = false }: { signOut?: boolean }) {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground disabled:opacity-50"
+        className="min-h-11 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
       >
         {busy ? "Un momento…" : signOut ? "Cerrar sesión" : "Entrar con Google"}
       </button>
