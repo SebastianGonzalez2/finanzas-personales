@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
-import {
-  migrateInTransaction,
-  readMigrations,
-} from "../../src/db/migrations.mts";
+import { readMigrations } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import {
   listBankBalances,
@@ -78,11 +75,11 @@ test("F1-05: confirmaciones y conciliación en PostgreSQL", async (t) => {
 
   try {
     const migrations = await readMigrations();
-    const migration = migrations.at(-1);
+    const migration = migrations[3];
     const admin = await pool.connect();
     try {
       await admin.query("BEGIN");
-      for (const { sql, version, sha256 } of migrations.slice(0, -1)) {
+      for (const { sql, version, sha256 } of migrations.slice(0, 3)) {
         await admin.query(sql);
         await admin.query(
           "INSERT INTO finance_meta.schema_migrations(version, sha256) VALUES ($1, $2)",
@@ -119,9 +116,11 @@ test("F1-05: confirmaciones y conciliación en PostgreSQL", async (t) => {
     const upgrader = await pool.connect();
     try {
       await upgrader.query("BEGIN");
-      assert.deepEqual(await migrateInTransaction(upgrader, migration.sha256), [
-        migration.version,
-      ]);
+      await upgrader.query(migration.sql);
+      await upgrader.query(
+        "INSERT INTO finance_meta.schema_migrations(version, sha256) VALUES ($1, $2)",
+        [migration.version, migration.sha256],
+      );
       await upgrader.query("COMMIT");
     } finally {
       await upgrader.query("ROLLBACK");

@@ -1,4 +1,4 @@
-import { isBankReferenceDate } from "./bank-balances.ts";
+import { bankCurrencies, isBankReferenceDate } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const movementMethods = {
@@ -34,6 +34,23 @@ export type RecentMovement = Pick<
 
 export type MovementTotal = Pick<MovementInput, "kind" | "currency" | "amount">;
 
+export type BankTransfer = {
+  kind: "bank_transfer";
+  sourceCurrency: Currency;
+  sourceAmount: string;
+  destinationCurrency: Currency;
+  destinationAmount: string;
+  effectiveOn: string;
+  idempotencyKey: string;
+};
+
+export type RecentBankTransfer = Omit<
+  BankTransfer,
+  "kind" | "idempotencyKey"
+> & {
+  id: string;
+};
+
 export const conceptLimit = 200;
 export const noteLimit = 500;
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -60,6 +77,55 @@ function positiveAmount(amount: unknown) {
 
 const amountError =
   "Ingresá un importe positivo sin separador de miles y con hasta 4 decimales.";
+
+export function parseBankTransfer(
+  input: object,
+  today: string,
+): BankTransfer | { error: string } {
+  const {
+    kind,
+    sourceCurrency,
+    sourceAmount,
+    destinationCurrency,
+    destinationAmount,
+    effectiveOn,
+    idempotencyKey,
+    ...extra
+  } = input as Record<string, unknown>;
+  if (
+    kind !== "bank_transfer" ||
+    Object.keys(extra).length ||
+    typeof idempotencyKey !== "string" ||
+    !uuid.test(idempotencyKey)
+  )
+    return { error: "Solicitud inválida." };
+  const source = bankCurrencies.find((code) => code === sourceCurrency);
+  const destination = bankCurrencies.find(
+    (code) => code === destinationCurrency,
+  );
+  if (!source || !destination) return { error: "Elegí dos monedas válidas." };
+  if (source === destination)
+    return {
+      error:
+        "Los movimientos entre bancos propios en la misma moneda ya están incluidos en el saldo agregado.",
+    };
+  if (!isBankReferenceDate(effectiveOn, today))
+    return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
+
+  try {
+    return {
+      kind,
+      sourceCurrency: source,
+      sourceAmount: positiveAmount(sourceAmount),
+      destinationCurrency: destination,
+      destinationAmount: positiveAmount(destinationAmount),
+      effectiveOn,
+      idempotencyKey: idempotencyKey.toLowerCase(),
+    };
+  } catch {
+    return { error: `Revisá los dos importes. ${amountError}` };
+  }
+}
 
 export function parseMovementRevision(
   input: unknown,

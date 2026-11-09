@@ -2,11 +2,13 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
+  BankTransfer,
   MovementCategory,
   MovementInput,
   MovementKind,
   MovementRevision,
   MovementTotal,
+  RecentBankTransfer,
   RecentMovement,
 } from "../domain/movements.ts";
 import type { Currency } from "../domain/money.ts";
@@ -63,9 +65,14 @@ type CatalogRow = MovementCategory & { archived: boolean };
 export async function movementAvailability(client: pg.PoolClient) {
   const {
     rows: [state],
-  } = await client.query<{ readable: boolean; writable: boolean }>(
+  } = await client.query<{
+    readable: boolean;
+    writable: boolean;
+    transfers: boolean;
+  }>(
     `SELECT to_regclass('finance.ordinary_movements') IS NOT NULL AS readable,
-            to_regclass('finance.audit_void_command_key') IS NOT NULL AS writable`,
+            to_regclass('finance.audit_void_command_key') IS NOT NULL AS writable,
+            to_regclass('finance.recent_bank_transfers') IS NOT NULL AS transfers`,
   );
   return state;
 }
@@ -153,6 +160,115 @@ async function bankShortfall(
   );
   if (gap)
     return { status: "insufficient-funds", shortfall: gap.shortfall, currency };
+}
+
+type TransferResult =
+  | Replay
+  | Shortfall
+  | { status: "created"; id: string }
+  | { status: "unconfigured"; currency: Currency }
+  | { status: "unavailable" };
+
+export async function saveBankTransfer(
+  client: pg.PoolClient,
+  ownerId: string,
+  transfer: BankTransfer,
+): Promise<TransferResult> {
+  const {
+    sourceCurrency,
+    sourceAmount,
+    destinationCurrency,
+    destinationAmount,
+    effectiveOn,
+    idempotencyKey,
+  } = transfer;
+  const hash = commandHash([
+    "bank-transfer-v1",
+    sourceCurrency,
+    sourceAmount,
+    destinationCurrency,
+    destinationAmount,
+    effectiveOn,
+  ]);
+  await lockBankWrites(client, ownerId);
+  if (!(await movementAvailability(client)).transfers)
+    return { status: "unavailable" };
+  const replay = await findReplay(client, ownerId, idempotencyKey, hash);
+  if (replay) return replay;
+  const [source, destination] = await listBankBalances(
+    client,
+    ownerId,
+    [sourceCurrency, destinationCurrency],
+    true,
+  );
+  if (source?.currency !== sourceCurrency)
+    return { status: "unconfigured", currency: sourceCurrency };
+  if (!destination)
+    return { status: "unconfigured", currency: destinationCurrency };
+  if (effectiveOn >= source.asOfDate) {
+    const gap = await bankShortfall(
+      client,
+      sourceCurrency,
+      source.calculatedAmount ?? source.amount,
+      "0",
+      `-${sourceAmount}`,
+    );
+    if (gap) return gap;
+  }
+
+  const id = randomUUID();
+  await client.query(
+    `WITH saved AS (
+       INSERT INTO finance.financial_events
+         (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash, created_at)
+       VALUES ($1, $2, 'bank_transfer', 'Cambio de moneda', $3, $4, $5, clock_timestamp())
+       RETURNING owner_id, id, effective_on
+     ), effects AS (
+       INSERT INTO finance.bank_effects (owner_id, id, event_id, currency, amount_signed, effective_on)
+       SELECT saved.owner_id, effect.id, saved.id, effect.currency, effect.amount, saved.effective_on
+         FROM saved
+         CROSS JOIN (VALUES
+           ($2::uuid, $6::finance.currency, -$7::numeric),
+           ($8::uuid, $9::finance.currency, $10::numeric)
+         ) AS effect(id, currency, amount)
+     )
+     INSERT INTO finance.audit_changes (owner_id, id, event_id, change_type)
+     SELECT owner_id, id, id, 'created' FROM saved`,
+    [
+      ownerId,
+      id,
+      effectiveOn,
+      idempotencyKey,
+      hash,
+      sourceCurrency,
+      sourceAmount,
+      randomUUID(),
+      destinationCurrency,
+      destinationAmount,
+    ],
+  );
+  return { status: "created", id };
+}
+
+export async function listRecentBankTransfers(
+  client: pg.PoolClient,
+  ownerId: string,
+) {
+  const { rows } = await client.query<RecentBankTransfer>(
+    `SELECT f.id, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+            debit.currency AS "sourceCurrency", abs(debit.amount_signed)::text AS "sourceAmount",
+            credit.currency AS "destinationCurrency", credit.amount_signed::text AS "destinationAmount"
+       FROM finance.financial_events f
+       JOIN finance.bank_effects debit
+         ON (debit.owner_id, debit.event_id, debit.id) = (f.owner_id, f.id, f.id)
+       JOIN finance.bank_effects credit
+         ON (credit.owner_id, credit.event_id) = (f.owner_id, f.id) AND credit.amount_signed > 0
+      WHERE f.owner_id = $1 AND f.kind = 'bank_transfer' AND f.status = 'confirmed'
+      ORDER BY f.effective_on DESC, f.created_at DESC, f.id DESC
+      LIMIT 5`,
+    [ownerId],
+  );
+  return rows;
 }
 
 export async function saveMovement(
@@ -339,7 +455,15 @@ export async function reviseMovement(
       WHERE f.owner_id = $1 AND f.id = $2 AND f.kind IN ('income', 'expense')`,
     [ownerId, eventId],
   );
-  if (!original) return { status: "not-found" };
+  if (!original) {
+    if (
+      action === "void" &&
+      reconciliationReady &&
+      (await movementAvailability(client)).transfers
+    )
+      return voidBankTransfer(client, ownerId, command, hash);
+    return { status: "not-found" };
+  }
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
@@ -371,6 +495,65 @@ export async function reviseMovement(
           { ...original, amount, idempotencyKey },
           hash,
         );
+  return recordRevision(client, ownerId, command, hash, replacement);
+}
+
+async function voidBankTransfer(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: MovementRevision,
+  hash: string,
+): Promise<RevisionResult> {
+  const {
+    rows: [credit],
+  } = await client.query<{
+    status: string;
+    currency: Currency;
+    signed: string;
+    covered: boolean;
+  }>(
+    `SELECT f.status, e.currency, e.amount_signed::text AS signed,
+            EXISTS (
+              SELECT 1 FROM finance.balance_checkpoints b
+               WHERE b.owner_id = f.owner_id AND b.currency = e.currency
+                 AND (b.as_of_date, b.created_at) >= ${bankEventPosition(true)}
+            ) AS covered
+       FROM ${bankEventSource(true)} f
+       JOIN finance.bank_effects e ON (e.owner_id, e.event_id) = (f.owner_id, f.id)
+      WHERE f.owner_id = $1 AND f.id = $2 AND f.kind = 'bank_transfer' AND e.amount_signed > 0`,
+    [ownerId, command.eventId],
+  );
+  if (!credit) return { status: "not-found" };
+  if (credit.status !== "confirmed") return { status: "inactive" };
+  // Covered effects change the checkpoint's reconciliation while preserving the anchor.
+  // Only removing an uncovered credit can reduce a current bank balance.
+  if (!credit.covered) {
+    const [balance] = await listBankBalances(
+      client,
+      ownerId,
+      [credit.currency],
+      true,
+    );
+    if (!balance) return { status: "unconfigured" };
+    const gap = await bankShortfall(
+      client,
+      credit.currency,
+      balance.calculatedAmount ?? balance.amount,
+      credit.signed,
+      "0",
+    );
+    if (gap) return gap;
+  }
+  return recordRevision(client, ownerId, command, hash, null);
+}
+
+async function recordRevision(
+  client: pg.PoolClient,
+  ownerId: string,
+  { eventId, idempotencyKey }: MovementRevision,
+  hash: string,
+  replacement: string | null,
+): Promise<RevisionResult> {
   const state = replacement === null ? "voided" : "corrected";
   await client.query(
     `INSERT INTO finance.audit_changes

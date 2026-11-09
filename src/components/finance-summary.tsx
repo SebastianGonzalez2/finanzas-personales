@@ -9,6 +9,7 @@ import {
   movementMethods,
   type MovementCategory,
   type MovementTotal,
+  type RecentBankTransfer,
   type RecentMovement,
 } from "@/domain/movements";
 import { BankBalanceRow } from "./bank-balance-row";
@@ -50,6 +51,8 @@ export function FinanceSummary({
   totals,
   expenses,
   incomes,
+  bankTransfers,
+  bankTransfersReady,
   movementRegistrationReady,
 }: {
   balances: BankBalance[];
@@ -60,6 +63,8 @@ export function FinanceSummary({
   totals: MovementTotal[];
   expenses: RecentMovement[];
   incomes: RecentMovement[];
+  bankTransfers: RecentBankTransfer[];
+  bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
 }) {
   const period = new Intl.DateTimeFormat("es-UY", {
@@ -83,6 +88,7 @@ export function FinanceSummary({
       </p>
       {movementRegistrationReady ? (
         <MovementForm
+          bankTransfersReady={bankTransfersReady}
           today={today}
           balances={balances}
           categories={categories}
@@ -170,6 +176,48 @@ export function FinanceSummary({
             );
           })}
         </div>
+        {bankTransfersReady && (
+          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+            <h3 className="font-semibold">Cambios de moneda recientes</h3>
+            {bankTransfers.length ? (
+              <ul aria-label="Cambios de moneda recientes" className="divide-y">
+                {bankTransfers.map((transfer) => (
+                  <li
+                    key={transfer.id}
+                    className="wrap-anywhere py-2 first:pt-0 last:pb-0"
+                  >
+                    <p className="flex flex-wrap gap-x-4 tabular-nums">
+                      <span>
+                        Entregaste{" "}
+                        {formatBankAmount({
+                          currency: transfer.sourceCurrency,
+                          amount: transfer.sourceAmount,
+                        })}
+                      </span>
+                      <span>
+                        Recibiste{" "}
+                        {formatBankAmount({
+                          currency: transfer.destinationCurrency,
+                          amount: transfer.destinationAmount,
+                        })}
+                      </span>
+                    </p>
+                    <time
+                      dateTime={transfer.effectiveOn}
+                      className="text-muted-foreground"
+                    >
+                      {formatBankReference(transfer.effectiveOn)}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground">
+                Todavía no hay cambios de moneda registrados.
+              </p>
+            )}
+          </Card>
+        )}
       </section>
 
       <section aria-labelledby="mis-finanzas" className="mt-5">

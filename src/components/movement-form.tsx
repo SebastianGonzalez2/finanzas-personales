@@ -26,14 +26,16 @@ export function MovementForm({
   today,
   balances,
   categories,
+  bankTransfersReady,
 }: {
   today: string;
   balances: BankBalance[];
   categories: MovementCategory[];
+  bankTransfersReady: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<MovementKind>("expense");
+  const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
@@ -62,6 +64,8 @@ export function MovementForm({
     (balance) => balance.currency === selectedCurrency,
   );
   const income = kind === "income";
+  const transfer = kind === "bank_transfer";
+  const needsBalances = transfer && configured.length < 2;
 
   useEffect(() => {
     if (revisionUncertain && !pending) retryRevision.current?.focus();
@@ -112,7 +116,13 @@ export function MovementForm({
       if (response.ok && data.id) {
         setUncertain(false);
         setSavedId(data.id);
-        setMessage(income ? "Ingreso registrado." : "Gasto registrado.");
+        setMessage(
+          transfer
+            ? "Cambio de moneda registrado."
+            : income
+              ? "Ingreso registrado."
+              : "Gasto registrado.",
+        );
         setOpen(false);
         trigger.current?.focus();
         router.refresh();
@@ -286,19 +296,23 @@ export function MovementForm({
               >
                 Deshacer
               </button>
-              <button
-                ref={correctionTrigger}
-                type="button"
-                disabled={pending}
-                className="min-h-11 rounded-lg px-2 font-semibold hover:bg-accent"
-                onClick={() => {
-                  setRevisionError("");
-                  setEditing(true);
-                  requestAnimationFrame(() => correctionInput.current?.focus());
-                }}
-              >
-                Corregir importe
-              </button>
+              {!transfer && (
+                <button
+                  ref={correctionTrigger}
+                  type="button"
+                  disabled={pending}
+                  className="min-h-11 rounded-lg px-2 font-semibold hover:bg-accent"
+                  onClick={() => {
+                    setRevisionError("");
+                    setEditing(true);
+                    requestAnimationFrame(() =>
+                      correctionInput.current?.focus(),
+                    );
+                  }}
+                >
+                  Corregir importe
+                </button>
+              )}
             </div>
           )}
           <p role="alert" className={revisionError ? "" : "sr-only"}>
@@ -331,143 +345,176 @@ export function MovementForm({
               >
                 <fieldset
                   disabled={pending || uncertain}
+                  onChange={transfer ? () => setError("") : undefined}
                   className="grid min-w-0 gap-3 sm:grid-cols-2"
                 >
-                  <label className="space-y-1 text-sm">
+                  <label
+                    className={`space-y-1 text-sm ${transfer ? "sm:col-span-2" : ""}`}
+                  >
                     <span>Tipo de movimiento</span>
                     <select
                       name="kind"
                       className={control}
                       value={kind}
-                      onChange={(event) =>
-                        setKind(
-                          event.target.value === "income"
-                            ? "income"
-                            : "expense",
-                        )
-                      }
+                      onChange={(event) => {
+                        setKind(event.target.value as typeof kind);
+                        setError("");
+                      }}
                     >
                       <option value="expense">Gasto</option>
                       <option value="income">Ingreso</option>
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Medio bancario</span>
-                    <select name="method" key={kind} className={control}>
-                      {income ? (
-                        <option value="deposit">
-                          {movementMethods.deposit}
-                        </option>
-                      ) : (
-                        <>
-                          <option value="debit">{movementMethods.debit}</option>
-                          <option value="transfer">
-                            {movementMethods.transfer}
-                          </option>
-                        </>
+                      {bankTransfersReady && (
+                        <option value="bank_transfer">Cambio de moneda</option>
                       )}
                     </select>
                   </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Importe</span>
-                    <input
-                      name="amount"
-                      required
-                      inputMode="decimal"
-                      maxLength={22}
-                      autoComplete="off"
-                      placeholder="0,00"
-                      className={control}
-                      aria-describedby="importe-transaccion-ayuda"
-                    />
-                    <span
-                      id="importe-transaccion-ayuda"
-                      className="block text-xs text-muted-foreground"
-                    >
-                      Sin separador de miles, hasta 4 decimales.
-                    </span>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Moneda</span>
-                    <select
-                      name="currency"
-                      required
-                      value={selectedCurrency}
-                      className={control}
-                      onChange={(event) =>
-                        setCurrency(event.target.value as Currency)
-                      }
-                    >
-                      {configured.map((code) => (
-                        <option key={code} value={code}>
-                          {code}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Fecha</span>
-                    <input
-                      name="effectiveOn"
-                      type="date"
-                      required
-                      max={today}
-                      defaultValue={today}
-                      className={control}
-                      aria-describedby="fecha-transaccion-ayuda"
-                    />
-                    <span
-                      id="fecha-transaccion-ayuda"
-                      className="block text-xs text-muted-foreground"
-                    >
-                      {bank
-                        ? `Las fechas anteriores al ${formatBankReference(bank.asOfDate)} quedan en el historial. Para el día del saldo inicial, registrá los movimientos posteriores a ese saldo.`
-                        : "Ingresá la fecha en que ocurrió."}
-                    </span>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span>Categoría (opcional)</span>
-                    <select name="categoryId" key={kind} className={control}>
-                      <option value="">Sin categorizar</option>
-                      {categories
-                        .filter((category) => category.kind === kind)
-                        .map(({ id, name }) => (
-                          <option key={id} value={id}>
-                            {name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-sm sm:col-span-2">
-                    <span>{income ? "Concepto (opcional)" : "Concepto"}</span>
-                    <input
-                      name="concept"
-                      required={!income}
-                      maxLength={conceptLimit}
-                      className={control}
-                    />
-                  </label>
-                  <label className="space-y-1 text-sm sm:col-span-2">
-                    <span>Nota (opcional)</span>
-                    <textarea
-                      name="note"
-                      rows={2}
-                      maxLength={noteLimit}
-                      className={`${control} py-2`}
-                    />
-                  </label>
+                  {transfer ? (
+                    <BankTransferFields currencies={configured} />
+                  ) : (
+                    <>
+                      <label className="space-y-1 text-sm">
+                        <span>Medio bancario</span>
+                        <select name="method" key={kind} className={control}>
+                          {income ? (
+                            <option value="deposit">
+                              {movementMethods.deposit}
+                            </option>
+                          ) : (
+                            <>
+                              <option value="debit">
+                                {movementMethods.debit}
+                              </option>
+                              <option value="transfer">
+                                {movementMethods.transfer}
+                              </option>
+                            </>
+                          )}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span>Importe</span>
+                        <input
+                          name="amount"
+                          required
+                          inputMode="decimal"
+                          maxLength={22}
+                          autoComplete="off"
+                          placeholder="0,00"
+                          className={control}
+                          aria-describedby="importe-transaccion-ayuda"
+                        />
+                        <span
+                          id="importe-transaccion-ayuda"
+                          className="block text-xs text-muted-foreground"
+                        >
+                          Sin separador de miles, hasta 4 decimales.
+                        </span>
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span>Moneda</span>
+                        <select
+                          name="currency"
+                          required
+                          value={selectedCurrency}
+                          className={control}
+                          onChange={(event) =>
+                            setCurrency(event.target.value as Currency)
+                          }
+                        >
+                          {configured.map((code) => (
+                            <option key={code} value={code}>
+                              {code}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  {!needsBalances && (
+                    <label className="space-y-1 text-sm">
+                      <span>Fecha</span>
+                      <input
+                        name="effectiveOn"
+                        type="date"
+                        required
+                        max={today}
+                        defaultValue={today}
+                        className={control}
+                        aria-describedby="fecha-transaccion-ayuda"
+                      />
+                      <span
+                        id="fecha-transaccion-ayuda"
+                        className="block text-xs text-muted-foreground"
+                      >
+                        {transfer
+                          ? "Usá la fecha real del cambio. Si un saldo confirmado cubre esa fecha, el efecto se refleja en su conciliación."
+                          : bank
+                            ? `Las fechas anteriores al ${formatBankReference(bank.asOfDate)} quedan en el historial. Para el día del saldo inicial, registrá los movimientos posteriores a ese saldo.`
+                            : "Ingresá la fecha en que ocurrió."}
+                      </span>
+                    </label>
+                  )}
+                  {!transfer && (
+                    <>
+                      <label className="space-y-1 text-sm">
+                        <span>Categoría (opcional)</span>
+                        <select
+                          name="categoryId"
+                          key={kind}
+                          className={control}
+                        >
+                          <option value="">Sin categorizar</option>
+                          {categories
+                            .filter((category) => category.kind === kind)
+                            .map(({ id, name }) => (
+                              <option key={id} value={id}>
+                                {name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span>
+                          {income ? "Concepto (opcional)" : "Concepto"}
+                        </span>
+                        <input
+                          name="concept"
+                          required={!income}
+                          maxLength={conceptLimit}
+                          className={control}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span>Nota (opcional)</span>
+                        <textarea
+                          name="note"
+                          rows={2}
+                          maxLength={noteLimit}
+                          className={`${control} py-2`}
+                        />
+                      </label>
+                    </>
+                  )}
                 </fieldset>
                 <p role="alert" className={error ? "mt-3 text-sm" : "sr-only"}>
                   {error}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="submit" disabled={pending} className={primary}>
-                    {pending
-                      ? "Guardando…"
-                      : uncertain
-                        ? "Reintentar guardado"
-                        : "Guardar movimiento"}
-                  </button>
+                  {!needsBalances && (
+                    <button
+                      type="submit"
+                      disabled={pending}
+                      className={primary}
+                    >
+                      {pending
+                        ? "Guardando…"
+                        : uncertain
+                          ? "Reintentar guardado"
+                          : transfer
+                            ? "Guardar cambio de moneda"
+                            : "Guardar movimiento"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={pending}
@@ -483,5 +530,97 @@ export function MovementForm({
         )}
       </div>
     </div>
+  );
+}
+
+function BankTransferFields({ currencies }: { currencies: Currency[] }) {
+  const [source, setSource] = useState(currencies[0]);
+  const [destination, setDestination] = useState<Currency | "">("");
+  if (currencies.length < 2)
+    return (
+      <p className="text-sm text-muted-foreground sm:col-span-2">
+        Configurá el saldo inicial de ambas monedas en «Dinero disponible».
+      </p>
+    );
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground sm:col-span-2">
+        Cargá los dos importes reales. Las transferencias entre bancos propios
+        de la misma moneda ya están incluidas en el saldo agregado.
+      </p>
+      <label className="space-y-1 text-sm">
+        <span>Moneda de origen</span>
+        <select
+          name="sourceCurrency"
+          value={source}
+          onChange={(event) => {
+            const code = event.target.value as Currency;
+            setSource(code);
+            if (destination === code) setDestination("");
+          }}
+          className={control}
+        >
+          {currencies.map((code) => (
+            <option key={code}>{code}</option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm">
+        <span>Importe entregado</span>
+        <input
+          key={source}
+          name="sourceAmount"
+          required
+          inputMode="decimal"
+          maxLength={22}
+          autoComplete="off"
+          placeholder="0,00"
+          className={control}
+          aria-describedby="cambio-importes-ayuda"
+        />
+      </label>
+      <label className="space-y-1 text-sm">
+        <span>Moneda de destino</span>
+        <select
+          name="destinationCurrency"
+          required
+          value={destination}
+          onChange={(event) =>
+            setDestination(event.target.value as Currency | "")
+          }
+          className={control}
+        >
+          <option value="" disabled>
+            Elegí una moneda
+          </option>
+          {currencies
+            .filter((code) => code !== source)
+            .map((code) => (
+              <option key={code}>{code}</option>
+            ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm">
+        <span>Importe recibido</span>
+        <input
+          key={destination}
+          name="destinationAmount"
+          required
+          inputMode="decimal"
+          maxLength={22}
+          autoComplete="off"
+          placeholder="0,00"
+          className={control}
+          aria-describedby="cambio-importes-ayuda"
+        />
+      </label>
+      <p
+        id="cambio-importes-ayuda"
+        className="text-xs text-muted-foreground sm:col-span-2"
+      >
+        Sin separador de miles, hasta 4 decimales.
+      </p>
+    </>
   );
 }

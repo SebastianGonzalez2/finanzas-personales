@@ -1,5 +1,9 @@
 import { withGoogleOwner } from "@/server/google-auth";
-import { reviseMovement, saveMovement } from "@/server/movements";
+import {
+  reviseMovement,
+  saveBankTransfer,
+  saveMovement,
+} from "@/server/movements";
 import {
   handleMovement,
   handleMovementRevision,
@@ -9,8 +13,10 @@ export const runtime = "nodejs";
 
 export function POST(request: Request) {
   return handleMovement(request, process.env.GOOGLE_AUTH_ORIGIN, (movement) =>
-    withGoogleOwner(request, (client, ownerId) =>
-      saveMovement(client, ownerId, movement),
+    withGoogleOwner(request, async (client, ownerId) =>
+      movement.kind === "bank_transfer"
+        ? saveBankTransfer(client, ownerId, movement)
+        : saveMovement(client, ownerId, movement),
     ),
   );
 }

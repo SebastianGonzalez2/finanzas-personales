@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import {
+  parseBankTransfer,
   parseMovement,
   parseMovementRevision,
 } from "../../src/domain/movements.ts";
@@ -16,6 +17,45 @@ const expense = {
   concept: " Compra ",
   idempotencyKey: randomUUID(),
 };
+
+test("F1-06: los dos importes se validan y normalizan por separado", () => {
+  const payload = {
+    kind: "bank_transfer",
+    sourceCurrency: "UYU",
+    sourceAmount: "9007199254740993,0001",
+    destinationCurrency: "USD",
+    destinationAmount: " 2,1234 ",
+    effectiveOn: today,
+    idempotencyKey: randomUUID().toUpperCase(),
+  };
+  assert.deepEqual(parseBankTransfer(payload, today), {
+    ...payload,
+    sourceAmount: "9007199254740993.0001",
+    destinationAmount: "2.1234",
+    idempotencyKey: payload.idempotencyKey.toLowerCase(),
+  });
+  for (const invalid of [
+    { destinationCurrency: "UYU" },
+    { sourceCurrency: "ARS" },
+    { destinationCurrency: undefined },
+    { destinationAmount: "0" },
+    { destinationAmount: "1.00001" },
+    { destinationAmount: 50 },
+    { sourceAmount: "-1" },
+    { sourceAmount: "1.000,00" },
+    { effectiveOn: "2026-11-09" },
+    { effectiveOn: "2026-02-29" },
+    { idempotencyKey: "inválida" },
+    { ownerId: "otro" },
+    { categoryId: null },
+    { rate: "40" },
+  ]) {
+    assert.ok(
+      "error" in parseBankTransfer({ ...payload, ...invalid }, today),
+      JSON.stringify(invalid),
+    );
+  }
+});
 
 test("F1-03: registra importes exactos y normaliza campos opcionales", () => {
   assert.deepEqual(parseMovement(expense, today), {
