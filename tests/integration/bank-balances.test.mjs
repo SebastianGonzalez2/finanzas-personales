@@ -32,6 +32,7 @@ test("F1-02: anclas exactas por titular y moneda con reintento, concurrencia y r
       assert.deepEqual(await migrateInTransaction(admin), [
         "0001_F0-05_initial.sql",
         "0002_F1-03_ordinary_movements.sql",
+        "0003_F1-04_movement_revisions.sql",
       ]);
       await admin.query("COMMIT");
       ownsSchema = true;
