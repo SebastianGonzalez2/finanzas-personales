@@ -49,8 +49,8 @@ export async function handleGoogleHttp(
         joined === "sign-in/social"
           ? {
               provider: "google",
-              callbackURL: `${origin}/account`,
-              newUserCallbackURL: `${origin}/account`,
+              callbackURL: `${origin}/resumen`,
+              newUserCallbackURL: `${origin}/resumen`,
               errorCallbackURL: `${origin}/auth/sign-in`,
             }
           : {};

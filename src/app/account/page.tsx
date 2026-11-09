@@ -1,25 +1,32 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { withGoogleOwner } from "@/server/google-auth.ts";
+import { FinanceShell } from "@/components/finance-shell";
 import { GoogleAccess } from "@/components/google-access";
+import { Card } from "@/components/ui/card";
+import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
+
+export const metadata = { title: "Mi cuenta | Finanzas personales" };
 export const dynamic = "force-dynamic";
+
 export default async function Account() {
-  const authorized = await withGoogleOwner(
-    new Request("https://internal.invalid", { headers: await headers() }),
-    async () => true,
-  ).catch(() => false);
-  if (!authorized) redirect("/auth/sign-in");
+  await requireGoogleOwnerPage();
+
   return (
-    <main
-      id="contenido"
-      className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-5 px-5 py-12"
-    >
-      <h1 className="text-2xl font-semibold">Tu cuenta está conectada</h1>
-      <p>
-        Tu acceso es privado. Las funciones financieras se habilitarán por
-        etapas.
-      </p>
-      <GoogleAccess signOut />
-    </main>
+    <FinanceShell current="account">
+      <h1
+        id="titulo-pagina"
+        tabIndex={-1}
+        className="text-xl leading-7 font-semibold"
+      >
+        Mi cuenta
+      </h1>
+      <Card className="mt-6 max-w-lg gap-4 p-6 shadow-none">
+        <h2 className="text-lg font-semibold">Tu cuenta está conectada</h2>
+        <p className="text-muted-foreground">
+          Tu acceso es privado y está vinculado a una cuenta Google autorizada.
+        </p>
+        <div className="self-start">
+          <GoogleAccess signOut />
+        </div>
+      </Card>
+    </FinanceShell>
   );
 }

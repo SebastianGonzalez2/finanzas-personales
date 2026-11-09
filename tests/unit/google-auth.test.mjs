@@ -57,7 +57,8 @@ test("Google-only: rutas antiguas, ID tokens, owner, scopes y redirects del clie
     handler: async (r) => {
       called++;
       const body = await r.json();
-      assert.equal(body.callbackURL, `${origin}/account`);
+      assert.equal(body.callbackURL, `${origin}/resumen`);
+      assert.equal(body.newUserCallbackURL, `${origin}/resumen`);
       return Response.json({ ok: true });
     },
   };

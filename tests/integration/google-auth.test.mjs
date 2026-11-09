@@ -193,7 +193,7 @@ test(
           );
           assert.notEqual(
             unauthorized.headers.get("location"),
-            `${origin}/account`,
+            `${origin}/resumen`,
           );
           assert.equal(await count(), 0);
           assert.equal(
@@ -219,12 +219,12 @@ test(
             await begin(),
             google("a@example.invalid", "google-A"),
           );
-          assert.equal(ar.headers.get("location"), `${origin}/account`);
+          assert.equal(ar.headers.get("location"), `${origin}/resumen`);
           const br = await callback(
             await begin(),
             google("b@example.invalid", "google-B"),
           );
-          assert.equal(br.headers.get("location"), `${origin}/account`);
+          assert.equal(br.headers.get("location"), `${origin}/resumen`);
           a = { cookie: cookieHeader(ar) };
           b = { cookie: cookieHeader(br) };
           a.session = await fresh(a.cookie);
@@ -466,7 +466,7 @@ test(
             { ...start, state: "altered" },
             google("a@example.invalid", "google-A"),
           );
-          assert.notEqual(changed.headers.get("location"), `${origin}/account`);
+          assert.notEqual(changed.headers.get("location"), `${origin}/resumen`);
           const ok = await callback(
             start,
             google("a@example.invalid", "google-A"),
@@ -477,7 +477,7 @@ test(
             start,
             google("a@example.invalid", "google-A"),
           );
-          assert.notEqual(replay.headers.get("location"), `${origin}/account`);
+          assert.notEqual(replay.headers.get("location"), `${origin}/resumen`);
           const out = await handleGoogleHttp(
             new Request(`${origin}/api/auth/sign-out`, {
               method: "POST",
@@ -509,7 +509,7 @@ test(
             await begin(),
             google("changed@example.invalid", "google-A"),
           );
-          assert.notEqual(denied.headers.get("location"), `${origin}/account`);
+          assert.notEqual(denied.headers.get("location"), `${origin}/resumen`);
           assert.equal(await fresh(cookie), null);
           assert.equal(await count(), 2);
           const binding = await admin.query(
@@ -536,7 +536,7 @@ test(
             });
             assert.notEqual(
               result.headers.get("location"),
-              `${origin}/account`,
+              `${origin}/resumen`,
             );
           }
           invalidSignature = true;
@@ -547,7 +547,7 @@ test(
             );
             assert.notEqual(
               result.headers.get("location"),
-              `${origin}/account`,
+              `${origin}/resumen`,
             );
           } finally {
             invalidSignature = false;
@@ -561,7 +561,7 @@ test(
             );
             assert.notEqual(
               result.headers.get("location"),
-              `${origin}/account`,
+              `${origin}/resumen`,
             );
           } finally {
             providerUnavailable = false;
@@ -577,7 +577,7 @@ test(
             );
             assert.notEqual(
               result.headers.get("location"),
-              `${origin}/account`,
+              `${origin}/resumen`,
             );
             assert.doesNotMatch(
               await result.text(),
