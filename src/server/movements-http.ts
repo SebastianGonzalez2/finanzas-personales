@@ -148,7 +148,7 @@ export async function handleMovementRevision(
         return failure("El movimiento no está disponible.", 404);
       case "inactive":
         return failure(
-          "El movimiento ya fue corregido o anulado. Revisá Resumen.",
+          "El movimiento ya fue corregido o anulado. Actualizá la página para ver su estado.",
           409,
         );
       case "conflict":
@@ -160,6 +160,18 @@ export async function handleMovementRevision(
         return failure(
           "Un saldo confirmado después de este registro cubre su fecha. Compará el movimiento y el saldo confirmado con tu estado de cuenta antes de hacer una corrección.",
           409,
+        );
+      case "unavailable":
+        return failure("La edición del historial aún no está disponible.", 409);
+      case "invalid-kind":
+        return failure(
+          "Elegí los campos que corresponden al tipo de movimiento.",
+          400,
+        );
+      case "invalid-category":
+        return failure(
+          "La categoría no está disponible. Elegí otra o dejá el movimiento sin categorizar.",
+          400,
         );
       case "unconfigured":
         return failure(

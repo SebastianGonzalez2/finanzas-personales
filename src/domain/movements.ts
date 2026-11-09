@@ -1,4 +1,8 @@
-import { bankCurrencies, isBankReferenceDate } from "./bank-balances.ts";
+import {
+  bankCurrencies,
+  bankReferenceToday,
+  isBankReferenceDate,
+} from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const movementMethods = {
@@ -25,7 +29,11 @@ export type MovementInput = {
 
 type RevisionTarget = { eventId: string; idempotencyKey: string };
 export type MovementRevision = RevisionTarget &
-  ({ action: "void" } | { action: "correct"; amount: string });
+  (
+    | { action: "void" }
+    | { action: "correct"; amount: string }
+    | { action: "edit"; movement: MovementInput | BankTransfer }
+  );
 
 export type RecentMovement = Pick<
   MovementInput,
@@ -53,7 +61,8 @@ export type RecentBankTransfer = Omit<
 
 export const conceptLimit = 200;
 export const noteLimit = 500;
-const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+export const movementUuid =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const inputKeys = [
   "kind",
   "currency",
@@ -96,7 +105,7 @@ export function parseBankTransfer(
     kind !== "bank_transfer" ||
     Object.keys(extra).length ||
     typeof idempotencyKey !== "string" ||
-    !uuid.test(idempotencyKey)
+    !movementUuid.test(idempotencyKey)
   )
     return { error: "Solicitud inválida." };
   const source = bankCurrencies.find((code) => code === sourceCurrency);
@@ -129,23 +138,25 @@ export function parseBankTransfer(
 
 export function parseMovementRevision(
   input: unknown,
+  today = bankReferenceToday(),
 ): MovementRevision | { error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input))
     return { error: "Solicitud inválida." };
-  const { action, eventId, idempotencyKey, amount } = input as Record<
+  const { action, eventId, idempotencyKey, amount, movement } = input as Record<
     string,
     unknown
   >;
   if (
-    (action !== "void" && action !== "correct") ||
+    (action !== "void" && action !== "correct" && action !== "edit") ||
     typeof eventId !== "string" ||
-    !uuid.test(eventId) ||
+    !movementUuid.test(eventId) ||
     typeof idempotencyKey !== "string" ||
-    !uuid.test(idempotencyKey) ||
+    !movementUuid.test(idempotencyKey) ||
     Object.keys(input).some(
       (key) =>
         !["action", "eventId", "idempotencyKey"].includes(key) &&
-        !(key === "amount" && action === "correct"),
+        !(key === "amount" && action === "correct") &&
+        !(key === "movement" && action === "edit"),
     )
   )
     return { error: "Solicitud inválida." };
@@ -155,6 +166,21 @@ export function parseMovementRevision(
     idempotencyKey: idempotencyKey.toLowerCase(),
   };
   if (action === "void") return { action, ...target };
+  if (action === "edit") {
+    if (
+      !movement ||
+      typeof movement !== "object" ||
+      Array.isArray(movement) ||
+      "idempotencyKey" in movement
+    )
+      return { error: "Solicitud inválida." };
+    const replacement = { ...movement, idempotencyKey: target.idempotencyKey };
+    const parsed =
+      "kind" in movement && movement.kind === "bank_transfer"
+        ? parseBankTransfer(replacement, today)
+        : parseMovement(replacement, today);
+    return "error" in parsed ? parsed : { action, ...target, movement: parsed };
+  }
   try {
     return { action, ...target, amount: positiveAmount(amount) };
   } catch {
@@ -185,7 +211,7 @@ export function parseMovement(
     categoryId,
     idempotencyKey,
   } = input as Record<string, unknown>;
-  if (typeof idempotencyKey !== "string" || !uuid.test(idempotencyKey))
+  if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
   if (kind !== "income" && kind !== "expense")
     return { error: "Elegí ingreso o gasto." };
@@ -225,7 +251,10 @@ export function parseMovement(
   )
     return { error: `Ingresá una nota de hasta ${noteLimit} caracteres.` };
   const category = categoryId ?? "";
-  if (typeof category !== "string" || (category && !uuid.test(category)))
+  if (
+    typeof category !== "string" ||
+    (category && !movementUuid.test(category))
+  )
     return { error: "Elegí una categoría válida." };
 
   return {
