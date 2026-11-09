@@ -4,6 +4,7 @@ import {
   bankReferenceToday,
   formatBankAmount,
   formatBankReference,
+  parseBalanceAdjustment,
   parseOpeningBalance,
 } from "../../src/domain/bank-balances.ts";
 import { handleOpeningBalance } from "../../src/server/bank-balances-http.ts";
@@ -123,4 +124,33 @@ test("F1-02: escritura solo del mismo origen con entrada válida y respuestas pr
   );
   assert.equal(denied.status, 401);
   assert.doesNotMatch(await denied.text(), /detalle privado/);
+});
+test("F1-05 valida ajustes fechados, nota e idempotencia sin aceptar titular externo", () => {
+  const today = "2026-11-08";
+  const input = {
+    currency: "EUR",
+    amount: "-9007199254740993,1234",
+    asOfDate: "2026-02-28",
+    note: "  Confirmación de prueba  ",
+    idempotencyKey: "E8EC105E-847E-4650-8267-3423BF72AC27",
+  };
+  assert.deepEqual(parseBalanceAdjustment(input, today), {
+    ...input,
+    amount: "-9007199254740993.1234",
+    note: "Confirmación de prueba",
+    idempotencyKey: input.idempotencyKey.toLowerCase(),
+  });
+  for (const invalid of [
+    { ownerId: "B" },
+    { amount: 8700 },
+    { asOfDate: "2026-11-09" },
+    { asOfDate: "2026-02-29" },
+    { idempotencyKey: "duplicado" },
+    { note: "x".repeat(501) },
+    { note: "abc\0" },
+  ]) {
+    assert.ok(
+      "error" in parseBalanceAdjustment({ ...input, ...invalid }, today),
+    );
+  }
 });

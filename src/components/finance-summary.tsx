@@ -3,6 +3,7 @@ import {
   formatBankAmount,
   formatBankReference,
   type BankBalance,
+  type BankCheckpoint,
 } from "@/domain/bank-balances";
 import {
   movementMethods,
@@ -11,8 +12,11 @@ import {
   type RecentMovement,
 } from "@/domain/movements";
 import { BankBalanceRow } from "./bank-balance-row";
+import { BankCheckpointHistory } from "./bank-checkpoint-history";
+import { BalanceAdjustmentForm } from "./balance-adjustment-form";
 import { FinanceIcon } from "./finance-icon";
 import { MovementForm } from "./movement-form";
+import { RecentAmountCorrection } from "./recent-amount-correction";
 import { Card } from "./ui/card";
 
 const indicators = [
@@ -39,6 +43,8 @@ const sections = [
 
 export function FinanceSummary({
   balances,
+  checkpoints,
+  reconciliationReady,
   today,
   categories,
   totals,
@@ -47,6 +53,8 @@ export function FinanceSummary({
   movementRegistrationReady,
 }: {
   balances: BankBalance[];
+  checkpoints: BankCheckpoint[];
+  reconciliationReady: boolean;
   today: string;
   categories: MovementCategory[];
   totals: MovementTotal[];
@@ -93,16 +101,33 @@ export function FinanceSummary({
               Dinero disponible
             </h2>
             <ul aria-label="Saldos bancarios por moneda">
-              {bankCurrencies.map((currency) => (
-                <BankBalanceRow
-                  key={currency}
-                  currency={currency}
-                  initialBalance={balances.find(
-                    (balance) => balance.currency === currency,
-                  )}
-                  today={today}
-                />
-              ))}
+              {bankCurrencies.map((currency) => {
+                const history = checkpoints.filter(
+                  (checkpoint) => checkpoint.currency === currency,
+                );
+                const firstDate = history.at(-1)?.asOfDate;
+                return (
+                  <BankBalanceRow
+                    key={currency}
+                    currency={currency}
+                    initialBalance={balances.find(
+                      (balance) => balance.currency === currency,
+                    )}
+                    today={today}
+                  >
+                    {firstDate && (
+                      <>
+                        <BalanceAdjustmentForm
+                          currency={currency}
+                          today={today}
+                          firstDate={firstDate}
+                        />
+                        <BankCheckpointHistory checkpoints={history} />
+                      </>
+                    )}
+                  </BankBalanceRow>
+                );
+              })}
             </ul>
           </Card>
           {indicators.map(({ title, icon, accent, description }) => {
@@ -149,7 +174,7 @@ export function FinanceSummary({
 
       <section aria-labelledby="mis-finanzas" className="mt-5">
         <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-y py-3">
-          <h2 id="mis-finanzas" className="text-lg font-semibold">
+          <h2 id="mis-finanzas" tabIndex={-1} className="text-lg font-semibold">
             Mis finanzas
           </h2>
           <nav aria-label="Secciones de Mis finanzas">
@@ -178,7 +203,12 @@ export function FinanceSummary({
               </h3>
               <Card className="min-h-24 justify-center p-4 text-sm text-muted-foreground shadow-none">
                 {"list" in section ? (
-                  <RecentMovements movements={recent[section.list]} />
+                  <RecentMovements
+                    movements={recent[section.list]}
+                    canCorrect={
+                      movementRegistrationReady && reconciliationReady
+                    }
+                  />
                 ) : (
                   <p>Disponible en una próxima etapa.</p>
                 )}
@@ -191,7 +221,13 @@ export function FinanceSummary({
   );
 }
 
-function RecentMovements({ movements }: { movements: RecentMovement[] }) {
+function RecentMovements({
+  movements,
+  canCorrect,
+}: {
+  movements: RecentMovement[];
+  canCorrect: boolean;
+}) {
   if (!movements.length) return <p>Todavía no hay movimientos de este tipo.</p>;
 
   return (
@@ -216,6 +252,13 @@ function RecentMovements({ movements }: { movements: RecentMovement[] }) {
           </p>
           {movement.note && (
             <p className="whitespace-pre-wrap">{movement.note}</p>
+          )}
+          {canCorrect && (
+            <RecentAmountCorrection
+              eventId={movement.id}
+              amount={movement.amount}
+              concept={movement.concept}
+            />
           )}
         </li>
       ))}

@@ -9,6 +9,23 @@ export type BankBalance = {
   calculatedAmount?: string;
 };
 
+export const adjustmentNoteLimit = 500;
+
+export type BalanceAdjustment = Omit<BankBalance, "calculatedAmount"> & {
+  idempotencyKey: string;
+  note: string | null;
+};
+
+export type BankCheckpoint = Omit<BankBalance, "calculatedAmount"> & {
+  id: string;
+  note: string | null;
+  originalProjection: string | null;
+  originalDifference: string | null;
+  projection: string | null;
+  difference: string | null;
+  projectionChanged: boolean;
+};
+
 const montevideoDate = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Montevideo",
   year: "numeric",
@@ -74,6 +91,39 @@ export function parseOpeningBalance(
     return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
 
   return { currency, amount: money.toDecimal(), asOfDate };
+}
+
+export function parseBalanceAdjustment(
+  input: unknown,
+  today: string,
+): BalanceAdjustment | { error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return { error: "Solicitud inválida." };
+  const { idempotencyKey, note, ...fields } = input as Record<string, unknown>;
+  if (
+    typeof idempotencyKey !== "string" ||
+    !/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(
+      idempotencyKey,
+    )
+  )
+    return { error: "Solicitud inválida." };
+  if (
+    note != null &&
+    (typeof note !== "string" ||
+      note.length > adjustmentNoteLimit ||
+      note.includes("\0"))
+  )
+    return { error: "Ingresá una nota válida de hasta 500 caracteres." };
+
+  const balance = parseOpeningBalance(fields, today);
+  if ("error" in balance) return balance;
+  return {
+    currency: balance.currency,
+    amount: balance.amount,
+    asOfDate: balance.asOfDate,
+    idempotencyKey: idempotencyKey.toLowerCase(),
+    note: (typeof note === "string" && note.trim()) || null,
+  };
 }
 
 const wholeAmount = new Intl.NumberFormat("es-UY", { useGrouping: "always" });

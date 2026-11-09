@@ -10,7 +10,13 @@ import type {
   RecentMovement,
 } from "../domain/movements.ts";
 import type { Currency } from "../domain/money.ts";
-import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
+import {
+  bankEventPosition,
+  bankEventSource,
+  bankReconciliationReady,
+  listBankBalances,
+  lockBankWrites,
+} from "./bank-balances.ts";
 
 const defaultNames = {
   income: [
@@ -304,6 +310,7 @@ export async function reviseMovement(
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
+  const reconciliationReady = await bankReconciliationReady(client);
 
   const {
     rows: [original],
@@ -319,9 +326,13 @@ export async function reviseMovement(
             EXISTS (
               SELECT 1 FROM finance.balance_checkpoints b
                WHERE b.owner_id = f.owner_id AND b.currency = e.currency
-                 AND b.as_of_date >= e.effective_on AND b.created_at >= f.created_at
+                 AND ${
+                   reconciliationReady
+                     ? `(b.as_of_date, b.created_at) >= ${bankEventPosition(true)}`
+                     : "b.as_of_date >= e.effective_on AND b.created_at >= f.created_at"
+                 }
             ) AS covered
-       FROM finance.financial_events f
+       FROM ${bankEventSource(reconciliationReady)} f
        JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
        JOIN finance.bank_effects e
          ON (e.owner_id, e.event_id, e.id) = (m.owner_id, m.event_id, m.event_id)
@@ -330,12 +341,17 @@ export async function reviseMovement(
   );
   if (!original) return { status: "not-found" };
   if (original.status !== "confirmed") return { status: "inactive" };
-  if (original.covered) return { status: "checkpoint" };
+  if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
   const { currency, kind, effectiveOn } = original;
-  const [balance] = await listBankBalances(client, ownerId, [currency]);
+  const [balance] = await listBankBalances(
+    client,
+    ownerId,
+    [currency],
+    reconciliationReady,
+  );
   if (!balance) return { status: "unconfigured" };
-  if (effectiveOn >= balance.asOfDate) {
+  if (!original.covered && effectiveOn >= balance.asOfDate) {
     const gap = await bankShortfall(
       client,
       currency,

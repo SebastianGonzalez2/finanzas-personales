@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   formatBankAmount,
@@ -16,10 +22,12 @@ export function BankBalanceRow({
   currency,
   initialBalance,
   today,
+  children,
 }: {
   currency: Currency;
   initialBalance?: BankBalance;
   today: string;
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState<BankBalance>();
@@ -124,6 +132,7 @@ export function BankBalanceRow({
           <p className="text-xs text-muted-foreground">Sin configurar</p>
         )}
       </div>
+      {children}
       {open && !balance && (
         <form
           method="post"

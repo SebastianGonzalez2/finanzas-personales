@@ -2,8 +2,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
-import { bankReferenceToday } from "@/domain/bank-balances";
-import { listBankBalances } from "@/server/bank-balances";
+import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
+import {
+  bankReconciliationReady,
+  listBankBalances,
+  listBankCheckpoints,
+} from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
   listMovementCategories,
@@ -20,11 +24,23 @@ export default async function SummaryPage() {
   const data = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
-      const balances = await listBankBalances(client, ownerId);
+      const reconciliationReady = await bankReconciliationReady(client);
+      const bankData = {
+        balances: await listBankBalances(
+          client,
+          ownerId,
+          bankCurrencies,
+          reconciliationReady,
+        ),
+        checkpoints: reconciliationReady
+          ? await listBankCheckpoints(client, ownerId)
+          : [],
+        reconciliationReady,
+      };
       const { readable, writable } = await movementAvailability(client);
       if (!readable)
         return {
-          balances,
+          ...bankData,
           movementRegistrationReady: false,
           categories: [],
           totals: [],
@@ -32,7 +48,7 @@ export default async function SummaryPage() {
           incomes: [],
         };
       return {
-        balances,
+        ...bankData,
         movementRegistrationReady: writable,
         categories: writable
           ? await listMovementCategories(client, ownerId)

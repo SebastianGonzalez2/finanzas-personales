@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
-import {
-  migrateInTransaction,
-  readMigrations,
-} from "../../src/db/migrations.mts";
+import { readMigrations } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import {
   listBankBalances,
@@ -113,10 +110,13 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
         "INSERT INTO finance.audit_changes(owner_id,id,event_id,change_type) VALUES ($1,$2,$2,'created')",
         [legacyOwner, originalId],
       );
-      const revision = migrations[2];
-      assert.deepEqual(await migrateInTransaction(admin, revision.sha256), [
-        revision.version,
-      ]);
+      // This suite also verifies the F1-04 fallback before F1-05 is applied.
+      const { sql, version, sha256 } = migrations[2];
+      await admin.query(sql);
+      await admin.query(
+        "INSERT INTO finance_meta.schema_migrations(version, sha256) VALUES ($1, $2)",
+        [version, sha256],
+      );
       await admin.query("COMMIT");
       initialized = true;
     } finally {
