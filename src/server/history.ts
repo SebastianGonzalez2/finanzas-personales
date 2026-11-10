@@ -3,6 +3,7 @@ import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
 import { creditOperationsReady } from "./movements.ts";
 import { installmentsReady } from "./installments.ts";
+import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import type { Currency } from "../domain/money.ts";
 import {
   type HistoryEntry,
@@ -34,28 +35,33 @@ const checkpointFields = `b.id, 'checkpoint'::text AS kind, 'confirmed'::text AS
 const checkpointSource = `FROM finance.balance_checkpoints b
   LEFT JOIN finance.balance_adjustments a ON (a.owner_id, a.checkpoint_id) = (b.owner_id, b.id)`;
 
-const cardFields = `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
+const cardFields = (
+  withMixed: boolean,
+) => `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
   (amounts.data->0->>'currency')::finance.currency AS currency, amounts.data->0->>'amount' AS amount,
   NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
   o.category_id AS "categoryId", c.name AS category,
-  CASE WHEN f.kind IN ('card_purchase', 'card_payment') THEN 'credit' END AS method,
+  CASE ${withMixed ? "WHEN d.id IS NOT NULL THEN 'mixed'" : ""}
+    WHEN f.kind IN ('card_purchase', 'card_payment') THEN 'credit' END AS method,
   amounts.data AS "cardAmounts"`;
-function cardSource(withPlans: boolean) {
+function cardSource(withPlans: boolean, withMixed: boolean) {
   return `FROM finance.financial_events f
   JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)
   JOIN finance.cards card ON (card.owner_id, card.id) = (o.owner_id, o.card_id)
   LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (o.owner_id, o.category_id)
   ${withPlans ? "LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (f.owner_id, f.id)" : ""}
+  ${withMixed ? "LEFT JOIN finance.mixed_purchase_debits d ON (d.owner_id, d.id) = (f.owner_id, f.id)" : ""}
   CROSS JOIN LATERAL (
-    SELECT jsonb_agg(jsonb_build_object('currency', l.currency, 'amount', (${cardPurchaseAmount(withPlans)})::text) ORDER BY l.currency) AS data
+    SELECT jsonb_agg(jsonb_build_object('currency', l.currency, 'amount', (${cardPurchaseAmount(withPlans, withMixed)})::text) ORDER BY l.currency) AS data
       FROM finance.credit_lines l WHERE (l.owner_id, l.event_id) = (o.owner_id, o.event_id)
   ) amounts`;
 }
 
-function cardPurchaseAmount(withPlans: boolean) {
-  return withPlans
+function cardPurchaseAmount(withPlans: boolean, withMixed: boolean) {
+  const credit = withPlans
     ? "coalesce(p.installment_amount * p.installment_count, l.amount)"
     : "l.amount";
+  return withMixed ? `${credit} + coalesce(d.amount, 0)` : credit;
 }
 
 export async function listHistory(
@@ -66,6 +72,9 @@ export async function listHistory(
   const { filters, minimum, maximum, cursor } = query;
   const credit = await creditOperationsReady(client);
   const withPlans = credit && (await installmentsReady(client));
+  const withMixed = credit && (await mixedPurchasesReady(client));
+  const categoryMatches = (field: string) =>
+    `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
   const { rows } = await client.query<HistoryEntry>(
     `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn"
        FROM (
@@ -98,18 +107,27 @@ export async function listHistory(
        ${
          credit
            ? `UNION ALL
-       (SELECT ${cardFields} ${cardSource(withPlans)}
+       (SELECT ${cardFields(withMixed)} ${cardSource(withPlans, withMixed)}
          WHERE f.owner_id = $1
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
            AND ($7 IS NULL OR (f.kind = 'card_purchase' AND
-             CASE WHEN $7 = 'none' THEN o.category_id IS NULL ELSE o.category_id::text = lower($7) END))
-           AND ($8 IS NULL OR ($8 = 'credit' AND f.kind IN ('card_purchase', 'card_payment')))
+             ${
+               withMixed
+                 ? `CASE WHEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
+               WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+               THEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
+                 WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id) AND ${categoryMatches("s.category_id")})
+               ELSE ${categoryMatches("o.category_id")} END`
+                 : categoryMatches("o.category_id")
+             }))
+           AND ($8 IS NULL OR ($8 = 'credit' AND f.kind IN ('card_purchase', 'card_payment'))
+             ${withMixed ? "OR ($8 IN ('mixed', 'debit') AND d.id IS NOT NULL)" : ""})
            AND EXISTS (
              SELECT 1 FROM finance.credit_lines l
-             CROSS JOIN LATERAL (VALUES (l.currency, ${cardPurchaseAmount(withPlans)}), (l.bank_currency, l.bank_amount + l.fee)) v(currency, amount)
+             CROSS JOIN LATERAL (VALUES (l.currency, ${cardPurchaseAmount(withPlans, withMixed)}), (l.bank_currency, l.bank_amount + l.fee)) v(currency, amount)
              WHERE (l.owner_id, l.event_id) = (f.owner_id, f.id) AND v.currency IS NOT NULL
                AND ($9 IS NULL OR v.currency = $9) AND ($10 IS NULL OR v.amount >= $10)
                AND ($11 IS NULL OR v.amount <= $11))
@@ -162,9 +180,10 @@ export async function findHistoryEntry(
   );
   if (entry || checkpoint || !(await creditOperationsReady(client)))
     return entry;
+  const withMixed = await mixedPurchasesReady(client);
   const result = await client.query<HistoryEntry>(
-    `SELECT ${cardFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
-      ${cardSource(await installmentsReady(client))} WHERE f.owner_id = $1 AND f.id = $2`,
+    `SELECT ${cardFields(withMixed)}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+      ${cardSource(await installmentsReady(client), withMixed)} WHERE f.owner_id = $1 AND f.id = $2`,
     [ownerId, id],
   );
   return result.rows[0];

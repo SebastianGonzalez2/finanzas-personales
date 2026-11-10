@@ -56,6 +56,7 @@ export function FinanceSummary({
   period,
   categories,
   creditCards,
+  debitCards,
   installmentsReady,
   monthlyInstallments,
   totals,
@@ -72,6 +73,7 @@ export function FinanceSummary({
   period: string;
   categories: MovementCategory[];
   creditCards: CatalogCard[];
+  debitCards?: CatalogCard[];
   installmentsReady: boolean;
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
@@ -102,6 +104,7 @@ export function FinanceSummary({
           balances={balances}
           categories={categories}
           creditCards={creditCards}
+          debitCards={debitCards}
           installmentsReady={installmentsReady}
         />
       ) : (

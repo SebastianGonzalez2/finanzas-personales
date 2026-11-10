@@ -14,6 +14,7 @@ export const movementMethods = {
 export const movementDisplayMethods = {
   ...movementMethods,
   credit: "Tarjeta de crédito",
+  mixed: "Débito y crédito",
 } as const;
 export type MovementDisplayMethod = keyof typeof movementDisplayMethods;
 

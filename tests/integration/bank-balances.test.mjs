@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
-import { migrateInTransaction } from "../../src/db/migrations.mts";
+import {
+  migrateInTransaction,
+  readMigrations,
+} from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import {
   listBankBalances,
@@ -29,18 +32,10 @@ test("F1-02: anclas exactas por titular y moneda con reintento, concurrencia y r
     const admin = await pool.connect();
     try {
       await admin.query("BEGIN");
-      assert.deepEqual(await migrateInTransaction(admin), [
-        "0001_F0-05_initial.sql",
-        "0002_F1-03_ordinary_movements.sql",
-        "0003_F1-04_movement_revisions.sql",
-        "0004_F1-05_balance_reconciliation.sql",
-        "0005_F1-06_bank_transfers.sql",
-        "0006_F1-07_movement_history.sql",
-        "0007_F2-01_card_catalog.sql",
-        "0008_F2-02_credit_operations.sql",
-        "0009_F2-03_credit_installments.sql",
-        "0010_F2-04_card_cycles.sql",
-      ]);
+      assert.deepEqual(
+        await migrateInTransaction(admin),
+        (await readMigrations()).map(({ version }) => version),
+      );
       await admin.query("COMMIT");
       ownsSchema = true;
     } finally {

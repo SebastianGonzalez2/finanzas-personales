@@ -8,7 +8,9 @@ import type {
   CreditVoid,
   DebtAmount,
   InstallmentRevision,
+  MixedPurchase,
   OpeningDebt,
+  PurchaseCategory,
 } from "../domain/credit-operations.ts";
 import { bankReferenceToday } from "../domain/bank-balances.ts";
 import {
@@ -19,6 +21,7 @@ import {
 import { Money, type Currency } from "../domain/money.ts";
 import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
 import { insertInstallmentVersion } from "./installments.ts";
+import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import {
   commandHash,
   findReplay,
@@ -60,6 +63,7 @@ type CreditEvent = {
   categoryId?: string | null;
   note?: string | null;
   lines: RecordedLine[];
+  mixed?: boolean;
 };
 
 async function insertCreditEvent(
@@ -68,8 +72,8 @@ async function insertCreditEvent(
   event: CreditEvent,
   hash: string,
   bankDebits = new Map<Currency, bigint>(),
+  id: string = randomUUID(),
 ) {
-  const id = randomUUID();
   const {
     cardId,
     effectiveOn,
@@ -140,7 +144,14 @@ async function insertCreditEvent(
     await client.query(
       `INSERT INTO finance.bank_effects (owner_id, id, event_id, currency, amount_signed, effective_on)
         VALUES ($1, $2, $3, $4, -$5::numeric, $6)`,
-      [ownerId, randomUUID(), id, currency, decimal(debit), effectiveOn],
+      [
+        ownerId,
+        event.mixed ? id : randomUUID(),
+        id,
+        currency,
+        decimal(debit),
+        effectiveOn,
+      ],
     );
   }
   await client.query(
@@ -279,6 +290,15 @@ export async function voidCreditOperation(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  const blocked = await reverseCreditDebt(client, ownerId, eventId);
+  return blocked ?? recordRevision(client, ownerId, command, hash, null);
+}
+
+async function reverseCreditDebt(
+  client: pg.PoolClient,
+  ownerId: string,
+  eventId: string,
+) {
   const { rows } = await client.query<{
     cardId: string;
     currency: Currency;
@@ -352,7 +372,6 @@ export async function voidCreditOperation(
       [ownerId, cardId, currency, debt],
     );
   }
-  return recordRevision(client, ownerId, command, hash, null);
 }
 
 export async function saveCreditOperation(
@@ -360,7 +379,7 @@ export async function saveCreditOperation(
   ownerId: string,
   command: CreditCommand,
 ) {
-  const { cardId, effectiveOn, idempotencyKey, action } = command;
+  const { idempotencyKey } = command;
   const hash = commandHash(["credit-operation-v1", JSON.stringify(command)]);
   await lockBankWrites(client, ownerId);
   await lockCardWrites(client, ownerId);
@@ -370,6 +389,95 @@ export async function saveCreditOperation(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  if (command.action !== "purchase" || !command.mixed)
+    return applyCreditOperation(client, ownerId, command, hash);
+
+  // Domain conflicts must leave neither half of the purchase nor a revision.
+  const id = randomUUID();
+  await client.query("SAVEPOINT mixed_purchase");
+  const result = await applyMixedPurchase(
+    client,
+    ownerId,
+    command,
+    command.mixed,
+    hash,
+    id,
+  );
+  if (result.status !== "created")
+    await client.query("ROLLBACK TO SAVEPOINT mixed_purchase");
+  await client.query("RELEASE SAVEPOINT mixed_purchase");
+  return result;
+}
+
+async function applyMixedPurchase(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: Extract<CreditCommand, { action: "purchase" }>,
+  mixed: MixedPurchase,
+  hash: string,
+  id: string,
+) {
+  if (mixed.correction) {
+    const { eventId, planVersion } = mixed.correction;
+    const {
+      rows: [original],
+    } = await client.query<{
+      cancelled: boolean;
+      version: number;
+      assigned: boolean;
+    }>(
+      `SELECT coalesce(p.active_count < p.installment_count, false) AS cancelled,
+              coalesce(p.version, 0) AS version,
+              EXISTS (SELECT 1 FROM finance.current_card_cycles c
+                WHERE (c.owner_id, c.purchase_id) = (m.owner_id, m.event_id)
+                  AND c.assigned_period IS NOT NULL) AS assigned
+         FROM finance.mixed_purchases m
+         LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (m.owner_id, m.event_id)
+        WHERE m.owner_id = $1 AND m.event_id = $2`,
+      [ownerId, eventId],
+    );
+    if (!original) return { status: "not-found" } as const;
+    if (planVersion !== original.version)
+      return conflict(
+        "El plan cambió. Actualizá la página antes de corregir la compra.",
+      );
+    if (original.cancelled)
+      return conflict(
+        "La compra tiene cuotas canceladas. Conservá el plan registrado o anulá la compra si corresponde.",
+      );
+    if (original.assigned)
+      return conflict(
+        "Restablecé las asignaciones manuales de la compra al resumen antes de corregirla.",
+      );
+    const blocked = await reverseCreditDebt(client, ownerId, eventId);
+    if (blocked) return blocked;
+    await client.query(
+      "SET CONSTRAINTS finance.audit_changes_owner_id_replacement_event_id_fkey DEFERRED",
+    );
+    await recordRevision(
+      client,
+      ownerId,
+      { eventId, idempotencyKey: command.idempotencyKey },
+      hash,
+      id,
+    );
+  }
+  const result = await applyCreditOperation(client, ownerId, command, hash, id);
+  if (mixed.correction && result.status === "created")
+    await client.query(
+      "SET CONSTRAINTS finance.audit_changes_owner_id_replacement_event_id_fkey IMMEDIATE",
+    );
+  return result;
+}
+
+async function applyCreditOperation(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: CreditCommand,
+  hash: string,
+  eventId?: string,
+) {
+  const { cardId, effectiveOn, idempotencyKey, action } = command;
   const {
     rows: [card],
   } = await client.query<{ name: string; archived: boolean }>(
@@ -377,7 +485,21 @@ export async function saveCreditOperation(
     [ownerId, cardId],
   );
   if (!card) return { status: "not-found" } as const;
-  if (card.archived && action === "purchase")
+  const correction =
+    action === "purchase" ? command.mixed?.correction : undefined;
+  if (
+    card.archived &&
+    action === "purchase" &&
+    !(
+      correction &&
+      (
+        await client.query(
+          "SELECT 1 FROM finance.credit_lines WHERE owner_id = $1 AND event_id = $2 AND card_id = $3 AND currency = $4",
+          [ownerId, correction.eventId, cardId, command.currency],
+        )
+      ).rowCount
+    )
+  )
     return conflict("La tarjeta está archivada.");
 
   const positions = await listPositions(client, ownerId, cardId);
@@ -530,11 +652,27 @@ export async function saveCreditOperation(
     !command.covered &&
     amount !== zero &&
     position.reference &&
-    effectiveOn < position.reference
-  )
-    return conflict(
-      "La compra es anterior a la deuda confirmada. Verificá si ya está incluida.",
-    );
+    effectiveOn <= position.reference
+  ) {
+    const earlier =
+      effectiveOn < position.reference ||
+      (correction &&
+        (
+          await client.query(
+            `SELECT 1 FROM finance.credit_lines l
+           JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
+           JOIN finance.bank_event_positions original ON original.owner_id = f.owner_id AND original.id = $2
+          WHERE l.owner_id = $1 AND l.card_id = $3 AND l.currency = $4 AND f.effective_on = $5
+            AND f.kind IN ('card_opening', 'card_adjustment') AND f.status = 'confirmed'
+            AND f.created_at > original.bank_recorded_at`,
+            [ownerId, correction.eventId, cardId, currency, effectiveOn],
+          )
+        ).rowCount);
+    if (earlier)
+      return conflict(
+        "La compra es anterior a la deuda confirmada. Verificá si ya está incluida.",
+      );
+  }
   let debtAfter = debt.toDecimal();
   try {
     if (!command.covered)
@@ -542,11 +680,77 @@ export async function saveCreditOperation(
   } catch {
     return conflict("La deuda resultante está fuera de rango.");
   }
-  const categoryId = await resolveMovementCategory(
+  const { mixed } = command;
+  const bankDebits = new Map<Currency, bigint>();
+  const categories: PurchaseCategory[] = [];
+  if (mixed) {
+    if (mixed.debitCardId) {
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM finance.card_currencies p
+          JOIN finance.cards c ON (c.owner_id, c.id) = (p.owner_id, p.card_id)
+         WHERE p.owner_id = $1 AND p.card_id = $2 AND p.currency = $3
+           AND p.kind = 'debit' AND c.archived_at IS NULL
+         UNION ALL
+         SELECT 1 FROM finance.mixed_purchases m
+          WHERE m.owner_id = $1 AND m.debit_card_id = $2 AND m.currency = $3 AND m.event_id = $4`,
+        [ownerId, mixed.debitCardId, currency, correction?.eventId ?? null],
+      );
+      if (!rowCount)
+        return conflict(
+          "La tarjeta de débito no está disponible en esa moneda.",
+        );
+    }
+    const [bank] = await listBankBalances(client, ownerId, [currency]);
+    if (!bank) return conflict(`Configurá un saldo bancario en ${currency}.`);
+    const debit = units(mixed.debitAmount);
+    if (
+      effectiveOn >= bank.asOfDate &&
+      debit > units(bank.calculatedAmount ?? bank.amount)
+    ) {
+      // A same-day replacement can be before the latest checkpoint.
+      const covered =
+        mixed.correction &&
+        (
+          await client.query(
+            `SELECT 1 FROM finance.bank_event_positions original
+           CROSS JOIN LATERAL (
+             SELECT as_of_date, created_at FROM finance.balance_checkpoints
+              WHERE owner_id = $1 AND currency = $3
+              ORDER BY as_of_date DESC, created_at DESC, id DESC LIMIT 1
+           ) b
+          WHERE original.owner_id = $1 AND original.id = $2
+            AND ($4::date, original.bank_recorded_at) <= (b.as_of_date, b.created_at)`,
+            [ownerId, mixed.correction.eventId, currency, effectiveOn],
+          )
+        ).rowCount;
+      if (!covered)
+        return conflict(`Saldo bancario insuficiente en ${currency}.`);
+    }
+    bankDebits.set(currency, debit);
+    for (const split of mixed.categories) {
+      const categoryId = await resolvePurchaseCategory(
+        client,
+        ownerId,
+        split.categoryId,
+        correction?.eventId,
+      );
+      if (
+        categoryId === undefined ||
+        categories.some(
+          (row) => row.method === split.method && row.categoryId === categoryId,
+        )
+      )
+        return conflict(
+          "Revisá que las categorías estén disponibles y no se repitan por medio.",
+        );
+      categories.push({ ...split, categoryId });
+    }
+  }
+  const categoryId = await resolvePurchaseCategory(
     client,
     ownerId,
-    "expense",
     command.categoryId,
+    correction?.eventId,
   );
   if (categoryId === undefined)
     return conflict("La categoría no está disponible.");
@@ -559,6 +763,7 @@ export async function saveCreditOperation(
       concept: command.concept,
       note: command.note,
       categoryId,
+      mixed: !!mixed,
       lines: [
         {
           currency,
@@ -569,6 +774,8 @@ export async function saveCreditOperation(
       ],
     },
     hash,
+    bankDebits,
+    eventId,
   );
   if (command.plan) {
     await insertInstallmentVersion(client, ownerId, id, currency, {
@@ -578,7 +785,54 @@ export async function saveCreditOperation(
       change: "created",
     });
   }
+  if (mixed) {
+    await client.query(
+      "INSERT INTO finance.mixed_purchases (owner_id, event_id, currency, debit_card_id) VALUES ($1, $2, $3, $4)",
+      [ownerId, id, currency, mixed.debitCardId],
+    );
+    if (categories.length)
+      await client.query(
+        `INSERT INTO finance.mixed_purchase_categories (owner_id, event_id, method, category_id, amount)
+         SELECT $1, $2, method, category_id, amount
+           FROM jsonb_to_recordset($3::jsonb) AS split(method text, category_id uuid, amount numeric)`,
+        [
+          ownerId,
+          id,
+          JSON.stringify(
+            categories.map(({ method, categoryId, amount }) => ({
+              method,
+              category_id: categoryId,
+              amount,
+            })),
+          ),
+        ],
+      );
+  }
   return { status: "created", id } as const;
+}
+
+async function resolvePurchaseCategory(
+  client: pg.PoolClient,
+  ownerId: string,
+  categoryId: string | null,
+  original?: string,
+) {
+  const category = await resolveMovementCategory(
+    client,
+    ownerId,
+    "expense",
+    categoryId,
+  );
+  if (category !== undefined || !original || !categoryId) return category;
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM finance.mixed_purchase_categories
+      WHERE owner_id = $1 AND event_id = $2 AND category_id = $3
+     UNION ALL
+     SELECT 1 FROM finance.credit_operations
+      WHERE owner_id = $1 AND event_id = $2 AND category_id = $3`,
+    [ownerId, original, categoryId],
+  );
+  return rowCount ? categoryId : undefined;
 }
 
 export async function reviseInstallments(
@@ -598,15 +852,18 @@ export async function reviseInstallments(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  const withMixed = await mixedPurchasesReady(client);
   const {
     rows: [current],
   } = await client.query<
-    InstallmentVersion & { currency: Currency; status: string }
+    InstallmentVersion & { currency: Currency; status: string; mixed: boolean }
   >(
     `SELECT p.version, p.currency, f.status, p.installment_amount::text AS "installmentAmount",
+            ${withMixed ? "m.event_id IS NOT NULL" : "false"} AS mixed,
             p.installment_count AS count, p.active_count AS "activeCount", to_char(p.first_period, 'YYYY-MM') AS "firstPeriod"
        FROM finance.current_installment_plans p
        JOIN finance.financial_events f ON (f.owner_id, f.id) = (p.owner_id, p.event_id)
+       ${withMixed ? "LEFT JOIN finance.mixed_purchases m ON (m.owner_id, m.event_id) = (p.owner_id, p.event_id)" : ""}
       WHERE p.owner_id = $1 AND p.event_id = $2 AND f.kind = 'card_purchase'`,
     [ownerId, eventId],
   );
@@ -626,7 +883,14 @@ export async function reviseInstallments(
         "La cantidad original queda fija después de confirmar una cancelación.",
       );
     try {
-      installmentTotal(terms, current.currency);
+      const total = installmentTotal(terms, current.currency);
+      if (
+        current.mixed &&
+        total !== installmentTotal(current, current.currency)
+      )
+        return conflict(
+          "El plan debe conservar el total de la porción de crédito. Para cambiarlo, corregí la compra completa.",
+        );
     } catch {
       return conflict("El total financiado está fuera de rango.");
     }

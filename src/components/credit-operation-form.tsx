@@ -3,12 +3,17 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import type { CatalogCard } from "@/domain/cards";
-import type {
-  CreditAction,
-  CreditPurchaseOption,
+import {
+  maxPurchaseCategories,
+  type CreditAction,
+  type CreditPurchaseOption,
+  type PurchaseCategory,
 } from "@/domain/credit-operations";
 import type { Currency } from "@/domain/money";
-import { formatInstallmentPeriod } from "@/domain/installments";
+import {
+  formatInstallmentPeriod,
+  type InstallmentVersion,
+} from "@/domain/installments";
 import { InstallmentFields } from "./installment-fields";
 import {
   conceptLimit,
@@ -43,6 +48,22 @@ type Props = {
   categories: MovementCategory[];
   purchases?: CreditPurchaseOption[];
   installmentsReady: boolean;
+  debitCards?: CatalogCard[];
+  correction?: {
+    eventId: string;
+    effectiveOn: string;
+    cardId: string;
+    total: string;
+    debitAmount: string;
+    debitCardId: string | null;
+    amount: string;
+    concept: string;
+    note: string | null;
+    categoryId: string | null;
+    categories: PurchaseCategory[];
+    covered: boolean;
+    plan?: InstallmentVersion;
+  };
   initialCurrency?: Currency;
   statement?: {
     period: string;
@@ -59,15 +80,26 @@ export function CreditOperationForm({
   categories,
   purchases = [],
   installmentsReady,
+  debitCards,
+  correction,
   initialCurrency,
   statement,
   close,
 }: Props) {
-  const [cardId, setCardId] = useState(cards[0]?.id);
+  const [cardId, setCardId] = useState(correction?.cardId ?? cards[0]?.id);
   const [currency, setCurrency] = useState<Currency | undefined>(
     initialCurrency,
   );
-  const [financed, setFinanced] = useState(false);
+  const [financed, setFinanced] = useState(!!correction?.plan);
+  const [mixed, setMixed] = useState(!!correction);
+  const [split, setSplit] = useState(!!correction?.categories.length);
+  const initialSplits = correction?.categories.length
+    ? correction.categories
+    : [{ method: "debit" as const }, { method: "credit" as const }];
+  const [rows, setRows] = useState(() =>
+    initialSplits.map((initial, key) => ({ key, initial })),
+  );
+  const nextRow = useRef(rows.length);
   const card = cards.find(({ id }) => id === cardId) ?? cards[0];
   const { send, pending, uncertain, error } = useFinancialCommand(
     "/api/cards/operations",
@@ -86,6 +118,11 @@ export function CreditOperationForm({
   );
   const canPay =
     action !== "payment" || (payable.length > 0 && banks.length > 0);
+  const canUseDebit = banks.includes(selectedCurrency);
+  const titleText = correction
+    ? "Corregir compra con dos medios"
+    : creditActionLabels[action];
+  const expenseCategories = categories.filter(({ kind }) => kind === "expense");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -149,10 +186,31 @@ export function CreditOperationForm({
                   firstPeriod: form.get("firstPeriod"),
                 },
               }),
+              ...(mixed && {
+                mixed: {
+                  total: form.get("total"),
+                  debitAmount: form.get("debitAmount"),
+                  debitCardId: form.get("debitCardId"),
+                  categories: split
+                    ? rows.map(({ key }) => ({
+                        method: form.get(`method-${key}`),
+                        categoryId: form.get(`category-${key}`),
+                        amount: form.get(`share-${key}`),
+                      }))
+                    : [],
+                  ...(correction && {
+                    correction: {
+                      eventId: correction.eventId,
+                      planVersion: correction.plan?.version ?? 0,
+                    },
+                  }),
+                },
+              }),
             }
           : { ...entry, expectedDebt: position?.debt };
     }
-    if (await send(fields)) close(success[action]);
+    if (await send(fields))
+      close(correction ? "Compra corregida." : success[action]);
   }
 
   return (
@@ -164,14 +222,16 @@ export function CreditOperationForm({
       className="grid gap-3"
     >
       <h3 id={title} tabIndex={-1} ref={heading} className="font-semibold">
-        {creditActionLabels[action]}
+        {titleText}
         {cards.length === 1 && ` · ${card.name}`}
       </h3>
       <p className="text-sm text-muted-foreground">
         {action === "purchase"
-          ? financed
-            ? "Cada cuota se registra como gasto en su mes. La deuda refleja el cargo confirmado y Bancos se debita al pagar la tarjeta."
-            : "La compra se registra como gasto. Bancos se debita cuando pagás la tarjeta."
+          ? mixed
+            ? "El débito sale de Bancos en la fecha indicada. La parte de crédito se registra en un pago o en cuotas, según lo que elijas."
+            : financed
+              ? "Cada cuota se registra como gasto en su mes. La deuda refleja el cargo confirmado y Bancos se debita al pagar la tarjeta."
+              : "La compra se registra como gasto. Bancos se debita cuando pagás la tarjeta."
           : action === "payment"
             ? "Ingresá los importes efectivamente pagados desde Bancos. Podés pagar una parte o toda la deuda."
             : "Ingresá el total de deuda confirmado por el emisor. El ajuste conserva la diferencia en el historial."}
@@ -211,7 +271,7 @@ export function CreditOperationForm({
             type="date"
             required
             max={today}
-            defaultValue={today}
+            defaultValue={correction?.effectiveOn ?? today}
           />
         </HistoryField>
         {action === "payment" ? (
@@ -267,15 +327,93 @@ export function CreditOperationForm({
             </HistoryField>
             {!financed && (
               <HistoryField
-                label={action === "adjustment" ? "Total confirmado" : "Importe"}
+                label={
+                  action === "adjustment"
+                    ? "Total confirmado"
+                    : mixed
+                      ? "Porción de crédito"
+                      : "Importe"
+                }
               >
-                <AmountInput name="amount" required />
+                <AmountInput
+                  name="amount"
+                  required
+                  defaultValue={correction?.amount}
+                />
               </HistoryField>
             )}
           </>
         )}
         {action === "purchase" && (
           <>
+            {debitCards && banks.length > 0 && !correction && (
+              <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={mixed}
+                  onChange={(event) => setMixed(event.target.checked)}
+                  className="size-5 shrink-0"
+                />
+                Pagué una parte con débito
+              </label>
+            )}
+            {mixed && (
+              <>
+                <HistoryField label="Total de la compra">
+                  <AmountInput
+                    name="total"
+                    required
+                    defaultValue={correction?.total}
+                  />
+                </HistoryField>
+                <HistoryField label={`Débito de Bancos ${selectedCurrency}`}>
+                  <AmountInput
+                    name="debitAmount"
+                    required
+                    defaultValue={correction?.debitAmount}
+                  />
+                </HistoryField>
+                {!canUseDebit && (
+                  <p role="status" className="text-sm sm:col-span-2">
+                    Configurá un saldo bancario en {selectedCurrency} o elegí
+                    otra moneda.
+                  </p>
+                )}
+                {debitCards && debitCards.length > 0 && (
+                  <HistoryField label="Tarjeta de débito (opcional)">
+                    <select
+                      key={selectedCurrency}
+                      name="debitCardId"
+                      defaultValue={
+                        selectedCurrency === initialCurrency
+                          ? (correction?.debitCardId ?? "")
+                          : ""
+                      }
+                      className={historyControl}
+                    >
+                      <option value="">
+                        Débito bancario sin tarjeta asociada
+                      </option>
+                      {debitCards
+                        .filter(
+                          ({ id, currencies, archived }) =>
+                            (id === correction?.debitCardId &&
+                              selectedCurrency === initialCurrency) ||
+                            (!archived &&
+                              currencies.some(
+                                ({ currency }) => currency === selectedCurrency,
+                              )),
+                        )
+                        .map(({ id, name }) => (
+                          <option key={id} value={id}>
+                            {name}
+                          </option>
+                        ))}
+                    </select>
+                  </HistoryField>
+                )}
+              </>
+            )}
             {installmentsReady && (
               <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
                 <input
@@ -284,7 +422,9 @@ export function CreditOperationForm({
                   onChange={(event) => setFinanced(event.target.checked)}
                   className="size-5 shrink-0"
                 />
-                Compra en cuotas iguales
+                {mixed
+                  ? "Porción de crédito en cuotas iguales"
+                  : "Compra en cuotas iguales"}
               </label>
             )}
             {financed && (
@@ -292,9 +432,15 @@ export function CreditOperationForm({
                 <InstallmentFields
                   currency={selectedCurrency}
                   firstPeriod={today.slice(0, 7)}
+                  {...correction?.plan}
                 />
                 <HistoryField label="Cargo confirmado por el emisor (opcional)">
-                  <AmountInput name="issuerCharge" />
+                  <AmountInput
+                    name="issuerCharge"
+                    defaultValue={
+                      correction?.plan ? correction.amount : undefined
+                    }
+                  />
                 </HistoryField>
                 <p className="text-sm text-muted-foreground sm:col-span-2">
                   Ingresá solo el importe reflejado por el emisor. Dejalo vacío
@@ -308,25 +454,109 @@ export function CreditOperationForm({
                 name="concept"
                 required
                 maxLength={conceptLimit}
+                defaultValue={correction?.concept}
               />
             </HistoryField>
-            <HistoryField label="Categoría (opcional)">
-              <select name="categoryId" className={historyControl}>
-                <option value="">Sin categorizar</option>
-                {categories
-                  .filter(({ kind }) => kind === "expense")
-                  .map(({ id, name }) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-              </select>
-            </HistoryField>
+            {mixed && (
+              <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={split}
+                  onChange={(event) => setSplit(event.target.checked)}
+                  className="size-5 shrink-0"
+                />
+                Dividir entre categorías
+              </label>
+            )}
+            {mixed && split ? (
+              <fieldset className="grid min-w-0 gap-3 rounded-lg border p-3 sm:col-span-2">
+                <legend className="px-1 text-sm font-medium">
+                  Reparto de la compra
+                </legend>
+                <p className="text-sm text-muted-foreground">
+                  Asigná el importe completo de cada medio. Para crédito en
+                  cuotas, repartí el total financiado.
+                </p>
+                {rows.map(({ key, initial }, index) => (
+                  <fieldset
+                    key={key}
+                    className="grid min-w-0 gap-2 rounded-lg border p-2 sm:grid-cols-3"
+                  >
+                    <legend className="px-1 text-sm">
+                      Porción {index + 1}
+                    </legend>
+                    <HistoryField label="Medio de la porción">
+                      <select
+                        name={`method-${key}`}
+                        defaultValue={initial.method}
+                        className={historyControl}
+                      >
+                        <option value="debit">Débito</option>
+                        <option value="credit">Crédito</option>
+                      </select>
+                    </HistoryField>
+                    <HistoryField label="Categoría de la porción">
+                      <CategorySelect
+                        name={`category-${key}`}
+                        categories={expenseCategories}
+                        initial={
+                          "categoryId" in initial ? initial.categoryId : null
+                        }
+                      />
+                    </HistoryField>
+                    <HistoryField label="Importe de la porción">
+                      <AmountInput
+                        name={`share-${key}`}
+                        required
+                        defaultValue={
+                          "amount" in initial ? initial.amount : undefined
+                        }
+                      />
+                    </HistoryField>
+                    {rows.length > 2 && (
+                      <button
+                        type="button"
+                        className={historyButton}
+                        onClick={() =>
+                          setRows(rows.filter((row) => row.key !== key))
+                        }
+                      >
+                        Quitar porción {index + 1}
+                      </button>
+                    )}
+                  </fieldset>
+                ))}
+                {rows.length < maxPurchaseCategories && (
+                  <button
+                    type="button"
+                    className={`${historyButton} justify-self-start`}
+                    onClick={() => {
+                      const key = nextRow.current++;
+                      setRows([
+                        ...rows,
+                        { key, initial: { method: "credit" } },
+                      ]);
+                    }}
+                  >
+                    Agregar porción
+                  </button>
+                )}
+              </fieldset>
+            ) : (
+              <HistoryField label="Categoría (opcional)">
+                <CategorySelect
+                  name="categoryId"
+                  categories={expenseCategories}
+                  initial={correction?.categoryId}
+                />
+              </HistoryField>
+            )}
             <HistoryField label="Nota (opcional)">
               <input
                 className={historyControl}
                 name="note"
                 maxLength={noteLimit}
+                defaultValue={correction?.note ?? ""}
               />
             </HistoryField>
             <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
@@ -334,6 +564,7 @@ export function CreditOperationForm({
                 type="checkbox"
                 name="covered"
                 className="size-5 shrink-0"
+                defaultChecked={correction?.covered}
               />
               {financed
                 ? "El cargo ya está incluido en la deuda confirmada de la tarjeta"
@@ -349,13 +580,13 @@ export function CreditOperationForm({
         <button
           type="submit"
           className={historyPrimary}
-          disabled={pending || !canPay}
+          disabled={pending || !canPay || (mixed && !canUseDebit)}
         >
           {pending
             ? "Guardando…"
             : uncertain
               ? "Reintentar guardado"
-              : creditActionLabels[action]}
+              : titleText}
         </button>
         <button
           type="button"
@@ -367,6 +598,30 @@ export function CreditOperationForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function CategorySelect({
+  name,
+  categories,
+  initial,
+}: {
+  name: string;
+  categories: MovementCategory[];
+  initial?: string | null;
+}) {
+  return (
+    <select name={name} defaultValue={initial ?? ""} className={historyControl}>
+      <option value="">Sin categorizar</option>
+      {initial && !categories.some(({ id }) => id === initial) && (
+        <option value={initial}>Categoría archivada</option>
+      )}
+      {categories.map(({ id, name }) => (
+        <option key={id} value={id}>
+          {name}
+        </option>
+      ))}
+    </select>
   );
 }
 
