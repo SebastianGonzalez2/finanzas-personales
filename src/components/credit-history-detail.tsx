@@ -1,5 +1,6 @@
 import { formatBankAmount } from "@/domain/bank-balances";
 import type { CreditHistoryLine } from "@/domain/credit-operations";
+import { formatInstallmentPeriod } from "@/domain/installments";
 
 export function CreditHistoryDetail({
   lines,
@@ -23,6 +24,12 @@ export function CreditHistoryDetail({
             {payment ? (
               <>
                 <p>Deuda cancelada · {formatBankAmount(line)}</p>
+                {line.statementPeriod && (
+                  <p>
+                    Ciclo de resumen ·{" "}
+                    {formatInstallmentPeriod(line.statementPeriod)}
+                  </p>
+                )}
                 {line.bankCurrency && line.bankAmount && (
                   <p>
                     Salida de Bancos ·{" "}

@@ -8,6 +8,7 @@ import type {
   CreditPurchaseOption,
 } from "@/domain/credit-operations";
 import type { Currency } from "@/domain/money";
+import { formatInstallmentPeriod } from "@/domain/installments";
 import { InstallmentFields } from "./installment-fields";
 import {
   conceptLimit,
@@ -42,6 +43,11 @@ type Props = {
   categories: MovementCategory[];
   purchases?: CreditPurchaseOption[];
   installmentsReady: boolean;
+  initialCurrency?: Currency;
+  statement?: {
+    period: string;
+    suggestions: Partial<Record<Currency, string>>;
+  };
   close: (message?: string) => void;
 };
 
@@ -53,10 +59,14 @@ export function CreditOperationForm({
   categories,
   purchases = [],
   installmentsReady,
+  initialCurrency,
+  statement,
   close,
 }: Props) {
   const [cardId, setCardId] = useState(cards[0]?.id);
-  const [currency, setCurrency] = useState<Currency>();
+  const [currency, setCurrency] = useState<Currency | undefined>(
+    initialCurrency,
+  );
   const [financed, setFinanced] = useState(false);
   const card = cards.find(({ id }) => id === cardId) ?? cards[0];
   const { send, pending, uncertain, error } = useFinancialCommand(
@@ -103,6 +113,7 @@ export function CreditOperationForm({
                   ? amount
                   : form.get(`bankAmount-${currency}`),
               fee: form.get(`fee-${currency}`),
+              ...(statement && { statementPeriod: statement.period }),
               allocations: purchases.flatMap((purchase) => {
                 if (
                   purchase.cardId !== card.id ||
@@ -165,6 +176,13 @@ export function CreditOperationForm({
             ? "Ingresá los importes efectivamente pagados desde Bancos. Podés pagar una parte o toda la deuda."
             : "Ingresá el total de deuda confirmado por el emisor. El ajuste conserva la diferencia en el historial."}
       </p>
+      {action === "payment" && statement && (
+        <p className="text-sm">
+          Los abonos se asignarán al ciclo de{" "}
+          {formatInstallmentPeriod(statement.period)}. Verificá los importes
+          sugeridos e indicá el saldo bancario que usaste.
+        </p>
+      )}
       <fieldset
         disabled={pending || uncertain}
         className="grid min-w-0 gap-3 sm:grid-cols-2"
@@ -205,7 +223,13 @@ export function CreditOperationForm({
                   currency={currency}
                   debt={debt ?? "0"}
                   banks={banks}
-                  selectedByDefault={payable.length === 1}
+                  selectedByDefault={
+                    statement
+                      ? Boolean(statement.suggestions[currency])
+                      : payable.length === 1
+                  }
+                  suggestedAmount={statement?.suggestions[currency]}
+                  requireBankSelection={!!statement}
                   purchases={purchases.filter(
                     (purchase) =>
                       purchase.cardId === card.id &&
@@ -346,7 +370,15 @@ export function CreditOperationForm({
   );
 }
 
-function AmountInput({ name, required }: { name: string; required?: boolean }) {
+function AmountInput({
+  name,
+  required,
+  defaultValue,
+}: {
+  name: string;
+  required?: boolean;
+  defaultValue?: string;
+}) {
   return (
     <input
       className={historyControl}
@@ -356,6 +388,7 @@ function AmountInput({ name, required }: { name: string; required?: boolean }) {
       inputMode="decimal"
       autoComplete="off"
       placeholder="0,00"
+      defaultValue={defaultValue?.replace(".", ",")}
     />
   );
 }
@@ -366,16 +399,20 @@ function PaymentFields({
   banks,
   purchases,
   selectedByDefault,
+  suggestedAmount,
+  requireBankSelection,
 }: {
   currency: Currency;
   debt: string;
   banks: Currency[];
   purchases: CreditPurchaseOption[];
   selectedByDefault: boolean;
+  suggestedAmount?: string;
+  requireBankSelection: boolean;
 }) {
   const [enabled, setEnabled] = useState(selectedByDefault);
-  const [bank, setBank] = useState(
-    banks.includes(currency) ? currency : banks[0],
+  const [bank, setBank] = useState<string>(
+    requireBankSelection ? "" : banks.includes(currency) ? currency : banks[0],
   );
   return (
     <fieldset className="grid min-w-0 gap-2 rounded-lg border p-3 sm:grid-cols-2">
@@ -394,15 +431,21 @@ function PaymentFields({
       {enabled && (
         <>
           <HistoryField label={`Deuda cancelada en ${currency}`}>
-            <AmountInput name={`amount-${currency}`} required />
+            <AmountInput
+              name={`amount-${currency}`}
+              required
+              defaultValue={suggestedAmount}
+            />
           </HistoryField>
           <HistoryField label={`Saldo bancario para deuda en ${currency}`}>
             <select
               name={`bank-${currency}`}
               value={bank}
+              required
               className={historyControl}
-              onChange={(event) => setBank(event.target.value as Currency)}
+              onChange={(event) => setBank(event.target.value)}
             >
+              {requireBankSelection && <option value="">Elegí un saldo</option>}
               {banks.map((code) => (
                 <option key={code} value={code}>
                   Bancos {code}
@@ -410,18 +453,20 @@ function PaymentFields({
               ))}
             </select>
           </HistoryField>
-          {bank !== currency && (
+          {bank && bank !== currency && (
             <HistoryField
               label={`Importe debitado en ${bank} para deuda en ${currency}`}
             >
               <AmountInput name={`bankAmount-${currency}`} required />
             </HistoryField>
           )}
-          <HistoryField
-            label={`Comisión bancaria en ${bank} para deuda en ${currency} (opcional)`}
-          >
-            <AmountInput name={`fee-${currency}`} />
-          </HistoryField>
+          {bank && (
+            <HistoryField
+              label={`Comisión bancaria en ${bank} para deuda en ${currency} (opcional)`}
+            >
+              <AmountInput name={`fee-${currency}`} />
+            </HistoryField>
+          )}
           {purchases.length > 0 && (
             <details className="sm:col-span-2">
               <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">
