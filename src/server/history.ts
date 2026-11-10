@@ -181,6 +181,7 @@ export async function creditHistoryDetail(
     `SELECT card.name AS card, l.currency, l.amount::text,
             l.debt_delta::text AS "debtDelta", l.debt_after::text AS "debtAfter",
             l.bank_currency AS "bankCurrency", l.bank_amount::text AS "bankAmount", l.fee::text,
+            left(to_jsonb(l)->>'statement_period', 7) AS "statementPeriod",
             CASE WHEN l.bank_currency <> l.currency
               THEN trim_scale(round(l.bank_amount / nullif(l.amount, 0), 8))::text END AS "effectiveRate",
             coalesce(allocations.items, '[]'::jsonb) AS allocations

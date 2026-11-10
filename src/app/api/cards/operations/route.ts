@@ -5,6 +5,7 @@ import {
   voidCreditOperation,
 } from "@/server/credit-operations";
 import { installmentsReady } from "@/server/installments";
+import { cardCyclesReady } from "@/server/card-cycles";
 import { creditOperationsReady } from "@/server/movements";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
@@ -46,6 +47,18 @@ export async function POST(request: Request) {
       const revision =
         command.action === "edit-installments" ||
         command.action === "cancel-installments";
+      if (
+        command.action === "payment" &&
+        command.lines.some(({ statementPeriod }) => statementPeriod) &&
+        !(await cardCyclesReady(client))
+      )
+        return reply(
+          {
+            error:
+              "Actualizá la base de datos para asociar un pago al resumen.",
+          },
+          409,
+        );
       if (
         (revision || (command.action === "purchase" && command.plan)) &&
         !(await installmentsReady(client))

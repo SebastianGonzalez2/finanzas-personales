@@ -20,6 +20,7 @@ export type CreditPaymentLine = DebtAmount & {
   bankCurrency: Currency;
   bankAmount: string;
   fee: string;
+  statementPeriod?: string;
   allocations: PaymentAllocation[];
 };
 export type CreditAction = "purchase" | "payment" | "adjustment";
@@ -68,6 +69,7 @@ export type CreditHistoryLine = DebtAmount & {
   bankCurrency: Currency | null;
   bankAmount: string | null;
   fee: string;
+  statementPeriod?: string | null;
   allocations: (PaymentAllocation & { concept: string })[];
 };
 
@@ -155,12 +157,16 @@ function paymentLine(input: unknown): CreditPaymentLine {
     "bankAmount",
     "fee",
     "allocations",
+    "statementPeriod",
   ]);
   const debtCurrency = currency(line.currency);
   const bankCurrency = currency(line.bankCurrency);
   const cancelled = amount(line.amount);
   const debited = amount(line.bankAmount);
   if (debtCurrency === bankCurrency && debited !== cancelled) throw new Error();
+  const statementPeriod = line.statementPeriod;
+  if (statementPeriod !== undefined && !isInstallmentPeriod(statementPeriod))
+    throw new Error();
   const supplied = line.allocations === undefined ? [] : line.allocations;
   if (!Array.isArray(supplied) || supplied.length > 100) throw new Error();
   const allocations = supplied
@@ -187,6 +193,7 @@ function paymentLine(input: unknown): CreditPaymentLine {
       true,
     ),
     allocations,
+    ...(statementPeriod && { statementPeriod }),
   };
 }
 

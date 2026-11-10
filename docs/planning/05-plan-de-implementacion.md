@@ -86,7 +86,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F2-01 | Catálogo de tarjetas débito/crédito, tipos, monedas, deuda/saldo a favor y límites opcionales. [Contrato del catálogo](33-catalogo-tarjetas-f2-01.md). | RF-014; configuración de RF-017; base de CA-020 |
 | F2-02 | Compra con tarjeta de crédito y pago de resumen, deuda inicial, parcial y total sin doble gasto. [Contrato de compras y pagos](34-operaciones-credito-f2-02.md). | RF-015/017/018; CA-020/021/024 |
 | F2-03 | Cuotas iguales, mes inicial, cargo real al emisor, reporte mensual, cancelación/edición con auditoría. [Contrato y revisión](35-cuotas-tarjeta-f2-03.md). | RF-016; CA-022 |
-| F2-04 | Ciclos de cierre, mínimos/resumen oficial, estimaciones, alertas, fechas excepcionales y reconciliación de ciclo. | RF-017/037; CA-023 |
+| F2-04 | Ciclos de cierre, mínimos/resumen oficial, estimaciones, alertas, fechas excepcionales y reconciliación de ciclo. [Contrato y revisión](36-ciclos-tarjeta-f2-04.md). | RF-017/037; CA-023 |
 | F2-05 | Compra con dos medios y porción crédito financiada en cuotas; categorías repartidas. | RF-019/040; CA-025/026 |
 | F2-06 | Deudas y préstamos simples/cuotas, pago/cobro, entrega/recepción de capital, intereses de deuda reales, actualización pendiente. | RF-022/023; CA-030…032 |
 | F2-07 | Pago/cobro de préstamo en otra moneda según montos reales acordados. | RF-024; CA-033/034 |

@@ -41,6 +41,7 @@ export function CardCatalog({
   categories,
   purchases,
   installmentsReady,
+  cyclesReady,
   plans,
 }: {
   cards: CatalogCard[];
@@ -50,6 +51,7 @@ export function CardCatalog({
   categories: MovementCategory[];
   purchases: CreditPurchaseOption[];
   installmentsReady: boolean;
+  cyclesReady: boolean;
   plans: InstallmentSummary[];
 }) {
   const router = useRouter();
@@ -135,6 +137,7 @@ export function CardCatalog({
                 card={card}
                 plans={plans.filter(({ cardId }) => cardId === card.id)}
                 today={today}
+                cyclesReady={cyclesReady}
                 editDisabled={editor !== null}
                 edit={(from) => open(card, from)}
                 operate={
@@ -162,6 +165,7 @@ export function CardCatalog({
                 card={card}
                 plans={plans.filter(({ cardId }) => cardId === card.id)}
                 today={today}
+                cyclesReady={cyclesReady}
                 editDisabled={editor !== null}
                 operate={
                   creditReady
@@ -181,6 +185,7 @@ function CardEntry({
   card,
   plans,
   today,
+  cyclesReady,
   edit,
   editDisabled,
   operate,
@@ -188,6 +193,7 @@ function CardEntry({
   card: CatalogCard;
   plans: InstallmentSummary[];
   today: string;
+  cyclesReady: boolean;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   operate?: (action: CreditAction, from: HTMLButtonElement) => void;
@@ -299,6 +305,11 @@ function CardEntry({
         )}
         {card.kind === "credit" && operate && (
           <div className="flex flex-wrap gap-2">
+            {cyclesReady && (
+              <a className={button} href={`/tarjetas/${card.id}/resumen`}>
+                Resúmenes y ciclos
+              </a>
+            )}
             {creditActions
               .filter((action) => !card.archived || action !== "purchase")
               .map((action) => (

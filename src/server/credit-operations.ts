@@ -97,10 +97,11 @@ async function insertCreditEvent(
     debtAfter,
     payment,
   } of event.lines) {
+    const statement = payment?.statementPeriod;
     await client.query(
       `INSERT INTO finance.credit_lines
-        (owner_id, event_id, card_id, currency, amount, debt_delta, debt_after, bank_currency, bank_amount, fee)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        (owner_id, event_id, card_id, currency, amount, debt_delta, debt_after, bank_currency, bank_amount, fee${statement ? ", statement_period" : ""})
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10${statement ? ", $11" : ""})`,
       [
         ownerId,
         id,
@@ -112,6 +113,7 @@ async function insertCreditEvent(
         payment?.bankCurrency ?? null,
         payment?.bankAmount ?? null,
         payment?.fee ?? zero,
+        ...(statement ? [`${statement}-01`] : []),
       ],
     );
     await client.query(

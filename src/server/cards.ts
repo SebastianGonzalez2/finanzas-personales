@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { CardCommand, CatalogCard } from "../domain/cards.ts";
 import { lockBankWrites } from "./bank-balances.ts";
+import { cardCyclesReady } from "./card-cycles.ts";
 import { lockCardWrites, saveOpeningDebt } from "./credit-operations.ts";
 import { creditOperationsReady, findReplay } from "./movements.ts";
 
@@ -115,12 +116,22 @@ export async function saveCard(
       );
       if (removed.some(({ recorded }) => recorded))
         return conflict("Conservá las monedas con posiciones registradas.");
-      if (removed.length)
+      if (removed.length) {
+        if (kind === "credit" && (await cardCyclesReady(client))) {
+          const { rowCount } = await client.query(
+            `SELECT 1 FROM finance.card_cycle_changes
+              WHERE owner_id = $1 AND card_id = $2 AND currency::text <> ALL($3::text[]) LIMIT 1`,
+            args,
+          );
+          if (rowCount)
+            return conflict("Conservá las monedas con historial de resúmenes.");
+        }
         await client.query(
           `DELETE FROM finance.card_currencies
             WHERE owner_id = $1 AND card_id = $2 AND currency::text <> ALL($3::text[])`,
           args,
         );
+      }
       await client.query(
         "UPDATE finance.cards SET name = $3, issuer = $4, version = $5 WHERE owner_id = $1 AND id = $2",
         [ownerId, id, command.name, command.issuer, version],

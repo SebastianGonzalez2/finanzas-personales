@@ -13,11 +13,14 @@ import { Card } from "@/components/ui/card";
 import { cardsReady, listCards } from "@/server/cards";
 import { withGoogleOwner } from "@/server/google-auth";
 import { installmentsReady, listCardInstallments } from "@/server/installments";
+import { cardCyclesReady, listCardCycleAlerts } from "@/server/card-cycles";
+import { CardCycleAlerts } from "@/components/card-cycle-alerts";
 
 export const metadata = { title: "Tarjetas | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
 export default async function CardsPage() {
+  const today = bankReferenceToday();
   const result = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
@@ -31,10 +34,15 @@ export default async function CardsPage() {
       const plansReady = creditReady && (await installmentsReady(client));
       const hasCredit =
         creditReady && cards.some(({ kind }) => kind === "credit");
+      const cyclesReady = hasCredit && (await cardCyclesReady(client));
       return {
         cards,
         creditReady,
         installmentsReady: plansReady,
+        cyclesReady,
+        alerts: cyclesReady
+          ? await listCardCycleAlerts(client, ownerId, cards, today)
+          : [],
         plans: plansReady ? await listCardInstallments(client, ownerId) : [],
         banks: hasCredit
           ? (await listBankBalances(client, ownerId)).map(
@@ -74,11 +82,12 @@ export default async function CardsPage() {
           </p>
         </header>
         {result.cards ? (
-          <CardCatalog
-            {...result}
-            cards={result.cards}
-            today={bankReferenceToday()}
-          />
+          <>
+            {result.cyclesReady && (
+              <CardCycleAlerts alerts={result.alerts} today={today} />
+            )}
+            <CardCatalog {...result} cards={result.cards} today={today} />
+          </>
         ) : (
           <Card className="p-4">
             <p role="status">{result.message}</p>
