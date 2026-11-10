@@ -102,7 +102,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 |---|---|---|
 | F3-01 | Fondos con nombre/moneda/estado, reservar/liberar/traspasar internamente sin tocar Bancos. | RF-026/027; CA-038 |
 | F3-02 | Disponible libre vs saldo bancario real: garantía atómica de fondos no reservados. | RF-026/030; CA-041 |
-| F3-03 | Aportes programados mensuales, primera ejecución siguiente mes, día inexistente → último del mes, insuficiencia → pendiente, sin reintento automático. | RF-028; CA-039 |
+| F3-03 | Aportes programados mensuales, primera ejecución siguiente mes, día inexistente → último del mes, insuficiencia → pendiente, sin reintento automático. [Contrato de calendario](43-aportes-programados-f3-03.md). | RF-028; CA-039 |
 | F3-04 | Metas monetarias opcionales y fechas, última aportación exacta, pausa automática por meta, reactivación expresa, fondos cerrables con advertencia. | RF-029; CA-040/050 |
 | F3-05 | Cubrir gasto con uno o más fondos y disponible; tarjeta de crédito usa reserva **al pagar** deuda, no al comprar. | RF-030; CA-041 |
 | F3-06 | Presupuestos categoría/subcategoría por moneda y mes, jerarquía, cuotas, edición con historial y excepción temporal. | RF-031/032; CA-042/043 |
