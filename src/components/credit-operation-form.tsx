@@ -456,8 +456,7 @@ export function CreditOperationForm({
               card.currencies.some(
                 ({ currency, creditBalance }) =>
                   currency === selectedCurrency &&
-                  creditBalance &&
-                  creditBalance !== "0.0000",
+                  /[1-9]/.test(creditBalance ?? ""),
               ) && (
                 <HistoryField label="Saldo a favor aplicado por el emisor (opcional)">
                   <AmountInput name="creditApplied" />

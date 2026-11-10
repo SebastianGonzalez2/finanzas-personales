@@ -161,13 +161,12 @@ export function CardCycleDetail({
                     label="Deuda total registrada"
                     value={amount(position?.debt)}
                   />
-                  {position?.creditBalance &&
-                    position.creditBalance !== "0.0000" && (
-                      <Fact
-                        label="Saldo a favor"
-                        value={amount(position.creditBalance)}
-                      />
-                    )}
+                  {/[1-9]/.test(position?.creditBalance ?? "") && (
+                    <Fact
+                      label="Saldo a favor"
+                      value={amount(position?.creditBalance)}
+                    />
+                  )}
                   {credited !== "0.0000" && (
                     <Fact
                       label="Abonos aplicados a la estimación"

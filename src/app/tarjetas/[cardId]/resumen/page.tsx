@@ -128,7 +128,7 @@ export default async function StatementPage({
         {result.card.currencies.map(
           ({ currency, creditBalance }) =>
             creditBalance &&
-            creditBalance !== "0.0000" &&
+            /[1-9]/.test(creditBalance) &&
             result.banks.includes(currency) && (
               <ReturnCreditForm
                 key={currency}

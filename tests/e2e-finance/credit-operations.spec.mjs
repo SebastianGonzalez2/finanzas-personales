@@ -64,6 +64,7 @@ test("F2-02: compra y pago parcial y total de crédito sin duplicar gasto", asyn
     await expect(money("Gastos del mes")).toHaveCount(0);
     await open("+ Nueva transacción");
     await open("Compra con tarjeta de crédito");
+    await expect(page.getByLabel(/Saldo a favor aplicado/)).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Registrar compra · Visa F2-02" }),
     ).toBeFocused();
