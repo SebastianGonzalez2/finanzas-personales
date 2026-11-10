@@ -1,126 +1,153 @@
-# Modelos recomendados por ticket en Codex — matriz de calidad y consumo
+# Matriz por ticket: Codex + OpenCode para ahorrar cuota
+**Actualización:** 2026-11-10 · **Fuente:** [plan de implementación](05-plan-de-implementacion.md) y [convenciones Git](09-convenciones-git.md). **Tipo:** recomendación operativa; no modifica reglas financieras, autorización, ADR ni criterios de aceptación.
 
-**Fecha:** 2026-11-07. **Alcance:** orientación de operación para el titular, no una decisión funcional del producto ni garantía de resultados. **Fuente de tickets:** [plan de implementación](05-plan-de-implementacion.md); reglas de trabajo: [guía Codex](08-guia-operativa-codex.md). El modelo se elige **manualmente en Codex**; este archivo no cambia automáticamente el selector.
+## Objetivo y reglas
+Optimizar la **cuota del Codex de suscripción**, no solo los tokens de una llamada. Mantener exactitud contable, aislamiento de titulares, idempotencia y tests reales. No se afirma que un modelo gratuito iguale a Codex: son asignaciones **orientativas por riesgo**, aún no validadas con benchmarks sobre este repositorio.
 
-## Principio
+- **OC (OpenCode completo):** entregar el ticket con OpenCode gratis; Codex es respaldo, no paso obligatorio. Se exige la misma calidad, CI y revisión de cambios.
+- **MIX (mixto):** OpenCode produce la parte delimitada en la tabla en una rama; Codex continúa **sobre el mismo diff/commits** para la parte crítica, corrige y prepara PR. No repetir la implementación desde cero.
+- **CX (Codex):** abordar con Codex desde el inicio; el ahorro usando modelos gratuitos no compensa el riesgo de errores difíciles de detectar.
+- **GLM:** `GLM-5.3-Flash Free` en OpenCode, primera opción para UI, formularios, documentación y flujos de presentación.
+- **DS:** `DeepSeek V4.1 Flash Free` en OpenCode, primera opción experimental para scaffold, tests no críticos y refactor acotado.
+- **Codex recomendado:** `Sol High` / `Sol Medium` / `Terra Medium` solo **si aparece en el selector**. En la ruta OC es modelo de respaldo; en MIX cierra la parte indicada; en CX desarrolla todo el ticket. La matriz conserva una sugerencia de modelo e intensidad para **todos los tickets**.
+- **Revisión opcional:** si figura Astra, una **segunda revisión del diff y CA** (sin rehacer la tarea), no una exigencia de usar Astra para toda la implementación. Si no está disponible, revisión independiente con Sol High.
 
-**No rebajar capacidad cuando la tarea manipula dinero, deuda, permisos, migraciones, información confidencial o conciliaciones.** Cuando el riesgo es moderado y el trabajo está acotado por criterios de aceptación, evaluar **GPT-6.1 Sol · Medium** antes que Sol · High. **GPT-6.1 Terra** se recomienda solo para trabajo principalmente visual/redacción y con criterios medibles. No usar un modelo débil para calcular dinero para ahorrar cupo.
+**Disponibilidad y privacidad:** OpenCode indica que GLM-5.3-Flash Free y DeepSeek V4.1 Flash Free son gratuitos **por tiempo limitado** y, según su documentación vigente, sus proveedores tienen política de no retención ni entrenamiento. La disponibilidad, los límites y estas condiciones pueden cambiar; verificar `/models` y términos antes de cada tanda. El código de un repositorio privado **sigue siendo sensible**: nunca enviar `.env*`, credenciales, tokens, datos financieros reales, dumps, cookies ni logs privados a un proveedor. Preferir fixtures sintéticos. Los modelos gratuitos alojados externamente **no consumen la cuota de Codex**, pero no son ilimitados; los modelos pagos del mismo catálogo sí pueden facturar.
 
-**No existe configuración que garantice calidad perfecta**: exigir los tests CA/RF, revisión del diff, test de permisos y controles por fase. Un nivel High puede consumir más uso sin mejorar automáticamente el resultado. Cambiar modelos solo si aparecen en el selector de Codex: disponibilidad y límites dependen de plan y workspace.
+Documentación: [OpenCode y selección de modelos](https://opencode.ai/docs/models) · [Catálogo y modelos gratuitos](https://opencode.ai/docs/console/models).
 
-**Leyenda:** Sol = GPT-6.1 Sol. Terra = GPT-6.1 Terra. Astra = GPT-6 Astra. En «Revisión» Astra es **una segunda revisión independiente recomendable** para cambios de alto riesgo, no sustituto de pruebas; si no está disponible, pedir revisión separada con Sol High, preferiblemente en una conversación con solo el diff y los criterios relevantes.
+## Procedimiento económico por ticket
+1. Leer `AGENTS.md`, el ticket y **solo los documentos pertinentes además de los obligatorios del repositorio**. No pegar documentación larga en prompts; pasar referencias a archivos.
+2. Asegurar `main` actualizado y trabajar en **rama/worktree aislado por ticket**. Para MIX, pasar de OpenCode a Codex en la **misma rama** y con el mismo ID/PR; no ejecutar ambos simultáneamente sobre el mismo worktree.
+3. Ejecutar el tramo asignado a OpenCode gratis. Si falla repetidamente, faltan herramientas o aparecen cambios monetarios/seguridad inesperados, **escalar pronto a Codex** en vez de consumir horas en correcciones ciegas.
+4. En MIX/CX, usar Codex con **el mínimo contexto relevante**: cambios de la rama, RF/CA, archivos tocados y pruebas fallidas. Sol Medium para trabajo acotado; Sol High para dinero, RLS, concurrencia, migraciones y privacidad.
+5. Exigir `npm run check`, pruebas relevantes de unidad/integración/E2E y GitHub Actions según impacto. **No suprimir tests** ni declarar que pasaron cuando no se ejecutaron. Revisar permisos y efectos financieros.
+6. Commits, push y PR separados por ticket; no merge automático sin permiso expreso. **Nunca ejecutar migraciones en Neon development sin la autorización de SQL/hash exigida por el ADR 0004**; no escribir en production ni desplegar con datos reales.
+7. Registrar para 3–5 tickets: cuota de Codex, número de intentos, fallos de CI, correcciones y tiempo humano. **Revaluar la matriz por evidencia**, no por publicidad o benchmarks genéricos.
 
-**No extender la revisión Astra al trabajo entero por defecto:** usarla sobre PR concreto y diff + CA de alto riesgo, para limitar consumo.
+### Criterio de ahorro
+- **Alto:** OC (mayoría del trabajo con OpenCode gratis, Codex solo de respaldo).
+- **Medio:** MIX (ahorro parcial por delegar UI, documentación o tests iniciales).
+- **Bajo / no recomendado:** CX (el costo de fallar reglas de dinero/seguridad pesa más que el ahorro de cuota).
 
-## F0 — Preparación
+## Matriz completa
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+### F0 — Preparación
+
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F0-01 | Confirmar estado actual del repositorio | Sol | **Medium** | Inventario de Git y documentación; validación de hechos. | — |
-| F0-02 | Verificar si existe localmente docs/design/fintrack-visual-spec.md | Terra | **High** | Interpretación de imagen y especificación visual. | — |
-| F0-03 | Crear esqueleto Next.js App Router + TypeScript + Tailwind + shadcn/ui, ESLint/formatter, scripts, README y lock | Sol | **Medium** | Scaffold estándar y build reproducible. | — |
-| F0-04 | Investigar cliente Neon Auth actual, sesiones, Google OAuth, email OTP, recuperación y validación del código de  | Sol | **High** | Autenticación, OTP, OAuth e invitaciones; seguridad. | Astra Medium |
-| F0-05 | Crear DB de prueba aislada Neon, escoger ORM/migraciones/driver/pooling/decimal, esquema inicial y aislamiento p | Sol | **High** | DB, migraciones, autorización por propietario y transacciones. | Astra Medium |
-| F0-06 | Configurar CI mínima y frameworks de tests: unidad, integración DB real de test, E2E de navegador. | Sol | **Medium** | CI y tests con herramientas conocidas. | — |
-| F0-07 | Verificar viabilidad legal/técnica de Vercel Hobby no comercial, límites de Neon Free, SMTP real y cotizaciones. | Sol | **High** | Términos de proveedor, correos, coste y límites; verificar fuentes. | — |
-| F0-08 | Diseñar/implementar prototipo de motor de efectos + checkpoints históricos con pruebas de CA-015 e I-10. | Sol | **High** | Motor contable y checkpoints; riesgo de saldos erróneos. | Astra High |
-| F0-09 | Decidir convenciones de módulos, IDs, timestamps, decimales, transacciones y eventos | Sol | **High** | Decisiones técnicas transversales de dinero y seguridad. | — |
+| F0-01 | Inventario Git y repositorio | **OC** | **DeepSeek V4.1 Flash Free**: Examinar estructura y preparar informe | **Sol Medium** — Respaldo si no pasa las pruebas | — |
+| F0-02 | Especificación visual | **OC** | **GLM-5.3-Flash Free**: Revisar referencia y redactar guía visual; no inventar funciones | **Terra Medium** — Respaldo si no pasa las pruebas | — |
+| F0-03 | Scaffold Next.js | **OC** | **DeepSeek V4.1 Flash Free**: Montar configuración, scripts y tests iniciales; validar build | **Sol Medium** — Respaldo si no pasa las pruebas | — |
+| F0-04 | Google OAuth, sesiones y allowlist | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F0-05 | Neon, aislamiento y esquema inicial | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F0-06 | CI y herramientas de test | **OC** | **DeepSeek V4.1 Flash Free**: Workflows, runners, scripts y tests de humo; comprobar CI | **Sol Medium** — Respaldo si no pasa las pruebas | — |
+| F0-07 | Viabilidad Vercel/Neon y costes | **OC** | **GLM-5.3-Flash Free**: Investigar proveedores, contrastar fuentes oficiales y documentar | **Sol Medium** — Respaldo si no pasa las pruebas | — |
+| F0-08 | Prototipo de efectos y checkpoints | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F0-09 | Convenciones de arquitectura y amenazas | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | — |
 
-## F1 — Bancos y movimientos
+### F1 — Núcleo bancario
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F1-01 | Layout, navegación básica, dashboard fijo inicial y estados vacíos | Terra | **High** | Pantallas y responsive apoyadas en referencia visual. | — |
-| F1-02 | Saldos agregados independientes UYU/USD/EUR, inicialización y fechas de referencia. | Sol | **High** | Saldos y monedas: invariantes financieros. | — |
-| F1-03 | Formulario ingreso/gasto normal con categoría opcional, concepto, nota, fecha, moneda y medio básico. | Sol | **Medium** | Formulario acotado; servidor valida reglas ya probadas. | — |
-| F1-04 | Engine de eventos monetarios, validación decimal exacta, transacciones DB, idempotency key y reversión auditada. | Sol | **High** | Motor de asientos, decimal, atomicidad e idempotencia. | Astra High |
-| F1-05 | Ajuste manual de saldo y checkpoints por fecha/moneda | Sol | **High** | Conciliación retroactiva sin modificar checkpoints. | Astra High |
-| F1-06 | Transferencia entre saldos y cambio de moneda usando importes reales de ambos lados. | Sol | **High** | Movimiento real entre monedas y cuentas; exactitud. | — |
-| F1-07 | Historial permanente paginado, búsqueda/filtros base y edición/anulación segura. | Sol | **Medium** | Historial, paginación y filtros; revisar anulación. | — |
-| F1-08 | Tests de regresión y aislamiento para dos cuentas y dos sesiones, reporte de errores. | Sol | **High** | Regresión financiera y aislamiento entre cuentas. | Astra Medium |
+| F1-01 | Layout y navegación responsive | **OC** | **GLM-5.3-Flash Free**: Pantallas, navegación, estados vacíos y verificación móvil | **Terra Medium** — Respaldo si no pasa las pruebas | — |
+| F1-02 | Saldos y monedas independientes | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | — |
+| F1-03 | Formulario de ingresos/gastos | **MIX** | **GLM-5.3-Flash Free**: UI, validaciones de presentación y test visual | **Sol Medium** — Validar servidor, propietario y efecto financiero | — |
+| F1-04 | Motor contable e idempotencia | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F1-05 | Checkpoints y conciliación | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F1-06 | Transferencias y cambio de moneda | **MIX** | **DeepSeek V4.1 Flash Free**: Preparar casos de prueba para montos de ambos lados | **Sol High** — Implementar transferencias y exactitud monetaria | — |
+| F1-07 | Historial, filtros, edición/anulación | **MIX** | **GLM-5.3-Flash Free**: Filtros, búsqueda, paginación de UI y estados visuales | **Sol Medium** — Auditar edición, anulación y permisos | — |
+| F1-08 | Regresión e aislamiento A/B | **MIX** | **DeepSeek V4.1 Flash Free**: Proponer matriz de pruebas y fixtures sintéticos | **Sol High** — Cerrar regresiones reales, permisos y concurrencia | Astra Medium |
 
-## F2 — Tarjetas, préstamos y reembolsos
+### F2 — Tarjetas, préstamos y reembolsos
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F2-01 | Catálogo de tarjetas débito/crédito, tipos, monedas, deuda/saldo a favor y límites opcionales. | Sol | **Medium** | CRUD de tarjetas; verificar deuda/saldo a favor. | — |
-| F2-02 | Compra con tarjeta de crédito y pago de resumen, deuda inicial, parcial y total sin doble gasto. | Sol | **High** | Compra crédito y pago de resumen sin doble gasto. | Astra High |
-| F2-03 | Cuotas iguales, mes inicial, cargo real al emisor, reporte mensual, cancelación/edición con auditoría. | Sol | **High** | Periodización exacta de cuotas y correcciones. | Astra High |
-| F2-04 | Ciclos de cierre, mínimos/resumen oficial, estimaciones, alertas, fechas excepcionales y reconciliación de ciclo | Sol | **High** | Ciclos, fecha de cierre, estimación frente a dato oficial. | — |
-| F2-05 | Compra con dos medios y porción crédito financiada en cuotas | Sol | **High** | Pagos mixtos y cuotas; varias posiciones financieras. | Astra Medium |
-| F2-06 | Deudas y préstamos simples/cuotas, pago/cobro, entrega/recepción de capital, intereses de deuda reales, actualiz | Sol | **High** | Préstamos, intereses y deudas; activos/pasivos correctos. | — |
-| F2-07 | Pago/cobro de préstamo en otra moneda según montos reales acordados. | Sol | **High** | Pago/cobro en divisas distintas; doble importe real. | — |
-| F2-08 | Gasto pagado por tercero y gasto pagado para varios amigos con derechos por cobrar individualizados. | Sol | **High** | Repartos entre amigos y obligaciones independientes. | — |
-| F2-09 | Devoluciones reales en débito/crédito, cuotas, saldo a favor y compras/medios divididos. | Sol | **High** | Reintegros, saldo a favor, cuotas, presupuesto y fechas. | Astra High |
-| F2-10 | Tests de consistencia ante pagos parciales, reintentos, saldos negativos indebidos, autorización y concurrencia. | Sol | **High** | Pruebas de concurrencia, pagos, reintentos y permisos. | Astra High |
+| F2-01 | Catálogo de tarjetas | **MIX** | **GLM-5.3-Flash Free**: Formularios, listado y archivo en UI | **Sol Medium** — Validar deuda/saldo, propietario, RLS y persistencia | — |
+| F2-02 | Compras y pagos de crédito | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F2-03 | Compras en cuotas | **MIX** | **GLM-5.3-Flash Free**: Campos, calendario visual y errores de formulario | **Sol High** — Implementar cuotas contables, correcciones y auditoría | Astra High |
+| F2-04 | Ciclos, mínimos y resúmenes | **MIX** | **GLM-5.3-Flash Free**: Vistas del resumen, fechas y alertas visuales | **Sol High** — Implementar reglas de ciclos, cifras oficiales y reconciliación | — |
+| F2-05 | Compra con dos medios | **MIX** | **DeepSeek V4.1 Flash Free**: UI de reparto y fixtures de categorías/cuotas | **Sol High** — Garantizar débito, crédito y cuotas sin duplicación | Astra Medium |
+| F2-06 | Deudas y préstamos | **MIX** | **GLM-5.3-Flash Free**: Formularios y vista de calendario de obligaciones | **Sol High** — Implementar capital, intereses, cuotas y saldos reales | — |
+| F2-07 | Préstamos en otra moneda | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | — |
+| F2-08 | Gastos de terceros y compartidos | **MIX** | **GLM-5.3-Flash Free**: UI de participantes, reparto y estado de cobros | **Sol High** — Implementar derechos/obligaciones y pagos individuales | — |
+| F2-09 | Devoluciones y saldo a favor | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F2-10 | Consistencia, autorización y concurrencia | **MIX** | **DeepSeek V4.1 Flash Free**: Inventariar invariantes; generar fixtures y tests iniciales | **Sol High** — Auditar y ejecutar pruebas de DB real, locks, RLS y concurrencia | Astra High |
 
-## F3 — Ahorro y presupuestos
+### F3 — Fondos y presupuestos
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F3-01 | Fondos con nombre/moneda/estado, reservar/liberar/traspasar internamente sin tocar Bancos. | Sol | **High** | Reservas virtuales sin efectos falsos en banco. | — |
-| F3-02 | Disponible libre vs saldo bancario real: garantía atómica de fondos no reservados. | Sol | **High** | Disponible, reservas y concurrencia atómica. | Astra Medium |
-| F3-03 | Aportes programados mensuales, primera ejecución siguiente mes, día inexistente → último del mes, insuficiencia  | Sol | **High** | Aportes periódicos: calendario, insuficiencia y estado. | — |
-| F3-04 | Metas monetarias opcionales y fechas, última aportación exacta, pausa automática por meta, reactivación expresa, | Sol | **High** | Metas, pausa de aportes y excepciones de calendario. | — |
-| F3-05 | Cubrir gasto con uno o más fondos y disponible | Sol | **High** | Gasto con fondos y pago tarjeta; evitar doble débito. | Astra Medium |
-| F3-06 | Presupuestos categoría/subcategoría por moneda y mes, jerarquía, cuotas, edición con historial y excepción tempo | Sol | **High** | Presupuestos, cuotas, moneda e historial de límites. | — |
-| F3-07 | Avisos internos de presupuestos 80%/100%, metas/fondos y validación de concurrencia. | Sol | **Medium** | Alertas con deduplicación, con dominio de fondos probado. | — |
+| F3-01 | Fondos de ahorro virtual | **MIX** | **GLM-5.3-Flash Free**: UI de fondos y estados, sin operar dinero | **Sol High** — Validar reservas por titular, RLS y saldo disponible | — |
+| F3-02 | Disponible libre y reservas atómicas | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F3-03 | Aportes mensuales programados | **MIX** | **DeepSeek V4.1 Flash Free**: Casos extremos de calendario y tests puros de fechas | **Sol High** — Implementar transacciones, estado pendiente y reintentos | — |
+| F3-04 | Metas, pausa y reactivación | **MIX** | **GLM-5.3-Flash Free**: Edición visual de metas, fechas y mensajes | **Sol High** — Implementar aportes exactos, pausas y estado persistente | — |
+| F3-05 | Cubrir gastos con fondos | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F3-06 | Presupuestos mensuales | **MIX** | **GLM-5.3-Flash Free**: Editor de límites, categorías y pantalla de presupuesto | **Sol High** — Implementar cálculo, cuotas, historial y servidor | — |
+| F3-07 | Avisos por umbrales | **MIX** | **GLM-5.3-Flash Free**: Mensajes, estados y componentes de alertas | **Sol Medium** — Implementar umbrales/deduplicación y tests concurrentes | — |
 
-## F4 — Recurrencias
+### F4 — Recurrencias
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F4-01 | Definición de ingreso/gasto recurrente, frecuencia, primer período, día flexible, fecha final, referencia y esta | Sol | **High** | Modelo de recurrencias y calendario con fechas flexibles. | — |
-| F4-02 | Seguimiento y confirmación manual real, pagos en meses distintos, varios depósitos por sueldo, importes variable | Sol | **High** | Cobros/pagos reales, parciales y referencia por período. | — |
-| F4-03 | Omitir mes/período, pausar/reanudar serie y períodos independientes | Sol | **Medium** | Pausar y omitir períodos respetando historial y pruebas. | — |
-| F4-04 | Recurrente compartido con persona/contacto y desglose real al pagarse | Sol | **High** | Recurrentes compartidos, deudas y porciones reales. | Astra Medium |
-| F4-05 | Centro de avisos, tres días de antelación si fecha conocida, push solo tarjetas cuando el usuario lo activa, ant | Sol | **High** | Avisos, push opcional, permisos y notificaciones no duplicadas. | — |
-| F4-06 | Tests de calendarios (febrero, fin de año, husos horarios), reintentos, meses omitidos, pagos tardíos y facturas | Sol | **High** | Pruebas temporales, husos horarios e idempotencia. | — |
+| F4-01 | Definir recurrencias | **MIX** | **DeepSeek V4.1 Flash Free**: Casos de frecuencia, fin de mes y pruebas puras | **Sol High** — Persistir recurrencias, validar fechas y permisos | — |
+| F4-02 | Confirmación real de pagos/cobros | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | — |
+| F4-03 | Pausar y omitir períodos | **MIX** | **GLM-5.3-Flash Free**: Controles de pausa/omisión y vistas de estado | **Sol Medium** — Proteger histórico y estado de períodos por titular | — |
+| F4-04 | Recurrencias compartidas | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F4-05 | Centro de avisos y push opcional | **MIX** | **GLM-5.3-Flash Free**: Interfaz, preferencias y textos de notificación | **Sol High** — Asegurar permisos, deduplicación y emisión push | — |
+| F4-06 | Regresión de calendario y horarios | **MIX** | **DeepSeek V4.1 Flash Free**: Matriz de fechas, TZ, omisiones y reintentos; tests base | **Sol High** — Validar idempotencia, concurrencia y regresión real | — |
 
-## F5 — Estadísticas y utilidades
+### F5 — Catálogos y analítica
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F5-01 | Categorías/subcategorías por titular, creación desde formularios, archivo y protección de historial. | Sol | **Medium** | Categorías, archivo y formularios con pruebas. | — |
-| F5-02 | División de ingreso y gasto por categorías e importes exactos | Sol | **High** | División exacta de importes; no duplicar ingreso/gasto. | — |
-| F5-03 | Comercios/contactos autocompletables, archivo/restauración, fusión manual de comercios. | Sol | **Medium** | Autocompletado, normalización, archivo y fusión manual. | — |
-| F5-04 | Filtros guardados, operaciones de categorización masiva seguras y búsqueda eficiente. | Sol | **Medium** | Filtros guardados y edición masiva de metadatos. | — |
-| F5-05 | Estadísticas con métricas, comparaciones, favoritos, histórico por fecha, filtros y drilldown | Sol | **High** | Estadísticas transversales, cálculos y filtros históricos. | — |
-| F5-06 | Cotizaciones UYU/USD/EUR con fuente/fallback, tipo histórico reproducible | Sol | **High** | Tipos históricos y fuentes; evitar cambios de valoración. | Astra Medium |
-| F5-07 | Informes PDF/Excel/CSV del período y restauración/copia completa de cuenta, con cifrado opcional e integridad. | Sol | **High** | Exportaciones y restauración con cifrado e integridad. | Astra High |
-| F5-08 | Eliminación de cuenta y revisión de privacidad/ciclo de retención. | Sol | **High** | Borrado de cuenta y privacidad; operación irreversible. | Astra Medium |
-| F5-09 | Distinguir reembolsos de compras de otros meses y cashback, sin cambios ficticios a presupuesto. | Sol | **High** | Devoluciones y cashback; contra gasto separado. | Astra High |
+| F5-01 | Categorías y subcategorías | **MIX** | **GLM-5.3-Flash Free**: Formularios, selectores y navegación del catálogo | **Sol Medium** — Implementar permisos, archivo y referencias históricas | — |
+| F5-02 | División monetaria por categorías | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | — |
+| F5-03 | Comercios y contactos | **MIX** | **GLM-5.3-Flash Free**: Autocompletar, vistas de archivo/restauración | **Sol Medium** — Garantizar fusión segura y referencias históricas | — |
+| F5-04 | Filtros guardados y edición masiva | **MIX** | **GLM-5.3-Flash Free**: UX de filtros y selección múltiple | **Sol Medium** — Asegurar permisos y atomicidad de cambios masivos | — |
+| F5-05 | Estadísticas y visualizaciones | **MIX** | **DeepSeek V4.1 Flash Free**: Charts, componentes, pruebas de presentación | **Sol High** — Verificar cálculos exactos, filtros y consistencia histórica | — |
+| F5-06 | Cotizaciones y valores históricos | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F5-07 | Exportar e importar datos | **MIX** | **GLM-5.3-Flash Free**: Diseño de informe, formatos y UI de exportación | **Sol High** — Hacer exportación privada, cifrado, backup y restore seguros | Astra High |
+| F5-08 | Borrado de cuenta y retención | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra Medium |
+| F5-09 | Reembolsos posteriores y cashback | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
 
-## F6 — Integración y lanzamiento
+### F6 — Integración y lanzamiento
 
-| Ticket | Objetivo resumido | Modelo | Intensidad | Motivo | Revisión opcional |
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
 |---|---|---|---|---|---|
-| F6-01 | Revisión de 67 CA con resultados y evidencias | Sol | **High** | Auditoría integrada de 67 criterios y evidencia. | Astra Medium |
-| F6-02 | Revisión de permisos multiusuario, APIs de administración, PWA, cookies, RLS y exportaciones | Sol | **High** | Auditoría de fuga entre cuentas, API y secrets. | Astra High |
-| F6-03 | PWA/manifest/online-only, UX responsive, teclado/lectores, contraste, validaciones y estados de error. | Sol | **High** | PWA, caché de datos privados y accesibilidad real; apoyarse en Terra para visual si hace falta. | — |
-| F6-04 | Plan de backups/restauración cifrada, versión de esquema y prueba de desastre controlada. | Sol | **High** | Restauración cifrada, desastres, pruebas destructivas. | Astra High |
-| F6-05 | Revisión de políticas Hobby, Neon, SMTP, dominio, cuotas, límites, recuperación y alertas | Sol | **High** | Costes, límites, despliegue y requisitos de proveedor. | — |
-| F6-06 | Guía corta para usuario final: crear cuenta, ingresar saldos, registrar gasto, tarjetas, fondos, correcciones, r | Terra | **Medium** | Guía de usuario desde funcionalidades verificadas. | — |
-| F6-07 | Cierre de puntos técnicos de 06-riesgos-y-pendientes.md y aprobación de uso real | Sol | **High** | Cierre de riesgos y gate de publicación con evidencia. | Astra High |
+| F6-01 | Auditar 67 criterios de aceptación | **MIX** | **DeepSeek V4.1 Flash Free**: Armar matriz CA, rastrear tests y marcar vacíos preliminares | **Sol High** — Comprobar evidencia y cerrar criterios, sin inventar resultados | Astra Medium |
+| F6-02 | Auditar privacidad y permisos | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F6-03 | PWA, responsive y accesibilidad | **MIX** | **GLM-5.3-Flash Free**: Accesibilidad visual, teclado, contraste y UX de errores | **Sol High** — Auditar cache privada, online-only, sesiones y tests | — |
+| F6-04 | Backup, restore y desastre controlado | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
+| F6-05 | Políticas, cuotas y costes | **OC** | **GLM-5.3-Flash Free**: Auditar documentación oficial de proveedores y límites vigentes | **Sol Medium** — Respaldo si no pasa las pruebas | — |
+| F6-06 | Guía de usuario | **OC** | **GLM-5.3-Flash Free**: Redactar onboarding basado en pantallas y funciones reales | **Terra Medium** — Respaldo si no pasa las pruebas | — |
+| F6-07 | Cierre de riesgos y aprobación real | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
 
-## Reglas de control de calidad y consumo
+## Ejemplo inmediato: F2-10 (próximo ticket de F2)
+**Ruta MIX — DeepSeek V4.1 Flash Free → Codex Sol High.** OpenCode, **sin conexión a Neon ni credenciales**, lee los contratos, enumera riesgos y agrega pruebas iniciales con datos sintéticos para: pagos parciales, reintentos, saldos indebidos, owner A/B y carreras de concurrencia. Codex continúa en **la misma rama**, revisa assertions y efectos, completa los casos de locks/atomicidad/RLS, corrige la implementación si falla, ejecuta el conjunto completo de pruebas y publica PR. Usar Astra High para revisión independiente de la PR si está disponible; no confundir tests verdes con prueba de seguridad formal.
 
-1. **Primera pasada:** ejecutar ticket en modelo/intensidad recomendados; solicitar tests según los criterios específicos del ticket (no tests genéricos inventados). No fusionar si falla el test.
-2. **Escalada:** si el ticket descubre ambigüedad de negocio, bug contable, excepción de fecha/moneda, problema de autorización o migración riesgosa, cambiar **a Sol High** inmediatamente; si el problema es inusual/muy difícil, revisión con **Astra Medium o High** si está disponible.
-3. **Para tickets Sol Medium:** no bajar tests ni permisos; si el alcance crece, dividir tickets o subir intensidad, no forzar una implementación incorrecta.
-4. **Para tickets Terra:** Terra solo si la mayor parte es visual, prototipo, redacción o navegación; cualquier lógica financiera, API protegida, autorización y persistencia monetaria deben desarrollarse/revisarse en Sol High, incluso si surgieron incidentalmente en un ticket visual.
-5. **Revisión independiente:** al final de los PR con marca Astra, abrir revisión aparte con «analizá solo este diff y CA asociados; detectá problemas de datos, dinero, permisos, concurrencia, falta de pruebas; no modifiques nada». Esto evita que el autor sea su único revisor. Si no hay Astra, una revisión separada de Sol High sigue siendo útil, aunque no equivale a auditoría formal.
-6. **Medir ahorro por tarea terminada, no por tokens de una sola respuesta:** llevar el número de intentos, tests fallidos, correcciones, consumo y tiempo para F0-01/F0-03/F1-03; si Medium obliga a rehacer trabajo, usar High. No convertir precios por millón de tokens de la API en consumo exacto de Codex por suscripción: la asignación y modalidades difieren.
-7. **Criterio de aceptación independiente del modelo:** ejecutar pruebas, review, evidencia y gate de fase. Si un modelo rápido no supera CA, no cumple, aunque su respuesta parezca convincente.
-8. **Uso de High por defecto cuando haya dudas:** dinero, deuda, concurrencia, privacidad, backups y seguridad siempre Sol High. Considerar Astra para auditorías puntuales de F0-08, F1-04/F1-05, F2-09/F2-10, F5-07 y F6-02/F6-04/F6-07.
-9. **Contexto eficiente:** no pegar 300k caracteres de decisiones en cada prompt: Codex lee archivos relevantes del repositorio; usar ticket + RF + CA + diff y referenciar documentos por ruta. Un chat nuevo por ticket, no por cada error.
+**Estado al crear esta matriz:** F2-04 a F2-09 se fusionaron a `main` por PR #27–#32. Se verificó por lectura que Neon `development` sigue con migraciones hasta `0009`: los SQL `0010` a `0014` permanecen **pendientes de autorización/aplicación**. Fusionar código no migra la base ni despliega la app. F2-10 y la puerta de aceptación de F2 siguen sin cerrarse por el mero hecho de fusionar esas PR.
 
-## Referencias de modelos (sujetas a cambios)
+## Plantillas mínimas de uso
 
-- Selección de modelos de OpenAI: https://developers.openai.com/api/docs/guides/model-selection
-- GPT-6.1 Sol: https://developers.openai.com/api/docs/models/gpt-6.1-sol
-- Comparativa GPT-6: https://developers.openai.com/api/docs/guides/latest-model
-- Consumo de Work/Codex: https://help.openai.com/en/articles/20001516-managing-usage-with-gpt-6-astra-in-work-and-codex
-- Modelo y selector Codex: https://help.openai.com/en/articles/20001275-chatgpt-work-and-codex
+**OC (copiar en OpenCode; cambiar ID):**
+```text
+[ID] Ejecutá el ticket ID de docs/planning/05-plan-de-implementacion.md.
+Seguí AGENTS.md, RF/CA e invariantes. Usá solo datos sintéticos.
+Rama aislada, implementación y pruebas, commits y PR. Nunca tocar Neon
+production, migraciones no autorizadas, secretos ni servicios pagos.
+Si aparece lógica monetaria o de autorización delicada, detené ese
+tramo, dejá diff/tests y explicá qué debe cerrar Codex.
+```
 
-**Nota:** estas recomendaciones son juicio técnico basado en el ticket y fuentes públicas, no una evaluación comparativa empírica de ejecución de los 56 tickets. Si un modelo o esfuerzo no aparece en el selector del usuario, priorizar Sol High antes que un downgrade incierto.
+**MIX, segunda pasada (copiar en Codex):**
+```text
+[ID] Retomá la rama del ticket ID preparada con OpenCode, SIN rehacer
+el trabajo ya válido. Revisá diff, RF/CA, invariantes y pruebas existentes.
+Completá únicamente lógica crítica de [alcance señalado en la matriz],
+endurecé permisos/contabilidad y ejecutá regresión relevante. Corregí
+fallos, commit/push y PR. No merge ni migraciones no autorizadas.
+```
+
+## Limitaciones de esta recomendación
+El selector de modelos no se modifica solo por editar este documento. Una tarea clasificada OC puede requerir Codex si el modelo gratuito no tiene acceso a herramientas o falla pruebas. **No existe garantía de ahorro porcentual ni de equivalencia de calidad**. Los pasos de autorización de Neon, las revisiones de seguridad y las pruebas del gate **no se omiten para ahorrar tokens**.
