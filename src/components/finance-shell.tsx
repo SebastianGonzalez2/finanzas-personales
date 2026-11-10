@@ -7,6 +7,7 @@ const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
   historial: { href: "/historial", label: "Historial", icon: "calendar" },
   tarjetas: { href: "/tarjetas", label: "Tarjetas", icon: "card" },
+  fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
 } as const;

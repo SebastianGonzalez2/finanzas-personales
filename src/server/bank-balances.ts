@@ -51,15 +51,8 @@ function sumBankEffects(ready: boolean, lower: string, upper?: string) {
              ${upper ? `AND ${bankEventPosition(ready)} <= ${upper}` : ""}`;
 }
 
-export async function listBankBalances(
-  client: pg.PoolClient,
-  ownerId: string,
-  currencies: readonly Currency[] = bankCurrencies,
-  reconciliationReady?: boolean,
-): Promise<BankBalance[]> {
-  const ready = reconciliationReady ?? (await bankReconciliationReady(client));
-  const { rows } = await client.query<BankBalance>(
-    `SELECT b.currency, b.confirmed_amount::text AS amount,
+export function bankBalanceQuery(ready: boolean) {
+  return `SELECT b.currency, b.confirmed_amount::text AS amount,
             to_char(b.as_of_date, 'YYYY-MM-DD') AS "asOfDate",
             (b.confirmed_amount + effects.delta)::text AS "calculatedAmount"
        FROM unnest($2::finance.currency[]) WITH ORDINALITY AS c(currency, position)
@@ -73,9 +66,20 @@ export async function listBankBalances(
        CROSS JOIN LATERAL (
          ${sumBankEffects(ready, "(b.as_of_date, b.created_at)")}
        ) effects
-      ORDER BY c.position`,
-    [ownerId, currencies],
-  );
+      ORDER BY c.position`;
+}
+
+export async function listBankBalances(
+  client: pg.PoolClient,
+  ownerId: string,
+  currencies: readonly Currency[] = bankCurrencies,
+  reconciliationReady?: boolean,
+): Promise<BankBalance[]> {
+  const ready = reconciliationReady ?? (await bankReconciliationReady(client));
+  const { rows } = await client.query<BankBalance>(bankBalanceQuery(ready), [
+    ownerId,
+    currencies,
+  ]);
   return rows.map(({ calculatedAmount, ...balance }) =>
     calculatedAmount == null ? balance : { ...balance, calculatedAmount },
   );
