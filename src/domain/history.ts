@@ -15,6 +15,7 @@ export const historyKinds = {
   card_payment: "Pago de tarjeta",
   card_opening: "Deuda inicial de tarjeta",
   card_adjustment: "Ajuste de deuda de tarjeta",
+  loan_operation: "Deudas y préstamos",
 } as const;
 
 export const historyStates = {

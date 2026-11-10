@@ -790,6 +790,13 @@ export async function creditOperationsReady(client: pg.PoolClient) {
   return rows[0].ready;
 }
 
+export async function loansReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.loan_operations') IS NOT NULL AS ready",
+  );
+  return rows[0].ready;
+}
+
 export async function listMovementTotals(
   client: pg.PoolClient,
   ownerId: string,
@@ -797,6 +804,7 @@ export async function listMovementTotals(
 ) {
   const credit = await creditOperationsReady(client);
   const mixed = credit && (await mixedPurchasesReady(client));
+  const loans = await loansReady(client);
   const { rows } = await client.query<MovementTotal>(
     `SELECT kind, currency, sum(amount)::text AS amount FROM (
        SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
@@ -821,6 +829,15 @@ export async function listMovementTotals(
             WHERE owner_id = $1 AND effective_on >= $2::date AND effective_on < $2::date + interval '1 month'`
                : ""
            }`
+          : ""
+      }
+      ${
+        loans
+          ? `UNION ALL
+        SELECT 'expense', o.currency, o.expense FROM finance.loan_operations o
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
+        WHERE o.owner_id = $1 AND o.expense > 0 AND f.status = 'confirmed'
+          AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
           : ""
       }
       ) amounts GROUP BY kind, currency`,

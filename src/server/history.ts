@@ -1,7 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
-import { creditOperationsReady } from "./movements.ts";
+import { creditOperationsReady, loansReady } from "./movements.ts";
 import { installmentsReady } from "./installments.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import type { Currency } from "../domain/money.ts";
@@ -34,6 +34,12 @@ const checkpointFields = `b.id, 'checkpoint'::text AS kind, 'confirmed'::text AS
   NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
 const checkpointSource = `FROM finance.balance_checkpoints b
   LEFT JOIN finance.balance_adjustments a ON (a.owner_id, a.checkpoint_id) = (b.owner_id, b.id)`;
+
+const loanFields = `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
+  o.currency, o.amount::text AS amount, NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
+const loanSource = `FROM finance.financial_events f
+  JOIN finance.loan_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)`;
 
 const cardFields = (
   withMixed: boolean,
@@ -73,6 +79,7 @@ export async function listHistory(
   const credit = await creditOperationsReady(client);
   const withPlans = credit && (await installmentsReady(client));
   const withMixed = credit && (await mixedPurchasesReady(client));
+  const loans = await loansReady(client);
   const categoryMatches = (field: string) =>
     `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
   const { rows } = await client.query<HistoryEntry>(
@@ -104,6 +111,21 @@ export async function listHistory(
            AND ($12 IS NULL OR ((b.as_of_date, b.id) <= ($12, $13)
              AND (b.as_of_date, b.id, 'checkpoint'::text) < ($12, $13, $14)))
          ORDER BY b.as_of_date DESC, b.id DESC LIMIT $15)
+       ${
+         loans
+           ? `UNION ALL
+       (SELECT ${loanFields} ${loanSource}
+         WHERE f.owner_id = $1 AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+           AND $7 IS NULL AND $8 IS NULL
+           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(o.note), lower($2)) > 0)
+           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
+           AND ($9 IS NULL OR o.currency = $9) AND ($10 IS NULL OR o.amount >= $10)
+           AND ($11 IS NULL OR o.amount <= $11)
+           AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
+             AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
+         ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
+           : ""
+       }
        ${
          credit
            ? `UNION ALL
@@ -178,8 +200,18 @@ export async function findHistoryEntry(
              AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')`,
     [ownerId, id],
   );
-  if (entry || checkpoint || !(await creditOperationsReady(client)))
-    return entry;
+  if (entry || checkpoint) return entry;
+  if (await loansReady(client)) {
+    const {
+      rows: [loan],
+    } = await client.query<HistoryEntry>(
+      `SELECT ${loanFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+        ${loanSource} WHERE f.owner_id = $1 AND f.id = $2`,
+      [ownerId, id],
+    );
+    if (loan) return loan;
+  }
+  if (!(await creditOperationsReady(client))) return undefined;
   const withMixed = await mixedPurchasesReady(client);
   const result = await client.query<HistoryEntry>(
     `SELECT ${cardFields(withMixed)}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
