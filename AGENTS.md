@@ -1,46 +1,35 @@
-# Instrucciones del repositorio para Codex y agentes de programación
+# AGENTS.md — instrucciones del repositorio para agentes de programación
 
-## Inicio obligatorio
+## Arranque mínimo y contexto por demanda
 
-Antes de modificar código o datos:
+1. Antes de tocar archivos o datos, revisar `git status`, rama, remoto y diferencias frente a `origin/main`. Proteger cambios locales; nunca descartarlos ni sobrescribirlos.
+2. Identificar el **ticket exacto** en `docs/planning/05-plan-de-implementacion.md`. Leer solo su sección, RF/CA/invariantes vinculados y la documentación relacionada con los archivos afectados. Buscar por ID/término antes de abrir documentos extensos.
+3. Consultar en `docs/planning/10-modelos-por-ticket.md` la ruta **OC / MIX / CX** y qué parte corresponde a cada agente. La selección real del modelo es manual y depende del selector. En MIX, Codex continúa en **la misma rama y commits** de OpenCode; evitar repetir trabajo ya válido.
+4. Leer **por necesidad**, no de forma indiscriminada: `docs/product/decisiones-producto.md` (solo apartados aplicables; prevalece la decisión vigente v9.49 y posteriores), `docs/planning/03-criterios-de-aceptacion.md`, `06-riesgos-y-pendientes.md`, `07-handoff-codex.md`, `08-guia-operativa-codex.md`, `09-convenciones-git.md`, ADR y contratos específicos. `docs/planning/README.md` sirve de índice cuando no se encuentra una referencia.
+5. **No** leer automáticamente todos los `docs/planning/0*.md`, el historial completo de decisiones, todos los ADR o toda la base de código. No volver a leer contenido sin cambios que ya esté disponible en el contexto. Si falta información esencial, buscarla y leerla; ahorrar contexto nunca justifica suponer requisitos.
 
-1. Comprobar `git status`, rama, remoto y diferencias local/`origin/main`; **nunca eliminar trabajo local**.
-2. Leer `docs/planning/README.md`, `docs/planning/07-handoff-codex.md` y los demás `docs/planning/0*.md`.
-3. Consultar `docs/product/decisiones-producto.md` (decisión más reciente **v9.49**; v9.48 se conserva como historia) para reglas confirmadas y precedencia histórica; decisiones posteriores prevalecen sobre anteriores.
-4. Referenciar RF, CA, fase/ticket e invariantes al hacer un cambio; **no afirmar implementación que no existe**.
+## Arquitectura y decisiones vigentes
 
-## Arquitectura confirmada
+Next.js + TypeScript + Tailwind CSS + shadcn/ui; Vercel; Neon PostgreSQL; **Better Auth propio en Next.js con Google OAuth exclusivamente y allowlist privada**. Neon Auth administrado, su webhook, contraseñas, OTP e invitación grupal se descartaron por v9.49. Para cambios de autenticación, sesiones, roles, RLS, esquemas o acceso, consultar `docs/adr/0004-google-only-allowlist-auth.md` y las decisiones aplicables. No fusionar el código histórico del PR #12. F0 fue integrado; la validación HTTPS entre dispositivos con cuentas Google reales sigue siendo requisito antes de utilizar datos financieros reales.
 
-Next.js + TypeScript + Tailwind CSS + shadcn/ui, Vercel, Neon PostgreSQL y **Better Auth autogestionado en Next.js con Google OAuth exclusivamente**. Acceso limitado a una **lista privada de cuentas Google autorizadas**; **Neon Auth administrado, webhook e invitación grupal quedan descartados** por la decisión v9.49. ADR obligatorio: `docs/adr/0004-google-only-allowlist-auth.md`. Construcción incremental y probada. Comenzar **F0**, no implementar toda la aplicación en una sola PR. Bibliotecas y ORM adicionales requieren justificación técnica y validación de compatibilidad/licencia; preferir fuentes oficiales. No activar facturación ni instalar servicios pagos sin consentimiento.
+## Reglas irrenunciables de seguridad y contabilidad
 
-**Cierre técnico de F0:** el titular aprobó integrar los fundamentos en `main`. F0-04 se comprobó con Google y Neon development reales, con dos titulares, rechazo, revocación y aislamiento. La prueba entre dispositivos en HTTPS queda como condición previa al uso con datos financieros reales. La arquitectura histórica del PR #12 permanece descartada. Las referencias anteriores a contraseña, OTP, SMTP de acceso, código grupal o Neon Auth se interpretan conforme al ADR 0004. El inicio de F1 se coordina en su propio ticket.
+- Verificar **sesión y propietario en servidor** en lecturas, escrituras y relaciones; RLS por titular y pruebas A/B cuando corresponda. Nunca exponer datos de otros usuarios.
+- Importes decimales exactos; transacciones atómicas, idempotencia, auditoría, versionado y pruebas de concurrencia según impacto. No inventar movimientos para cuadrar saldos ni reescribir checkpoints confirmados por correcciones históricas.
+- Pagar una tarjeta reduce deuda y banco, **no duplica el gasto**. Los fondos virtuales no generan efectos bancarios. Capital de préstamo no equivale a ingreso/gasto ordinario.
+- Reembolso acreditado en febrero por compra de enero: registrar **reembolso separado en febrero**; no reducir artificialmente compras ni presupuesto de febrero (v9.42).
+- Fuera del alcance vigente: operaciones financieras offline, integración bancaria, OCR, voz, efectivo, inversiones o comprobantes, salvo modificación explícita y documentada del producto.
+- No enviar secretos, `.env*`, credenciales, datos financieros reales, backups, cookies ni tokens a Git, logs, prompts de proveedores externos o herramientas gratuitas. Usar datos sintéticos.
 
-## Seguridad e integridad financiera
+## Git, permisos y migraciones
 
-- Verificar sesión y propietario en **servidor** para cada lectura/escritura y relación; no exponer datos de otros usuarios.
-- Importes exactos (no float binario JS final), transacciones atómicas, idempotencia, auditoría, estados explícitos y pruebas de regresión.
-- **Nunca inventar movimientos bancarios ni gastos** para compensar diferencias de saldo. Las anclas confirmadas manualmente no se reescriben por corregir eventos anteriores.
-- Pagar tarjeta reduce banco y deuda pero **no duplica gasto**; ahorro virtual no sale del banco; capital de préstamo no es ingreso/gasto ordinario.
-- Refund de compra de enero acreditado en febrero: reembolso separado en febrero, **no** reduce compras de febrero ni presupuesto del mes; regla v9.42.
-- Sin operaciones financieras offline ni integración bancaria, OCR, IA por voz, efectivo, inversiones o archivos de comprobantes.
-- No poner tokens, contraseñas, claves API, backups reales ni datos personales financieros en Git o logs.
+- Un ticket = un ID coherente en chat, rama `codex/<ID>-nombre`, commits `tipo(<ID>): acción` y PR `[<ID>] título`. Mantenimiento transversal: `OPS` o `PLAN`. Para detalles de convención, consultar `docs/planning/09-convenciones-git.md`.
+- Rama/worktree aislado. Los commits, push, tests y PR rutinarios están permitidos cuando el entorno tenga autorización; **no hacer merge a main**, push forzado, borrado de trabajo ajeno ni deploy en producción sin autorización expresa.
+- Neon **development**: se permite inspección de solo lectura y pruebas aisladas. Antes de aplicar SQL al esquema compartido, cumplir ADR 0004: presentar **SQL exacto, destino, impacto y SHA-256**, y obtener aprobación específica. No modificar Neon **production** ni ejecutar SQL destructivo sin autorización.
+- No activar servicios pagos ni facturación, ni ampliar dependencias sin necesidad y revisión de compatibilidad/licencia.
 
-## Nombre de conversaciones de Codex: obligatorio por ticket
+## Implementación y entrega eficiente
 
-Para cada nuevo chat/hilo de Codex, **el título debe empezar por el ID canónico del ticket** y una descripción corta: `[F0-01] Revisión inicial`, `[F0-03] Configurar Next.js`, `[F1-03] Registrar movimientos`. Usar **exactamente** el mismo ID que la rama, los commits y la PR. **Primera línea del primer mensaje**: `[F0-01] Revisión inicial`; después poner el objetivo y criterios. Si el título autogenerado omite el ID, **renombrarlo con la función de la aplicación, si existe**, o manualmente; en CLI puede emplearse `/rename`. **Las instrucciones de repositorio no garantizan poder cambiar automáticamente el título de la UI**, por lo que verificar que aparezca correctamente. Para continuar el mismo ticket, mantener el chat; cambiar de ticket implica abrir otro chat. Ver `docs/planning/09-convenciones-git.md`.
+Implementar únicamente el ticket y sus criterios; reutilizar patrones existentes. Ejecutar pruebas pertinentes y regresión por impacto, incluidas DB real desechable y navegador cuando aplique. No desactivar tests, no atribuir resultados no observados ni omitir revisión de permisos/efectos por ahorrar tokens. Corregir fallos del propio alcance; escalar bloqueos críticos.
 
-## Convención obligatoria de Git y trazabilidad
-
-Seguir `docs/planning/09-convenciones-git.md` para **todos los tickets nuevos**:
-- Rama: `codex/F0-01-revision-inicial` (o mismo ID y descripción de ticket).
-- Mensajes de commit: `docs(F0-01): documentar estado inicial`, `feat(F1-03): registrar ingresos y gastos`; **tipo(ID): acción concreta**, y caso excepcional `docs(OPS): ...` para proceso general.
-- Título de Pull Request: `[F0-01] Revisión inicial del repositorio`.
-- Descripción: completar `.github/PULL_REQUEST_TEMPLATE.md` con objetivo, alcance, **RF/CA**, pruebas realmente ejecutadas, riesgos, revisión manual y siguiente ticket.
-- Identificador **idéntico** en rama/commits/PR; nunca confundir crear una rama con completar una tarea. No reescribir commits históricos por esta convención.
-- No hacer merge ni desplegar automáticamente sin aprobación humana o consentimiento explícito para esa acción.
-
-## Entregables por PR
-
-Cambios de alcance pequeño, ramas por ticket, tests ejecutados con resultados, revisión de permisos, migraciones, UX móvil/escritorio y nota de límites. No marcar un riesgo «resuelto» por suposición. Si existe un bloqueo real de auth/SMTP/costo/conciliación, registrarlo y elevarlo antes de desplegar. Ver `docs/planning/05-plan-de-implementacion.md` y `06-riesgos-y-pendientes.md`.
-
-**Prioridad:** precisión, seguridad y simplicidad frente a velocidad aparente.
+Dejar commit y PR con la plantilla `.github/PULL_REQUEST_TEMPLATE.md`: RF/CA, pruebas realizadas, limitaciones, riesgos, migraciones, revisión visual y siguiente ticket. Resumir la entrega sin volver a enumerar documentación leída. **Prioridad: integridad y seguridad antes que rapidez o ahorro de cuota.**
