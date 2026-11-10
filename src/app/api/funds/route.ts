@@ -39,6 +39,14 @@ export async function POST(request: Request) {
         );
       const result = await saveSavingsFund(client, ownerId, command);
       switch (result.status) {
+        case "unavailable":
+          return reply(
+            {
+              error:
+                "Las reservas estarán disponibles cuando se actualice la base de datos.",
+            },
+            409,
+          );
         case "conflict":
           return reply({ error: result.message }, 409);
         case "not-found":

@@ -58,3 +58,41 @@ test("F3-01 permite editar nombre y estado sin cambiar moneda ni reservas", () =
   ])
     assert.ok("error" in parseFundCommand({ ...update, ...invalid }));
 });
+
+test("F3-01 normaliza importes exactos y valida ambos extremos del traspaso", () => {
+  const reserve = {
+    action: "reserve",
+    fundId: randomUUID(),
+    version: 1,
+    amount: " 12,3401 ",
+    idempotencyKey: randomUUID(),
+  };
+  assert.deepEqual(parseFundCommand(reserve), {
+    ...reserve,
+    amount: "12.3401",
+  });
+  const transfer = {
+    ...reserve,
+    action: "transfer",
+    destinationFundId: randomUUID(),
+    destinationVersion: 2,
+  };
+  assert.deepEqual(parseFundCommand(transfer), {
+    ...transfer,
+    amount: "12.3401",
+  });
+  for (const invalid of [
+    { amount: 1 },
+    { amount: "0" },
+    { amount: "-1" },
+    { amount: "1e3" },
+    { amount: "1.00001" },
+    { amount: "10000000000000000" },
+    { ownerId: "otro" },
+    { currency: "EUR" },
+    { destinationFundId: reserve.fundId.toUpperCase() },
+    { destinationVersion: 0 },
+  ])
+    assert.ok("error" in parseFundCommand({ ...transfer, ...invalid }));
+  assert.ok("error" in parseFundCommand({ ...transfer, action: "release" }));
+});

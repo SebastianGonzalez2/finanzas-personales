@@ -5,7 +5,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
 import {
   fundStatuses,
+  parseFundAmount,
   type EditableFundStatus,
+  type FundAvailability,
+  type FundMovement,
   type SavingsFund,
 } from "@/domain/savings-funds";
 import { useFinancialCommand } from "./financial-command";
@@ -17,19 +20,46 @@ const primary = `${button} border-primary bg-primary text-primary-foreground hov
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
 
-export function SavingsFundCatalog({ funds }: { funds: SavingsFund[] }) {
+type FundAction = FundMovement["action"];
+type Editor =
+  | { action: "edit"; fund?: SavingsFund }
+  | { action: FundAction; fund: SavingsFund };
+
+const movementLabels = {
+  reserve: { action: "Reservar", origin: "en", confirmed: "Reserva guardada." },
+  release: { action: "Liberar", origin: "de", confirmed: "Reserva liberada." },
+  transfer: {
+    action: "Traspasar",
+    origin: "desde",
+    confirmed: "Traspaso guardado.",
+  },
+};
+
+export function SavingsFundCatalog({
+  funds,
+  availability,
+}: {
+  funds: SavingsFund[];
+  availability: FundAvailability[] | null;
+}) {
   const router = useRouter();
-  const [editor, setEditor] = useState<SavingsFund | "new" | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const [message, setMessage] = useState("");
   const add = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const open = funds.filter(({ status }) => status !== "closed");
   const closed = funds.filter(({ status }) => status === "closed");
 
-  function edit(fund: SavingsFund | "new", from: HTMLButtonElement) {
+  function openEditor(next: Editor, from: HTMLButtonElement) {
     trigger.current = from;
     setMessage("");
-    setEditor(fund);
+    setEditor(next);
+  }
+
+  function destinations(source: SavingsFund) {
+    return open.filter(
+      ({ id, currency }) => id !== source.id && currency === source.currency,
+    );
   }
 
   function close(result?: string) {
@@ -49,18 +79,50 @@ export function SavingsFundCatalog({ funds }: { funds: SavingsFund[] }) {
       <p role="status" className={message ? "text-sm" : "sr-only"}>
         {message}
       </p>
+      {availability ? (
+        <Card className="gap-2 p-4">
+          <h2 className="font-semibold">Disponible libre por moneda</h2>
+          <dl className="grid gap-2 sm:grid-cols-3">
+            {bankCurrencies.map((currency) => {
+              const balance = availability.find(
+                (entry) => entry.currency === currency,
+              );
+              return (
+                <div key={currency} className="text-sm">
+                  <dt className="text-muted-foreground">{currency}</dt>
+                  <dd className="font-medium tabular-nums">
+                    {balance
+                      ? formatBankAmount(balance)
+                      : "Sin saldo bancario configurado"}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </Card>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Las operaciones de reserva estarán disponibles cuando se actualice la
+          base de datos.
+        </p>
+      )}
       <button
         ref={add}
         type="button"
         className={`${primary} justify-self-start`}
         disabled={editor !== null}
-        onClick={(event) => edit("new", event.currentTarget)}
+        onClick={(event) => openEditor({ action: "edit" }, event.currentTarget)}
       >
         Agregar fondo
       </button>
-      {editor && (
-        <FundEditor
-          fund={editor === "new" ? undefined : editor}
+      {editor?.action === "edit" && (
+        <FundEditor fund={editor.fund} close={close} />
+      )}
+      {editor && editor.action !== "edit" && (
+        <FundMovementEditor
+          action={editor.action}
+          fund={editor.fund}
+          destinations={destinations(editor.fund)}
           close={close}
         />
       )}
@@ -82,7 +144,13 @@ export function SavingsFundCatalog({ funds }: { funds: SavingsFund[] }) {
                 key={fund.id}
                 fund={fund}
                 editDisabled={editor !== null}
-                edit={(from) => edit(fund, from)}
+                edit={(from) => openEditor({ action: "edit", fund }, from)}
+                move={
+                  availability
+                    ? (action, from) => openEditor({ action, fund }, from)
+                    : undefined
+                }
+                canTransfer={destinations(fund).length > 0}
               />
             ))}
           </ul>
@@ -108,10 +176,14 @@ function FundEntry({
   fund,
   edit,
   editDisabled,
+  move,
+  canTransfer,
 }: {
   fund: SavingsFund;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
+  move?: (action: FundAction, from: HTMLButtonElement) => void;
+  canTransfer?: boolean;
 }) {
   return (
     <li className="min-w-0">
@@ -172,8 +244,207 @@ function FundEntry({
             Sin dinero reservado todavía.
           </p>
         )}
+        {move && (
+          <div className="flex flex-wrap gap-2">
+            {(["reserve", "release", "transfer"] as const).map((action) => {
+              const { action: label, origin } = movementLabels[action];
+              return (
+                <button
+                  key={action}
+                  type="button"
+                  className={button}
+                  aria-label={`${label} ${origin} ${fund.name}`}
+                  disabled={
+                    editDisabled ||
+                    (action !== "reserve" &&
+                      fund.reservedAmount === "0.0000") ||
+                    (action === "transfer" && !canTransfer)
+                  }
+                  onClick={(event) => move(action, event.currentTarget)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </Card>
     </li>
+  );
+}
+
+function FundMovementEditor({
+  action,
+  fund,
+  destinations,
+  close,
+}: {
+  action: FundAction;
+  fund: SavingsFund;
+  destinations: SavingsFund[];
+  close: (message?: string) => void;
+}) {
+  const { action: label, origin, confirmed } = movementLabels[action];
+  const [review, setReview] = useState<{
+    amount: string;
+    destination?: SavingsFund;
+  }>();
+  const [validation, setValidation] = useState("");
+  const { send, pending, uncertain, error, clearError } = useFinancialCommand(
+    "/api/funds",
+    "POST",
+  );
+  const heading = useRef<HTMLHeadingElement>(null);
+  const reviewing = review !== undefined;
+  useEffect(() => {
+    heading.current?.focus();
+  }, [reviewing]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (review) {
+      const saved = await send({
+        action,
+        fundId: fund.id,
+        version: fund.version,
+        amount: review.amount,
+        ...(review.destination && {
+          destinationFundId: review.destination.id,
+          destinationVersion: review.destination.version,
+        }),
+      });
+      if (saved) close(confirmed);
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const amount = parseFundAmount(form.get("amount"));
+    if (!amount) {
+      setValidation("Ingresá un importe positivo con hasta cuatro decimales.");
+      return;
+    }
+    const destination = destinations.find(
+      ({ id }) => id === form.get("destination"),
+    );
+    if (action === "transfer" && !destination) {
+      setValidation("Elegí el fondo de destino.");
+      return;
+    }
+    setValidation("");
+    setReview({ amount, destination });
+  }
+
+  return (
+    <Card className="gap-3 p-4 sm:p-5">
+      <h2
+        id="titulo-operacion-fondo"
+        ref={heading}
+        tabIndex={-1}
+        className="font-semibold"
+      >
+        {reviewing
+          ? `Confirmar ${label.toLowerCase()}`
+          : `${label} · ${fund.name}`}
+      </h2>
+      <form
+        method="post"
+        action="/api/funds"
+        aria-labelledby="titulo-operacion-fondo"
+        onSubmit={submit}
+        className="grid gap-3"
+      >
+        <fieldset
+          hidden={reviewing}
+          disabled={reviewing}
+          className={reviewing ? "hidden" : "grid min-w-0 gap-3 sm:grid-cols-2"}
+        >
+          <label className="grid gap-1 text-sm font-medium">
+            Importe ({fund.currency})
+            <input
+              className={control}
+              name="amount"
+              inputMode="decimal"
+              maxLength={21}
+              required
+            />
+          </label>
+          {action === "transfer" && (
+            <label className="grid gap-1 text-sm font-medium">
+              Fondo de destino
+              <select
+                className={control}
+                name="destination"
+                required
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Elegí un fondo
+                </option>
+                {destinations.map(({ id, name }) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </fieldset>
+        {review && (
+          <p className="text-sm wrap-anywhere">
+            {label}{" "}
+            <strong>
+              {formatBankAmount({
+                amount: review.amount,
+                currency: fund.currency,
+              })}
+            </strong>
+            {` ${origin} `}
+            <strong>{fund.name}</strong>
+            {review.destination && (
+              <>
+                {" "}
+                hacia <strong>{review.destination.name}</strong>
+              </>
+            )}
+            .
+          </p>
+        )}
+        <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
+          {validation || error}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={primary} disabled={pending}>
+            {pending
+              ? "Guardando…"
+              : uncertain
+                ? "Reintentar guardado"
+                : review
+                  ? "Confirmar operación"
+                  : "Revisar operación"}
+          </button>
+          {review && (
+            <button
+              type="button"
+              className={button}
+              disabled={pending || uncertain}
+              onClick={() => {
+                clearError();
+                setReview(undefined);
+              }}
+            >
+              Modificar
+            </button>
+          )}
+          <button
+            type="button"
+            className={button}
+            disabled={pending || uncertain}
+            onClick={() => close()}
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

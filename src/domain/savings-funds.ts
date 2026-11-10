@@ -1,5 +1,5 @@
 import { bankCurrencies } from "./bank-balances.ts";
-import type { Currency } from "./money.ts";
+import { normalizeDecimalAmount, type Currency } from "./money.ts";
 import { movementUuid as uuid } from "./movements.ts";
 
 export const fundStatuses = {
@@ -23,20 +23,67 @@ export type SavingsFund = {
 };
 
 type FundTarget = { fundId: string; version: number };
-export type FundCommand = { idempotencyKey: string } & (
-  | { action: "create"; name: string; currency: Currency }
-  | ({
-      action: "update";
-      name: string;
-      status: EditableFundStatus;
-    } & FundTarget)
-);
+export type FundMovement = {
+  idempotencyKey: string;
+  amount: string;
+} & FundTarget &
+  (
+    | { action: "reserve" | "release" }
+    | {
+        action: "transfer";
+        destinationFundId: string;
+        destinationVersion: number;
+      }
+  );
+
+export type FundAvailability = { currency: Currency; amount: string };
+
+export type FundCommand =
+  | FundMovement
+  | ({ idempotencyKey: string } & (
+      | { action: "create"; name: string; currency: Currency }
+      | ({
+          action: "update";
+          name: string;
+          status: EditableFundStatus;
+        } & FundTarget)
+    ));
 
 const editableStatuses: EditableFundStatus[] = ["active", "paused_manual"];
 const keys = {
   create: ["name", "currency"],
   update: ["fundId", "version", "name", "status"],
+  reserve: ["fundId", "version", "amount"],
+  release: ["fundId", "version", "amount"],
+  transfer: [
+    "fundId",
+    "version",
+    "amount",
+    "destinationFundId",
+    "destinationVersion",
+  ],
 };
+
+function fundVersion(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 2147483647
+  );
+}
+
+export function parseFundAmount(input: unknown) {
+  try {
+    const amount = normalizeDecimalAmount(
+      typeof input === "string" ? input.trim().replace(",", ".") : input,
+    );
+    if (amount !== "0.0000" && !amount.startsWith("-")) return amount;
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 export function parseFundCommand(
   input: unknown,
@@ -44,9 +91,26 @@ export function parseFundCommand(
   const invalid = { error: "Revisá los datos del fondo." };
   if (!input || typeof input !== "object" || Array.isArray(input))
     return invalid;
-  const { action, fundId, version, name, currency, status, idempotencyKey } =
-    input as Record<string, unknown>;
-  if (action !== "create" && action !== "update") return invalid;
+  const {
+    action,
+    fundId,
+    version,
+    name,
+    currency,
+    status,
+    idempotencyKey,
+    amount,
+    destinationFundId,
+    destinationVersion,
+  } = input as Record<string, unknown>;
+  if (
+    action !== "create" &&
+    action !== "update" &&
+    action !== "reserve" &&
+    action !== "release" &&
+    action !== "transfer"
+  )
+    return invalid;
   if (
     Object.keys(input).some(
       (key) => !["action", "idempotencyKey", ...keys[action]].includes(key),
@@ -55,6 +119,41 @@ export function parseFundCommand(
     !uuid.test(idempotencyKey)
   )
     return invalid;
+  const commandKey = idempotencyKey.toLowerCase();
+  if (action !== "create" && action !== "update") {
+    if (
+      typeof fundId !== "string" ||
+      !uuid.test(fundId) ||
+      !fundVersion(version)
+    )
+      return invalid;
+    const decimal = parseFundAmount(amount);
+    if (!decimal)
+      return {
+        error: "Ingresá un importe positivo con hasta cuatro decimales.",
+      };
+    const movement = {
+      fundId: fundId.toLowerCase(),
+      version,
+      amount: decimal,
+      idempotencyKey: commandKey,
+    };
+    if (action !== "transfer") return { action, ...movement };
+    if (
+      typeof destinationFundId !== "string" ||
+      !uuid.test(destinationFundId) ||
+      !fundVersion(destinationVersion) ||
+      destinationFundId.toLowerCase() === movement.fundId
+    ) {
+      return { error: "Elegí otro fondo como destino del traspaso." };
+    }
+    return {
+      action,
+      ...movement,
+      destinationFundId: destinationFundId.toLowerCase(),
+      destinationVersion,
+    };
+  }
   if (
     typeof name !== "string" ||
     !name.trim() ||
@@ -62,7 +161,6 @@ export function parseFundCommand(
     name.includes("\0")
   )
     return { error: "Indicá un nombre de hasta 100 caracteres." };
-  const commandKey = idempotencyKey.toLowerCase();
 
   if (action === "create") {
     const code = bankCurrencies.find((item) => item === currency);
@@ -75,14 +173,7 @@ export function parseFundCommand(
     };
   }
 
-  if (
-    typeof fundId !== "string" ||
-    !uuid.test(fundId) ||
-    typeof version !== "number" ||
-    !Number.isInteger(version) ||
-    version < 1 ||
-    version > 2147483647
-  )
+  if (typeof fundId !== "string" || !uuid.test(fundId) || !fundVersion(version))
     return invalid;
   if (!editableStatuses.includes(status as EditableFundStatus))
     return { error: "Solo podés activar o pausar un fondo desde el catálogo." };

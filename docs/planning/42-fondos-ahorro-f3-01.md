@@ -1,46 +1,37 @@
-# Fondos de ahorro virtuales en F3-01
+# F3-01 — Fondos de ahorro virtuales
 
-**Ruta MIX.** OpenCode entregó el catálogo de fondos y sus estados, sin operar dinero. Codex debe completar las reservas, liberaciones, traspasos internos, la validación de disponible y su prueba real en la misma rama.
+Implementación MIX sobre la rama `codex/F3-01-fondos-ahorro`. OpenCode entregó el catálogo. Codex completó las operaciones monetarias virtuales, el cálculo de disponible y las pruebas de aceptación.
 
-**Trazabilidad:** F3 de [plan de implementación](05-plan-de-implementacion.md) — RF-026/027 de [alcance y requisitos](01-alcance-y-requisitos.md) — CA-038 de [criterios de aceptación](03-criterios-de-aceptacion.md) — I-03/I-12 de [modelo de dominio](02-modelo-de-dominio-y-datos.md) — §11.3 de [decisiones de producto](../product/decisiones-producto.md).
+- [RF-026 y RF-027](01-alcance-y-requisitos.md)
+- [CA-038](03-criterios-de-aceptacion.md)
+- [I-03 e I-12](02-modelo-de-dominio-y-datos.md)
 
-## Alcance entregado por OpenCode
+## Operaciones manuales
 
-- Migración `0015_F3-01_savings_funds.sql`: `finance.savings_funds` y `finance.fund_changes`, con RLS forzada por titular, versión optimista e idempotencia por comando.
-- `src/domain/savings-funds.ts`: contrato del catálogo (alta con nombre/moneda, edición de nombre y estado activo/pausado) y rechazo de campos de dinero o propietario inyectado.
-- `src/server/savings-funds.ts`: listado y guardado con filtro `owner_id`, bloqueo consultivo por titular, replay idempotente y control de versión.
-- `src/app/api/funds/route.ts`: alta/edición autenticada con las mismas guardas de origen y tamaño que el resto de comandos.
-- `src/app/fondos/page.tsx` y `src/components/savings-fund-catalog.tsx`: navegación, listado por estado, importe reservado, moneda y formularios de alta/edición.
-- Pruebas unitarias del contrato y una prueba de integración para idempotencia, versión y aislamiento A/B.
+Desde `/fondos` se puede reservar, liberar o traspasar un importe exacto. La confirmación muestra el importe, la moneda y los fondos involucrados. El traspaso requiere dos fondos del mismo titular y moneda. La pausa del fondo permite operaciones manuales. Los fondos cerrados conservan su historial.
 
-## Límite explícito: no mueve dinero
+El disponible libre por moneda parte de la proyección vigente de Bancos y resta las reservas del titular. En este esquema, los compromisos de tarjeta asociados a fondos se incorporarán en F3-05 y quedarán contenidos dentro de la reserva del fondo. Si una moneda carece de saldo inicial, el catálogo lo indica y la reserva se rechaza.
 
-La migración no otorga a `finanzas_app` privilegio de actualización sobre `reserved_amount`. Una reserva, liberación o traspaso no puede cambiar el saldo reservado desde el catálogo ni desde una escritura accidental: requiere una migración posterior autorizada. Las altas crean fondos con `reserved_amount = 0` y `status = 'active'`.
+El servidor valida el disponible antes de reservar y el saldo del fondo origen antes de liberar o traspasar. La transacción toma los bloqueos por titular de Bancos y de fondos en ese orden, comprueba las versiones de los fondos involucrados y aplica los cambios y su auditoría juntos. `fund_changes` registra la solicitud, su clave de idempotencia y la fecha. `reserve_effects` registra un delta exacto por fondo y dos deltas opuestos para un traspaso. El rol de aplicación tiene lectura e inserción de efectos con RLS forzada y claves foráneas por titular y moneda.
 
-`reserve_effects`, el cierre de fondos y la pausa por meta quedan fuera de esta parte. El catálogo muestra `paused_target_reached` y `closed`, pero no permite asignarlos.
+Las operaciones modifican únicamente las reservas virtuales. Con 10.000 UYU en Bancos y una reserva de 3.000 UYU, el banco sigue en 10.000 UYU, el fondo queda en 3.000 UYU, el disponible libre queda en 7.000 UYU y el gasto es cero.
 
-## Trabajo pendiente para Codex
+F3-02 incorporará la protección del disponible libre al gastar desde Bancos. F3-03, F3-04 y F3-05 cubren los aportes programados, las metas y el cierre, y el uso de reservas para cubrir gastos, respectivamente.
 
-1. Añadir `finance.reserve_effects` y el privilegio mínimo sobre `reserved_amount` en una migración nueva.
-2. Implementar reservar, liberar y traspasar entre fondos de la misma moneda con transacción atómica, idempotencia y auditoría. No deben crear efectos bancarios, ingresos ni gastos.
-3. Calcular y validar el disponible libre por moneda como saldo bancario menos fondos reservados y compromisos aplicables (RF-026, CA-038); impedir reservas por encima del disponible y traspasos por encima del saldo libre del fondo.
-4. Agregar las acciones de UI para reservar, liberar y traspasar, con confirmación del importe y los fondos involucrados.
-5. Probar A/B que un titular no pueda reservar, liberar, traspasar ni leer fondos ajenos, y que un fallo no deje efectos parciales.
-6. Verificar la migración en PostgreSQL desechable y aplicar el SQL a Neon development solo con aprobación expresa, según ADR 0004.
+## Migraciones para Neon development
 
-## Decisiones de esquema
+Destino previsto según [la configuración aprobada](../../src/server/neon-development-config.ts) y [ADR 0004](../adr/0004-google-only-allowlist-auth.md) — proyecto `dry-voice-45959315`, rama `development` (`br-late-feather-b6czfkx0`), base `neondb`.
 
-- Moneda inmutable por fondo: el comando de edición no acepta `currency`.
-- `status` admite `active`, `paused_manual`, `paused_target_reached` y `closed`; el catálogo solo alterna los dos primeros.
-- `paused_target_reached` exige meta; `closed` exige reserva cero. Codex debe liberar y cerrar en la misma operación atómica.
-- `fund_changes` conserva clave de idempotencia, hash del comando, versión y configuración. No reemplaza la auditoría de movimientos de dinero.
-- El bloqueo es `finanzas:funds:<titular>`. Las operaciones monetarias futuras deben tomar primero el bloqueo de Bancos para conservar el orden global.
+| Orden | SQL exacto | SHA-256 | Impacto |
+| --- | --- | --- | --- |
+| 0015 | [Catálogo de fondos](../../src/db/migrations/0015_F3-01_savings_funds.sql) | `f1c728994b1a6c103d79516fea3998e871e798419423d7b9b157d46d1a8018d7` | Crea el catálogo y su auditoría con RLS por titular. |
+| 0016 | [Efectos de reserva](../../src/db/migrations/0016_F3-01_reserve_effects.sql) | `d514325230518d9f58f1e7a633191e666155efefcfa403801012f4f05973620f` | Amplía los comandos auditados, crea los efectos con RLS y habilita la actualización de la reserva por el rol de aplicación. Conserva las filas y versiones existentes. |
+
+Aplicación a Neon pendiente de autorización específica. La prueba de migración cubre un catálogo creado con 0015, su lectura después de 0016 y el reintento por checksum en PostgreSQL desechable.
 
 ## Verificación local
 
-- `npm run test:unit`: 32 pruebas aprobadas, incluidas las dos nuevas de F3-01.
-- `npm run typecheck`, `npm run lint` y `npm run format:check`: aprobados.
-- La prueba de integración nueva y la regresión de esquema requieren el PostgreSQL desechable documentado en [pruebas](../testing.md). En este entorno no había Docker ni el puerto `127.0.0.1:55432` disponible, por lo que **no se ejecutaron** y no se declaran aprobadas.
-- La migración no se aplicó a Neon development ni production. SHA-256 de `0015_F3-01_savings_funds.sql`: `f1c728994b1a6c103d79516fea3998e871e798419423d7b9b157d46d1a8018d7`; debe presentarse y autorizarse antes de aplicarla.
-
-La aceptación funcional de CA-038 queda pendiente hasta completar las operaciones de dinero y su prueba real. Este documento no declara F3-01 terminado.
+- `npm run check` — formato, lint, tipos y build aprobados.
+- `npm run test:unit` — 33 pruebas aprobadas.
+- `npm run test:integration` — 61 pruebas aprobadas en PostgreSQL 17.6 desechable. Incluye CA-038, aislamiento A/B, integridad de ambas monedas y fondos, reintentos, reversión ante un fallo de auditoría y dos reservas concurrentes tras un débito de Bancos.
+- `npm run test:e2e:finance` y `npm run test:e2e` — 22 y 18 pruebas aprobadas en Chromium de escritorio y móvil. Se revisó el formulario de traspaso en ambos tamaños.
