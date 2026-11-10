@@ -5,6 +5,7 @@ import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
 import { HistoryEditor } from "@/components/history-editor";
+import { LoanOperationDetail } from "@/components/loan-operation-detail";
 import { InstallmentEditor } from "@/components/installment-editor";
 import { InstallmentHistory } from "@/components/installment-history";
 import { HistoryAmount } from "@/components/history-entry";
@@ -37,6 +38,7 @@ import {
 import { historyReady, listMovementCategories } from "@/server/movements";
 import { listCards } from "@/server/cards";
 import { mixedPurchaseDetail } from "@/server/mixed-purchases";
+import { listLoanOperations } from "@/server/loans";
 
 export const metadata = { title: "Detalle del registro | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -67,6 +69,10 @@ export default async function HistoryDetail({
       const cardLines = entry.cardAmounts
         ? await creditHistoryDetail(client, ownerId, id)
         : [];
+      const loan =
+        entry.kind === "loan_operation"
+          ? (await listLoanOperations(client, ownerId, { eventId: id }))[0]
+          : undefined;
       const plans =
         entry.kind === "card_purchase" && (await installmentsReady(client))
           ? await listInstallmentVersions(client, ownerId, id)
@@ -88,7 +94,10 @@ export default async function HistoryDetail({
           )
         : [];
       const editable =
-        !checkpoint && !entry.cardAmounts && entry.status === "confirmed";
+        !checkpoint &&
+        !entry.cardAmounts &&
+        !loan &&
+        entry.status === "confirmed";
       const categories =
         (editable && entry.kind !== "bank_transfer") || mixedEditable
           ? (await listMovementCategories(client, ownerId)).filter(
@@ -109,6 +118,7 @@ export default async function HistoryDetail({
         plans,
         mixed,
         mixedCards,
+        loan,
       };
     },
   ).catch((error: unknown) => {
@@ -143,6 +153,7 @@ export default async function HistoryDetail({
     plans,
     mixed,
     mixedCards,
+    loan,
   } = data;
   const today = bankReferenceToday();
   const plan = plans[0];
@@ -209,6 +220,7 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {loan && <LoanOperationDetail operation={loan} linkToLoan />}
           {mixed && credit && (
             <section className="grid gap-2 border-t pt-4">
               <h2 className="font-semibold">Medios de la compra</h2>
