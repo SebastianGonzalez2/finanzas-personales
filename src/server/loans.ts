@@ -25,11 +25,16 @@ const loanSource = `FROM finance.loans l
   ) o ON true
   JOIN finance.financial_events latest ON (latest.owner_id, latest.id) = (o.owner_id, o.event_id)`;
 
-export async function listLoans(client: pg.PoolClient, ownerId: string) {
+export async function listLoans(
+  client: pg.PoolClient,
+  ownerId: string,
+  expenseId?: string,
+) {
   const { rows } = await client.query<Loan>(
     `SELECT ${loanFields} ${loanSource} WHERE l.owner_id = $1
+      ${expenseId ? "AND l.source_expense_id = $2" : ""}
       ORDER BY (o.outstanding = 0 AND NOT o.needs_reconciliation), l.due_on NULLS LAST, lower(f.concept), l.id`,
-    [ownerId],
+    expenseId ? [ownerId, expenseId] : [ownerId],
   );
   return rows;
 }

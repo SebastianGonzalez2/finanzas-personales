@@ -15,6 +15,7 @@ export const movementDisplayMethods = {
   ...movementMethods,
   credit: "Tarjeta de crédito",
   mixed: "Débito y crédito",
+  third_party: "Pagado por otra persona",
 } as const;
 export type MovementDisplayMethod = keyof typeof movementDisplayMethods;
 
@@ -45,7 +46,12 @@ export type MovementRevision = RevisionTarget &
 export type RecentMovement = Pick<
   MovementInput,
   "kind" | "currency" | "amount" | "effectiveOn" | "concept" | "note"
-> & { id: string; category: string | null; method: MovementDisplayMethod };
+> & {
+  id: string;
+  category: string | null;
+  method: MovementDisplayMethod;
+  shared?: boolean;
+};
 
 export type MovementTotal = Pick<MovementInput, "kind" | "currency" | "amount">;
 

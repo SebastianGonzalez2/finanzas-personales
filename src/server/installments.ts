@@ -7,6 +7,7 @@ import type {
   MonthlyInstallment,
 } from "../domain/installments.ts";
 import type { Currency } from "../domain/money.ts";
+import { sharedExpensesReady } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 
 export async function installmentsReady(client: pg.PoolClient) {
@@ -58,6 +59,7 @@ export async function listMonthlyInstallments(
   monthStart: string,
 ) {
   const mixed = await mixedPurchasesReady(client);
+  const shared = await sharedExpensesReady(client);
   const { rows } = await client.query<MonthlyInstallment>(
     `SELECT x.id, x.concept, x.installment_ordinal AS ordinal, x.currency, x.amount::text,
             ${
@@ -67,9 +69,9 @@ export async function listMonthlyInstallments(
                 THEN 'Categorías repartidas' ELSE c.name END`
                 : "c.name"
             } AS category
-       FROM finance.credit_expenses x
+       FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
-      WHERE x.owner_id = $1 AND x.effective_on = $2::date AND x.installment_ordinal IS NOT NULL
+      WHERE x.owner_id = $1 AND x.effective_on = $2::date AND x.installment_ordinal IS NOT NULL ${shared ? "AND x.amount > 0" : ""}
       ORDER BY c.name NULLS LAST, x.concept, x.id`,
     [ownerId, monthStart],
   );

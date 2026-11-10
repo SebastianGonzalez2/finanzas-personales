@@ -28,7 +28,7 @@ export function authOrigin(value: string | undefined) {
     throw new Error("Origen de Auth inválido");
   return u.origin;
 }
-export async function limitedJson(request: Request) {
+export async function limitedJson(request: Request, maxBytes = 4096) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new Error("JSON requerido");
   const reader = request.body?.getReader();
@@ -40,7 +40,7 @@ export async function limitedJson(request: Request) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 4096) throw new Error("Solicitud grande");
+      if (size > maxBytes) throw new Error("Solicitud grande");
       chunks.push(value);
     }
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));

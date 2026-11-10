@@ -13,11 +13,13 @@ function AmountField({
   name,
   required,
   placeholder,
+  defaultValue,
 }: {
   label: string;
   name: string;
   required?: boolean;
   placeholder?: string;
+  defaultValue?: string;
 }) {
   return (
     <HistoryField label={label}>
@@ -28,16 +30,27 @@ function AmountField({
         maxLength={22}
         required={required}
         placeholder={placeholder}
+        defaultValue={defaultValue}
       />
     </HistoryField>
   );
 }
 
-type FormProps = { today: string; loan?: Loan; currencies: Currency[] };
+type FormProps = {
+  today: string;
+  loan?: Loan;
+  currencies: Currency[];
+  linkedExpense?: boolean;
+};
 
 const subscribeToHydration = () => () => {};
 
-export function LoanForm({ today, loan, currencies }: FormProps) {
+export function LoanForm({
+  today,
+  loan,
+  currencies,
+  linkedExpense,
+}: FormProps) {
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
@@ -216,6 +229,11 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
           )}
           <AmountField
             key={amountLabel}
+            defaultValue={
+              linkedExpense && loan && action === "settle" && !exchange
+                ? loan.outstanding
+                : undefined
+            }
             label={amountLabel}
             name="amount"
             required
@@ -224,6 +242,7 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
             <AmountField
               name="appliedAmount"
               label={`Importe acordado que reduce el pendiente (${loan.currency})`}
+              defaultValue={linkedExpense ? loan.outstanding : undefined}
               required
             />
           )}

@@ -22,11 +22,13 @@ export function InstallmentEditor({
   plan,
   currency,
   today,
+  allowCancellation = true,
 }: {
   eventId: string;
   plan: InstallmentVersion;
   currency: Currency;
   today: string;
+  allowCancellation?: boolean;
 }) {
   const router = useRouter();
   const [action, setAction] = useState<
@@ -174,7 +176,7 @@ export function InstallmentEditor({
           >
             Corregir plan
           </button>
-          {periods.length > 0 && (
+          {allowCancellation && periods.length > 0 && (
             <button
               ref={cancelTrigger}
               type="button"

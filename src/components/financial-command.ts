@@ -30,7 +30,7 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
       if (response.ok && data.id) {
         sent.current = null;
         setUncertain(false);
-        return true;
+        return data.id;
       }
       if (
         response.status >= 500 ||

@@ -16,6 +16,7 @@ import {
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
+import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
 import { Card } from "./ui/card";
 
@@ -32,6 +33,7 @@ export function MovementForm({
   creditCards,
   debitCards,
   installmentsReady,
+  sharedExpensesReady,
 }: {
   today: string;
   balances: BankBalance[];
@@ -40,10 +42,12 @@ export function MovementForm({
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;
+  sharedExpensesReady: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [creditOpen, setCreditOpen] = useState(false);
+  const [sharedOpen, setSharedOpen] = useState(false);
   const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
   const [pending, setPending] = useState(false);
@@ -81,7 +85,8 @@ export function MovementForm({
   }, [pending, revisionUncertain]);
 
   function toggle() {
-    if (creditOpen || submitLock.current || revisionUncertain) return;
+    if (creditOpen || sharedOpen || submitLock.current || revisionUncertain)
+      return;
     if (open) {
       setOpen(false);
       trigger.current?.focus();
@@ -224,7 +229,7 @@ export function MovementForm({
         className={primary}
         aria-expanded={open}
         aria-controls="nueva-transaccion"
-        aria-disabled={pending || revisionUncertain || creditOpen}
+        aria-disabled={pending || revisionUncertain || creditOpen || sharedOpen}
         onClick={toggle}
       >
         + Nueva transacción
@@ -340,7 +345,8 @@ export function MovementForm({
             >
               Nueva transacción
             </h2>
-            {!creditOpen &&
+            {!sharedOpen &&
+              !creditOpen &&
               !pending &&
               !uncertain &&
               creditCards.length > 0 && (
@@ -355,7 +361,35 @@ export function MovementForm({
                   Compra con tarjeta de crédito
                 </button>
               )}
-            {creditOpen ? (
+            {sharedExpensesReady &&
+              !creditOpen &&
+              !sharedOpen &&
+              !pending &&
+              !uncertain && (
+                <button
+                  type="button"
+                  className="min-h-11 justify-self-start rounded-lg border px-3 text-sm font-semibold"
+                  onClick={() => {
+                    setMessage("");
+                    setSharedOpen(true);
+                  }}
+                >
+                  Gasto con otras personas
+                </button>
+              )}
+            {sharedOpen ? (
+              <SharedExpenseForm
+                today={today}
+                categories={categories}
+                cards={creditCards}
+                banks={configured}
+                plansReady={installmentsReady}
+                onClose={() => {
+                  setSharedOpen(false);
+                  requestAnimationFrame(() => heading.current?.focus());
+                }}
+              />
+            ) : creditOpen ? (
               <CreditOperationForm
                 action="purchase"
                 cards={creditCards}

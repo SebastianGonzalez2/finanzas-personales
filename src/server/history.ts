@@ -3,6 +3,7 @@ import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
 import { creditOperationsReady, loansReady } from "./movements.ts";
 import { installmentsReady } from "./installments.ts";
+import { sharedExpensesReady } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import type { Currency } from "../domain/money.ts";
 import {
@@ -26,6 +27,16 @@ const eventSource = `FROM finance.financial_events f
   LEFT JOIN finance.bank_effects credit ON f.kind = 'bank_transfer'
     AND (credit.owner_id, credit.event_id) = (f.owner_id, f.id) AND credit.amount_signed > 0
   LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (m.owner_id, m.category_id)`;
+
+const sharedFields = `f.id, f.kind, f.status, f.effective_on, s.concept, s.note,
+  s.currency, s.total::text AS amount, NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  s.category_id AS "categoryId", c.name AS category, s.method,
+  CASE WHEN s.method = 'credit' THEN jsonb_build_array(jsonb_build_object('currency', s.currency, 'amount', s.total::text)) END AS "cardAmounts"`;
+const sharedSource = `FROM finance.current_shared_expenses s
+  JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
+  LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (s.owner_id, s.category_id)`;
+const excludeShared = `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s
+  WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))`;
 
 const checkpointConcept = `CASE WHEN a.checkpoint_id IS NULL THEN 'Saldo inicial' ELSE 'Ajuste de saldo' END`;
 const checkpointFields = `b.id, 'checkpoint'::text AS kind, 'confirmed'::text AS status,
@@ -82,6 +93,7 @@ export async function listHistory(
   const withPlans = credit && (await installmentsReady(client));
   const withMixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
+  const shared = loans && (await sharedExpensesReady(client));
   const categoryMatches = (field: string) =>
     `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
   const { rows } = await client.query<HistoryEntry>(
@@ -89,6 +101,7 @@ export async function listHistory(
        FROM (
        (SELECT ${eventFields} ${eventSource}
          WHERE f.owner_id = $1 AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')
+           ${shared ? excludeShared : ""}
            AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(m.note), lower($2)) > 0)
            AND ($3::date IS NULL OR f.effective_on >= $3) AND ($4::date IS NULL OR f.effective_on <= $4)
            AND ($5::text IS NULL OR f.kind = $5) AND ($6::text IS NULL OR f.status = $6)
@@ -114,6 +127,22 @@ export async function listHistory(
              AND (b.as_of_date, b.id, 'checkpoint'::text) < ($12, $13, $14)))
          ORDER BY b.as_of_date DESC, b.id DESC LIMIT $15)
        ${
+         shared
+           ? `UNION ALL
+       (SELECT ${sharedFields} ${sharedSource}
+         WHERE f.owner_id = $1
+           AND ($2 IS NULL OR strpos(lower(s.concept), lower($2)) > 0 OR strpos(lower(s.note), lower($2)) > 0)
+           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
+           AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+           AND ($7 IS NULL OR ${categoryMatches("s.category_id")})
+           AND ($8 IS NULL OR s.method = $8)
+           AND ($9 IS NULL OR s.currency = $9) AND ($10 IS NULL OR s.total >= $10) AND ($11 IS NULL OR s.total <= $11)
+           AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
+             AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
+         ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
+           : ""
+       }
+       ${
          loans
            ? `UNION ALL
        (SELECT ${loanFields} ${loanSource}
@@ -134,7 +163,7 @@ export async function listHistory(
          credit
            ? `UNION ALL
        (SELECT ${cardFields(withMixed)} ${cardSource(withPlans, withMixed)}
-         WHERE f.owner_id = $1
+         WHERE f.owner_id = $1 ${shared ? excludeShared : ""}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
@@ -193,6 +222,16 @@ export async function findHistoryEntry(
   id: string,
   checkpoint: boolean,
 ) {
+  if (!checkpoint && (await sharedExpensesReady(client))) {
+    const {
+      rows: [shared],
+    } = await client.query<HistoryEntry>(
+      `SELECT ${sharedFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+       ${sharedSource} WHERE f.owner_id = $1 AND f.id = $2`,
+      [ownerId, id],
+    );
+    if (shared) return shared;
+  }
   const {
     rows: [entry],
   } = await client.query<HistoryEntry>(
