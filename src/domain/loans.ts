@@ -68,7 +68,7 @@ export type Loan = LoanTerms & {
 export type LoanOperation = {
   id: string;
   loanId: string;
-  action: LoanCommand["action"];
+  action: LoanCommand["action"] | "shared_expense";
   direction: LoanDirection;
   currency: Currency;
   amount: string;
@@ -87,11 +87,15 @@ export type LoanOperation = {
 };
 
 export function loanActionLabel(
-  action: LoanCommand["action"],
+  action: LoanOperation["action"],
   direction: LoanDirection,
 ) {
   return {
     existing: "Alta de saldo existente",
+    shared_expense:
+      direction === "payable"
+        ? "Gasto pendiente de pago"
+        : "Parte de gasto compartido",
     lend: "Entrega de préstamo",
     borrow: "Recepción de préstamo",
     settle: direction === "payable" ? "Pago" : "Cobro",

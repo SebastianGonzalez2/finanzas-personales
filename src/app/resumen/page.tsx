@@ -10,6 +10,7 @@ import {
   listBankCheckpoints,
 } from "@/server/bank-balances";
 import { listCards } from "@/server/cards";
+import { sharedExpensesReady } from "@/server/shared-expense-schema";
 import { mixedPurchasesReady } from "@/server/mixed-purchases";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
@@ -62,6 +63,7 @@ export default async function SummaryPage({
           categories: [],
           creditCards: [],
           installmentsReady: false,
+          sharedExpensesReady: false,
           monthlyInstallments: [],
           totals: [],
           expenses: [],
@@ -86,6 +88,7 @@ export default async function SummaryPage({
           ? cards.filter(({ kind }) => kind === "debit")
           : undefined,
         installmentsReady: plansReady,
+        sharedExpensesReady: await sharedExpensesReady(client),
         monthlyInstallments: plansReady
           ? await listMonthlyInstallments(client, ownerId, monthStart)
           : [],

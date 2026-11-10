@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
+import { SharedExpenseForm } from "@/components/shared-expense-form";
 import { HistoryEditor } from "@/components/history-editor";
 import { LoanOperationDetail } from "@/components/loan-operation-detail";
 import { InstallmentEditor } from "@/components/installment-editor";
@@ -38,6 +40,8 @@ import {
 import { historyReady, listMovementCategories } from "@/server/movements";
 import { listCards } from "@/server/cards";
 import { mixedPurchaseDetail } from "@/server/mixed-purchases";
+import { sharedExpenseDetail } from "@/server/shared-expenses";
+import { sharedExpensesReady } from "@/server/shared-expense-schema";
 import { listLoanOperations } from "@/server/loans";
 
 export const metadata = { title: "Detalle del registro | Finanzas personales" };
@@ -81,6 +85,20 @@ export default async function HistoryDetail({
         entry.method === "mixed"
           ? await mixedPurchaseDetail(client, ownerId, id)
           : undefined;
+      const sharingReady = !checkpoint && (await sharedExpensesReady(client));
+      const shared =
+        sharingReady &&
+        (entry.kind === "expense" || entry.kind === "card_purchase")
+          ? await sharedExpenseDetail(client, ownerId, id)
+          : undefined;
+      const canSplit =
+        sharingReady &&
+        !shared &&
+        !mixed &&
+        entry.status === "confirmed" &&
+        (entry.kind === "expense" ||
+          (entry.kind === "card_purchase" &&
+            (!plans[0] || plans[0].count === plans[0].activeCount)));
       const mixedEditable =
         !!mixed &&
         entry.status === "confirmed" &&
@@ -97,11 +115,13 @@ export default async function HistoryDetail({
         !checkpoint &&
         !entry.cardAmounts &&
         !loan &&
+        !shared &&
         entry.status === "confirmed";
       const categories =
-        (editable && entry.kind !== "bank_transfer") || mixedEditable
+        (editable && entry.kind !== "bank_transfer") || mixedEditable || shared
           ? (await listMovementCategories(client, ownerId)).filter(
-              ({ kind }) => kind === (mixedEditable ? "expense" : entry.kind),
+              ({ kind }) =>
+                kind === (mixedEditable || shared ? "expense" : entry.kind),
             )
           : [];
       const currencies =
@@ -119,6 +139,8 @@ export default async function HistoryDetail({
         mixed,
         mixedCards,
         loan,
+        shared,
+        canSplit,
       };
     },
   ).catch((error: unknown) => {
@@ -154,6 +176,8 @@ export default async function HistoryDetail({
     mixed,
     mixedCards,
     loan,
+    shared,
+    canSplit,
   } = data;
   const today = bankReferenceToday();
   const plan = plans[0];
@@ -221,6 +245,63 @@ export default async function HistoryDetail({
             )}
           </dl>
           {loan && <LoanOperationDetail operation={loan} linkToLoan />}
+          {shared && (
+            <section
+              className="grid gap-3 border-t pt-4"
+              aria-label="Obligaciones del gasto"
+            >
+              <h2 className="font-semibold">
+                {shared.method === "third_party"
+                  ? "Gasto pendiente de pago"
+                  : "Reparto del gasto"}
+              </h2>
+              <p className="text-sm">
+                Gasto propio ·{" "}
+                {formatBankAmount({
+                  currency: shared.currency,
+                  amount: shared.ownAmount,
+                })}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {shared.method === "third_party"
+                  ? "El gasto se registró sin salida de Bancos."
+                  : shared.method === "credit"
+                    ? "El cargo de tarjeta figura en el detalle del medio de pago."
+                    : `Salida registrada en Bancos · ${formatBankAmount(shared)}`}
+              </p>
+              <ul className="divide-y">
+                {shared.loans.map((obligation) => (
+                  <li
+                    key={obligation.id}
+                    className="grid gap-1 py-2 text-sm wrap-anywhere"
+                  >
+                    <p className="font-medium">{obligation.concept}</p>
+                    <p>
+                      {obligation.outstanding === "0.0000"
+                        ? "Saldada"
+                        : `Pendiente · ${formatBankAmount({ currency: obligation.currency, amount: obligation.outstanding })}`}
+                    </p>
+                    {obligation.dueOn && (
+                      <p>
+                        Fecha prevista · {formatBankReference(obligation.dueOn)}
+                      </p>
+                    )}
+                    <Link
+                      className="w-fit font-medium underline"
+                      href={`/deudas/${obligation.id}`}
+                    >
+                      {obligation.outstanding === "0.0000"
+                        ? "Ver obligación saldada"
+                        : obligation.direction === "payable"
+                          ? "Ver deuda y registrar pago"
+                          : "Ver saldo y registrar cobro"}
+                      <span className="sr-only"> · {obligation.concept}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {mixed && credit && (
             <section className="grid gap-2 border-t pt-4">
               <h2 className="font-semibold">Medios de la compra</h2>
@@ -282,6 +363,7 @@ export default async function HistoryDetail({
                   plan={plan}
                   currency={cardLines[0].currency}
                   today={today}
+                  allowCancellation={!shared}
                 />
               )}
             </>
@@ -323,7 +405,8 @@ export default async function HistoryDetail({
               .
             </p>
           )}
-          {entry.status === "confirmed" &&
+          {!shared &&
+            entry.status === "confirmed" &&
             (entry.kind === "card_purchase" ||
               entry.kind === "card_payment") && (
               <CreditVoidForm
@@ -352,6 +435,66 @@ export default async function HistoryDetail({
                 plan,
               }}
             />
+          )}
+          {shared && (
+            <details className="grid gap-3 border-t pt-4">
+              <summary className="cursor-pointer font-semibold">
+                Corregir datos del gasto
+              </summary>
+              <div className="mt-3">
+                <SharedExpenseForm
+                  key={shared.version}
+                  target={{
+                    id: entry.id,
+                    amount: shared.amount,
+                    currency: shared.currency,
+                    concept: shared.concept,
+                    note: shared.note,
+                    categoryId: shared.categoryId,
+                    version: shared.version,
+                  }}
+                  categories={categories}
+                  today={today}
+                />
+              </div>
+            </details>
+          )}
+          {shared && shared.revisions.length > 1 && (
+            <section
+              className="grid gap-2 border-t pt-4"
+              aria-label="Versiones de los datos"
+            >
+              <h2 className="font-semibold">Versiones de los datos</h2>
+              <ul className="grid gap-2 text-sm wrap-anywhere">
+                {shared.revisions.map(
+                  ({ version, concept, category, note, recordedOn }) => (
+                    <li key={version}>
+                      <p>
+                        Versión {version} · {recordedOn}
+                      </p>
+                      <p>
+                        {concept} · {category ?? "Sin categorizar"}
+                      </p>
+                      {note && <p className="whitespace-pre-wrap">{note}</p>}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          )}
+          {canSplit && (
+            <details className="border-t pt-4">
+              <summary className="cursor-pointer font-semibold">
+                Repartir este gasto
+              </summary>
+              <div className="mt-3">
+                <SharedExpenseForm
+                  target={entry}
+                  categories={[]}
+                  today={today}
+                />
+              </div>
+            </details>
           )}
           {editable && (
             <HistoryEditor

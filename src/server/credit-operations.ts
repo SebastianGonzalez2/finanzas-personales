@@ -21,6 +21,7 @@ import {
 import { Money, type Currency } from "../domain/money.ts";
 import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
 import { insertInstallmentVersion } from "./installments.ts";
+import { isSharedExpense } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import {
   commandHash,
@@ -299,6 +300,10 @@ async function reverseCreditDebt(
   ownerId: string,
   eventId: string,
 ) {
+  if (await isSharedExpense(client, ownerId, eventId))
+    return conflict(
+      "La compra tiene obligaciones vinculadas y requiere una corrección coordinada.",
+    );
   const { rows } = await client.query<{
     cardId: string;
     currency: Currency;
@@ -378,9 +383,12 @@ export async function saveCreditOperation(
   client: pg.PoolClient,
   ownerId: string,
   command: CreditCommand,
+  linkedCommandHash?: string,
 ) {
   const { idempotencyKey } = command;
-  const hash = commandHash(["credit-operation-v1", JSON.stringify(command)]);
+  const hash =
+    linkedCommandHash ??
+    commandHash(["credit-operation-v1", JSON.stringify(command)]);
   await lockBankWrites(client, ownerId);
   await lockCardWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
@@ -874,6 +882,11 @@ export async function reviseInstallments(
     return conflict("El plan cambió. Actualizá la página antes de corregirlo.");
 
   const editing = command.action === "edit-installments";
+  const shared = await isSharedExpense(client, ownerId, eventId);
+  if (shared && !editing)
+    return conflict(
+      "La cancelación requiere corregir las obligaciones vinculadas a la compra.",
+    );
   const terms = editing ? command.plan : current;
   const hasCancellations = current.activeCount !== current.count;
   let activeCount = current.activeCount;
@@ -885,7 +898,7 @@ export async function reviseInstallments(
     try {
       const total = installmentTotal(terms, current.currency);
       if (
-        current.mixed &&
+        (current.mixed || shared) &&
         total !== installmentTotal(current, current.currency)
       )
         return conflict(

@@ -16,6 +16,7 @@ import { movementUuid } from "@/domain/movements";
 import { listBankBalances } from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
 import { findLoan, listLoanOperations } from "@/server/loans";
+import { sourceExpenseId } from "@/server/shared-expenses";
 import { loansReady } from "@/server/movements";
 
 export const metadata = {
@@ -34,6 +35,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       if (!loan) return null;
       return {
         loan,
+        expenseId: await sourceExpenseId(client, ownerId, id),
         operations: await listLoanOperations(client, ownerId, { loanId: id }),
         currencies:
           loan.outstanding === "0.0000"
@@ -62,7 +64,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       </FinanceShell>
     );
 
-  const { loan, operations, currencies } = result;
+  const { loan, operations, currencies, expenseId } = result;
   const { currency, outstanding, needsReconciliation } = loan;
   return (
     <FinanceShell current="deudas">
@@ -82,6 +84,14 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
               {loan.concept}
             </h1>
           </header>
+          {expenseId && (
+            <Link
+              className="text-sm font-medium underline"
+              href={`/historial/movimientos/${expenseId}`}
+            >
+              Ver gasto de origen
+            </Link>
+          )}
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
               <dt className="text-sm text-muted-foreground">
@@ -147,6 +157,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
           <h2 className="text-lg font-semibold">Registrar operación</h2>
           <LoanForm
             loan={loan}
+            linkedExpense={!!expenseId}
             today={bankReferenceToday()}
             currencies={currencies}
           />

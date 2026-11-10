@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  isSharedExpense,
+  sharedExpensesReady,
+} from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -295,6 +299,7 @@ export async function saveMovement(
   client: pg.PoolClient,
   ownerId: string,
   movement: MovementInput,
+  linkedCommandHash?: string,
 ): Promise<SaveResult> {
   const {
     idempotencyKey,
@@ -307,17 +312,19 @@ export async function saveMovement(
     categoryId,
   } = movement;
   // Preserve the hash of commands already recorded by F1-03.
-  const hash = commandHash([
-    "ordinary-movement-v1",
-    kind,
-    currency,
-    amount,
-    effectiveOn,
-    movement.method,
-    concept,
-    note,
-    categoryId,
-  ]);
+  const hash =
+    linkedCommandHash ??
+    commandHash([
+      "ordinary-movement-v1",
+      kind,
+      currency,
+      amount,
+      effectiveOn,
+      movement.method,
+      concept,
+      note,
+      categoryId,
+    ]);
 
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
@@ -468,6 +475,8 @@ export async function reviseMovement(
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
+  if (await isSharedExpense(client, ownerId, eventId))
+    return { status: "unavailable" };
   const reconciliationReady = await bankReconciliationReady(client);
 
   const {
@@ -582,6 +591,8 @@ async function editMovement(
   if (!(await historyReady(client))) return { status: "unavailable" };
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
+  if (await isSharedExpense(client, ownerId, eventId))
+    return { status: "unavailable" };
 
   const {
     rows: [original],
@@ -805,6 +816,7 @@ export async function listMovementTotals(
   const credit = await creditOperationsReady(client);
   const mixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
+  const shared = loans && (await sharedExpensesReady(client));
   const { rows } = await client.query<MovementTotal>(
     `SELECT kind, currency, sum(amount)::text AS amount FROM (
        SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
@@ -815,10 +827,20 @@ export async function listMovementTotals(
       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.effective_on >= $2::date
         AND f.effective_on < $2::date + interval '1 month'
       ${
+        shared
+          ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+        UNION ALL
+        SELECT 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
+        WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'
+          AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
+          : ""
+      }
+      ${
         credit
           ? `UNION ALL
-        SELECT 'expense', x.currency, x.amount FROM finance.credit_expenses x
-         WHERE x.owner_id = $1 AND x.effective_on >= $2::date
+        SELECT 'expense', x.currency, x.amount FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
+         WHERE x.owner_id = $1 ${shared ? "AND x.amount > 0" : ""} AND x.effective_on >= $2::date
            AND x.effective_on < $2::date + interval '1 month'
            ${
              mixed
@@ -854,9 +876,11 @@ export async function listRecentMovements(
 ) {
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const mixed = credit && (await mixedPurchasesReady(client));
+  const shared = kind === "expense" && (await sharedExpensesReady(client));
   const { rows } = await client.query<RecentMovement>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
-            currency, amount, method, note, category FROM (
+            currency, amount, method, note, category
+            ${shared ? ", EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE s.owner_id = $1 AND s.event_id = recent.id) AS shared" : ""} FROM (
       SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,
             e.currency, abs(e.amount_signed)::text AS amount, m.method, m.note, c.name AS category
        FROM finance.financial_events f
@@ -865,6 +889,18 @@ export async function listRecentMovements(
          ON (e.owner_id, e.event_id, e.id) = (m.owner_id, m.event_id, m.event_id)
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (m.owner_id, m.category_id)
       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.kind = $2
+      ${
+        shared
+          ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+        UNION ALL
+        SELECT f.id, 'expense', s.concept, f.effective_on, f.created_at,
+               s.currency, s.own_amount::text, s.method, s.note, c.name
+          FROM finance.current_shared_expenses s
+          JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
+          LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (s.owner_id, s.category_id)
+         WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'`
+          : ""
+      }
       ${
         credit
           ? `UNION ALL
@@ -879,7 +915,7 @@ export async function listRecentMovements(
                      : ""
                  }
                  ELSE c.name END
-          FROM finance.credit_expenses x
+          FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
           JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.id)
           LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
           ${
@@ -888,7 +924,7 @@ export async function listRecentMovements(
             ON (d.owner_id, d.id) = (x.owner_id, x.id) AND x.installment_ordinal IS NULL`
               : ""
           }
-         WHERE x.owner_id = $1 ${installmentsReady ? "AND x.installment_ordinal IS NULL" : ""}
+         WHERE x.owner_id = $1 ${shared ? "AND x.amount > 0" : ""} ${installmentsReady ? "AND x.installment_ordinal IS NULL" : ""}
          ${
            mixed
              ? `UNION ALL
@@ -909,5 +945,9 @@ export async function listRecentMovements(
       ) recent ORDER BY effective_on DESC, created_at DESC, id DESC, currency LIMIT 5`,
     [ownerId, kind],
   );
-  return rows;
+  return shared
+    ? rows.map(({ shared: linked, ...movement }) =>
+        linked ? { ...movement, shared: true } : movement,
+      )
+    : rows;
 }

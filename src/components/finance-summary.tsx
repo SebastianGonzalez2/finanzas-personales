@@ -58,6 +58,7 @@ export function FinanceSummary({
   creditCards,
   debitCards,
   installmentsReady,
+  sharedExpensesReady,
   monthlyInstallments,
   totals,
   expenses,
@@ -75,6 +76,7 @@ export function FinanceSummary({
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;
+  sharedExpensesReady: boolean;
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
   expenses: RecentMovement[];
@@ -106,6 +108,7 @@ export function FinanceSummary({
           creditCards={creditCards}
           debitCards={debitCards}
           installmentsReady={installmentsReady}
+          sharedExpensesReady={sharedExpensesReady}
         />
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -374,7 +377,15 @@ function RecentMovements({
           {movement.note && (
             <p className="whitespace-pre-wrap">{movement.note}</p>
           )}
-          {canCorrect && movement.method !== "credit" && (
+          {movement.shared && (
+            <a
+              className="font-medium underline"
+              href={`/historial/movimientos/${movement.id}`}
+            >
+              Ver gasto y obligaciones
+            </a>
+          )}
+          {canCorrect && !movement.shared && movement.method !== "credit" && (
             <RecentAmountCorrection
               eventId={movement.id}
               amount={movement.amount}
