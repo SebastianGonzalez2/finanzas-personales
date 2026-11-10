@@ -4,7 +4,7 @@
 
 1. Antes de tocar archivos o datos, revisar `git status`, rama, remoto y diferencias frente a `origin/main`. Proteger cambios locales; nunca descartarlos ni sobrescribirlos.
 2. Identificar el **ticket exacto** en `docs/planning/05-plan-de-implementacion.md`. Leer solo su sección, RF/CA/invariantes vinculados y la documentación relacionada con los archivos afectados. Buscar por ID/término antes de abrir documentos extensos.
-3. Consultar en `docs/planning/10-modelos-por-ticket.md` la ruta **OC / MIX / CX** y qué parte corresponde a cada agente. La selección real del modelo es manual y depende del selector. En MIX, Codex continúa en **la misma rama y commits** de OpenCode; evitar repetir trabajo ya válido.
+3. Buscar **solo la fila del ticket y la leyenda OC/MIX/CX** en `docs/planning/10-modelos-por-ticket.md` (no cargar las 56 filas por defecto). Seleccionar el modelo manualmente entre los disponibles. En MIX, Codex continúa en **la misma rama y commits** de OpenCode, sin repetir trabajo válido.
 4. Leer **por necesidad**, no de forma indiscriminada: `docs/product/decisiones-producto.md` (solo apartados aplicables; prevalece la decisión vigente v9.49 y posteriores), `docs/planning/03-criterios-de-aceptacion.md`, `06-riesgos-y-pendientes.md`, `07-handoff-codex.md`, `08-guia-operativa-codex.md`, `09-convenciones-git.md`, ADR y contratos específicos. `docs/planning/README.md` sirve de índice cuando no se encuentra una referencia.
 5. **No** leer automáticamente todos los `docs/planning/0*.md`, el historial completo de decisiones, todos los ADR o toda la base de código. No volver a leer contenido sin cambios que ya esté disponible en el contexto. Si falta información esencial, buscarla y leerla; ahorrar contexto nunca justifica suponer requisitos.
 
