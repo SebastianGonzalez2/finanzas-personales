@@ -286,11 +286,11 @@ export function statementStatus({
       ? "exception"
       : null;
   if (!dueOn && closingOn && schedule.dueDay !== null) {
-    const usualClose = cycleClosingOn(period, schedule) ?? closingOn;
-    const month =
-      calendarDay(period, schedule.dueDay) < usualClose
-        ? installmentPeriodAt(period, 1)
-        : period;
+    const dueInNextMonth =
+      schedule.closingDay === null
+        ? calendarDay(period, schedule.dueDay) < closingOn
+        : schedule.dueDay < schedule.closingDay;
+    const month = dueInNextMonth ? installmentPeriodAt(period, 1) : period;
     if (isInstallmentPeriod(month)) {
       const candidate = calendarDay(month, schedule.dueDay);
       if (candidate >= closingOn) {

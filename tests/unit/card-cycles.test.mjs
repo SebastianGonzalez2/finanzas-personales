@@ -44,6 +44,14 @@ test("F2-04: fecha oficial y mínimo confirmado prevalecen sobre estimaciones", 
     today: "2027-01-06",
   };
   assert.equal(statementStatus(baseline).dueOn, "2027-01-10");
+  assert.equal(
+    statementStatus({
+      ...baseline,
+      period: "2027-02",
+      schedule: { ...schedule, closingDay: 31, dueDay: 30 },
+    }).dueOn,
+    "2027-03-30",
+  );
   assert.equal(statementStatus(baseline).alert, null);
   assert.equal(
     statementStatus({ ...baseline, today: "2027-01-07" }).alert,
