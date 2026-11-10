@@ -12,12 +12,20 @@ export function HistoryAmount({ entry }: { entry: HistoryEntry }) {
     );
   return (
     <span className="flex flex-wrap items-center gap-x-2 tabular-nums">
-      <span>{formatBankAmount(entry)}</span>
+      <span>
+        {entry.kind === "loan_operation" && entry.otherCurrency && "Acuerdo "}
+        {formatBankAmount(entry)}
+      </span>
       {entry.otherCurrency && entry.otherAmount && (
         <>
-          <span aria-hidden="true">→</span>
-          <span className="sr-only">cambiados por</span>
+          {entry.kind !== "loan_operation" && (
+            <>
+              <span aria-hidden="true">→</span>
+              <span className="sr-only">cambiados por</span>
+            </>
+          )}
           <span>
+            {entry.kind === "loan_operation" && "· Bancos "}
             {formatBankAmount({
               currency: entry.otherCurrency,
               amount: entry.otherAmount,

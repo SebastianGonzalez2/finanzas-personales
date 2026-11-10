@@ -53,7 +53,10 @@ export async function listLoanOperations(
 ) {
   const { rows } = await client.query<LoanOperation>(
     `SELECT o.event_id AS id, o.loan_id AS "loanId", o.action, l.direction, o.currency, o.amount::text,
-            b.amount_signed::text AS "bankDelta", o.outstanding::text, prev.outstanding::text AS "previousOutstanding",
+            b.amount_signed::text AS "bankDelta", b.currency AS "bankCurrency",
+            CASE WHEN b.currency <> o.currency
+              THEN trim_scale(round(abs(b.amount_signed)::numeric(60,32) / nullif(o.amount, 0), 8))::text END AS "effectiveRate",
+            o.outstanding::text, prev.outstanding::text AS "previousOutstanding",
             o.accrued_interest::text AS "accruedInterest", o.principal_paid::text AS "principalPaid",
             o.accrued_paid::text AS "accruedPaid", o.expense::text, o.needs_reconciliation AS "needsReconciliation",
             to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn", o.note
@@ -84,10 +87,11 @@ function settle(
   command: Extract<LoanCommand, { action: "settle" }>,
   loan: Loan,
 ): Effects | { error: string } {
-  const { amount, principal, financialCharges, accruedPaid } = command;
+  const { principal, financialCharges, accruedPaid, exchange } = command;
+  const amount = exchange?.appliedAmount ?? command.amount;
   const money = (value: string) => Money.parse(value, loan.currency);
   const bankDelta =
-    loan.direction === "payable" ? money(amount).negate().toDecimal() : amount;
+    loan.direction === "payable" ? `-${command.amount}` : command.amount;
   const base = {
     outstanding: loan.outstanding,
     accruedInterest: loan.accruedInterest,
@@ -96,7 +100,12 @@ function settle(
   };
   if (loan.outstanding === zero)
     return { error: "La obligación ya está saldada." };
+  if (exchange?.bankCurrency === loan.currency)
+    return { error: "Para usar dos importes elegí otra moneda bancaria." };
+  if (exchange && units(amount) > units(loan.outstanding))
+    return { error: "El importe acordado supera el saldo pendiente." };
   if (
+    !exchange &&
     loan.direction === "payable" &&
     loan.installmentLoan &&
     principal === null &&
@@ -108,7 +117,7 @@ function settle(
   let principalPaid: string;
   let interestPaid = zero;
   let expense = zero;
-  if (loan.direction === "payable" && loan.installmentLoan) {
+  if (!exchange && loan.direction === "payable" && loan.installmentLoan) {
     if (
       principal === null ||
       financialCharges === null ||
@@ -271,8 +280,10 @@ export async function saveLoanOperation(
     effects = openingEffects(command);
   }
   if ("error" in effects) return conflict(effects.error);
+  const exchange = action === "settle" ? command.exchange : undefined;
+  const bankCurrency = exchange?.bankCurrency ?? currency;
   if (effects.bankDelta) {
-    const [bank] = await listBankBalances(client, ownerId, [currency]);
+    const [bank] = await listBankBalances(client, ownerId, [bankCurrency]);
     if (!bank)
       return conflict("Registrá primero un saldo de Bancos en esa moneda.");
     if (
@@ -315,7 +326,9 @@ export async function saveLoanOperation(
       currency,
       version,
       action,
-      amount,
+      // The loan row is always in the obligation currency. The linked bank
+      // effect holds the other amount and currency for a cross-currency settlement.
+      exchange?.appliedAmount ?? amount,
       effects.outstanding,
       effects.accruedInterest,
       effects.principalPaid ?? null,
@@ -329,7 +342,7 @@ export async function saveLoanOperation(
     await client.query(
       `INSERT INTO finance.bank_effects (owner_id, id, event_id, currency, amount_signed, effective_on)
        VALUES ($1, $2, $2, $3, $4, $5)`,
-      [ownerId, id, currency, effects.bankDelta, effectiveOn],
+      [ownerId, id, bankCurrency, effects.bankDelta, effectiveOn],
     );
   await client.query(
     "INSERT INTO finance.audit_changes (owner_id, id, event_id, change_type) VALUES ($1, $2, $2, 'created')",

@@ -36,10 +36,12 @@ const checkpointSource = `FROM finance.balance_checkpoints b
   LEFT JOIN finance.balance_adjustments a ON (a.owner_id, a.checkpoint_id) = (b.owner_id, b.id)`;
 
 const loanFields = `f.id, f.kind, f.status, f.effective_on, f.concept, o.note,
-  o.currency, o.amount::text AS amount, NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  o.currency, o.amount::text AS amount, b.currency::text AS "otherCurrency", abs(b.amount_signed)::text AS "otherAmount",
   NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
 const loanSource = `FROM finance.financial_events f
-  JOIN finance.loan_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)`;
+  JOIN finance.loan_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)
+  LEFT JOIN finance.bank_effects b ON (b.owner_id, b.event_id, b.id) = (f.owner_id, f.id, f.id)
+    AND b.currency <> o.currency`;
 
 const cardFields = (
   withMixed: boolean,
@@ -119,8 +121,10 @@ export async function listHistory(
            AND $7 IS NULL AND $8 IS NULL
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(o.note), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
-           AND ($9 IS NULL OR o.currency = $9) AND ($10 IS NULL OR o.amount >= $10)
-           AND ($11 IS NULL OR o.amount <= $11)
+           AND ((($9 IS NULL OR o.currency = $9) AND ($10 IS NULL OR o.amount >= $10)
+             AND ($11 IS NULL OR o.amount <= $11)) OR
+             (b.id IS NOT NULL AND ($9 IS NULL OR b.currency = $9)
+              AND ($10 IS NULL OR abs(b.amount_signed) >= $10) AND ($11 IS NULL OR abs(b.amount_signed) <= $11)))
            AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
              AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
          ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`

@@ -13,6 +13,7 @@ import {
 } from "@/domain/bank-balances";
 import { loanDirections, loanFrequencies } from "@/domain/loans";
 import { movementUuid } from "@/domain/movements";
+import { listBankBalances } from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
 import { findLoan, listLoanOperations } from "@/server/loans";
 import { loansReady } from "@/server/movements";
@@ -34,6 +35,12 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       return {
         loan,
         operations: await listLoanOperations(client, ownerId, { loanId: id }),
+        currencies:
+          loan.outstanding === "0.0000"
+            ? []
+            : (await listBankBalances(client, ownerId)).map(
+                ({ currency }) => currency,
+              ),
       };
     },
   ).catch((error: unknown) => {
@@ -55,7 +62,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       </FinanceShell>
     );
 
-  const { loan, operations } = result;
+  const { loan, operations, currencies } = result;
   const { currency, outstanding, needsReconciliation } = loan;
   return (
     <FinanceShell current="deudas">
@@ -138,7 +145,11 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
         </Card>
         <Card className="gap-4 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">Registrar operación</h2>
-          <LoanForm loan={loan} today={bankReferenceToday()} />
+          <LoanForm
+            loan={loan}
+            today={bankReferenceToday()}
+            currencies={currencies}
+          />
         </Card>
         <Card className="gap-4 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">Historial de la obligación</h2>
