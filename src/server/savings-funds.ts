@@ -124,18 +124,24 @@ async function saveFundMovement(
   if (action === "reserve") {
     const [available] = await listFundAvailability(client, ownerId, [currency]);
     if (!available)
-      return conflict(
-        `Configurá el saldo bancario en ${currency} antes de reservar.`,
-      );
+      return {
+        ...conflict(
+          `Configurá el saldo bancario en ${currency} antes de reservar.`,
+        ),
+        reason: "insufficient" as const,
+      };
     // Both amounts have exactly four fractional digits. Availability can exceed
     // the per-fund numeric range, so compare units without narrowing the total.
     if (
       BigInt(amount.replace(".", "")) >
       BigInt(available.amount.replace(".", ""))
     )
-      return conflict(
-        `Disponible libre: ${formatBankAmount(available)}. Reducí el importe de la reserva.`,
-      );
+      return {
+        ...conflict(
+          `Disponible libre: ${formatBankAmount(available)}. Reducí el importe de la reserva.`,
+        ),
+        reason: "insufficient" as const,
+      };
   }
 
   const deltas =
@@ -152,7 +158,10 @@ async function saveFundMovement(
           `Reservado en el fondo: ${formatBankAmount({ currency, amount: fund.reservedAmount })}. Reducí el importe.`,
         );
     } catch {
-      return conflict("El importe supera el máximo admitido para el fondo.");
+      return {
+        ...conflict("El importe supera el máximo admitido para el fondo."),
+        reason: "fund_limit" as const,
+      };
     }
   }
 

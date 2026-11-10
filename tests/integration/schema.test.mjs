@@ -60,6 +60,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0014_F2-09_purchase_refunds.sql",
       "0015_F3-01_savings_funds.sql",
       "0016_F3-01_reserve_effects.sql",
+      "0017_F3-03_scheduled_contributions.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -75,7 +76,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F3-03: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -97,6 +98,7 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
       refunds,
       funds,
       reserveEffects,
+      contributions,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -297,12 +299,18 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
       "unavailable",
     );
     await client.query("RESET ROLE");
-    assert.deepEqual(
-      await migrateInTransaction(client, reserveEffects.sha256),
-      [reserveEffects.version],
+    await assert.rejects(migrateInTransaction(client, reserveEffects.sha256));
+    await client.query(reserveEffects.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [reserveEffects.version, reserveEffects.sha256],
     );
+    await assert.rejects(migrateInTransaction(client, reserveEffects.sha256));
+    assert.deepEqual(await migrateInTransaction(client, contributions.sha256), [
+      contributions.version,
+    ]);
     assert.deepEqual(
-      await migrateInTransaction(client, reserveEffects.sha256),
+      await migrateInTransaction(client, contributions.sha256),
       [],
     );
     await setOwnerContext(client, "legacy-fixture");
@@ -310,6 +318,10 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
     assert.equal(await refundsReady(client), true);
     assert.equal(await savingsFundsReady(client), true);
     assert.equal(await reserveEffectsReady(client), true);
+    assert.equal(
+      (await client.query("SELECT 1 FROM finance.contribution_plans")).rowCount,
+      0,
+    );
     assert.deepEqual(
       (
         await client.query(

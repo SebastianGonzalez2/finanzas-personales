@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { SavingsFundCatalog } from "@/components/savings-fund-catalog";
 import { Card } from "@/components/ui/card";
+import { bankReferenceToday } from "@/domain/bank-balances";
 import { savingsFundsReady } from "@/server/bank-balances";
 import {
   listFundAvailability,
@@ -10,6 +11,13 @@ import {
   reserveEffectsReady,
 } from "@/server/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
+import {
+  contributionPlansReady,
+  listContributionChanges,
+  listContributionPeriods,
+  listContributionPlans,
+  processDueContributions,
+} from "@/server/scheduled-contributions";
 
 export const metadata = { title: "Fondos de ahorro | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -23,10 +31,20 @@ export default async function SavingsFundsPage() {
           message:
             "Los fondos estarán disponibles cuando se actualice la base de datos.",
         };
+      const contributions = await contributionPlansReady(client);
+      if (contributions) await processDueContributions(client, ownerId);
       return {
         funds: await listSavingsFunds(client, ownerId),
         availability: (await reserveEffectsReady(client))
           ? await listFundAvailability(client, ownerId)
+          : null,
+        contributions: contributions
+          ? {
+              plans: await listContributionPlans(client, ownerId),
+              periods: await listContributionPeriods(client, ownerId),
+              changes: await listContributionChanges(client, ownerId),
+              today: bankReferenceToday(),
+            }
           : null,
       };
     },
@@ -55,6 +73,7 @@ export default async function SavingsFundsPage() {
           <SavingsFundCatalog
             funds={result.funds}
             availability={result.availability}
+            contributions={result.contributions}
           />
         ) : (
           <Card className="p-4">
