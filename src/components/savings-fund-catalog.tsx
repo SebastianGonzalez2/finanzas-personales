@@ -1,8 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import type {
+  ContributionChange,
+  ContributionPeriod,
+  ContributionPlan,
+} from "@/domain/contribution-plans";
 import {
   fundStatuses,
   parseFundAmount,
@@ -12,6 +23,7 @@ import {
   type SavingsFund,
 } from "@/domain/savings-funds";
 import { useFinancialCommand } from "./financial-command";
+import { FundContributions } from "./fund-contributions";
 import { Card } from "./ui/card";
 
 const button =
@@ -38,9 +50,16 @@ const movementLabels = {
 export function SavingsFundCatalog({
   funds,
   availability,
+  contributions,
 }: {
   funds: SavingsFund[];
   availability: FundAvailability[] | null;
+  contributions: {
+    plans: ContributionPlan[];
+    periods: ContributionPeriod[];
+    changes: ContributionChange[];
+    today: string;
+  } | null;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -49,6 +68,27 @@ export function SavingsFundCatalog({
   const trigger = useRef<HTMLButtonElement>(null);
   const open = funds.filter(({ status }) => status !== "closed");
   const closed = funds.filter(({ status }) => status === "closed");
+
+  function fundContributions(fund: SavingsFund) {
+    if (!contributions) return null;
+    return (
+      <FundContributions
+        fund={fund}
+        plan={contributions.plans.find(({ fundId }) => fundId === fund.id)}
+        periods={contributions.periods.filter(
+          ({ fundId }) => fundId === fund.id,
+        )}
+        changes={contributions.changes.filter(
+          ({ fundId }) => fundId === fund.id,
+        )}
+        today={contributions.today}
+        available={
+          availability?.find(({ currency }) => currency === fund.currency)
+            ?.amount ?? null
+        }
+      />
+    );
+  }
 
   function openEditor(next: Editor, from: HTMLButtonElement) {
     trigger.current = from;
@@ -151,7 +191,9 @@ export function SavingsFundCatalog({
                     : undefined
                 }
                 canTransfer={destinations(fund).length > 0}
-              />
+              >
+                {fundContributions(fund)}
+              </FundEntry>
             ))}
           </ul>
         )}
@@ -163,7 +205,9 @@ export function SavingsFundCatalog({
           </summary>
           <ul className="mt-3 grid gap-3 xl:grid-cols-2">
             {closed.map((fund) => (
-              <FundEntry key={fund.id} fund={fund} />
+              <FundEntry key={fund.id} fund={fund}>
+                {fundContributions(fund)}
+              </FundEntry>
             ))}
           </ul>
         </details>
@@ -178,12 +222,14 @@ function FundEntry({
   editDisabled,
   move,
   canTransfer,
+  children,
 }: {
   fund: SavingsFund;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   move?: (action: FundAction, from: HTMLButtonElement) => void;
   canTransfer?: boolean;
+  children?: ReactNode;
 }) {
   return (
     <li className="min-w-0">
@@ -268,6 +314,7 @@ function FundEntry({
             })}
           </div>
         )}
+        {children}
       </Card>
     </li>
   );

@@ -36,6 +36,7 @@ export default defineConfig({
       NEON_BRANCH_ID: developmentTarget.branchId,
       NEON_PROJECT_ID: developmentTarget.projectId,
       NEXT_TELEMETRY_DISABLED: "1",
+      CRON_SECRET: "synthetic-finance-cron-secret",
     },
   },
 });
