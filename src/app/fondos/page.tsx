@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { SavingsFundCatalog } from "@/components/savings-fund-catalog";
 import { Card } from "@/components/ui/card";
+import { savingsFundsReady } from "@/server/bank-balances";
 import {
   listFundAvailability,
   listSavingsFunds,
   reserveEffectsReady,
-  savingsFundsReady,
 } from "@/server/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
 

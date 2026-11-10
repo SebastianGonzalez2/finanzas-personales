@@ -4,6 +4,7 @@ import type pg from "pg";
 import {
   bankCurrencies,
   type BalanceAdjustment,
+  type BankAvailability,
   type BankBalance,
   type BankCheckpoint,
 } from "../domain/bank-balances.ts";
@@ -51,7 +52,7 @@ function sumBankEffects(ready: boolean, lower: string, upper?: string) {
              ${upper ? `AND ${bankEventPosition(ready)} <= ${upper}` : ""}`;
 }
 
-export function bankBalanceQuery(ready: boolean) {
+function bankBalanceQuery(ready: boolean) {
   return `SELECT b.currency, b.confirmed_amount::text AS amount,
             to_char(b.as_of_date, 'YYYY-MM-DD') AS "asOfDate",
             (b.confirmed_amount + effects.delta)::text AS "calculatedAmount"
@@ -80,6 +81,41 @@ export async function listBankBalances(
     ownerId,
     currencies,
   ]);
+  return rows.map(({ calculatedAmount, ...balance }) =>
+    calculatedAmount == null ? balance : { ...balance, calculatedAmount },
+  );
+}
+
+export async function savingsFundsReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.savings_funds') IS NOT NULL AS ready",
+  );
+  return rows[0].ready;
+}
+
+// Read both amounts in one snapshot. Mutations must hold the bank write lock
+// before reading this projection and until the bank or reserve changes commit.
+export async function listBankAvailability(
+  client: pg.PoolClient,
+  ownerId: string,
+  currencies: readonly Currency[] = bankCurrencies,
+  reconciliationReady?: boolean,
+) {
+  const ready = reconciliationReady ?? (await bankReconciliationReady(client));
+  const fundsReady = await savingsFundsReady(client);
+  const reserves = fundsReady
+    ? `SELECT coalesce(sum(reserved_amount), 0) AS amount
+         FROM finance.savings_funds
+        WHERE owner_id = $1 AND currency = b.currency`
+    : "SELECT 0::numeric AS amount";
+  const { rows } = await client.query<BankAvailability>(
+    `SELECT b.*, round(r.amount, 4)::text AS "reservedAmount",
+            round(coalesce(b."calculatedAmount", b.amount)::numeric - r.amount, 4)::text AS "availableAmount"
+       FROM (${bankBalanceQuery(ready)}) b
+       CROSS JOIN LATERAL (${reserves}) r
+      ORDER BY array_position($2::finance.currency[], b.currency)`,
+    [ownerId, currencies],
+  );
   return rows.map(({ calculatedAmount, ...balance }) =>
     calculatedAmount == null ? balance : { ...balance, calculatedAmount },
   );

@@ -2,7 +2,7 @@ import {
   bankCurrencies,
   formatBankAmount,
   formatBankReference,
-  type BankBalance,
+  type BankAvailability,
   type BankCheckpoint,
 } from "@/domain/bank-balances";
 import {
@@ -75,7 +75,7 @@ export function FinanceSummary({
   bankTransfersReady,
   movementRegistrationReady,
 }: {
-  balances: BankBalance[];
+  balances: BankAvailability[];
   checkpoints: BankCheckpoint[];
   reconciliationReady: boolean;
   today: string;
@@ -154,7 +154,7 @@ export function FinanceSummary({
           <Card className="min-w-0 gap-3 rounded-[1.125rem] p-6 shadow-none">
             <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
               <FinanceIcon name="wallet" className="text-[#fb713f]" />
-              Dinero disponible
+              Disponible libre
             </h2>
             <ul aria-label="Saldos bancarios por moneda">
               {bankCurrencies.map((currency) => {

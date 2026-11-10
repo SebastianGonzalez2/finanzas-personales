@@ -14,7 +14,11 @@ import {
   type RefundPartStatus,
   unmatchedRefund,
 } from "../domain/refunds.ts";
-import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
+import {
+  listBankAvailability,
+  listBankBalances,
+  lockBankWrites,
+} from "./bank-balances.ts";
 import {
   insertCreditEvent,
   listPositions,
@@ -601,14 +605,13 @@ async function voidRefund(
     [ownerId, entry.id],
   );
   if (bank && !bank.covered) {
-    const [balance] = await listBankBalances(client, ownerId, [currency]);
+    const [balance] = await listBankAvailability(client, ownerId, [currency]);
     if (
       !balance ||
-      amountUnits(balance.calculatedAmount ?? balance.amount) <
-        amountUnits(bank.amount)
+      amountUnits(balance.availableAmount) < amountUnits(bank.amount)
     )
       return conflict(
-        "La anulación dejaría Bancos sin saldo suficiente. Revisá la conciliación.",
+        "El disponible libre es insuficiente para anular la acreditación.",
       );
   }
   if (cardId) {

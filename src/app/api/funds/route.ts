@@ -1,5 +1,6 @@
 import { parseFundCommand } from "@/domain/savings-funds";
-import { saveSavingsFund, savingsFundsReady } from "@/server/savings-funds";
+import { savingsFundsReady } from "@/server/bank-balances";
+import { saveSavingsFund } from "@/server/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
