@@ -12,6 +12,11 @@ import {
   withOwnerTransaction,
 } from "../../src/db/owner-context.mts";
 import { randomUUID } from "node:crypto";
+import {
+  listBankAvailability,
+  saveOpeningBalance,
+  savingsFundsReady,
+} from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { installmentsReady } from "../../src/server/installments.ts";
 import { cardCyclesReady } from "../../src/server/card-cycles.ts";
@@ -22,7 +27,6 @@ import { loansReady } from "../../src/server/movements.ts";
 import { refundsReady } from "../../src/server/refund-schema.ts";
 import {
   reserveEffectsReady,
-  savingsFundsReady,
   saveSavingsFund,
 } from "../../src/server/savings-funds.ts";
 
@@ -158,6 +162,24 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await installmentsReady(client), false);
+    assert.equal(await savingsFundsReady(client), false);
+    assert.equal(
+      await saveOpeningBalance(client, "legacy-fixture", {
+        currency: "UYU",
+        amount: "100.0001",
+        asOfDate: "2026-01-10",
+      }),
+      "created",
+    );
+    assert.deepEqual(await listBankAvailability(client, "legacy-fixture"), [
+      {
+        currency: "UYU",
+        amount: "100.0001",
+        asOfDate: "2026-01-10",
+        reservedAmount: "0.0000",
+        availableAmount: "100.0001",
+      },
+    ]);
     const cardId = randomUUID();
     await client.query(
       "INSERT INTO finance.cards (owner_id,id,kind,name) VALUES ('legacy-fixture',$1,'credit','Prueba')",

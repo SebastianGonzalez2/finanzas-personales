@@ -9,6 +9,11 @@ export type BankBalance = {
   calculatedAmount?: string;
 };
 
+export type BankAvailability = BankBalance & {
+  reservedAmount: string;
+  availableAmount: string;
+};
+
 export const adjustmentNoteLimit = 500;
 
 export type BalanceAdjustment = Omit<BankBalance, "calculatedAmount"> & {

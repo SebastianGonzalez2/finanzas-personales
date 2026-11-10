@@ -19,7 +19,7 @@ import {
   type InstallmentVersion,
 } from "../domain/installments.ts";
 import { Money, type Currency } from "../domain/money.ts";
-import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
+import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 import { insertInstallmentVersion } from "./installments.ts";
 import { isSharedExpense } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
@@ -706,7 +706,7 @@ async function applyCreditOperation(
         payment: line,
       });
     }
-    const balances = await listBankBalances(client, ownerId, [
+    const balances = await listBankAvailability(client, ownerId, [
       ...bankDebits.keys(),
     ]);
     for (const [currency, debit] of bankDebits) {
@@ -717,11 +717,8 @@ async function applyCreditOperation(
           `El importe bancario total en ${currency} está fuera de rango.`,
         );
       // A bank anchor already includes payments before its date.
-      if (
-        effectiveOn >= bank.asOfDate &&
-        debit > units(bank.calculatedAmount ?? bank.amount)
-      )
-        return conflict(`Saldo bancario insuficiente en ${currency}.`);
+      if (effectiveOn >= bank.asOfDate && debit > units(bank.availableAmount))
+        return conflict(`Disponible libre insuficiente en ${currency}.`);
     }
     const id = await insertCreditEvent(
       client,
@@ -857,13 +854,10 @@ async function applyCreditOperation(
           "La tarjeta de débito no está disponible en esa moneda.",
         );
     }
-    const [bank] = await listBankBalances(client, ownerId, [currency]);
+    const [bank] = await listBankAvailability(client, ownerId, [currency]);
     if (!bank) return conflict(`Configurá un saldo bancario en ${currency}.`);
     const debit = units(mixed.debitAmount);
-    if (
-      effectiveOn >= bank.asOfDate &&
-      debit > units(bank.calculatedAmount ?? bank.amount)
-    ) {
+    if (effectiveOn >= bank.asOfDate && debit > units(bank.availableAmount)) {
       // A same-day replacement can be before the latest checkpoint.
       const covered =
         mixed.correction &&
@@ -881,7 +875,7 @@ async function applyCreditOperation(
           )
         ).rowCount;
       if (!covered)
-        return conflict(`Saldo bancario insuficiente en ${currency}.`);
+        return conflict(`Disponible libre insuficiente en ${currency}.`);
     }
     bankDebits.set(currency, debit);
     for (const split of mixed.categories) {

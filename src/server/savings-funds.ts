@@ -9,21 +9,10 @@ import type {
   FundMovement,
   SavingsFund,
 } from "../domain/savings-funds.ts";
-import {
-  bankBalanceQuery,
-  bankReconciliationReady,
-  lockBankWrites,
-} from "./bank-balances.ts";
+import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
-
-export async function savingsFundsReady(client: pg.PoolClient) {
-  const { rows } = await client.query<{ ready: boolean }>(
-    "SELECT to_regclass('finance.savings_funds') IS NOT NULL AS ready",
-  );
-  return rows[0].ready;
-}
 
 export async function reserveEffectsReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
@@ -63,24 +52,10 @@ export async function listFundAvailability(
   client: pg.PoolClient,
   ownerId: string,
   currencies: readonly Currency[] = bankCurrencies,
-) {
-  const ready = await bankReconciliationReady(client);
-  // One snapshot for the bank projection and reserves. No fund-linked credit
-  // commitments exist yet; those will earmark money within existing reserves.
-  const { rows } = await client.query<FundAvailability>(
-    `WITH balances AS (${bankBalanceQuery(ready)}), reserved AS (
-       SELECT currency, sum(reserved_amount) AS amount
-         FROM finance.savings_funds
-        WHERE owner_id = $1 AND currency = ANY($2::finance.currency[])
-        GROUP BY currency
-     )
-     SELECT b.currency,
-            round(coalesce(b."calculatedAmount", b.amount)::numeric - coalesce(r.amount, 0), 4)::text AS amount
-       FROM balances b LEFT JOIN reserved r USING (currency)
-      ORDER BY array_position($2::finance.currency[], b.currency)`,
-    [ownerId, currencies],
+): Promise<FundAvailability[]> {
+  return (await listBankAvailability(client, ownerId, currencies)).map(
+    ({ currency, availableAmount }) => ({ currency, amount: availableAmount }),
   );
-  return rows;
 }
 
 async function recordFundChange(
