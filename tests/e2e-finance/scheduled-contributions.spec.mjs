@@ -103,12 +103,10 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
   ).toBeVisible();
   await page.getByRole("button", { name: "Confirmar aportación" }).click();
   await expect(
-    page
-      .getByRole("alert")
-      .filter({
-        hasText:
-          "El disponible en UYU no alcanza para completar esta aportación.",
-      }),
+    page.getByRole("alert").filter({
+      hasText:
+        "El disponible en UYU no alcanza para completar esta aportación.",
+    }),
   ).toBeVisible();
   const confirmation = page.getByRole("button", {
     name: "Confirmar aportación",
