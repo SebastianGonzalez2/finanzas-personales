@@ -316,7 +316,7 @@ test("F3-01: efectos exactos, sin impacto bancario, con RLS y rollback atómico"
     assert.deepEqual(
       (
         await client.query(
-          "SELECT delta::text, fund_version FROM finance.reserve_effects ORDER BY delta",
+          "SELECT delta::text, fund_version FROM finance.reserve_effects AS effect ORDER BY effect.delta",
         )
       ).rows,
       [
