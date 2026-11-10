@@ -20,7 +20,7 @@ import {
 import { listMovementTotals } from "../../src/server/movements.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F2-06: capital, cuotas, intereses y conciliación con idempotencia y aislamiento reales", async () => {
+test("F2-06/07: capital, cuotas, intereses y conciliación con idempotencia y aislamiento reales", async (t) => {
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 2 });
   const as = (ownerId, work) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);
@@ -306,6 +306,218 @@ test("F2-06: capital, cuotas, intereses y conciliación con idempotencia y aisla
         0,
       );
     });
+
+    await t.test(
+      "CA-033/034: saldar y cobrar con dos importes reales",
+      async () => {
+        const actor = "f2-07-owner";
+        for (const [currency, amount] of [
+          ["UYU", "6000.0000"],
+          ["USD", "200.0000"],
+        ])
+          await as(actor, (client, owner) =>
+            saveOpeningBalance(client, owner, {
+              currency,
+              amount,
+              asOfDate: start,
+            }),
+          );
+        const balances = async () =>
+          (await as(actor, listBankBalances)).map(
+            ({ currency, amount, calculatedAmount }) => [
+              currency,
+              calculatedAmount ?? amount,
+            ],
+          );
+        const open = async (direction, installmentLoan = false) => {
+          const result = await send(
+            actor,
+            opening({
+              action: "existing",
+              direction,
+              currency: "USD",
+              amount: "100",
+              installmentLoan,
+            }),
+          );
+          assert.equal(result.status, "created");
+          return result.id;
+        };
+        const payable = await open("payable");
+        const payment = {
+          loanId: payable,
+          expectedVersion: 1,
+          action: "settle",
+          bankCurrency: "UYU",
+          amount: "4000",
+          appliedAmount: "100",
+        };
+        for (const invalid of [
+          { amount: "6000.0001" },
+          { appliedAmount: "100.0001" },
+          { bankCurrency: "USD" },
+          { bankCurrency: "EUR" },
+          { effectiveOn: start },
+        ])
+          assert.equal(
+            (await send(actor, command({ ...payment, ...invalid }))).status,
+            "conflict",
+          );
+        const payload = command(payment);
+        assert.equal((await send(outsider, payload)).status, "not-found");
+        assert.deepEqual(await balances(), [
+          ["UYU", "6000.0000"],
+          ["USD", "200.0000"],
+        ]);
+        const paid = await Promise.all([
+          send(actor, payload),
+          send(actor, payload),
+        ]);
+        assert.deepEqual(paid.map(({ status }) => status).sort(), [
+          "created",
+          "replayed",
+        ]);
+        assert.equal(paid[0].id, paid[1].id);
+        assert.equal(
+          (
+            await send(
+              actor,
+              command({
+                ...payment,
+                idempotencyKey: payload.idempotencyKey,
+                bankCurrency: "EUR",
+              }),
+            )
+          ).status,
+          "conflict",
+        );
+        assert.equal((await find(actor, payable)).outstanding, "0.0000");
+        assert.deepEqual(await balances(), [
+          ["UYU", "2000.0000"],
+          ["USD", "200.0000"],
+        ]);
+
+        const receivable = await open("receivable");
+        const collection = { action: "settle", bankCurrency: "UYU" };
+        assert.equal(
+          (
+            await change(actor, receivable, 1, {
+              ...collection,
+              amount: "1600.0025",
+              appliedAmount: "40.0001",
+            })
+          ).status,
+          "created",
+        );
+        assert.equal((await find(actor, receivable)).outstanding, "59.9999");
+        assert.equal(
+          (
+            await change(actor, receivable, 2, {
+              ...collection,
+              amount: "2399.9975",
+              appliedAmount: "59.9999",
+            })
+          ).status,
+          "created",
+        );
+        assert.equal((await find(actor, receivable)).outstanding, "0.0000");
+        assert.deepEqual(await balances(), [
+          ["UYU", "6000.0000"],
+          ["USD", "200.0000"],
+        ]);
+        assert.deepEqual(await totals(actor), []);
+
+        const eventId = paid[0].id;
+        const [detail] = await as(actor, (client, owner) =>
+          listLoanOperations(client, owner, { eventId }),
+        );
+        assert.equal(detail.bankDelta, "-4000.0000");
+        assert.equal(detail.bankCurrency, "UYU");
+        assert.equal(detail.amount, "100.0000");
+        assert.equal(detail.currency, "USD");
+        assert.equal(detail.effectiveRate, "40");
+        assert.equal(detail.effectiveOn, today);
+        const entry = await as(actor, (client, owner) =>
+          findHistoryEntry(client, owner, eventId, false),
+        );
+        assert.deepEqual(
+          [
+            entry.currency,
+            entry.amount,
+            entry.otherCurrency,
+            entry.otherAmount,
+          ],
+          ["USD", "100.0000", "UYU", "4000.0000"],
+        );
+        assert.equal(
+          await as(outsider, (client, owner) =>
+            findHistoryEntry(client, owner, eventId, false),
+          ),
+          undefined,
+        );
+        for (const [currency, min, includesPayment] of [
+          ["UYU", "4000", true],
+          ["USD", "100", true],
+          ["USD", "4000", false],
+        ]) {
+          const query = parseHistoryParams({
+            kind: "loan_operation",
+            currency,
+            min,
+          });
+          const { entries } = await as(actor, (client, owner) =>
+            listHistory(client, owner, query),
+          );
+          assert.equal(
+            entries.some(({ id }) => id === eventId),
+            includesPayment,
+          );
+        }
+
+        const installment = await open("payable", true);
+        assert.equal(
+          (
+            await change(actor, installment, 1, {
+              ...collection,
+              amount: "900",
+              appliedAmount: "20",
+            })
+          ).status,
+          "created",
+        );
+        const state = await find(actor, installment);
+        assert.equal(state.outstanding, "80.0000");
+        assert.equal(state.needsReconciliation, false);
+        assert.deepEqual(await totals(actor), []);
+
+        const withInterest = await open("payable");
+        const interest = await change(actor, withInterest, 1, {
+          action: "interest",
+          amount: "5",
+        });
+        assert.equal(interest.status, "created");
+        const partial = { ...collection, amount: "800", appliedAmount: "20" };
+        assert.equal(
+          (await change(actor, withInterest, 2, partial)).status,
+          "conflict",
+        );
+        assert.equal(
+          (
+            await change(actor, withInterest, 2, {
+              ...partial,
+              accruedPaid: "2",
+            })
+          ).status,
+          "created",
+        );
+        const remaining = await find(actor, withInterest);
+        assert.equal(remaining.outstanding, "85.0000");
+        assert.equal(remaining.accruedInterest, "3.0000");
+        assert.deepEqual(await totals(actor), [
+          { kind: "expense", currency: "USD", amount: "5.0000" },
+        ]);
+      },
+    );
   } finally {
     try {
       if (initialized)

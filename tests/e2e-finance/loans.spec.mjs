@@ -6,6 +6,66 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
+test("F2-07: pago multimoneda con los dos importes en Historial", async ({
+  page,
+  context,
+}) => {
+  const { cookies } = await financeBrowserFixtures();
+  await context.addCookies([cookies.a1]);
+  const today = bankReferenceToday();
+  const post = (path, data) =>
+    context.request.post(`/api/${path}`, {
+      data,
+      headers: { origin: financeTestOrigin },
+    });
+  for (const [currency, amount] of [
+    ["UYU", "6000"],
+    ["USD", "200"],
+  ])
+    expect(
+      (
+        await post("bank-balances", { currency, amount, asOfDate: today })
+      ).status(),
+    ).toBe(201);
+  const opening = await post("loans", {
+    action: "existing",
+    direction: "payable",
+    currency: "USD",
+    installmentLoan: false,
+    concept: "Préstamo sintético F2-07",
+    amount: "100",
+    effectiveOn: today,
+    idempotencyKey: randomUUID(),
+  });
+  expect(opening.status()).toBe(201);
+  const { id } = await opening.json();
+  await page.goto(`/deudas/${id}`);
+  const currency = page.getByLabel("Moneda bancaria");
+  await expect(currency).toHaveValue("USD");
+  await currency.selectOption("UYU");
+  await page.getByLabel("Importe pagado en Bancos (UYU)").fill("4000");
+  await page
+    .getByLabel("Importe acordado que reduce el pendiente (USD)")
+    .fill("100");
+  expect(
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth <=
+        globalThis.innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Confirmar pago" }).click();
+  await expect(page.getByText("Saldada", { exact: true })).toBeVisible();
+  const history = page.getByRole("link", { name: "Ver registro en Historial" });
+  await expect(history).toHaveCount(2);
+  await history.first().click();
+  await expect(page.getByText(/Bancos −4\.000,00 UYU/)).toBeVisible();
+  await expect(page.getByText(/100,00 USD.*40 UYU por USD/)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Ver obligación e historial" }),
+  ).toHaveAttribute("href", `/deudas/${id}`);
+});
+
 test("F2-06: alta, pago sin desglose, ajuste e historial privado", async ({
   page,
   context,

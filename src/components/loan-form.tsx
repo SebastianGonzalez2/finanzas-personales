@@ -33,9 +33,7 @@ function AmountField({
   );
 }
 
-type FormProps = { today: string } & (
-  { loan: Loan; currencies?: never } | { loan?: never; currencies: Currency[] }
-);
+type FormProps = { today: string; loan?: Loan; currencies: Currency[] };
 
 const subscribeToHydration = () => () => {};
 
@@ -52,6 +50,7 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
   >("settle");
   const [installments, setInstallments] = useState(false);
   const [breakdown, setBreakdown] = useState(false);
+  const [selectedBankCurrency, setBankCurrency] = useState<Currency>();
   const [saved, setSaved] = useState(false);
   const command = useFinancialCommand("/api/loans", "POST");
   const payable = loan?.direction === "payable";
@@ -60,7 +59,15 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
     payable && !loan.installmentLoan && loan.outstanding !== "0.0000";
   const action = loan?.outstanding === "0.0000" ? "adjust" : selectedAction;
   const cash = loan ? action === "settle" : !existing;
-  const bankMissing = !loan && cash && currencies.length === 0;
+  const bankCurrency =
+    selectedBankCurrency && currencies.includes(selectedBankCurrency)
+      ? selectedBankCurrency
+      : loan && currencies.includes(loan.currency)
+        ? loan.currency
+        : currencies[0];
+  const exchange =
+    loan && cash && bankCurrency && bankCurrency !== loan.currency;
+  const bankMissing = cash && currencies.length === 0;
   const amountLabel = !loan
     ? existing
       ? "Importe pendiente"
@@ -69,9 +76,7 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
       ? "Nuevo pendiente total"
       : action === "interest"
         ? "Interés real devengado"
-        : payable
-          ? "Importe pagado"
-          : "Importe cobrado";
+        : `Importe ${payable ? "pagado" : "cobrado"}${bankCurrency ? ` en Bancos (${bankCurrency})` : ""}`;
   const submitLabel = !loan
     ? "Registrar obligación"
     : action === "adjust"
@@ -188,12 +193,40 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
               </select>
             </HistoryField>
           )}
+          {loan && cash && !bankMissing && (
+            <HistoryField label="Moneda bancaria">
+              <select
+                className={historyControl}
+                name={exchange ? "bankCurrency" : undefined}
+                value={bankCurrency}
+                onChange={(event) => {
+                  setBankCurrency(
+                    currencies.find((code) => code === event.target.value),
+                  );
+                  setBreakdown(false);
+                  setSaved(false);
+                  command.clearError();
+                }}
+              >
+                {currencies.map((code) => (
+                  <option key={code}>{code}</option>
+                ))}
+              </select>
+            </HistoryField>
+          )}
           <AmountField
             key={amountLabel}
             label={amountLabel}
             name="amount"
             required
           />
+          {exchange && (
+            <AmountField
+              name="appliedAmount"
+              label={`Importe acordado que reduce el pendiente (${loan.currency})`}
+              required
+            />
+          )}
           <HistoryField label={cash ? "Fecha efectiva" : "Fecha del registro"}>
             <input
               className={historyControl}
@@ -252,36 +285,40 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
             )}
           </>
         )}
-        {loan && payable && loan.installmentLoan && action === "settle" && (
-          <>
-            <label className="flex min-h-11 items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={breakdown}
-                onChange={(event) => setBreakdown(event.target.checked)}
-              />
-              Conozco el desglose completo de la cuota
-            </label>
-            {breakdown && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AmountField
-                  name="principal"
-                  label="Capital amortizado"
-                  required
+        {loan &&
+          payable &&
+          loan.installmentLoan &&
+          action === "settle" &&
+          !exchange && (
+            <>
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={breakdown}
+                  onChange={(event) => setBreakdown(event.target.checked)}
                 />
-                <AmountField
-                  name="financialCharges"
-                  label="Intereses y cargos pagados"
-                  required
-                />
-              </div>
-            )}
-          </>
-        )}
+                Conozco el desglose completo de la cuota
+              </label>
+              {breakdown && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <AmountField
+                    name="principal"
+                    label="Capital amortizado"
+                    required
+                  />
+                  <AmountField
+                    name="financialCharges"
+                    label="Intereses y cargos pagados"
+                    required
+                  />
+                </div>
+              )}
+            </>
+          )}
         {loan && loan.accruedInterest !== "0.0000" && action === "settle" && (
           <AmountField
             name="accruedPaid"
-            label="Interés ya registrado incluido en el pago"
+            label={`Interés ya registrado incluido en el pago (${loan.currency})`}
             placeholder="Opcional si saldás toda la deuda"
           />
         )}
@@ -299,15 +336,17 @@ export function LoanForm({ today, loan, currencies }: FormProps) {
       <p className="text-sm text-muted-foreground">
         {bankMissing
           ? "Registrá primero un saldo bancario en Resumen."
-          : loan && cash
-            ? `Confirmá un ${payable ? "pago" : "cobro"} realizado en Bancos ${loan.currency}. ${payable && loan.installmentLoan && !breakdown ? "El pendiente queda sin cambios hasta conciliarlo." : ""}`
-            : loan && action === "interest"
-              ? "Aumenta el pendiente y registra el gasto financiero. Bancos cambia cuando registres el pago."
-              : loan && action === "adjust"
-                ? `Pendiente registrado: ${formatBankAmount({ currency: loan.currency, amount: loan.outstanding })}. El ajuste solo actualiza la obligación.`
-                : cash
-                  ? "Confirmá una entrega o recepción de capital que ya ocurrió en Bancos."
-                  : "El alta registra el saldo existente de la obligación."}
+          : exchange
+            ? `Pendiente registrado: ${formatBankAmount({ currency: loan.currency, amount: loan.outstanding })}. Ingresá ambos importes tal como se acordaron.`
+            : loan && cash
+              ? `Confirmá un ${payable ? "pago" : "cobro"} realizado en Bancos ${loan.currency}. ${payable && loan.installmentLoan && !breakdown ? "El pendiente queda sin cambios hasta conciliarlo." : ""}`
+              : loan && action === "interest"
+                ? "Aumenta el pendiente y registra el gasto financiero. Bancos cambia cuando registres el pago."
+                : loan && action === "adjust"
+                  ? `Pendiente registrado: ${formatBankAmount({ currency: loan.currency, amount: loan.outstanding })}. El ajuste solo actualiza la obligación.`
+                  : cash
+                    ? "Confirmá una entrega o recepción de capital que ya ocurrió en Bancos."
+                    : "El alta registra el saldo existente de la obligación."}
       </p>
       {command.error && (
         <p role="alert" className="text-sm">

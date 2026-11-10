@@ -40,6 +40,7 @@ type LoanChange = { loanId: string; expectedVersion: number } & (
       principal: string | null;
       financialCharges: string | null;
       accruedPaid: string | null;
+      exchange?: { bankCurrency: Currency; appliedAmount: string };
     }
   | { action: "adjust"; accruedInterest: string | null }
   | { action: "interest" }
@@ -72,6 +73,8 @@ export type LoanOperation = {
   currency: Currency;
   amount: string;
   bankDelta: string | null;
+  bankCurrency: Currency | null;
+  effectiveRate: string | null;
   outstanding: string;
   previousOutstanding: string | null;
   accruedInterest: string;
@@ -230,13 +233,28 @@ export function parseLoanCommand(
         "principal",
         "financialCharges",
         "accruedPaid",
+        "bankCurrency",
+        "appliedAmount",
       ]);
+      const principal = optionalAmount(data.principal, true);
+      const financialCharges = optionalAmount(data.financialCharges, true);
+      let exchange:
+        { bankCurrency: Currency; appliedAmount: string } | undefined;
+      if ("bankCurrency" in data || "appliedAmount" in data) {
+        const bankCurrency = bankCurrencies.find(
+          (code) => code === data.bankCurrency,
+        );
+        if (!bankCurrency || principal !== null || financialCharges !== null)
+          throw new Error();
+        exchange = { bankCurrency, appliedAmount: amount(data.appliedAmount) };
+      }
       return {
         ...change,
         action,
-        principal: optionalAmount(data.principal, true),
-        financialCharges: optionalAmount(data.financialCharges, true),
+        principal,
+        financialCharges,
         accruedPaid: optionalAmount(data.accruedPaid, true),
+        ...(exchange && { exchange }),
       };
     }
     if (action === "adjust") {

@@ -14,7 +14,10 @@ export function LoanOperationDetail({
     action,
     direction,
     currency,
+    amount,
     bankDelta,
+    bankCurrency,
+    effectiveRate,
     outstanding,
     previousOutstanding,
     principalPaid,
@@ -30,13 +33,27 @@ export function LoanOperationDetail({
   return (
     <div className="grid gap-1 text-sm wrap-anywhere">
       <p className="font-medium">{loanActionLabel(action, direction)}</p>
-      {bankDelta && (
+      {bankDelta && bankCurrency && (
         <p>
           Bancos {bankDelta.startsWith("-") ? "−" : "+"}
-          {show(bankDelta.replace("-", ""))}
+          {formatBankAmount({
+            currency: bankCurrency,
+            amount: bankDelta.replace("-", ""),
+          })}
+        </p>
+      )}
+      {effectiveRate !== null && (
+        <p>
+          Importe acordado aplicado · {show(amount)}. Tasa efectiva informativa
+          ·{" "}
+          {effectiveRate === "0"
+            ? "< 0,00000001"
+            : effectiveRate.replace(".", ",")}{" "}
+          {bankCurrency} por {currency}.
         </p>
       )}
       {action === "settle" &&
+        (effectiveRate === null || accruedPaid !== zero) &&
         (principalPaid === null ? (
           <p>
             Pago sin desglose. Pendiente de conciliación al registrar el pago.
