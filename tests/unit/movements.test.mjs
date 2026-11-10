@@ -41,7 +41,7 @@ test("F1-07: valida rangos exactos y el cursor de un cambio de moneda", () => {
     { from: "2025-02-29" },
     { q: ["uno", "dos"] },
     { before: "2025-01-01.falso.expense" },
-    { status: "pending" },
+    { status: "scheduled" },
   ]) {
     assert.ok(parseHistoryParams(invalid).error);
   }

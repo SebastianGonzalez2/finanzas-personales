@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { PurchaseRefundPanel, RefundRecord } from "@/components/refund-form";
+import { getPurchaseRefunds, getRefundEntry } from "@/server/refunds";
 import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
@@ -91,8 +93,23 @@ export default async function HistoryDetail({
         (entry.kind === "expense" || entry.kind === "card_purchase")
           ? await sharedExpenseDetail(client, ownerId, id)
           : undefined;
+      const refund =
+        entry.kind === "purchase_refund" || entry.kind === "card_credit_return"
+          ? await getRefundEntry(client, ownerId, id)
+          : undefined;
+      const purchaseRefunds =
+        !shared &&
+        entry.status === "confirmed" &&
+        (entry.kind === "card_purchase" ||
+          (entry.kind === "expense" && entry.method === "debit"))
+          ? await getPurchaseRefunds(client, ownerId, id)
+          : undefined;
+      const refundLinked = purchaseRefunds?.entries.some(
+        ({ status }) => status !== "voided",
+      );
       const canSplit =
         sharingReady &&
+        !refundLinked &&
         !shared &&
         !mixed &&
         entry.status === "confirmed" &&
@@ -101,6 +118,7 @@ export default async function HistoryDetail({
             (!plans[0] || plans[0].count === plans[0].activeCount)));
       const mixedEditable =
         !!mixed &&
+        !refundLinked &&
         entry.status === "confirmed" &&
         (!plans[0] || plans[0].count === plans[0].activeCount);
       const mixedCards = mixedEditable
@@ -114,6 +132,8 @@ export default async function HistoryDetail({
       const editable =
         !checkpoint &&
         !entry.cardAmounts &&
+        !refund &&
+        !refundLinked &&
         !loan &&
         !shared &&
         entry.status === "confirmed";
@@ -141,6 +161,9 @@ export default async function HistoryDetail({
         loan,
         shared,
         canSplit,
+        refund,
+        purchaseRefunds,
+        refundLinked,
       };
     },
   ).catch((error: unknown) => {
@@ -178,6 +201,9 @@ export default async function HistoryDetail({
     loan,
     shared,
     canSplit,
+    refund,
+    purchaseRefunds,
+    refundLinked,
   } = data;
   const today = bankReferenceToday();
   const plan = plans[0];
@@ -244,6 +270,10 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {refund && <RefundRecord entry={refund} linkPurchase />}
+          {purchaseRefunds && (
+            <PurchaseRefundPanel purchase={purchaseRefunds} today={today} />
+          )}
           {loan && <LoanOperationDetail operation={loan} linkToLoan />}
           {shared && (
             <section
@@ -357,7 +387,7 @@ export default async function HistoryDetail({
                 today={today}
                 status={entry.status}
               />
-              {entry.status === "confirmed" && (
+              {entry.status === "confirmed" && !refundLinked && (
                 <InstallmentEditor
                   eventId={entry.id}
                   plan={plan}
@@ -407,6 +437,7 @@ export default async function HistoryDetail({
           )}
           {!shared &&
             entry.status === "confirmed" &&
+            !refundLinked &&
             (entry.kind === "card_purchase" ||
               entry.kind === "card_payment") && (
               <CreditVoidForm
@@ -428,6 +459,7 @@ export default async function HistoryDetail({
                 eventId: entry.id,
                 total: entry.amount,
                 amount: credit.amount,
+                covered: mixed.covered && !credit.creditApplied,
                 effectiveOn: entry.effectiveOn,
                 categoryId: entry.categoryId,
                 concept: entry.concept,

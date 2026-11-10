@@ -48,6 +48,13 @@ const sections = [
   { title: "Ingresos recientes", icon: "income", list: "incomes" },
 ] as const;
 
+function daysInMonth(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, 0);
+  return date.getUTCDate();
+}
+
 export function FinanceSummary({
   balances,
   checkpoints,
@@ -61,6 +68,7 @@ export function FinanceSummary({
   sharedExpensesReady,
   monthlyInstallments,
   totals,
+  refundTotals,
   expenses,
   incomes,
   bankTransfers,
@@ -79,6 +87,7 @@ export function FinanceSummary({
   sharedExpensesReady: boolean;
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
+  refundTotals: Pick<MovementTotal, "currency" | "amount">[];
   expenses: RecentMovement[];
   incomes: RecentMovement[];
   bankTransfers: RecentBankTransfer[];
@@ -217,6 +226,22 @@ export function FinanceSummary({
             );
           })}
         </div>
+        {refundTotals.length > 0 && (
+          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+            <h3 className="font-semibold">Devoluciones recibidas en el mes</h3>
+            <ul className="flex flex-wrap gap-3">
+              {refundTotals.map((refund) => (
+                <li key={refund.currency}>{formatBankAmount(refund)}</li>
+              ))}
+            </ul>
+            <a
+              className="w-fit underline"
+              href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${daysInMonth(period)}`}
+            >
+              Ver devoluciones en el historial
+            </a>
+          </Card>
+        )}
         {monthlyInstallments.length > 0 && (
           <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
             <h3 className="font-semibold">

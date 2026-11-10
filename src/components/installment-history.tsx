@@ -23,14 +23,18 @@ export function InstallmentHistory({
   versions: InstallmentVersion[];
   currency: Currency;
   today: string;
-  status: "confirmed" | "voided" | "corrected";
+  status: "confirmed" | "voided" | "corrected" | "pending";
 }) {
   const plan = versions[0];
   const future =
     status === "confirmed" ? futureInstallmentPeriods(plan, today).length : 0;
+  const cancelled = plan.refundCancelled ?? [];
   const elapsed = Array.from({ length: plan.activeCount }, (_, index) =>
     installmentPeriodAt(plan.firstPeriod, index),
-  ).filter((period) => period < today.slice(0, 7)).length;
+  ).filter(
+    (period, index) =>
+      period < today.slice(0, 7) && !cancelled.includes(index + 1),
+  ).length;
 
   return (
     <section className="grid gap-3 border-t pt-4" aria-label="Plan de cuotas">
@@ -45,7 +49,7 @@ export function InstallmentHistory({
           ? "Plan del registro anterior a la corrección."
           : status === "voided"
             ? "Compra anulada en la aplicación."
-            : `${elapsed} de ${plan.activeCount} cuotas vigentes corresponden a meses anteriores. Cuotas futuras · ${future}. Compromiso futuro · ${formatInstallmentTotal(plan, currency, future)}.`}{" "}
+            : `${elapsed} de ${plan.activeCount - cancelled.length} cuotas vigentes corresponden a meses anteriores. Cuotas futuras · ${future}. Compromiso futuro · ${formatInstallmentTotal(plan, currency, future)}.`}{" "}
         El calendario muestra la imputación de gastos. La facturación y los
         pagos se registran aparte.
       </p>
@@ -60,7 +64,7 @@ export function InstallmentHistory({
               ? "Plan reemplazado"
               : status === "voided"
                 ? "Anulada"
-                : index >= plan.activeCount
+                : index >= plan.activeCount || cancelled.includes(index + 1)
                   ? "Cancelada por el emisor"
                   : period > today.slice(0, 7)
                     ? "Futura"

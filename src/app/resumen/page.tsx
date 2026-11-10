@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
 import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
+import { listRefundTotals } from "@/server/refund-totals";
 import { isInstallmentPeriod } from "@/domain/installments";
 import {
   bankReconciliationReady,
@@ -66,6 +67,7 @@ export default async function SummaryPage({
           sharedExpensesReady: false,
           monthlyInstallments: [],
           totals: [],
+          refundTotals: [],
           expenses: [],
           incomes: [],
         };
@@ -93,6 +95,7 @@ export default async function SummaryPage({
           ? await listMonthlyInstallments(client, ownerId, monthStart)
           : [],
         totals: await listMovementTotals(client, ownerId, monthStart),
+        refundTotals: await listRefundTotals(client, ownerId, monthStart),
         expenses: await listRecentMovements(
           client,
           ownerId,

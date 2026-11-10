@@ -123,6 +123,7 @@ export function CardCycleDetail({
             dueOn,
             dueSource,
             estimate,
+            credited,
             paid,
             minimumCovered,
             remaining,
@@ -160,6 +161,19 @@ export function CardCycleDetail({
                     label="Deuda total registrada"
                     value={amount(position?.debt)}
                   />
+                  {position?.creditBalance &&
+                    position.creditBalance !== "0.0000" && (
+                      <Fact
+                        label="Saldo a favor"
+                        value={amount(position.creditBalance)}
+                      />
+                    )}
+                  {credited !== "0.0000" && (
+                    <Fact
+                      label="Abonos aplicados a la estimación"
+                      value={amount(credited)}
+                    />
+                  )}
                   <Fact
                     label="Estimación según movimientos cargados"
                     value={amount(estimate)}

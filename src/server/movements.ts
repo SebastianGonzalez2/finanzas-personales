@@ -1,4 +1,5 @@
 import "server-only";
+import { hasLinkedRefund } from "./refund-schema.ts";
 import {
   isSharedExpense,
   sharedExpensesReady,
@@ -475,6 +476,8 @@ export async function reviseMovement(
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
+  if (await hasLinkedRefund(client, ownerId, eventId))
+    return { status: "unavailable" };
   if (await isSharedExpense(client, ownerId, eventId))
     return { status: "unavailable" };
   const reconciliationReady = await bankReconciliationReady(client);
@@ -591,6 +594,8 @@ async function editMovement(
   if (!(await historyReady(client))) return { status: "unavailable" };
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
+  if (await hasLinkedRefund(client, ownerId, eventId))
+    return { status: "unavailable" };
   if (await isSharedExpense(client, ownerId, eventId))
     return { status: "unavailable" };
 

@@ -12,6 +12,7 @@ export type InstallmentTerms = {
 export type InstallmentVersion = InstallmentTerms & {
   version: number;
   activeCount: number;
+  refundCancelled?: number[];
   change: "created" | "edited" | "cancelled";
   recordedOn: string;
 };
@@ -90,5 +91,8 @@ export function futureInstallmentPeriods(
 ) {
   return Array.from({ length: plan.activeCount }, (_, index) =>
     installmentPeriodAt(plan.firstPeriod, index),
-  ).filter((period) => period > today.slice(0, 7));
+  ).filter(
+    (period, index) =>
+      period > today.slice(0, 7) && !plan.refundCancelled?.includes(index + 1),
+  );
 }

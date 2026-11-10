@@ -16,10 +16,13 @@ export const historyKinds = {
   card_opening: "Deuda inicial de tarjeta",
   card_adjustment: "Ajuste de deuda de tarjeta",
   loan_operation: "Deudas y préstamos",
+  purchase_refund: "Devolución",
+  card_credit_return: "Reintegro de saldo a favor",
 } as const;
 
 export const historyStates = {
   confirmed: "Confirmado",
+  pending: "Pendiente",
   corrected: "Corregido",
   voided: "Anulado",
 } as const;

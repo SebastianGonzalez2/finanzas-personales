@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { CardCycleDetail } from "@/components/card-cycle-detail";
+import { ReturnCreditForm } from "@/components/refund-form";
 import { FinanceShell } from "@/components/finance-shell";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import {
@@ -124,6 +125,20 @@ export default async function StatementPage({
             </button>
           </form>
         </nav>
+        {result.card.currencies.map(
+          ({ currency, creditBalance }) =>
+            creditBalance &&
+            creditBalance !== "0.0000" &&
+            result.banks.includes(currency) && (
+              <ReturnCreditForm
+                key={currency}
+                cardId={result.card.id}
+                currency={currency}
+                balance={creditBalance}
+                today={today}
+              />
+            ),
+        )}
         <CardCycleDetail
           key={`${period}:${accion === "pago"}`}
           {...result}

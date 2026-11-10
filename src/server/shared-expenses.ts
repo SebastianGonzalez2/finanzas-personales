@@ -1,4 +1,5 @@
 import "server-only";
+import { hasLinkedRefund } from "./refund-schema.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import {
@@ -210,6 +211,11 @@ export async function saveSharedExpense(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  if (
+    command.action === "split" &&
+    (await hasLinkedRefund(client, ownerId, command.eventId))
+  )
+    return conflict("El gasto tiene devoluciones vinculadas.");
   if (command.action === "edit") {
     const current = await findExpense(client, ownerId, command.eventId);
     if (!current) return missing;
