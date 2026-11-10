@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import {
   formatBankAmount,
   formatBankReference,
+  type BankAvailability,
   type BankBalance,
 } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
@@ -25,7 +26,7 @@ export function BankBalanceRow({
   children,
 }: {
   currency: Currency;
-  initialBalance?: BankBalance;
+  initialBalance?: BankAvailability;
   today: string;
   children?: ReactNode;
 }) {
@@ -95,7 +96,7 @@ export function BankBalanceRow({
     <li className="min-w-0 border-t py-2 first:border-t-0 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-x-2">
         <h3 ref={heading} tabIndex={-1} className="text-sm font-medium">
-          Bancos {currency}
+          {currency}
         </h3>
         {!balance && !open && (
           <button
@@ -112,12 +113,30 @@ export function BankBalanceRow({
       <div role="status" aria-atomic="true">
         {balance ? (
           <>
-            <p className="mt-1 text-lg font-semibold wrap-anywhere tabular-nums">
+            {initialBalance && (
+              <p className="mt-1 text-lg font-semibold wrap-anywhere tabular-nums">
+                {formatBankAmount({
+                  currency,
+                  amount: initialBalance.availableAmount,
+                })}
+              </p>
+            )}
+            <p className="mt-1 text-sm wrap-anywhere tabular-nums">
+              Saldo bancario{" "}
               {formatBankAmount({
                 currency,
                 amount: balance.calculatedAmount ?? balance.amount,
               })}
             </p>
+            {initialBalance && initialBalance.reservedAmount !== "0.0000" && (
+              <p className="text-xs text-muted-foreground">
+                Reservado{" "}
+                {formatBankAmount({
+                  currency,
+                  amount: initialBalance.reservedAmount,
+                })}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {balance.calculatedAmount !== undefined && (
                 <>Calculado · {formatBankAmount(balance)} confirmado al </>

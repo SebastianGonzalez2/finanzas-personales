@@ -412,7 +412,7 @@ export function MovementForm({
               />
             ) : !configured.length ? (
               <p className="text-sm text-muted-foreground">
-                Configurá un saldo inicial en «Dinero disponible» para registrar
+                Configurá un saldo inicial en «Disponible libre» para registrar
                 un ingreso o gasto.
               </p>
             ) : (
@@ -618,7 +618,7 @@ function BankTransferFields({ currencies }: { currencies: Currency[] }) {
   if (currencies.length < 2)
     return (
       <p className="text-sm text-muted-foreground sm:col-span-2">
-        Configurá el saldo inicial de ambas monedas en «Dinero disponible».
+        Configurá el saldo inicial de ambas monedas en «Disponible libre».
       </p>
     );
 

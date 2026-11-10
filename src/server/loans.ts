@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { Loan, LoanCommand, LoanOperation } from "../domain/loans.ts";
 import { Money, type Currency } from "../domain/money.ts";
-import { listBankBalances, lockBankWrites } from "./bank-balances.ts";
+import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 import { commandHash, findReplay } from "./movements.ts";
 
 const zero = "0.0000";
@@ -288,14 +288,14 @@ export async function saveLoanOperation(
   const exchange = action === "settle" ? command.exchange : undefined;
   const bankCurrency = exchange?.bankCurrency ?? currency;
   if (effects.bankDelta) {
-    const [bank] = await listBankBalances(client, ownerId, [bankCurrency]);
+    const [bank] = await listBankAvailability(client, ownerId, [bankCurrency]);
     if (!bank)
       return conflict("Registrá primero un saldo de Bancos en esa moneda.");
     if (
       effects.bankDelta.startsWith("-") &&
-      units(bank.calculatedAmount ?? bank.amount) < units(amount)
+      units(bank.availableAmount) < units(amount)
     )
-      return conflict("El saldo de Bancos en esa moneda es insuficiente.");
+      return conflict("El disponible libre en esa moneda es insuficiente.");
   }
 
   await client.query(

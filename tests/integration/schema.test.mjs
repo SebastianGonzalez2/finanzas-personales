@@ -12,6 +12,11 @@ import {
   withOwnerTransaction,
 } from "../../src/db/owner-context.mts";
 import { randomUUID } from "node:crypto";
+import {
+  listBankAvailability,
+  saveOpeningBalance,
+  savingsFundsReady,
+} from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { installmentsReady } from "../../src/server/installments.ts";
 import { cardCyclesReady } from "../../src/server/card-cycles.ts";
@@ -20,6 +25,10 @@ import { sharedExpensesReady } from "../../src/server/shared-expense-schema.ts";
 import { saveLoanOperation, findLoan } from "../../src/server/loans.ts";
 import { loansReady } from "../../src/server/movements.ts";
 import { refundsReady } from "../../src/server/refund-schema.ts";
+import {
+  reserveEffectsReady,
+  saveSavingsFund,
+} from "../../src/server/savings-funds.ts";
 
 test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures persistentes", async () => {
   const client = new pg.Client(testDatabaseConfig());
@@ -49,6 +58,8 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0012_F2-06_loans.sql",
       "0013_F2-08_shared_expenses.sql",
       "0014_F2-09_purchase_refunds.sql",
+      "0015_F3-01_savings_funds.sql",
+      "0016_F3-01_reserve_effects.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -84,6 +95,8 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
       loans,
       shared,
       refunds,
+      funds,
+      reserveEffects,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -149,6 +162,24 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await installmentsReady(client), false);
+    assert.equal(await savingsFundsReady(client), false);
+    assert.equal(
+      await saveOpeningBalance(client, "legacy-fixture", {
+        currency: "UYU",
+        amount: "100.0001",
+        asOfDate: "2026-01-10",
+      }),
+      "created",
+    );
+    assert.deepEqual(await listBankAvailability(client, "legacy-fixture"), [
+      {
+        currency: "UYU",
+        amount: "100.0001",
+        asOfDate: "2026-01-10",
+        reservedAmount: "0.0000",
+        availableAmount: "100.0001",
+      },
+    ]);
     const cardId = randomUUID();
     await client.query(
       "INSERT INTO finance.cards (owner_id,id,kind,name) VALUES ('legacy-fixture',$1,'credit','Prueba')",
@@ -232,13 +263,62 @@ test("F2-09: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await refundsReady(client), false);
     await assert.rejects(migrateInTransaction(client, shared.sha256));
-    assert.deepEqual(await migrateInTransaction(client, refunds.sha256), [
-      refunds.version,
-    ]);
-    assert.deepEqual(await migrateInTransaction(client, refunds.sha256), []);
+    await assert.rejects(migrateInTransaction(client, refunds.sha256));
+    await client.query(refunds.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [refunds.version, refunds.sha256],
+    );
+    await assert.rejects(migrateInTransaction(client, funds.sha256));
+    await client.query(funds.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [funds.version, funds.sha256],
+    );
+    await setOwnerContext(client, "legacy-fixture");
+    const fund = await saveSavingsFund(client, "legacy-fixture", {
+      action: "create",
+      name: "Fondo anterior",
+      currency: "UYU",
+      idempotencyKey: randomUUID(),
+    });
+    assert.equal(fund.status, "created");
+    assert.equal(await reserveEffectsReady(client), false);
+    assert.equal(
+      (
+        await saveSavingsFund(client, "legacy-fixture", {
+          action: "reserve",
+          fundId: fund.id,
+          version: 1,
+          amount: "1.0000",
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "unavailable",
+    );
+    await client.query("RESET ROLE");
+    assert.deepEqual(
+      await migrateInTransaction(client, reserveEffects.sha256),
+      [reserveEffects.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, reserveEffects.sha256),
+      [],
+    );
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await sharedExpensesReady(client), true);
     assert.equal(await refundsReady(client), true);
+    assert.equal(await savingsFundsReady(client), true);
+    assert.equal(await reserveEffectsReady(client), true);
+    assert.deepEqual(
+      (
+        await client.query(
+          "SELECT name, version, reserved_amount::numeric(20,4)::text AS amount FROM finance.savings_funds WHERE id = $1",
+          [fund.id],
+        )
+      ).rows,
+      [{ name: "Fondo anterior", version: 1, amount: "0.0000" }],
+    );
     assert.equal(
       (await findLoan(client, "legacy-fixture", loan.id)).outstanding,
       "100.0001",

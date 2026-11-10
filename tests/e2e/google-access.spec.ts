@@ -46,7 +46,7 @@ test("Resumen no entrega el tablero ante una visita directa con sesión inválid
   expect(response.status()).toBe(307);
   expect(response.headers().location).toBe("/auth/sign-in");
   expect(response.headers()["cache-control"]).toContain("no-store");
-  expect(await response.text()).not.toContain("Dinero disponible");
+  expect(await response.text()).not.toContain("Disponible libre");
 
   await page.goto("/resumen");
   await expect(page).toHaveURL(/\/auth\/sign-in$/);

@@ -7,7 +7,7 @@ import { listRefundTotals } from "@/server/refund-totals";
 import { isInstallmentPeriod } from "@/domain/installments";
 import {
   bankReconciliationReady,
-  listBankBalances,
+  listBankAvailability,
   listBankCheckpoints,
 } from "@/server/bank-balances";
 import { listCards } from "@/server/cards";
@@ -42,7 +42,7 @@ export default async function SummaryPage({
     async (client, ownerId) => {
       const reconciliationReady = await bankReconciliationReady(client);
       const bankData = {
-        balances: await listBankBalances(
+        balances: await listBankAvailability(
           client,
           ownerId,
           bankCurrencies,

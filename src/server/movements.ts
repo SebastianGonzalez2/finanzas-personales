@@ -22,7 +22,7 @@ import {
   bankEventPosition,
   bankEventSource,
   bankReconciliationReady,
-  listBankBalances,
+  listBankAvailability,
   lockBankWrites,
 } from "./bank-balances.ts";
 
@@ -201,7 +201,7 @@ export async function saveBankTransfer(
     return { status: "unavailable" };
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
-  const [source, destination] = await listBankBalances(
+  const [source, destination] = await listBankAvailability(
     client,
     ownerId,
     [sourceCurrency, destinationCurrency],
@@ -215,7 +215,7 @@ export async function saveBankTransfer(
     const gap = await bankShortfall(
       client,
       sourceCurrency,
-      source.calculatedAmount ?? source.amount,
+      source.availableAmount,
       "0",
       `-${sourceAmount}`,
     );
@@ -331,14 +331,14 @@ export async function saveMovement(
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
 
-  const [balance] = await listBankBalances(client, ownerId, [currency]);
+  const [balance] = await listBankAvailability(client, ownerId, [currency]);
   if (!balance) return { status: "unconfigured" };
   // Dates before the anchor are historical: they cannot spend its balance.
   if (kind === "expense" && effectiveOn >= balance.asOfDate) {
     const gap = await bankShortfall(
       client,
       currency,
-      balance.calculatedAmount ?? balance.amount,
+      balance.availableAmount,
       "0",
       signedAmount(kind, amount),
     );
@@ -522,7 +522,7 @@ export async function reviseMovement(
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
   const { currency, kind, effectiveOn } = original;
-  const [balance] = await listBankBalances(
+  const [balance] = await listBankAvailability(
     client,
     ownerId,
     [currency],
@@ -533,7 +533,7 @@ export async function reviseMovement(
     const gap = await bankShortfall(
       client,
       currency,
-      balance.calculatedAmount ?? balance.amount,
+      balance.availableAmount,
       original.signed,
       amount === null ? "0" : signedAmount(kind, amount),
     );
@@ -668,7 +668,7 @@ async function editMovement(
       newEffects.map(({ signed }) => signed),
     ],
   );
-  const balances = await listBankBalances(
+  const balances = await listBankAvailability(
     client,
     ownerId,
     effects.map(({ currency }) => currency),
@@ -680,7 +680,7 @@ async function editMovement(
     const gap = await bankShortfall(
       client,
       currency,
-      balance.calculatedAmount ?? balance.amount,
+      balance.availableAmount,
       before,
       after,
     );
@@ -746,7 +746,7 @@ async function voidBankTransfer(
   // Covered effects change the checkpoint's reconciliation while preserving the anchor.
   // Only removing an uncovered credit can reduce a current bank balance.
   if (!credit.covered) {
-    const [balance] = await listBankBalances(
+    const [balance] = await listBankAvailability(
       client,
       ownerId,
       [credit.currency],
@@ -756,7 +756,7 @@ async function voidBankTransfer(
     const gap = await bankShortfall(
       client,
       credit.currency,
-      balance.calculatedAmount ?? balance.amount,
+      balance.availableAmount,
       credit.signed,
       "0",
     );
