@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { parseLoanCommand } from "../../src/domain/loans.ts";
+import { parseRefundCommand } from "../../src/domain/refunds.ts";
 import { parseSharedExpense } from "../../src/domain/shared-expenses.ts";
 import {
   listBankBalances,
@@ -14,6 +18,8 @@ import { listCards, saveCard } from "../../src/server/cards.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { findLoan, saveLoanOperation } from "../../src/server/loans.ts";
 import { listMovementTotals } from "../../src/server/movements.ts";
+import { listRefundTotals } from "../../src/server/refund-totals.ts";
+import { getRefundEntry, saveRefund } from "../../src/server/refunds.ts";
 import {
   saveSharedExpense,
   sharedExpenseDetail,
@@ -43,6 +49,43 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 4 });
   const as = (ownerId, work) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);
+  const race = async (ownerId, first, second) => {
+    let contender;
+    let blocked = false;
+    const backend = Promise.withResolvers();
+    try {
+      const winner = await as(ownerId, async (client, id) => {
+        const result = await first(client, id);
+        contender = as(ownerId, async (other, owner) => {
+          const { rows } = await other.query("SELECT pg_backend_pid() AS pid");
+          backend.resolve(rows[0].pid);
+          return second(other, owner);
+        });
+        void contender.catch(backend.reject);
+        const pid = await backend.promise;
+        const deadline = performance.now() + 3000;
+        do {
+          const { rows } = await client.query(
+            `SELECT pg_backend_pid() = ANY(pg_blocking_pids($1)) AND EXISTS (
+               SELECT 1 FROM pg_locks WHERE pid = $1 AND locktype = 'advisory' AND NOT granted
+             ) AS blocked`,
+            [pid],
+          );
+          blocked = rows[0].blocked;
+          if (blocked) break;
+          await delay(20);
+        } while (performance.now() < deadline);
+        return result;
+      });
+      assert.ok(
+        blocked,
+        "La segunda conexión debe esperar el lock de la primera",
+      );
+      return [winner, await contender];
+    } finally {
+      await contender?.catch(() => {});
+    }
+  };
   const debtOf = async (ownerId) => {
     const cards = await as(ownerId, listCards);
     return cards[0]?.currencies[0].debt;
@@ -51,9 +94,11 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
     const [row] = await as(ownerId, listBankBalances);
     return row?.calculatedAmount ?? row?.amount;
   };
-  const totalsOf = async (ownerId) =>
+  const totalsOf = async (ownerId, monthStart = month) =>
     (
-      await as(ownerId, (client, id) => listMovementTotals(client, id, month))
+      await as(ownerId, (client, id) =>
+        listMovementTotals(client, id, monthStart),
+      )
     ).map(({ kind, amount }) => [kind, amount]);
   let schemaReady = false;
   try {
@@ -98,14 +143,14 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
         today,
       ),
     );
-    const retried = await Promise.all([
-      pay(card.owner, partial),
-      pay(card.owner, partial),
-    ]);
+    const writePartial = (client, id) =>
+      saveCreditOperation(client, id, partial);
+    const retried = await race(card.owner, writePartial, writePartial);
     assert.deepEqual(retried.map(({ status }) => status).sort(), [
       "created",
       "replayed",
     ]);
+    assert.equal(retried[0].id, retried[1].id);
     assert.equal(await debtOf(card.owner), "600.0000");
     assert.equal(await bankOf(card.owner), "9600.0000");
     assert.deepEqual(await totalsOf(card.owner), [["expense", "1000.0000"]]);
@@ -123,7 +168,7 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
     assert.deepEqual(await totalsOf(card.owner), [["expense", "1000.0000"]]);
 
     // I-11: distinct keys racing for the remaining debt settle it only once.
-    const race = await Promise.all(
+    const finalPayments = await Promise.all(
       [0, 1].map(() =>
         pay(
           card.owner,
@@ -139,7 +184,7 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
         ),
       ),
     );
-    assert.deepEqual(race.map(({ status }) => status).sort(), [
+    assert.deepEqual(finalPayments.map(({ status }) => status).sort(), [
       "conflict",
       "created",
     ]);
@@ -176,19 +221,31 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
       short.owner,
       parsed(parseCreditCommand(creditPurchase({ cardId: shortCard }), today)),
     );
+    const drain = parsed(
+      parseCreditCommand(
+        creditPayment({ cardId: shortCard, amount: "300" }),
+        today,
+      ),
+    );
+    const lend = parsed(
+      parseLoanCommand(loanLend({ amount: "300", effectiveOn: today }), today),
+    );
+    const competingDebits = await race(
+      short.owner,
+      (client, id) => saveCreditOperation(client, id, drain),
+      (client, id) => saveLoanOperation(client, id, lend),
+    );
+    assert.deepEqual(
+      competingDebits.map(({ status }) => status),
+      ["created", "conflict"],
+    );
     assert.equal(
-      (
-        await pay(
-          short.owner,
-          parsed(
-            parseCreditCommand(
-              creditPayment({ cardId: shortCard, amount: "300" }),
-              today,
-            ),
-          ),
-        )
-      ).status,
-      "created",
+      await as(
+        short.owner,
+        async (client) =>
+          (await client.query("SELECT 1 FROM finance.loans")).rowCount,
+      ),
+      0,
     );
     assert.equal(await bankOf(short.owner), "0.0000");
     assert.equal(
@@ -267,29 +324,34 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
     assert.equal(await outstanding(), "600.0000");
     assert.equal(await bankOf(loan.owner), "9400.0000");
 
-    const settleRace = await Promise.all(
-      [0, 1].map(() =>
-        settle(
-          loan.owner,
-          parsed(
-            parseLoanCommand(
-              loanSettle({
-                loanId,
-                expectedVersion: 2,
-                amount: consistencyAmounts.loanRemaining,
-              }),
-              today,
-            ),
+    const collectRemaining = (client, id) =>
+      saveLoanOperation(
+        client,
+        id,
+        parsed(
+          parseLoanCommand(
+            loanSettle({
+              loanId,
+              expectedVersion: 2,
+              // Both amounts fit, even after one succeeds. Only the stale version
+              // should prevent the second collection.
+              amount: "300",
+            }),
+            today,
           ),
         ),
-      ),
+      );
+    const settleRace = await race(
+      loan.owner,
+      collectRemaining,
+      collectRemaining,
     );
-    assert.deepEqual(settleRace.map(({ status }) => status).sort(), [
-      "conflict",
-      "created",
-    ]);
-    assert.equal(await outstanding(), "0.0000");
-    assert.equal(await bankOf(loan.owner), "10000.0000");
+    assert.deepEqual(
+      settleRace.map(({ status }) => status),
+      ["created", "conflict"],
+    );
+    assert.equal(await outstanding(), "300.0000");
+    assert.equal(await bankOf(loan.owner), "9700.0000");
     assert.deepEqual(await totalsOf(loan.owner), []);
 
     // I-12: the loan is invisible and unwritable for another titular.
@@ -308,7 +370,7 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
       ).status,
       "not-found",
     );
-    assert.equal(await outstanding(), "0.0000");
+    assert.equal(await outstanding(), "300.0000");
 
     // I-05: the bank pays the full shared expense once and collections only
     // reduce the receivable; the expense total stays at the owner's share.
@@ -388,6 +450,166 @@ test("F2-10: partial payments, retries, overpayments, authorization and races", 
       "conflict",
     );
     assert.equal(await bankOf(shared.owner), "6800.0000");
+
+    // I-06/I-11: fail the final detail write after both monetary effects.
+    const mixed = parsed(
+      parseCreditCommand(
+        {
+          ...creditPurchase({ cardId, amount: "600" }),
+          mixed: {
+            total: "1000",
+            debitAmount: "400",
+            debitCardId: null,
+            categories: [],
+          },
+        },
+        today,
+      ),
+    );
+    await pool.query(`
+      CREATE FUNCTION finance.reject_mixed_fixture() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        RAISE EXCEPTION 'F2-10: fallo al vincular la compra mixta';
+      END $$;
+      CREATE TRIGGER reject_mixed_fixture BEFORE INSERT ON finance.mixed_purchases
+        FOR EACH ROW EXECUTE FUNCTION finance.reject_mixed_fixture();
+    `);
+    let writeError;
+    await assert.rejects(
+      as(card.owner, (client, id) =>
+        saveCreditOperation(client, id, mixed).catch((error) => {
+          writeError = error;
+          throw error;
+        }),
+      ),
+      { message: "Operación de datos rechazada" },
+    );
+    assert.equal(
+      writeError?.message,
+      "F2-10: fallo al vincular la compra mixta",
+    );
+    assert.equal(await debtOf(card.owner), "0.0000");
+    assert.equal(await bankOf(card.owner), "9000.0000");
+    assert.deepEqual(await totalsOf(card.owner), [["expense", "1000.0000"]]);
+    await pool.query(
+      "DROP TRIGGER reject_mixed_fixture ON finance.mixed_purchases",
+    );
+
+    const purchase = await pay(card.owner, mixed);
+    assert.equal(purchase.status, "created");
+    assert.deepEqual(await pay(card.owner, mixed), {
+      status: "replayed",
+      id: purchase.id,
+    });
+    assert.equal(await debtOf(card.owner), "600.0000");
+    assert.equal(await bankOf(card.owner), "8600.0000");
+    assert.deepEqual(await totalsOf(card.owner), [["expense", "2000.0000"]]);
+
+    // CA-028/037: two distinct refund requests cannot exceed either original
+    // portion. The credit is reported separately in the month received.
+    const february = "2026-02-01";
+    const creditRefund = () =>
+      parsed(
+        parseRefundCommand(
+          {
+            action: "credit",
+            effectiveOn: february,
+            purchaseId: purchase.id,
+            idempotencyKey: randomUUID(),
+            parts: [
+              { method: "debit", categoryId: null, amount: "300" },
+              { method: "credit", categoryId: null, amount: "450" },
+            ],
+          },
+          february,
+        ),
+      );
+    const refund = (client, id) =>
+      saveRefund(client, id, creditRefund(), february);
+    const [credited, duplicate] = await race(card.owner, refund, refund);
+    assert.equal(credited.status, "created");
+    assert.equal(duplicate.status, "conflict");
+    assert.equal(await debtOf(card.owner), "150.0000");
+    assert.equal(await bankOf(card.owner), "8900.0000");
+    assert.deepEqual(await totalsOf(card.owner), [["expense", "2000.0000"]]);
+    assert.deepEqual(await totalsOf(card.owner, february), []);
+    assert.deepEqual(
+      await as(card.owner, (client, id) =>
+        listRefundTotals(client, id, february),
+      ),
+      [{ currency: "UYU", amount: "750.0000" }],
+    );
+    assert.equal(
+      await as(card.other, (client, id) =>
+        getRefundEntry(client, id, credited.id),
+      ),
+      undefined,
+    );
+    assert.equal((await as(card.other, refund)).status, "not-found");
+
+    // I-12: exercise RLS and owner-scoped foreign keys directly as finanzas_app.
+    const relations = [
+      ["card_currencies", "card_id", cardId, card.owner],
+      ["loan_operations", "loan_id", loanId, loan.owner],
+      ["shared_expense_details", "event_id", created.id, shared.owner],
+      ["refund_parts", "event_id", credited.id, card.owner],
+    ];
+    for (const [table, column, target, owner] of relations) {
+      const {
+        rows: [policy],
+      } = await pool.query(
+        "SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = $1::regclass",
+        [`finance.${table}`],
+      );
+      assert.deepEqual(policy, {
+        relrowsecurity: true,
+        relforcerowsecurity: true,
+      });
+      const rows = async (client) =>
+        (
+          await client.query(
+            `SELECT 1 FROM finance.${table} WHERE ${column} = $1`,
+            [target],
+          )
+        ).rowCount;
+      assert.ok(await as(owner, rows));
+      assert.equal(await as(card.other, rows), 0);
+    }
+    await as(card.other, async (client, id) => {
+      const rejectWrite = async (sql, params, code) => {
+        await client.query("SAVEPOINT before_denial");
+        await assert.rejects(client.query(sql, params), { code });
+        await client.query("ROLLBACK TO SAVEPOINT before_denial");
+        await client.query("RELEASE SAVEPOINT before_denial");
+      };
+      const detailSql = `INSERT INTO finance.shared_expense_details
+        (owner_id, event_id, version, concept) VALUES ($1, $2, 2, 'Fixture')`;
+      await rejectWrite(detailSql, [shared.owner, created.id], "42501");
+      await rejectWrite(detailSql, [id, created.id], "23503");
+      const eventId = randomUUID();
+      await client.query(
+        `INSERT INTO finance.financial_events
+        (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash)
+        VALUES ($1, $2, 'purchase_refund', 'Fixture', $3, $2, repeat('a', 64))`,
+        [id, eventId, february],
+      );
+      await rejectWrite(
+        `INSERT INTO finance.purchase_refunds
+        (owner_id, event_id, purchase_id, action, currency, amount, applied_amount)
+        VALUES ($1, $2, $3, 'credit', 'UYU', 1, 1)`,
+        [id, eventId, purchase.id],
+        "23503",
+      );
+      await rejectWrite(
+        `INSERT INTO finance.loan_operations
+        (owner_id, event_id, loan_id, currency, version, action, amount,
+         outstanding, accrued_interest, principal_paid, needs_reconciliation)
+        VALUES ($1, $2, $3, 'UYU', 4, 'settle', 1, 299, 0, 1, false)`,
+        [id, eventId, loanId],
+        "23503",
+      );
+    });
   } finally {
     try {
       if (schemaReady)

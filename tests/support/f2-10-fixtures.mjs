@@ -13,7 +13,6 @@ export const consistencyAmounts = Object.freeze({
   sharedParty: "1000.0000",
   loanPrincipal: "1000.0000",
   loanPartial: "400.0000",
-  loanRemaining: "600.0000",
 });
 
 export function consistencyOwners(prefix = "f2-10") {
