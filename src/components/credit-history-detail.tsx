@@ -83,6 +83,15 @@ export function CreditHistoryDetail({
                       : "Sin cargo del emisor informado al registrar la compra."}
                   </p>
                 )}
+                {line.creditApplied && (
+                  <p>
+                    Saldo a favor aplicado ·{" "}
+                    {formatBankAmount({
+                      currency: line.currency,
+                      amount: line.creditApplied,
+                    })}
+                  </p>
+                )}
                 <p>
                   Variación de deuda ·{" "}
                   {formatBankAmount({

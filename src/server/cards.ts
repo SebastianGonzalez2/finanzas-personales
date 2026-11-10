@@ -6,6 +6,7 @@ import { lockBankWrites } from "./bank-balances.ts";
 import { cardCyclesReady } from "./card-cycles.ts";
 import { lockCardWrites, saveOpeningDebt } from "./credit-operations.ts";
 import { creditOperationsReady, findReplay } from "./movements.ts";
+import { refundsReady } from "./refund-schema.ts";
 
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
@@ -18,15 +19,17 @@ export async function cardsReady(client: pg.PoolClient) {
 }
 
 export async function listCards(client: pg.PoolClient, ownerId: string) {
+  const refunds = await refundsReady(client);
   const { rows } = await client.query<CatalogCard>(
     `SELECT c.id, c.kind, c.name, c.issuer, c.version, (c.archived_at IS NOT NULL) AS archived,
             jsonb_agg(jsonb_build_object(
               'currency', p.currency, 'limit', p.credit_limit::text,
               'debt', CASE WHEN c.kind = 'credit' THEN coalesce(p.debt, 0)::text END,
-              'creditBalance', CASE WHEN c.kind = 'credit' THEN coalesce(p.credit_balance, 0)::text END
+              'creditBalance', CASE WHEN c.kind = 'credit' THEN (coalesce(p.credit_balance, 0)${refunds ? " + coalesce(b.delta, 0)" : ""})::text END
             ) ORDER BY array_position(ARRAY['UYU','USD','EUR'], p.currency::text)) AS currencies
        FROM finance.cards c JOIN finance.card_currencies p
          ON (p.owner_id, p.card_id) = (c.owner_id, c.id)
+       ${refunds ? "LEFT JOIN finance.card_credit_balances b ON (b.owner_id, b.card_id, b.currency) = (p.owner_id, p.card_id, p.currency)" : ""}
       WHERE c.owner_id = $1
       GROUP BY c.owner_id, c.id
       ORDER BY (c.archived_at IS NOT NULL), lower(c.name), c.id`,

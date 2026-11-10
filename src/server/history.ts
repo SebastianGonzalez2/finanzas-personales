@@ -11,6 +11,22 @@ import {
   type parseHistoryParams,
 } from "../domain/history.ts";
 
+import { refundsReady } from "./refund-schema.ts";
+import {
+  refundHistorySource,
+  refundHistoryStatus,
+  refundHistoryAmount,
+  refundHistoryCurrency,
+} from "./refunds.ts";
+
+const refundFields = `f.id, f.kind, ${refundHistoryStatus} AS status, f.effective_on, f.concept,
+  CASE r.action WHEN 'pending' THEN 'Solicitud de devolución'
+    WHEN 'cancel_installments' THEN 'Cancelación de cuotas confirmada'
+    WHEN 'credit' THEN 'Devolución recibida' END AS note,
+  ${refundHistoryCurrency} AS currency, ${refundHistoryAmount}::text AS amount,
+  NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
+
 type HistoryQuery = Exclude<
   ReturnType<typeof parseHistoryParams>,
   { error: string }
@@ -94,6 +110,7 @@ export async function listHistory(
   const withMixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
+  const refunds = await refundsReady(client);
   const categoryMatches = (field: string) =>
     `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
   const { rows } = await client.query<HistoryEntry>(
@@ -163,7 +180,8 @@ export async function listHistory(
          credit
            ? `UNION ALL
        (SELECT ${cardFields(withMixed)} ${cardSource(withPlans, withMixed)}
-         WHERE f.owner_id = $1 ${shared ? excludeShared : ""}
+         WHERE f.owner_id = $1 AND f.kind IN ('card_purchase', 'card_payment', 'card_opening', 'card_adjustment')
+           ${shared ? excludeShared : ""}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
@@ -189,6 +207,27 @@ export async function listHistory(
            AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
              AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
          ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
+           : ""
+       }
+       ${
+         refunds
+           ? `UNION ALL
+       (SELECT ${refundFields} ${refundHistorySource}
+        WHERE f.owner_id = $1 AND f.kind IN ('purchase_refund', 'card_credit_return')
+          AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
+          AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
+          AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR (${refundHistoryStatus}) = $6)
+          AND (($7 IS NULL AND $8 IS NULL) OR EXISTS (
+            SELECT 1 FROM finance.refund_parts part WHERE (part.owner_id, part.event_id) = (f.owner_id, f.id)
+             AND ($7 IS NULL OR ${categoryMatches("part.category_id")})
+             AND ($8 IS NULL OR part.method = $8 OR ($8 = 'mixed' AND EXISTS (
+               SELECT 1 FROM finance.refund_parts other WHERE (other.owner_id, other.event_id) = (f.owner_id, f.id)
+                 AND other.method <> part.method)))))
+          AND ($9 IS NULL OR ${refundHistoryCurrency} = $9)
+          AND ($10 IS NULL OR ${refundHistoryAmount} >= $10) AND ($11 IS NULL OR ${refundHistoryAmount} <= $11)
+          AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
+            AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
+        ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
            : ""
        }
        ) history ORDER BY effective_on DESC, id DESC, kind DESC LIMIT $15`,
@@ -244,6 +283,17 @@ export async function findHistoryEntry(
     [ownerId, id],
   );
   if (entry || checkpoint) return entry;
+  if (await refundsReady(client)) {
+    const {
+      rows: [refund],
+    } = await client.query<HistoryEntry>(
+      `SELECT ${refundFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+        ${refundHistorySource} WHERE f.owner_id = $1 AND f.id = $2
+        AND f.kind IN ('purchase_refund', 'card_credit_return')`,
+      [ownerId, id],
+    );
+    if (refund) return refund;
+  }
   if (await loansReady(client)) {
     const {
       rows: [loan],
@@ -258,7 +308,8 @@ export async function findHistoryEntry(
   const withMixed = await mixedPurchasesReady(client);
   const result = await client.query<HistoryEntry>(
     `SELECT ${cardFields(withMixed)}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
-      ${cardSource(await installmentsReady(client), withMixed)} WHERE f.owner_id = $1 AND f.id = $2`,
+      ${cardSource(await installmentsReady(client), withMixed)} WHERE f.owner_id = $1 AND f.id = $2
+      AND f.kind IN ('card_purchase', 'card_payment', 'card_opening', 'card_adjustment')`,
     [ownerId, id],
   );
   return result.rows[0];
@@ -269,11 +320,13 @@ export async function creditHistoryDetail(
   ownerId: string,
   id: string,
 ) {
+  const refunds = await refundsReady(client);
   const { rows } = await client.query<
     CreditHistoryLine & { card: string; effectiveRate: string | null }
   >(
     `SELECT card.name AS card, l.currency, l.amount::text,
             l.debt_delta::text AS "debtDelta", l.debt_after::text AS "debtAfter",
+            ${refunds ? '(-x.delta)::text AS "creditApplied",' : ""}
             l.bank_currency AS "bankCurrency", l.bank_amount::text AS "bankAmount", l.fee::text,
             left(to_jsonb(l)->>'statement_period', 7) AS "statementPeriod",
             CASE WHEN l.bank_currency <> l.currency
@@ -281,6 +334,7 @@ export async function creditHistoryDetail(
             coalesce(allocations.items, '[]'::jsonb) AS allocations
        FROM finance.credit_lines l
        JOIN finance.cards card ON (card.owner_id, card.id) = (l.owner_id, l.card_id)
+       ${refunds ? "LEFT JOIN finance.card_credit_changes x ON (x.owner_id, x.event_id, x.currency) = (l.owner_id, l.event_id, l.currency) AND x.delta < 0" : ""}
        LEFT JOIN LATERAL (
          SELECT jsonb_agg(jsonb_build_object('purchaseId', a.purchase_id,
            'amount', a.amount::text, 'concept', f.concept) ORDER BY a.purchase_id) AS items

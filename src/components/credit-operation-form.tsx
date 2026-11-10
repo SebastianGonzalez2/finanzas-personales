@@ -22,6 +22,7 @@ import {
 } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
 import {
+  AmountInput,
   HistoryField,
   historyButton,
   historyControl,
@@ -178,6 +179,9 @@ export function CreditOperationForm({
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
+              ...(form.get("creditApplied") && {
+                creditApplied: form.get("creditApplied"),
+              }),
               ...(financed && {
                 amount: form.get("issuerCharge") || "0",
                 plan: {
@@ -448,6 +452,16 @@ export function CreditOperationForm({
                 </p>
               </>
             )}
+            {!correction &&
+              card.currencies.some(
+                ({ currency, creditBalance }) =>
+                  currency === selectedCurrency &&
+                  /[1-9]/.test(creditBalance ?? ""),
+              ) && (
+                <HistoryField label="Saldo a favor aplicado por el emisor (opcional)">
+                  <AmountInput name="creditApplied" />
+                </HistoryField>
+              )}
             <HistoryField label="Concepto">
               <input
                 className={historyControl}
@@ -622,29 +636,6 @@ function CategorySelect({
         </option>
       ))}
     </select>
-  );
-}
-
-function AmountInput({
-  name,
-  required,
-  defaultValue,
-}: {
-  name: string;
-  required?: boolean;
-  defaultValue?: string;
-}) {
-  return (
-    <input
-      className={historyControl}
-      name={name}
-      required={required}
-      maxLength={22}
-      inputMode="decimal"
-      autoComplete="off"
-      placeholder="0,00"
-      defaultValue={defaultValue?.replace(".", ",")}
-    />
   );
 }
 

@@ -48,6 +48,7 @@ export type CreditCommand = {
       note: string | null;
       categoryId: string | null;
       covered: boolean;
+      creditApplied?: string;
       plan?: InstallmentTerms;
       mixed?: MixedPurchase;
     } & DebtAmount)
@@ -80,6 +81,7 @@ export type CreditPurchaseOption = DebtAmount & {
 export type CreditHistoryLine = DebtAmount & {
   debtDelta: string;
   debtAfter: string;
+  creditApplied?: string | null;
   bankCurrency: Currency | null;
   bankAmount: string | null;
   fee: string;
@@ -367,6 +369,7 @@ export function parseCreditCommand(
             "note",
             "categoryId",
             "covered",
+            "creditApplied",
             "plan",
             "mixed",
           ]
@@ -401,6 +404,17 @@ export function parseCreditCommand(
     const plan =
       data.plan === undefined ? undefined : installmentTerms(data.plan);
     const charge = amount(data.amount, !!plan);
+    const creditApplied =
+      data.creditApplied === undefined ? undefined : amount(data.creditApplied);
+    if (
+      creditApplied &&
+      (data.covered ||
+        creditApplied.padStart(21, "0") > charge.padStart(21, "0"))
+    )
+      return {
+        error:
+          "La compensación no puede superar el cargo confirmado ni aplicarse a una compra incluida en una deuda anterior.",
+      };
     const financed = plan && installmentTotal(plan, code);
     if (financed) {
       if (
@@ -425,6 +439,7 @@ export function parseCreditCommand(
       note: optionalText(data.note, noteLimit),
       categoryId: mixed?.categories.length ? null : categoryId(data.categoryId),
       covered: data.covered,
+      ...(creditApplied && { creditApplied }),
       ...(plan && { plan }),
       ...(mixed && { mixed }),
     };

@@ -19,6 +19,8 @@ import type { Currency } from "../domain/money.ts";
 import { lockCardWrites } from "./credit-operations.ts";
 import { commandHash } from "./movements.ts";
 
+import { refundsReady } from "./refund-schema.ts";
+
 type CycleChange = CycleDates &
   CycleSchedule &
   OfficialStatement &
@@ -50,6 +52,12 @@ type CycleData = {
   changes: CycleChange[];
   expenses: Expense[];
   payments: Payment[];
+  credits: {
+    cardId: string;
+    currency: Currency;
+    effectiveOn: string;
+    amount: string;
+  }[];
 };
 
 export async function cardCyclesReady(client: pg.PoolClient) {
@@ -66,6 +74,7 @@ async function readCycles(
   ownerId: string,
   cardId?: string,
 ) {
+  const refunds = await refundsReady(client);
   const {
     rows: [row],
   } = await client.query<CycleData>(
@@ -95,7 +104,19 @@ async function readCycles(
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
         WHERE l.owner_id = $1 AND ($2::uuid IS NULL OR l.card_id = $2)
           AND l.statement_period IS NOT NULL AND f.status = 'confirmed' AND f.kind = 'card_payment'
-        GROUP BY l.card_id, l.statement_period, l.currency) AS payments`,
+        GROUP BY l.card_id, l.statement_period, l.currency) AS payments,
+      ${
+        refunds
+          ? `ARRAY(SELECT jsonb_build_object('cardId', l.card_id, 'currency', l.currency,
+        'effectiveOn', to_char(f.effective_on, 'YYYY-MM-DD'),
+        'amount', (CASE WHEN f.kind = 'purchase_refund' THEN -l.debt_delta ELSE -x.delta END)::text)
+        FROM finance.card_credit_changes x
+        JOIN finance.credit_lines l ON (l.owner_id, l.event_id, l.currency) = (x.owner_id, x.event_id, x.currency)
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.event_id)
+        WHERE x.owner_id = $1 AND ($2::uuid IS NULL OR x.card_id = $2) AND f.status = 'confirmed'
+          AND ((f.kind = 'purchase_refund' AND l.debt_delta < 0) OR (f.kind = 'card_purchase' AND x.delta < 0)))`
+          : "ARRAY[]::jsonb[]"
+      } AS credits`,
     [ownerId, cardId ?? null],
   );
   return row;
@@ -146,7 +167,15 @@ function cardCycleData(data: CycleData, cardId: string) {
       .filter((payment) => payment.cardId === cardId)
       .map(({ period, currency, amount }) => [`${period}:${currency}`, amount]),
   );
-  return { schedule, dates, statements, purchases, payments };
+  const credits = new Map<string, string[]>();
+  for (const line of data.credits) {
+    if (line.cardId !== cardId) continue;
+    const period = purchaseCycle(line.effectiveOn, schedule, dates);
+    if (!period) continue;
+    const key = `${period}:${line.currency}`;
+    credits.set(key, [...(credits.get(key) ?? []), line.amount]);
+  }
+  return { schedule, dates, statements, purchases, payments, credits };
 }
 
 type CardCycleData = ReturnType<typeof cardCycleData>;
@@ -158,19 +187,29 @@ function summarizeCycle(
   today: string,
   amounts: string[],
 ) {
-  const { schedule, dates, statements, payments } = data;
+  const { schedule, dates, statements, payments, credits } = data;
   const cycleDates = dates.get(period) ?? defaultCycleDates;
   const statement = statements.get(`${period}:${currency}`) ?? defaultStatement;
   const paid = payments.get(`${period}:${currency}`) ?? "0.0000";
+  const abonos = credits.get(`${period}:${currency}`) ?? [];
+  const net = cycleAmount([
+    ...amounts,
+    ...abonos.map((amount) => `-${amount}`),
+  ]);
   const estimate =
-    amounts.length > 0 || cycleClosingOn(period, schedule, cycleDates)
-      ? cycleAmount(amounts)
+    amounts.length > 0 ||
+    abonos.length > 0 ||
+    cycleClosingOn(period, schedule, cycleDates)
+      ? net.startsWith("-")
+        ? "0.0000"
+        : net
       : null;
   return {
     currency,
     statement,
     paid,
     estimate,
+    credited: cycleAmount(abonos),
     ...statementStatus({
       period,
       schedule,
@@ -240,6 +279,7 @@ export async function listCardCycleAlerts(
       const keys = new Set([
         ...amountsByCycle.keys(),
         ...cardData.statements.keys(),
+        ...cardData.credits.keys(),
       ]);
       return [...keys].flatMap((key) => {
         const [period, code] = key.split(":");

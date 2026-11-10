@@ -91,7 +91,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F2-06 | Deudas y préstamos simples/cuotas, pago/cobro, entrega/recepción de capital, intereses de deuda reales, actualización pendiente. | RF-022/023; CA-030…032 |
 | F2-07 | Pago/cobro de préstamo en otra moneda según montos reales acordados. | RF-024; CA-033/034 |
 | F2-08 | Gasto pagado por tercero y gasto pagado para varios amigos con derechos por cobrar individualizados. | RF-025; CA-035/036. [Implementación y migración](39-gastos-compartidos-f2-08.md). |
-| F2-09 | Devoluciones reales en débito/crédito, cuotas, saldo a favor y compras/medios divididos. | RF-021/047; CA-028/029/037 |
+| F2-09 | Devoluciones reales en débito/crédito, cuotas, saldo a favor y compras/medios divididos. [Contrato y revisión](40-devoluciones-f2-09.md). | RF-021/047; CA-028/029/037 |
 | F2-10 | Tests de consistencia ante pagos parciales, reintentos, saldos negativos indebidos, autorización y concurrencia. | I-02/I-04/I-05/I-06/I-11/I-12 |
 
 **Puerta F2:** pruebas de **no duplicación** y trazabilidad obligatorias, en especial pago de resumen vs compra, cuotas, importe del comercio en otra moneda, devolución posterior y dinero de terceros.

@@ -30,6 +30,12 @@ import {
   resolveMovementCategory,
 } from "./movements.ts";
 
+import {
+  hasLaterCreditChange,
+  hasLinkedRefund,
+  refundsReady,
+} from "./refund-schema.ts";
+
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 const zero = "0.0000";
@@ -53,13 +59,20 @@ export async function lockCardWrites(client: pg.PoolClient, ownerId: string) {
 type RecordedLine = DebtAmount & {
   debtDelta: string;
   debtAfter: string;
+  creditDelta?: string;
   payment?: CreditPaymentLine;
 };
 type CreditEvent = {
   cardId: string;
   effectiveOn: string;
   idempotencyKey: string;
-  kind: "card_purchase" | "card_payment" | "card_opening" | "card_adjustment";
+  kind:
+    | "card_purchase"
+    | "card_payment"
+    | "card_opening"
+    | "card_adjustment"
+    | "purchase_refund"
+    | "card_credit_return";
   concept: string;
   categoryId?: string | null;
   note?: string | null;
@@ -67,7 +80,7 @@ type CreditEvent = {
   mixed?: boolean;
 };
 
-async function insertCreditEvent(
+export async function insertCreditEvent(
   client: pg.PoolClient,
   ownerId: string,
   event: CreditEvent,
@@ -100,6 +113,7 @@ async function insertCreditEvent(
     amount,
     debtDelta,
     debtAfter,
+    creditDelta,
     payment,
   } of event.lines) {
     const statement = payment?.statementPeriod;
@@ -126,6 +140,12 @@ async function insertCreditEvent(
         WHERE owner_id = $1 AND card_id = $2 AND currency = $3`,
       [ownerId, cardId, currency, debtAfter],
     );
+    if (creditDelta !== undefined) {
+      await client.query(
+        "INSERT INTO finance.card_credit_changes (owner_id, event_id, card_id, currency, delta) VALUES ($1, $2, $3, $4, $5)",
+        [ownerId, id, cardId, currency, creditDelta],
+      );
+    }
     for (const allocation of payment?.allocations ?? []) {
       await client.query(
         `INSERT INTO finance.credit_allocations (owner_id, card_id, payment_id, purchase_id, currency, amount)
@@ -194,23 +214,30 @@ export async function saveOpeningDebt(
 type Position = {
   currency: Currency;
   debt: string;
+  creditBalance: string;
+  latestActivity: string | null;
   reference: string | null;
   latest: string | null;
 };
 
-async function listPositions(
+export async function listPositions(
   client: pg.PoolClient,
   ownerId: string,
   cardId: string,
 ) {
+  const refunds = await refundsReady(client);
   const { rows } = await client.query<Position>(
     `SELECT p.currency, coalesce(p.debt, 0)::text AS debt,
+            (coalesce(p.credit_balance, 0)${refunds ? " + coalesce(b.delta, 0)" : ""})::text AS "creditBalance",
+            to_char(activity.last_activity, 'YYYY-MM-DD') AS "latestActivity",
             to_char(activity.reference, 'YYYY-MM-DD') AS reference,
             to_char(activity.latest, 'YYYY-MM-DD') AS latest
        FROM finance.card_currencies p
+       ${refunds ? "LEFT JOIN finance.card_credit_balances b USING (owner_id, card_id, currency)" : ""}
        CROSS JOIN LATERAL (
          SELECT max(f.effective_on) FILTER (WHERE f.kind IN ('card_opening', 'card_adjustment')) AS reference,
-                max(f.effective_on) FILTER (WHERE l.debt_delta <> 0) AS latest
+                max(f.effective_on) FILTER (WHERE l.debt_delta <> 0) AS latest,
+                max(f.effective_on) AS last_activity
            FROM finance.credit_lines l
            JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
           WHERE (l.owner_id, l.card_id, l.currency) = (p.owner_id, p.card_id, p.currency)
@@ -222,7 +249,7 @@ async function listPositions(
   return new Map(rows.map((position) => [position.currency, position]));
 }
 
-async function minimumDebtFrom(
+export async function minimumDebtFrom(
   client: pg.PoolClient,
   ownerId: string,
   cardId: string,
@@ -255,10 +282,14 @@ export async function listCreditPurchaseOptions(
   client: pg.PoolClient,
   ownerId: string,
 ) {
+  const refunds = await refundsReady(client);
+  const available = refunds
+    ? "l.amount - coalesce(used.total, 0) - coalesce(credited.amount, 0) + coalesce(applied.delta, 0)"
+    : "l.amount - coalesce(used.total, 0)";
   const { rows } = await client.query<CreditPurchaseOption>(
     `SELECT f.id, l.card_id AS "cardId", f.concept, l.currency,
             to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn",
-            (l.amount - coalesce(used.total, 0))::text AS amount
+            (${available})::text AS amount
        FROM finance.credit_lines l
        JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
        LEFT JOIN LATERAL (
@@ -268,8 +299,20 @@ export async function listCreditPurchaseOptions(
           WHERE (a.owner_id, a.purchase_id, a.currency) = (l.owner_id, l.event_id, l.currency)
             AND payment.status = 'confirmed'
        ) used ON true
+       ${
+         refunds
+           ? `LEFT JOIN finance.card_credit_changes applied ON (applied.owner_id, applied.event_id, applied.currency) = (l.owner_id, l.event_id, l.currency)
+       LEFT JOIN LATERAL (
+         SELECT sum(x.amount) AS amount FROM finance.purchase_refunds r
+         JOIN finance.financial_events rf ON (rf.owner_id, rf.id) = (r.owner_id, r.event_id)
+         JOIN finance.refund_parts x ON (x.owner_id, x.event_id) = (r.owner_id, r.event_id)
+         WHERE r.owner_id = l.owner_id AND r.purchase_id = l.event_id
+           AND rf.status = 'confirmed' AND r.action = 'credit' AND x.method = 'credit'
+       ) credited ON true`
+           : ""
+       }
       WHERE l.owner_id = $1 AND f.kind = 'card_purchase' AND f.status = 'confirmed'
-        AND l.amount > coalesce(used.total, 0)
+        AND (${available}) > 0
       ORDER BY f.effective_on DESC, f.created_at DESC, f.id DESC`,
     [ownerId],
   );
@@ -300,6 +343,10 @@ async function reverseCreditDebt(
   ownerId: string,
   eventId: string,
 ) {
+  if (await hasLinkedRefund(client, ownerId, eventId))
+    return conflict(
+      "La compra tiene devoluciones vinculadas. Revisalas antes de corregirla.",
+    );
   if (await isSharedExpense(client, ownerId, eventId))
     return conflict(
       "La compra tiene obligaciones vinculadas y requiere una corrección coordinada.",
@@ -343,10 +390,41 @@ async function reverseCreditDebt(
   if (rows.some(({ allocated }) => allocated))
     return conflict("Anulá primero los pagos asignados a esta compra.");
 
+  const refundSchema = await refundsReady(client);
   const updates: { cardId: string; currency: Currency; debt: string }[] = [];
   for (const line of rows) {
     const { cardId, currency, effectiveOn, debt } = line;
     const delta = units(line.delta);
+    if (
+      await hasLaterCreditChange(
+        client,
+        ownerId,
+        cardId,
+        currency,
+        effectiveOn,
+        eventId,
+      )
+    )
+      return conflict(
+        "La operación respalda devoluciones o usos posteriores de saldo a favor.",
+      );
+    const applied =
+      refundSchema &&
+      (
+        await client.query<{ delta: string; balance: string }>(
+          `SELECT x.delta::text, (coalesce(p.credit_balance, 0) + coalesce(b.delta, 0))::text AS balance
+       FROM finance.card_credit_changes x
+       JOIN finance.card_currencies p ON (p.owner_id, p.card_id, p.currency) = (x.owner_id, x.card_id, x.currency)
+       LEFT JOIN finance.card_credit_balances b ON (b.owner_id, b.card_id, b.currency) = (p.owner_id, p.card_id, p.currency)
+       WHERE x.owner_id = $1 AND x.event_id = $2 AND x.currency = $3`,
+          [ownerId, eventId, currency],
+        )
+      ).rows[0];
+    const credit = applied
+      ? units(applied.balance) - units(applied.delta)
+      : undefined;
+    if (credit !== undefined && credit > maxUnits)
+      return conflict("El saldo a favor resultante está fuera de rango.");
     if (line.anchored || delta === BigInt(0)) continue;
     if (
       line.kind === "card_purchase" &&
@@ -369,7 +447,11 @@ async function reverseCreditDebt(
     const restored = units(debt) - delta;
     if (restored > maxUnits)
       return conflict("La deuda resultante está fuera de rango.");
-    updates.push({ cardId, currency, debt: decimal(restored) });
+    updates.push({
+      cardId,
+      currency,
+      debt: decimal(restored),
+    });
   }
   for (const { cardId, currency, debt } of updates) {
     await client.query(
@@ -453,6 +535,32 @@ async function applyMixedPurchase(
       return conflict(
         "La compra tiene cuotas canceladas. Conservá el plan registrado o anulá la compra si corresponde.",
       );
+    if (await refundsReady(client)) {
+      const {
+        rows: [previous],
+      } = await client.query<{
+        cardId: string;
+        currency: Currency;
+        amount: string;
+      }>(
+        `SELECT card_id AS "cardId", currency, (-delta)::text AS amount
+          FROM finance.card_credit_changes WHERE owner_id = $1 AND event_id = $2 AND delta < 0`,
+        [ownerId, eventId],
+      );
+      if (previous) {
+        if (
+          previous.cardId !== command.cardId ||
+          previous.currency !== command.currency
+        )
+          return conflict(
+            "La compensación registrada pertenece a la tarjeta y moneda originales.",
+          );
+        command = {
+          ...command,
+          creditApplied: command.creditApplied ?? previous.amount,
+        };
+      }
+    }
     if (original.assigned)
       return conflict(
         "Restablecé las asignaciones manuales de la compra al resumen antes de corregirla.",
@@ -533,6 +641,18 @@ async function applyCreditOperation(
       if (position.reference && effectiveOn < position.reference)
         return conflict(
           "El pago es anterior a la fecha de referencia de la deuda.",
+        );
+      if (
+        await hasLaterCreditChange(
+          client,
+          ownerId,
+          cardId,
+          currency,
+          effectiveOn,
+        )
+      )
+        return conflict(
+          "El pago es anterior a una devolución o uso de saldo a favor. Revisá la conciliación.",
         );
       const paid = units(line.amount);
       if (
@@ -623,6 +743,12 @@ async function applyCreditOperation(
   if (!position) return conflict("La moneda no está habilitada en la tarjeta.");
   const debt = Money.parse(position.debt, currency);
   if (action === "adjustment") {
+    if (
+      await hasLaterCreditChange(client, ownerId, cardId, currency, effectiveOn)
+    )
+      return conflict(
+        "El ajuste es anterior a una devolución o uso de saldo a favor.",
+      );
     if (command.expectedDebt !== debt.toDecimal())
       return conflict(
         "La deuda cambió. Actualizá la página y revisá el importe.",
@@ -681,10 +807,33 @@ async function applyCreditOperation(
         "La compra es anterior a la deuda confirmada. Verificá si ya está incluida.",
       );
   }
+  const applied = command.creditApplied
+    ? units(command.creditApplied)
+    : BigInt(0);
+  if (
+    applied &&
+    (!(await refundsReady(client)) ||
+      command.covered ||
+      applied > units(amount) ||
+      applied > units(position.creditBalance) ||
+      (position.latestActivity && effectiveOn < position.latestActivity))
+  )
+    return conflict(
+      "Revisá el saldo a favor disponible y la fecha de la compensación.",
+    );
+  if (
+    !command.covered &&
+    amount !== zero &&
+    (await hasLaterCreditChange(client, ownerId, cardId, currency, effectiveOn))
+  )
+    return conflict(
+      "El cargo es anterior a una devolución o uso de saldo a favor. Revisá la conciliación.",
+    );
+  const charge = decimal(units(amount) - applied);
   let debtAfter = debt.toDecimal();
   try {
     if (!command.covered)
-      debtAfter = debt.add(Money.parse(amount, currency)).toDecimal();
+      debtAfter = debt.add(Money.parse(charge, currency)).toDecimal();
   } catch {
     return conflict("La deuda resultante está fuera de rango.");
   }
@@ -776,8 +925,11 @@ async function applyCreditOperation(
         {
           currency,
           amount,
-          debtDelta: command.covered ? zero : amount,
+          debtDelta: command.covered ? zero : charge,
           debtAfter,
+          ...(applied && {
+            creditDelta: "-" + command.creditApplied,
+          }),
         },
       ],
     },
@@ -881,6 +1033,10 @@ export async function reviseInstallments(
   if (current.version !== expectedVersion)
     return conflict("El plan cambió. Actualizá la página antes de corregirlo.");
 
+  if (await hasLinkedRefund(client, ownerId, eventId))
+    return conflict(
+      "El plan tiene devoluciones vinculadas. Revisalas desde la compra antes de cambiarlo.",
+    );
   const editing = command.action === "edit-installments";
   const shared = await isSharedExpense(client, ownerId, eventId);
   if (shared && !editing)

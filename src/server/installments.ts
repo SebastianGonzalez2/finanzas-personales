@@ -8,6 +8,7 @@ import type {
 } from "../domain/installments.ts";
 import type { Currency } from "../domain/money.ts";
 import { sharedExpensesReady } from "./shared-expense-schema.ts";
+import { refundsReady } from "./refund-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 
 export async function installmentsReady(client: pg.PoolClient) {
@@ -24,13 +25,16 @@ const versionFields = `p.version, p.installment_amount::text AS "installmentAmou
   to_char(p.first_period, 'YYYY-MM') AS "firstPeriod", p.change_type AS change,
   to_char(p.recorded_at AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD HH24:MI') AS "recordedOn"`;
 
+const refundCancellations = `, ARRAY(SELECT i.ordinal FROM finance.active_refund_installments i
+  WHERE (i.owner_id, i.purchase_id) = (p.owner_id, p.event_id)) AS "refundCancelled"`;
+
 export async function listInstallmentVersions(
   client: pg.PoolClient,
   ownerId: string,
   eventId: string,
 ) {
   const { rows } = await client.query<InstallmentVersion>(
-    `SELECT ${versionFields} FROM finance.installment_plans p
+    `SELECT ${versionFields}${(await refundsReady(client)) ? refundCancellations : ""} FROM finance.installment_plans p
       WHERE p.owner_id = $1 AND p.event_id = $2 ORDER BY p.version DESC`,
     [ownerId, eventId],
   );
@@ -42,7 +46,7 @@ export async function listCardInstallments(
   ownerId: string,
 ) {
   const { rows } = await client.query<InstallmentSummary>(
-    `SELECT ${versionFields}, f.id, f.concept, p.currency, o.card_id AS "cardId"
+    `SELECT ${versionFields}${(await refundsReady(client)) ? refundCancellations : ""}, f.id, f.concept, p.currency, o.card_id AS "cardId"
        FROM finance.current_installment_plans p
        JOIN finance.financial_events f ON (f.owner_id, f.id) = (p.owner_id, p.event_id)
        JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (p.owner_id, p.event_id)

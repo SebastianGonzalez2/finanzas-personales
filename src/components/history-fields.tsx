@@ -20,3 +20,26 @@ export function HistoryField({
     </label>
   );
 }
+
+export function AmountInput({
+  name,
+  required,
+  defaultValue,
+}: {
+  name: string;
+  required?: boolean;
+  defaultValue?: string;
+}) {
+  return (
+    <input
+      className={historyControl}
+      name={name}
+      required={required}
+      maxLength={22}
+      inputMode="decimal"
+      autoComplete="off"
+      placeholder="0,00"
+      defaultValue={defaultValue?.replace(".", ",")}
+    />
+  );
+}
