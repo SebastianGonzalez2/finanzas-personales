@@ -1,12 +1,12 @@
 # Guía operativa: cómo trabajar con Codex sin depender de un chat de planificación
 
-**Alcance:** organización del trabajo humano + Codex. **No** agrega requisitos de producto ni cambia las decisiones v9.48. Consultar siempre [plan técnico](05-plan-de-implementacion.md), [criterios de aceptación](03-criterios-de-aceptacion.md), [riesgos](06-riesgos-y-pendientes.md), [handoff](07-handoff-codex.md) y `/AGENTS.md`.
+**Alcance:** organización del trabajo humano + Codex/OpenCode. No altera decisiones de producto (vigente v9.49 y posteriores). **Lectura mínima:** `AGENTS.md`, sección del ticket en [plan técnico](05-plan-de-implementacion.md) y fila del ticket en [matriz de modelos](10-modelos-por-ticket.md). Consultar [criterios de aceptación](03-criterios-de-aceptacion.md), [riesgos](06-riesgos-y-pendientes.md) y [handoff](07-handoff-codex.md) **solo en las secciones pertinentes**. No cargar toda la carpeta `docs/planning` por defecto.
 
 ## Regla principal
 
 **Una conversación principal de Codex por ticket o unidad de trabajo revisable (normalmente un PR pequeño).** **Nombres y trazabilidad obligatorios:** seguir [09-convenciones-git.md](09-convenciones-git.md) y [plantilla de PR](../../.github/PULL_REQUEST_TEMPLATE.md): rama `codex/F0-01-revision-inicial`, commit `docs(F0-01): documentar estado inicial`, PR `[F0-01] Revisión inicial del repositorio`. El ID debe coincidir con el ticket; buscarlo recupera los cambios relacionados. Una rama no es un commit ni prueba de tarea completada. Mantener la conversación para aclaraciones, errores, pruebas y correcciones de **ese mismo ticket**. Crear una nueva cuando haya cambiado el objetivo o el ticket haya sido aceptado y cerrado. No un chat por requisito de producto si el requisito es grande; dividir en tickets F0-01, F0-02, etc. No mezclar tareas de módulos independientes en un chat de implementación gigantesco.
 
-Los **archivos y commits de Git**, no la memoria de la conversación, son la fuente persistente de avance. Codex debe leer documentación del repositorio al inicio de cada nuevo chat.
+Los **archivos y commits de Git**, no la memoria de la conversación, son la fuente persistente de avance. Al iniciar un ticket, leer solo su contexto relevante; `AGENTS.md` define el procedimiento mínimo. Para ruta MIX, Codex continúa sobre la misma rama/commits creados con OpenCode.
 
 ## Nombre visible del chat de Codex
 
@@ -21,7 +21,7 @@ Este convenio se documenta además en `09-convenciones-git.md`. Los títulos de 
 ## Entorno recomendado al comenzar
 
 - Abrir **Codex en el ordenador**, elegir el proyecto local `finanzas-personales`, confirmar ruta, rama y remoto de GitHub. No editar otro proyecto.
-- **Modelo:** seleccionar el modelo de programación general más capaz disponible, preferentemente GPT-6.1 Sol si figura en el selector; si no, usar el más capaz disponible. **Reasoning effort: High** para contabilidad, seguridad, arquitectura y migraciones; **Medium** para tareas pequeñas con criterios claros. No confundir nombres de modelos de API con disponibilidad exacta del selector de Codex.
+- **Modelo:** consultar la **fila del ticket** en `10-modelos-por-ticket.md` para decidir OC/MIX/CX y modelo/esfuerzo. Seleccionar manualmente un modelo disponible en la herramienta elegida; reservar esfuerzo High para contabilidad, seguridad, arquitectura, migraciones y concurrencia. No asumir que un nombre del documento esté disponible en el selector.
 - **Permisos:** empezar por **Ask for approval**, que permite leer/escribir dentro de workspace y comandos normales pero solicita aprobación al necesitar acceso externo o escalado. Si resulta excesivo para tareas rutinarias de bajo riesgo, considerar **Approve for me**, con evaluación automática de solicitudes permitidas; **nunca confundirlo con revisión humana del código**. No dejar **Full access** activo de forma general.
 - **Aislamiento:** crear nueva **rama** de trabajo o **worktree** desde `main` para cada ticket. Evitar desarrollar directamente sobre `main`. Antes de cambiar ramas, comprobar `git status` y proteger cualquier trabajo local.
 - Plan mode para tareas de alto riesgo (autenticación, dinero, migraciones, seguridad). La propuesta puede revisarse antes de implementar. Para tickets sencillos y bien definidos, Codex puede implementar de forma autónoma dentro del alcance acordado.
@@ -30,7 +30,7 @@ Este convenio se documenta además en `09-convenciones-git.md`. Los títulos de 
 ## Ciclo fijo de cada ticket
 
 1. **Abrir** Codex sobre el mismo repositorio y sincronizar cuidadosamente con `origin/main`, sin perder cambios locales.
-2. **Elegir el próximo ticket sin cerrar** de `05-plan-de-implementacion.md` respetando dependencias, empezando en **F0-01**. Crear rama/worktree aislada.
+2. **Elegir el ticket solicitado** o el próximo pendiente de `05-plan-de-implementacion.md` según dependencias; verificar la ruta OC/MIX/CX en `10-modelos-por-ticket.md`. Crear rama/worktree aislada.
 3. **Dar alcance concreto:** ticket, RF/CA, qué está fuera del ticket, archivos de referencia, tests esperados. Codex revisa `AGENTS.md` y documentación.
 4. **Propuesta corta** si es cambio riesgoso. Revisar solución propuesta y límites antes de aceptar.
 5. **Implementación:** Codex modifica archivos necesarios, ejecuta tests/lint/typecheck/build, observa errores, corrige y vuelve a probar.
@@ -48,7 +48,7 @@ Este convenio se documenta además en `09-convenciones-git.md`. Los títulos de 
 Estamos desarrollando el repositorio SebastianGonzalez2/finanzas-personales.
 Abrí y revisá AGENTS.md y docs/planning/README.md, 05-plan-de-implementacion.md,
 06-riesgos-y-pendientes.md y 07-handoff-codex.md. El documento de decisiones
-v9.48 sigue siendo la fuente de verdad.
+v9.49 y las posteriores prevalecen sobre las históricas.
 
 Trabajá SOLO el ticket F0-01: inventario del repositorio y preparación segura.
 Primero verificá ruta, git status, rama, origin/main y diferencias local-remoto.
@@ -71,7 +71,8 @@ de trabajo separada y ejecutá los chequeos que correspondan.
 ```text
 [F?-??] Descripción breve del ticket
 
-Leé AGENTS.md y docs/planning/README.md. Trabajá SOLO [F?-??] de
+Leé AGENTS.md y la fila [F?-??] de docs/planning/10-modelos-por-ticket.md.
+Trabajá SOLO [F?-??] de
 docs/planning/05-plan-de-implementacion.md, usando los requisitos RF-...
 y criterios CA-... de docs/planning. Comprobá git status y sincronización
 sin borrar cambios locales; abrí rama/worktree de este ticket desde main.
@@ -122,10 +123,9 @@ mostrame exactamente qué cambió.
 **Consultar la matriz actual por ticket** en [10-modelos-por-ticket.md](10-modelos-por-ticket.md), que recomienda el modelo, nivel de razonamiento y necesidad de revisión independiente para cada tarea. El titular selecciona el modelo manualmente en Codex; no se cambia automáticamente por el nombre del ticket. Si falla una evaluación, no se sacrifica calidad para ahorrar uso.
 
 
-- Elegir un modelo avanzado disponible en Codex; los nombres exactos y disponibilidad cambian.
-- High para F0 autenticación/seguridad, F1 motor contable y checkpoints, F2 cuotas y tarjetas, F3 fondos, migraciones y revisiones críticas.
-- Medium para redacción de tests unitarios de bajo riesgo, edición de UI puntual, estilos, documentación o cambios pequeños.
-- Intensidad máxima rara vez necesaria sin evaluación; el criterio de éxito son **tests y revisión del diff**, no solamente más razonamiento.
+- Seguir **la fila correspondiente del ticket**, no aplicar Sol High a toda una fase por defecto. Para OC usar OpenCode gratuito; para MIX delegar su tramo a OpenCode y cerrar en Codex con la misma rama; para CX usar Codex desde el inicio.
+- Elegir intensidad según la matriz y el **riesgo real**: High para decisiones monetarias, RLS, concurrencia, migraciones, backups o seguridad; Medium para UI, documentación y cambios acotados. Si el selector no tiene el modelo citado, elegir el disponible más adecuado y documentar el cambio.
+- No sacrificar pruebas ni calidad por minimizar tokens; medir el ahorro por ticket aceptado, no por respuesta.
 
 ## ¿Cuándo abrir un chat nuevo?
 
