@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
+import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
 import { HistoryEditor } from "@/components/history-editor";
 import { InstallmentEditor } from "@/components/installment-editor";
 import { InstallmentHistory } from "@/components/installment-history";
@@ -11,6 +12,7 @@ import { historyButton } from "@/components/history-fields";
 import { Card } from "@/components/ui/card";
 import {
   bankReferenceToday,
+  formatBankAmount,
   formatBankReference,
 } from "@/domain/bank-balances";
 import {
@@ -20,6 +22,7 @@ import {
   parseHistoryParams,
 } from "@/domain/history";
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
+import { installmentTotal } from "@/domain/installments";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
   installmentsReady,
@@ -32,6 +35,8 @@ import {
   listHistoryCurrencies,
 } from "@/server/history";
 import { historyReady, listMovementCategories } from "@/server/movements";
+import { listCards } from "@/server/cards";
+import { mixedPurchaseDetail } from "@/server/mixed-purchases";
 
 export const metadata = { title: "Detalle del registro | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -66,17 +71,34 @@ export default async function HistoryDetail({
         entry.kind === "card_purchase" && (await installmentsReady(client))
           ? await listInstallmentVersions(client, ownerId, id)
           : [];
+      const mixed =
+        entry.method === "mixed"
+          ? await mixedPurchaseDetail(client, ownerId, id)
+          : undefined;
+      const mixedEditable =
+        !!mixed &&
+        entry.status === "confirmed" &&
+        (!plans[0] || plans[0].count === plans[0].activeCount);
+      const mixedCards = mixedEditable
+        ? (await listCards(client, ownerId)).filter(
+            ({ id, archived }) =>
+              !archived ||
+              id === mixed.creditCardId ||
+              id === mixed.debitCardId,
+          )
+        : [];
       const editable =
         !checkpoint && !entry.cardAmounts && entry.status === "confirmed";
       const categories =
-        editable && entry.kind !== "bank_transfer"
+        (editable && entry.kind !== "bank_transfer") || mixedEditable
           ? (await listMovementCategories(client, ownerId)).filter(
-              ({ kind }) => kind === entry.kind,
+              ({ kind }) => kind === (mixedEditable ? "expense" : entry.kind),
             )
           : [];
-      const currencies = editable
-        ? await listHistoryCurrencies(client, ownerId)
-        : [];
+      const currencies =
+        editable || mixedEditable
+          ? await listHistoryCurrencies(client, ownerId)
+          : [];
       return {
         entry,
         revisions,
@@ -85,6 +107,8 @@ export default async function HistoryDetail({
         currencies,
         cardLines,
         plans,
+        mixed,
+        mixedCards,
       };
     },
   ).catch((error: unknown) => {
@@ -117,9 +141,13 @@ export default async function HistoryDetail({
     currencies,
     cardLines,
     plans,
+    mixed,
+    mixedCards,
   } = data;
   const today = bankReferenceToday();
   const plan = plans[0];
+  const credit = cardLines[0];
+  const mixedCreditCards = mixedCards.filter(({ kind }) => kind === "credit");
   return (
     <FinanceShell current="historial">
       <div className="grid max-w-3xl gap-4">
@@ -146,9 +174,11 @@ export default async function HistoryDetail({
               <dt className="text-sm text-muted-foreground">
                 {entry.kind === "bank_transfer"
                   ? "Entregado → Recibido"
-                  : plan
-                    ? "Total financiado"
-                    : "Importe"}
+                  : mixed
+                    ? "Total de la compra"
+                    : plan
+                      ? "Total financiado"
+                      : "Importe"}
               </dt>
               <dd>
                 <HistoryAmount entry={entry} />
@@ -160,7 +190,7 @@ export default async function HistoryDetail({
                   <dt className="text-sm text-muted-foreground">Medio</dt>
                   <dd>{movementDisplayMethods[entry.method]}</dd>
                 </div>
-                {entry.kind !== "card_payment" && (
+                {entry.kind !== "card_payment" && !mixed?.categories.length && (
                   <div>
                     <dt className="text-sm text-muted-foreground">Categoría</dt>
                     <dd className="wrap-anywhere">
@@ -179,6 +209,46 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {mixed && credit && (
+            <section className="grid gap-2 border-t pt-4">
+              <h2 className="font-semibold">Medios de la compra</h2>
+              <p className="text-sm wrap-anywhere">
+                Débito de Bancos{mixed.debitCard && ` · ${mixed.debitCard}`} ·{" "}
+                {formatBankAmount({
+                  currency: entry.currency,
+                  amount: mixed.debitAmount,
+                })}
+              </p>
+              <p className="text-sm wrap-anywhere">
+                Porción de crédito ·{" "}
+                {formatBankAmount({
+                  currency: entry.currency,
+                  amount: plan
+                    ? installmentTotal(plan, entry.currency)
+                    : credit.amount,
+                })}
+              </p>
+              {mixed.categories.length > 0 && (
+                <ul
+                  aria-label="Reparto por categorías"
+                  className="grid gap-1 text-sm"
+                >
+                  {mixed.categories.map(
+                    ({ method, categoryId, category, amount }) => (
+                      <li
+                        className="wrap-anywhere"
+                        key={`${method}-${categoryId}`}
+                      >
+                        {method === "debit" ? "Débito" : "Crédito"} ·{" "}
+                        {category ?? "Sin categorizar"} ·{" "}
+                        {formatBankAmount({ currency: entry.currency, amount })}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
+            </section>
+          )}
           {cardLines.length > 0 && (
             <CreditHistoryDetail
               lines={cardLines}
@@ -192,7 +262,7 @@ export default async function HistoryDetail({
                 versions={plans}
                 currency={cardLines[0].currency}
                 today={today}
-                voided={entry.status === "voided"}
+                status={entry.status}
               />
               {entry.status === "confirmed" && (
                 <InstallmentEditor
@@ -249,6 +319,28 @@ export default async function HistoryDetail({
                 payment={entry.kind === "card_payment"}
               />
             )}
+          {mixed && credit && mixedCreditCards.length > 0 && (
+            <MixedPurchaseEditor
+              cards={mixedCreditCards}
+              debitCards={mixedCards.filter(({ kind }) => kind === "debit")}
+              banks={currencies}
+              categories={categories}
+              today={today}
+              initialCurrency={entry.currency}
+              correction={{
+                ...mixed,
+                cardId: mixed.creditCardId,
+                eventId: entry.id,
+                total: entry.amount,
+                amount: credit.amount,
+                effectiveOn: entry.effectiveOn,
+                categoryId: entry.categoryId,
+                concept: entry.concept,
+                note: entry.note,
+                plan,
+              }}
+            />
+          )}
           {editable && (
             <HistoryEditor
               entry={entry}

@@ -7,6 +7,7 @@ import type {
   MonthlyInstallment,
 } from "../domain/installments.ts";
 import type { Currency } from "../domain/money.ts";
+import { mixedPurchasesReady } from "./mixed-purchases.ts";
 
 export async function installmentsReady(client: pg.PoolClient) {
   const {
@@ -56,8 +57,16 @@ export async function listMonthlyInstallments(
   ownerId: string,
   monthStart: string,
 ) {
+  const mixed = await mixedPurchasesReady(client);
   const { rows } = await client.query<MonthlyInstallment>(
-    `SELECT x.id, x.concept, x.installment_ordinal AS ordinal, x.currency, x.amount::text, c.name AS category
+    `SELECT x.id, x.concept, x.installment_ordinal AS ordinal, x.currency, x.amount::text,
+            ${
+              mixed
+                ? `CASE WHEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
+              WHERE (s.owner_id, s.event_id, s.method) = (x.owner_id, x.id, 'credit'))
+                THEN 'Categorías repartidas' ELSE c.name END`
+                : "c.name"
+            } AS category
        FROM finance.credit_expenses x
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
       WHERE x.owner_id = $1 AND x.effective_on = $2::date AND x.installment_ordinal IS NOT NULL

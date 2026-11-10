@@ -10,6 +10,7 @@ import {
   listBankCheckpoints,
 } from "@/server/bank-balances";
 import { listCards } from "@/server/cards";
+import { mixedPurchasesReady } from "@/server/mixed-purchases";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
   installmentsReady,
@@ -67,6 +68,9 @@ export default async function SummaryPage({
           incomes: [],
         };
       const plansReady = await installmentsReady(client);
+      const cards = (await creditOperationsReady(client))
+        ? (await listCards(client, ownerId)).filter(({ archived }) => !archived)
+        : [];
       return {
         ...bankData,
         movementRegistrationReady: writable,
@@ -77,11 +81,10 @@ export default async function SummaryPage({
         categories: writable
           ? await listMovementCategories(client, ownerId)
           : [],
-        creditCards: (await creditOperationsReady(client))
-          ? (await listCards(client, ownerId)).filter(
-              ({ kind, archived }) => kind === "credit" && !archived,
-            )
-          : [],
+        creditCards: cards.filter(({ kind }) => kind === "credit"),
+        debitCards: (await mixedPurchasesReady(client))
+          ? cards.filter(({ kind }) => kind === "debit")
+          : undefined,
         installmentsReady: plansReady,
         monthlyInstallments: plansReady
           ? await listMonthlyInstallments(client, ownerId, monthStart)

@@ -42,6 +42,7 @@ export function CardCatalog({
   purchases,
   installmentsReady,
   cyclesReady,
+  mixedReady,
   plans,
 }: {
   cards: CatalogCard[];
@@ -52,6 +53,7 @@ export function CardCatalog({
   purchases: CreditPurchaseOption[];
   installmentsReady: boolean;
   cyclesReady: boolean;
+  mixedReady: boolean;
   plans: InstallmentSummary[];
 }) {
   const router = useRouter();
@@ -108,6 +110,13 @@ export function CardCatalog({
               today={today}
               banks={banks}
               categories={categories}
+              debitCards={
+                mixedReady
+                  ? cards.filter(
+                      ({ kind, archived }) => kind === "debit" && !archived,
+                    )
+                  : undefined
+              }
               purchases={purchases}
               installmentsReady={installmentsReady}
               close={close}

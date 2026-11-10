@@ -18,15 +18,16 @@ export function InstallmentHistory({
   versions,
   currency,
   today,
-  voided,
+  status,
 }: {
   versions: InstallmentVersion[];
   currency: Currency;
   today: string;
-  voided: boolean;
+  status: "confirmed" | "voided" | "corrected";
 }) {
   const plan = versions[0];
-  const future = voided ? 0 : futureInstallmentPeriods(plan, today).length;
+  const future =
+    status === "confirmed" ? futureInstallmentPeriods(plan, today).length : 0;
   const elapsed = Array.from({ length: plan.activeCount }, (_, index) =>
     installmentPeriodAt(plan.firstPeriod, index),
   ).filter((period) => period < today.slice(0, 7)).length;
@@ -40,9 +41,11 @@ export function InstallmentHistory({
         financiado {formatInstallmentTotal(plan, currency)}
       </p>
       <p className="text-sm text-muted-foreground">
-        {voided
-          ? "Compra anulada en la aplicación."
-          : `${elapsed} de ${plan.activeCount} cuotas vigentes corresponden a meses anteriores. Cuotas futuras · ${future}. Compromiso futuro · ${formatInstallmentTotal(plan, currency, future)}.`}{" "}
+        {status === "corrected"
+          ? "Plan del registro anterior a la corrección."
+          : status === "voided"
+            ? "Compra anulada en la aplicación."
+            : `${elapsed} de ${plan.activeCount} cuotas vigentes corresponden a meses anteriores. Cuotas futuras · ${future}. Compromiso futuro · ${formatInstallmentTotal(plan, currency, future)}.`}{" "}
         El calendario muestra la imputación de gastos. La facturación y los
         pagos se registran aparte.
       </p>
@@ -52,16 +55,19 @@ export function InstallmentHistory({
       >
         {Array.from({ length: plan.count }, (_, index) => {
           const period = installmentPeriodAt(plan.firstPeriod, index);
-          const status = voided
-            ? "Anulada"
-            : index >= plan.activeCount
-              ? "Cancelada por el emisor"
-              : period > today.slice(0, 7)
-                ? "Futura"
-                : "Imputada al mes";
+          const label =
+            status === "corrected"
+              ? "Plan reemplazado"
+              : status === "voided"
+                ? "Anulada"
+                : index >= plan.activeCount
+                  ? "Cancelada por el emisor"
+                  : period > today.slice(0, 7)
+                    ? "Futura"
+                    : "Imputada al mes";
           return (
             <li key={period} className="rounded-lg border p-2 text-sm">
-              {index + 1} · {formatInstallmentPeriod(period)} · {status}
+              {index + 1} · {formatInstallmentPeriod(period)} · {label}
             </li>
           );
         })}

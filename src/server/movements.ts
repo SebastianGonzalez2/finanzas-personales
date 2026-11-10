@@ -1,4 +1,5 @@
 import "server-only";
+import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
@@ -795,6 +796,7 @@ export async function listMovementTotals(
   monthStart: string,
 ) {
   const credit = await creditOperationsReady(client);
+  const mixed = credit && (await mixedPurchasesReady(client));
   const { rows } = await client.query<MovementTotal>(
     `SELECT kind, currency, sum(amount)::text AS amount FROM (
        SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
@@ -807,9 +809,18 @@ export async function listMovementTotals(
       ${
         credit
           ? `UNION ALL
-        SELECT 'expense', currency, amount FROM finance.credit_expenses
-         WHERE owner_id = $1 AND effective_on >= $2::date
-           AND effective_on < $2::date + interval '1 month'`
+        SELECT 'expense', x.currency, x.amount FROM finance.credit_expenses x
+         WHERE x.owner_id = $1 AND x.effective_on >= $2::date
+           AND x.effective_on < $2::date + interval '1 month'
+           ${
+             mixed
+               ? `AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases m
+             WHERE (m.owner_id, m.event_id) = (x.owner_id, x.id))
+           UNION ALL
+           SELECT 'expense', currency, amount FROM finance.mixed_purchase_expenses
+            WHERE owner_id = $1 AND effective_on >= $2::date AND effective_on < $2::date + interval '1 month'`
+               : ""
+           }`
           : ""
       }
       ) amounts GROUP BY kind, currency`,
@@ -825,6 +836,7 @@ export async function listRecentMovements(
   installmentsReady = false,
 ) {
   const credit = kind === "expense" && (await creditOperationsReady(client));
+  const mixed = credit && (await mixedPurchasesReady(client));
   const { rows } = await client.query<RecentMovement>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
             currency, amount, method, note, category FROM (
@@ -840,12 +852,41 @@ export async function listRecentMovements(
         credit
           ? `UNION ALL
         SELECT x.id, 'expense', x.concept, x.effective_on, x.created_at,
-               x.currency, x.amount::text, x.method, x.note,
-               CASE WHEN f.kind = 'card_payment' THEN 'Comisiones bancarias' ELSE c.name END
+               x.currency, ${mixed ? "(x.amount + coalesce(d.amount, 0))" : "x.amount"}::text,
+               ${mixed ? "CASE WHEN d.id IS NOT NULL THEN 'mixed' ELSE x.method END" : "x.method"}, x.note,
+               CASE WHEN f.kind = 'card_payment' THEN 'Comisiones bancarias'
+                 ${
+                   mixed
+                     ? `WHEN d.id IS NOT NULL AND EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
+                   WHERE (s.owner_id, s.event_id) = (x.owner_id, x.id)) THEN 'Categorías repartidas'`
+                     : ""
+                 }
+                 ELSE c.name END
           FROM finance.credit_expenses x
           JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.id)
           LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
-         WHERE x.owner_id = $1 ${installmentsReady ? "AND x.installment_ordinal IS NULL" : ""}`
+          ${
+            mixed
+              ? `LEFT JOIN finance.mixed_purchase_debits d
+            ON (d.owner_id, d.id) = (x.owner_id, x.id) AND x.installment_ordinal IS NULL`
+              : ""
+          }
+         WHERE x.owner_id = $1 ${installmentsReady ? "AND x.installment_ordinal IS NULL" : ""}
+         ${
+           mixed
+             ? `UNION ALL
+         SELECT f.id, 'expense', f.concept, d.effective_on, f.created_at,
+                d.currency, d.amount::text, 'debit', o.note,
+                CASE WHEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
+                  WHERE (s.owner_id, s.event_id) = (d.owner_id, d.id)) THEN 'Categorías repartidas' ELSE c.name END
+           FROM finance.mixed_purchase_debits d
+           JOIN finance.financial_events f ON (f.owner_id, f.id) = (d.owner_id, d.id)
+           JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (d.owner_id, d.id)
+           JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (d.owner_id, d.id)
+           LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (o.owner_id, o.category_id)
+          WHERE d.owner_id = $1 AND f.status = 'confirmed'`
+             : ""
+         }`
           : ""
       }
       ) recent ORDER BY effective_on DESC, created_at DESC, id DESC, currency LIMIT 5`,

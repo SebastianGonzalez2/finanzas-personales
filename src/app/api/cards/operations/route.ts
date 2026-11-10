@@ -5,6 +5,7 @@ import {
   voidCreditOperation,
 } from "@/server/credit-operations";
 import { installmentsReady } from "@/server/installments";
+import { mixedPurchasesReady } from "@/server/mixed-purchases";
 import { cardCyclesReady } from "@/server/card-cycles";
 import { creditOperationsReady } from "@/server/movements";
 import { withGoogleOwner } from "@/server/google-auth";
@@ -56,6 +57,18 @@ export async function POST(request: Request) {
           {
             error:
               "Actualizá la base de datos para asociar un pago al resumen.",
+          },
+          409,
+        );
+      if (
+        command.action === "purchase" &&
+        command.mixed &&
+        !(await mixedPurchasesReady(client))
+      )
+        return reply(
+          {
+            error:
+              "Actualizá la base de datos para registrar compras con dos medios.",
           },
           409,
         );

@@ -15,6 +15,7 @@ import { withGoogleOwner } from "@/server/google-auth";
 import { installmentsReady, listCardInstallments } from "@/server/installments";
 import { cardCyclesReady, listCardCycleAlerts } from "@/server/card-cycles";
 import { CardCycleAlerts } from "@/components/card-cycle-alerts";
+import { mixedPurchasesReady } from "@/server/mixed-purchases";
 
 export const metadata = { title: "Tarjetas | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function CardsPage() {
         creditReady,
         installmentsReady: plansReady,
         cyclesReady,
+        mixedReady: hasCredit && (await mixedPurchasesReady(client)),
         alerts: cyclesReady
           ? await listCardCycleAlerts(client, ownerId, cards, today)
           : [],

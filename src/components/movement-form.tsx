@@ -30,6 +30,7 @@ export function MovementForm({
   categories,
   bankTransfersReady,
   creditCards,
+  debitCards,
   installmentsReady,
 }: {
   today: string;
@@ -37,6 +38,7 @@ export function MovementForm({
   categories: MovementCategory[];
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
+  debitCards?: CatalogCard[];
   installmentsReady: boolean;
 }) {
   const router = useRouter();
@@ -359,6 +361,7 @@ export function MovementForm({
                 cards={creditCards}
                 banks={configured}
                 categories={categories}
+                debitCards={debitCards}
                 today={today}
                 installmentsReady={installmentsReady}
                 close={(result) => {

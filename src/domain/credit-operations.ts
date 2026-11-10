@@ -11,7 +11,7 @@ import {
   isInstallmentPeriod,
   type InstallmentTerms,
 } from "./installments.ts";
-import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import { Money, normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export type DebtAmount = { currency: Currency; amount: string };
 export type OpeningDebt = { effectiveOn: string; lines: DebtAmount[] };
@@ -24,6 +24,19 @@ export type CreditPaymentLine = DebtAmount & {
   allocations: PaymentAllocation[];
 };
 export type CreditAction = "purchase" | "payment" | "adjustment";
+export const maxPurchaseCategories = 10;
+export type PurchaseCategory = {
+  method: "debit" | "credit";
+  categoryId: string | null;
+  amount: string;
+};
+export type MixedPurchase = {
+  total: string;
+  debitAmount: string;
+  debitCardId: string | null;
+  categories: PurchaseCategory[];
+  correction?: { eventId: string; planVersion: number };
+};
 export type CreditCommand = {
   cardId: string;
   effectiveOn: string;
@@ -36,6 +49,7 @@ export type CreditCommand = {
       categoryId: string | null;
       covered: boolean;
       plan?: InstallmentTerms;
+      mixed?: MixedPurchase;
     } & DebtAmount)
   | ({ action: "adjustment"; expectedDebt: string } & DebtAmount)
   | { action: "payment"; lines: CreditPaymentLine[] }
@@ -215,6 +229,91 @@ function installmentTerms(input: unknown): InstallmentTerms {
   };
 }
 
+function categoryId(value: unknown) {
+  return value == null || value === "" ? null : id(value);
+}
+
+class MixedPurchaseInputError extends Error {}
+
+function mixedPurchase(
+  input: unknown,
+  credit: string,
+  code: Currency,
+): MixedPurchase {
+  const data = record(input, [
+    "total",
+    "debitAmount",
+    "debitCardId",
+    "categories",
+    "correction",
+  ]);
+  const total = amount(data.total);
+  const debitAmount = amount(data.debitAmount);
+  if (
+    Money.parse(debitAmount, code)
+      .add(Money.parse(credit, code))
+      .toDecimal() !== total
+  )
+    throw new MixedPurchaseInputError(
+      "El débito y el crédito deben sumar el total de la compra.",
+    );
+  const splits = data.categories;
+  if (!Array.isArray(splits) || splits.length > maxPurchaseCategories)
+    throw new Error();
+  const categories = splits
+    .map((input): PurchaseCategory => {
+      const row = record(input, ["method", "categoryId", "amount"]);
+      if (row.method !== "debit" && row.method !== "credit") throw new Error();
+      return {
+        method: row.method,
+        categoryId: categoryId(row.categoryId),
+        amount: amount(row.amount),
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.method.localeCompare(b.method) ||
+        (a.categoryId ?? "").localeCompare(b.categoryId ?? ""),
+    );
+  for (const method of ["debit", "credit"] as const) {
+    const rows = categories.filter((row) => row.method === method);
+    if (
+      categories.length &&
+      (new Set(rows.map((row) => row.categoryId)).size !== rows.length ||
+        rows
+          .reduce(
+            (sum, row) => sum.add(Money.parse(row.amount, code)),
+            Money.parse("0", code),
+          )
+          .toDecimal() !== (method === "debit" ? debitAmount : credit))
+    )
+      throw new MixedPurchaseInputError(
+        "Las categorías de cada medio deben sumar su porción, sin repetir categorías en el mismo medio.",
+      );
+  }
+  let correction;
+  if (data.correction !== undefined) {
+    const { eventId, planVersion } = record(data.correction, [
+      "eventId",
+      "planVersion",
+    ]);
+    if (
+      typeof planVersion !== "number" ||
+      !Number.isSafeInteger(planVersion) ||
+      planVersion < 0
+    )
+      throw new Error();
+    correction = { eventId: id(eventId), planVersion };
+  }
+  return {
+    total,
+    debitAmount,
+    debitCardId: categoryId(data.debitCardId),
+    categories,
+    ...(correction && { correction }),
+  };
+}
+
 export function parseCreditCommand(
   input: unknown,
   today = bankReferenceToday(),
@@ -269,6 +368,7 @@ export function parseCreditCommand(
             "categoryId",
             "covered",
             "plan",
+            "mixed",
           ]
         : action === "payment"
           ? ["lines"]
@@ -301,17 +401,21 @@ export function parseCreditCommand(
     const plan =
       data.plan === undefined ? undefined : installmentTerms(data.plan);
     const charge = amount(data.amount, !!plan);
-    if (plan) {
-      const total = installmentTotal(plan, code);
+    const financed = plan && installmentTotal(plan, code);
+    if (financed) {
       if (
         (charge === "0.0000" && data.covered) ||
-        charge.padStart(21, "0") > total.padStart(21, "0")
+        charge.padStart(21, "0") > financed.padStart(21, "0")
       )
         return {
           error:
             "Ingresá solo el cargo confirmado por el emisor, hasta el total financiado.",
         };
     }
+    const mixed =
+      data.mixed === undefined
+        ? undefined
+        : mixedPurchase(data.mixed, financed ?? charge, code);
     return {
       ...target,
       action,
@@ -319,14 +423,14 @@ export function parseCreditCommand(
       amount: charge,
       concept,
       note: optionalText(data.note, noteLimit),
-      categoryId:
-        data.categoryId == null || data.categoryId === ""
-          ? null
-          : id(data.categoryId),
+      categoryId: mixed?.categories.length ? null : categoryId(data.categoryId),
       covered: data.covered,
       ...(plan && { plan }),
+      ...(mixed && { mixed }),
     };
-  } catch {
-    return error;
+  } catch (cause) {
+    return cause instanceof MixedPurchaseInputError
+      ? { error: cause.message }
+      : error;
   }
 }
