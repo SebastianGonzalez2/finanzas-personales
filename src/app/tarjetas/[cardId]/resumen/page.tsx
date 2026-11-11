@@ -10,7 +10,8 @@ import {
   isInstallmentPeriod,
 } from "@/domain/installments";
 import { movementUuid } from "@/domain/movements";
-import { listBankBalances } from "@/server/bank-balances";
+import { listFundSources } from "@/server/fund-coverage";
+import { listBankAvailability } from "@/server/bank-balances";
 import { cardCyclesReady, loadCardCycle } from "@/server/card-cycles";
 import { listCards } from "@/server/cards";
 import { listCreditPurchaseOptions } from "@/server/credit-operations";
@@ -43,12 +44,13 @@ export default async function StatementPage({
         ({ id, kind }) => id === cardId.toLowerCase() && kind === "credit",
       );
       if (!card) return null;
+      const bankAvailability = await listBankAvailability(client, ownerId);
       return {
+        bankAvailability,
+        fundSources: await listFundSources(client, ownerId),
         card,
         cycle: await loadCardCycle(client, ownerId, card, period, today),
-        banks: (await listBankBalances(client, ownerId)).map(
-          ({ currency }) => currency,
-        ),
+        banks: bankAvailability.map(({ currency }) => currency),
         categories: await listMovementCategories(client, ownerId),
         purchases: (await listCreditPurchaseOptions(client, ownerId)).filter(
           (purchase) => purchase.cardId === card.id,

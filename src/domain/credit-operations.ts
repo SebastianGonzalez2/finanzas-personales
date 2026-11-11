@@ -13,15 +13,27 @@ import {
 } from "./installments.ts";
 import { Money, normalizeDecimalAmount, type Currency } from "./money.ts";
 
+import {
+  coverageSum,
+  coverageUnits,
+  parseFundPortions,
+  type FundPortion,
+} from "./fund-coverage.ts";
+
 export type DebtAmount = { currency: Currency; amount: string };
 export type OpeningDebt = { effectiveOn: string; lines: DebtAmount[] };
-export type PaymentAllocation = { purchaseId: string; amount: string };
+export type PaymentAllocation = {
+  purchaseId: string;
+  amount: string;
+  fund?: FundPortion;
+};
 export type CreditPaymentLine = DebtAmount & {
   bankCurrency: Currency;
   bankAmount: string;
   fee: string;
   statementPeriod?: string;
   allocations: PaymentAllocation[];
+  fundPortions?: FundPortion[];
 };
 export type CreditAction = "purchase" | "payment" | "adjustment";
 export const maxPurchaseCategories = 10;
@@ -34,6 +46,7 @@ export type MixedPurchase = {
   total: string;
   debitAmount: string;
   debitCardId: string | null;
+  fundPortions?: FundPortion[];
   categories: PurchaseCategory[];
   correction?: { eventId: string; planVersion: number };
 };
@@ -49,6 +62,7 @@ export type CreditCommand = {
       categoryId: string | null;
       covered: boolean;
       creditApplied?: string;
+      fundCommitment?: FundPortion | null;
       plan?: InstallmentTerms;
       mixed?: MixedPurchase;
     } & DebtAmount)
@@ -76,6 +90,7 @@ export type CreditPurchaseOption = DebtAmount & {
   cardId: string;
   concept: string;
   effectiveOn: string;
+  commitment?: FundPortion & { name: string };
 };
 
 export type CreditHistoryLine = DebtAmount & {
@@ -173,6 +188,7 @@ function paymentLine(input: unknown): CreditPaymentLine {
     "bankAmount",
     "fee",
     "allocations",
+    "fundPortions",
     "statementPeriod",
   ]);
   const debtCurrency = currency(line.currency);
@@ -187,10 +203,22 @@ function paymentLine(input: unknown): CreditPaymentLine {
   if (!Array.isArray(supplied) || supplied.length > 100) throw new Error();
   const allocations = supplied
     .map((input) => {
-      const allocation = record(input, ["purchaseId", "amount"]);
+      const allocation = record(input, ["purchaseId", "amount", "fund"]);
+      const applied = amount(allocation.amount);
+      const fund =
+        allocation.fund === undefined
+          ? undefined
+          : parseFundPortions([allocation.fund], 1)[0];
+      if (
+        fund &&
+        (debtCurrency !== bankCurrency ||
+          coverageUnits(fund.amount) > coverageUnits(applied))
+      )
+        throw new Error();
       return {
         purchaseId: id(allocation.purchaseId),
-        amount: amount(allocation.amount),
+        amount: applied,
+        ...(fund && { fund }),
       };
     })
     .sort((a, b) => a.purchaseId.localeCompare(b.purchaseId));
@@ -199,8 +227,24 @@ function paymentLine(input: unknown): CreditPaymentLine {
     allocations.length
   )
     throw new Error();
+  const fundPortions =
+    line.fundPortions === undefined
+      ? undefined
+      : parseFundPortions(line.fundPortions);
+  if (
+    fundPortions?.length &&
+    (debtCurrency !== bankCurrency ||
+      coverageSum(fundPortions) +
+        allocations.reduce(
+          (sum, part) => sum + coverageUnits(part.amount),
+          BigInt(0),
+        ) >
+        coverageUnits(cancelled))
+  )
+    throw new Error();
   return {
     currency: debtCurrency,
+    ...(fundPortions?.length && { fundPortions }),
     amount: cancelled,
     bankCurrency,
     bankAmount: debited,
@@ -246,6 +290,7 @@ function mixedPurchase(
     "total",
     "debitAmount",
     "debitCardId",
+    "fundPortions",
     "categories",
     "correction",
   ]);
@@ -307,9 +352,18 @@ function mixedPurchase(
       throw new Error();
     correction = { eventId: id(eventId), planVersion };
   }
+  const fundPortions =
+    data.fundPortions === undefined
+      ? undefined
+      : parseFundPortions(data.fundPortions);
+  if (fundPortions && coverageSum(fundPortions) > coverageUnits(debitAmount))
+    throw new MixedPurchaseInputError(
+      "Los fondos elegidos superan la porción de débito.",
+    );
   return {
     total,
     debitAmount,
+    ...(fundPortions !== undefined && { fundPortions }),
     debitCardId: categoryId(data.debitCardId),
     categories,
     ...(correction && { correction }),
@@ -370,6 +424,7 @@ export function parseCreditCommand(
             "categoryId",
             "covered",
             "creditApplied",
+            "fundCommitment",
             "plan",
             "mixed",
           ]
@@ -430,11 +485,27 @@ export function parseCreditCommand(
       data.mixed === undefined
         ? undefined
         : mixedPurchase(data.mixed, financed ?? charge, code);
+    const fundCommitment =
+      data.fundCommitment === undefined
+        ? undefined
+        : data.fundCommitment === null && mixed?.correction
+          ? null
+          : parseFundPortions([data.fundCommitment], 1)[0];
+    if (
+      fundCommitment &&
+      coverageUnits(fundCommitment.amount) >
+        coverageUnits(charge) - coverageUnits(creditApplied ?? "0")
+    )
+      return {
+        error:
+          "El compromiso no puede superar el cargo pendiente de pago de la compra.",
+      };
     return {
       ...target,
       action,
       currency: code,
       amount: charge,
+      ...(fundCommitment !== undefined && { fundCommitment }),
       concept,
       note: optionalText(data.note, noteLimit),
       categoryId: mixed?.categories.length ? null : categoryId(data.categoryId),

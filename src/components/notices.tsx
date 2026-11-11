@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  budgetAlertMessage,
-  fundGoalMessage,
-  type BudgetAlertState,
-} from "@/domain/notices";
-import type { SavingsFund } from "@/domain/savings-funds";
+import { budgetAlertMessage, type BudgetAlertState } from "@/domain/notices";
 import { Card } from "./ui/card";
 
 // F3-07: componentes de avisos internos compartidos por Avisos, Presupuestos
@@ -65,27 +60,6 @@ export function BudgetThresholdNotice({
       className={noticeText[state]}
     >
       {budgetAlertMessage(state, percent, categoryName)}
-    </p>
-  );
-}
-
-/** Aviso de meta de fondo incumplida: fecha objetivo vencida sin meta completa. */
-export function GoalDueNotice({
-  fund,
-}: {
-  fund: Pick<
-    SavingsFund,
-    | "name"
-    | "currency"
-    | "reservedAmount"
-    | "targetAmount"
-    | "targetDate"
-    | "status"
-  >;
-}) {
-  return (
-    <p role="alert" className={noticeText.danger}>
-      {fundGoalMessage(fund)}
     </p>
   );
 }

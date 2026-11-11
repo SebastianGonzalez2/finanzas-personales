@@ -1,6 +1,4 @@
-import { formatBankAmount } from "./bank-balances.ts";
 import type { Budget } from "./budgets.ts";
-import type { SavingsFund } from "./savings-funds.ts";
 
 // F3-07 (RF-032/038): avisos internos de presupuestos y metas de fondos.
 // Cálculo y mensajes compartidos por el servidor y la interfaz.
@@ -77,44 +75,4 @@ export function budgetAlertMessage(
   return state === "danger"
     ? `Llegaste al límite del presupuesto de ${categoryName} este mes (${percent}%). Podés seguir gastando: no se bloquean compras.`
     : `El consumo llegó al ${percent}% del presupuesto de ${categoryName} este mes.`;
-}
-
-/** Meta incumplida (CA-050): fecha objetivo vencida con reservado por debajo de la meta. */
-export function fundGoalOverdue(
-  fund: Pick<
-    SavingsFund,
-    | "name"
-    | "currency"
-    | "reservedAmount"
-    | "targetAmount"
-    | "targetDate"
-    | "status"
-  >,
-  today: string,
-) {
-  if (
-    fund.status === "closed" ||
-    fund.targetAmount === null ||
-    fund.targetDate === null ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(fund.targetDate) ||
-    fund.targetDate > today
-  )
-    return false;
-  const reserved = decimalUnits(fund.reservedAmount);
-  const target = decimalUnits(fund.targetAmount);
-  return reserved !== null && target !== null && reserved < target;
-}
-
-/** Mensaje del aviso de meta incumplida: el fondo conserva lo reservado. */
-export function fundGoalMessage(fund: Parameters<typeof fundGoalOverdue>[0]) {
-  const money = (amount: string) =>
-    formatBankAmount({ amount, currency: fund.currency });
-  return `La fecha objetivo ${fund.targetDate} de ${fund.name} ya pasó y reservaste ${money(fund.reservedAmount)} de ${money(fund.targetAmount ?? "")}. El fondo conserva lo reservado y los aportes automáticos siguen activos salvo que los hayas pausado.`;
-}
-
-/** Fondos con meta incumplida, ordenados por nombre. */
-export function goalAlerts(funds: SavingsFund[], today: string) {
-  return funds
-    .filter((fund) => fundGoalOverdue(fund, today))
-    .map((fund) => ({ fund }));
 }

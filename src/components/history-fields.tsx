@@ -21,20 +21,17 @@ export function HistoryField({
   );
 }
 
-export function AmountInput({
-  name,
-  required,
-  defaultValue,
-}: {
-  name: string;
-  required?: boolean;
-  defaultValue?: string;
-}) {
+export function AmountInput(
+  props: Pick<
+    React.ComponentProps<"input">,
+    "name" | "required" | "value" | "onChange"
+  > & { defaultValue?: string },
+) {
+  const { defaultValue, ...fields } = props;
   return (
     <input
       className={historyControl}
-      name={name}
-      required={required}
+      {...fields}
       maxLength={22}
       inputMode="decimal"
       autoComplete="off"

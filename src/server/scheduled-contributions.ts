@@ -9,15 +9,24 @@ import {
   type ContributionPeriod,
   type ContributionPlan,
 } from "../domain/contribution-plans.ts";
-import type { SavingsFund } from "../domain/savings-funds.ts";
+import {
+  contributionTowardTarget,
+  fundTargetNotices,
+  type SavingsFund,
+} from "../domain/savings-funds.ts";
 import { firstContributionDate } from "../domain/scheduled-contributions.ts";
 import { lockBankWrites } from "./bank-balances.ts";
-import { lockFundWrites, saveSavingsFund } from "./savings-funds.ts";
+import {
+  fundLifecycleReady,
+  lockFundWrites,
+  saveSavingsFund,
+} from "./savings-funds.ts";
 
-const planColumns = `p.fund_id AS "fundId", p.amount::text, p.preferred_day AS "preferredDay", p.version,
-  to_char(p.next_on, 'YYYY-MM-DD') AS "nextOn", p.next_amount::text AS "nextAmount"`;
-const periodColumns = `p.id, p.fund_id AS "fundId", f.name AS "fundName", p.currency, p.amount::text,
+const planColumns = `p.fund_id AS "fundId", p.amount::numeric(20,4)::text AS amount, p.preferred_day AS "preferredDay", p.version,
+  to_char(p.next_on, 'YYYY-MM-DD') AS "nextOn", p.next_amount::numeric(20,4)::text AS "nextAmount"`;
+const periodColumns = `p.id, p.fund_id AS "fundId", f.name AS "fundName", p.currency, p.amount::numeric(20,4)::text AS amount,
   to_char(p.scheduled_on, 'YYYY-MM-DD') AS "scheduledOn", p.status, p.reason,
+  to_jsonb(p)->>'resolution' AS resolution,
   to_char(p.resolved_at AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD') AS "resolvedOn"`;
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
@@ -114,9 +123,11 @@ async function processDueLocked(
   pausingFundId?: string,
 ) {
   const { rows } = await client.query<
-    ContributionPlan & Pick<SavingsFund, "currency">
+    ContributionPlan &
+      Pick<SavingsFund, "currency" | "targetAmount" | "reservedAmount">
   >(
-    `SELECT ${planColumns}, f.currency
+    `SELECT ${planColumns}, f.currency, f.target_amount::text AS "targetAmount",
+            f.reserved_amount::numeric(20,4)::text AS "reservedAmount"
        FROM finance.contribution_plans p
        JOIN finance.savings_funds f ON (f.owner_id, f.id) = (p.owner_id, p.fund_id)
       WHERE p.owner_id = $1 AND f.status = 'active' AND p.next_on <= $2::date
@@ -124,8 +135,12 @@ async function processDueLocked(
       ORDER BY p.next_on, p.fund_id`,
     [ownerId, today, pausingFundId ?? null],
   );
+  const targetsReady = rows.some(({ targetAmount }) => targetAmount !== null)
+    ? await fundLifecycleReady(client)
+    : false;
   for (const plan of rows) {
     let { nextOn, nextAmount } = plan;
+    if (plan.targetAmount !== null && !targetsReady && !pausingFundId) continue;
     while (
       nextOn &&
       nextAmount &&
@@ -134,16 +149,32 @@ async function processDueLocked(
     ) {
       let reason: ContributionPeriod["reason"] = "late";
       let reserveId: string | null = null;
+      let amount = nextAmount;
+      let final = false;
       if (nextOn === today) {
+        const target = contributionTowardTarget(nextAmount, plan);
+        if (target.amount === null) {
+          await client.query(
+            `UPDATE finance.savings_funds
+                SET status = 'paused_target_reached', version = version + 1, updated_at = clock_timestamp()
+              WHERE owner_id = $1 AND id = $2`,
+            [ownerId, plan.fundId],
+          );
+          // The fund status trigger has cleared and versioned the plan.
+          nextOn = nextAmount = null;
+          break;
+        }
+        amount = target.amount;
         const result = await reserveContribution(
           client,
           ownerId,
           plan.fundId,
-          nextAmount,
+          amount,
         );
         if (result.status === "reserved") {
           reserveId = result.reserveId;
           reason = null;
+          final = target.final;
         } else if (
           result.status === "conflict" &&
           "reason" in result &&
@@ -159,30 +190,43 @@ async function processDueLocked(
         : reason === "insufficient"
           ? "missed_insufficient"
           : "missed_execution";
+      const periodId = randomUUID();
       await client.query(
         `INSERT INTO finance.contribution_periods
           (owner_id, id, fund_id, currency, amount, scheduled_on, status, reason, reserve_command_id, resolved_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $9::uuid IS NOT NULL THEN clock_timestamp() END)`,
         [
           ownerId,
-          randomUUID(),
+          periodId,
           plan.fundId,
           plan.currency,
-          nextAmount,
+          amount,
           nextOn,
           status,
           reason,
           reserveId,
         ],
       );
+      if (final) {
+        await client.query(
+          `UPDATE finance.contribution_periods SET resolution = 'target_final'
+            WHERE owner_id = $1 AND id = $2`,
+          [ownerId, periodId],
+        );
+        // The reserve reached the target and the fund status trigger paused
+        // the plan in this transaction. Never write a new occurrence over it.
+        nextOn = nextAmount = null;
+        break;
+      }
       nextOn = firstContributionDate(nextOn, plan.preferredDay);
       nextAmount = plan.amount;
     }
-    await client.query(
-      `UPDATE finance.contribution_plans SET next_on = $3, next_amount = $4
+    if (nextOn !== null)
+      await client.query(
+        `UPDATE finance.contribution_plans SET next_on = $3, next_amount = $4
         WHERE owner_id = $1 AND fund_id = $2`,
-      [ownerId, plan.fundId, nextOn, nextAmount],
-    );
+        [ownerId, plan.fundId, nextOn, nextAmount],
+      );
   }
 }
 
@@ -280,8 +324,11 @@ export async function saveContributionCommand(
     fundId = command.fundId;
     const {
       rows: [fund],
-    } = await client.query<Pick<SavingsFund, "status">>(
-      `SELECT status FROM finance.savings_funds WHERE owner_id = $1 AND id = $2`,
+    } = await client.query<SavingsFund>(
+      `SELECT id, name, status, currency, version, target_amount::text AS "targetAmount",
+              to_char(target_date, 'YYYY-MM-DD') AS "targetDate",
+              reserved_amount::numeric(20,4)::text AS "reservedAmount"
+         FROM finance.savings_funds WHERE owner_id = $1 AND id = $2`,
       [ownerId, fundId],
     );
     if (!fund) return missing;
@@ -297,8 +344,21 @@ export async function saveContributionCommand(
       return conflict(
         "La programación cambió. Actualizá la página y revisala.",
       );
-    if (fund.status !== "active")
+    const startingAfterTarget =
+      fund.status === "paused_target_reached" &&
+      action === "configure" &&
+      !priorPlan;
+    if (
+      fund.status === "closed" ||
+      (fund.status !== "active" &&
+        action !== "reactivate" &&
+        !startingAfterTarget)
+    )
       return conflict("Activá el fondo antes de cambiar su programación.");
+    if (action !== "pause" && fundTargetNotices(fund, today).reached)
+      return conflict(
+        "Aumentá o quitá la meta antes de activar las aportaciones.",
+      );
     const amount =
       command.action === "configure" ? command.amount : priorPlan?.amount;
     const preferredDay =
@@ -315,6 +375,7 @@ export async function saveContributionCommand(
       await processDueLocked(client, ownerId, today, fundId);
       nextOn = nextAmount = null;
     } else if (command.action === "reactivate") {
+      if (!priorPlan) return missing;
       if (priorPlan?.nextOn) return conflict("La programación ya está activa.");
     } else if (priorPlan) {
       if (!priorPlan.nextOn)
@@ -328,6 +389,13 @@ export async function saveContributionCommand(
         nextAmount = priorPlan.nextAmount;
       }
     }
+    if (fund.status !== "active")
+      await client.query(
+        `UPDATE finance.savings_funds
+            SET status = 'active', version = version + 1, updated_at = clock_timestamp()
+          WHERE owner_id = $1 AND id = $2`,
+        [ownerId, fundId],
+      );
     await client.query(
       `INSERT INTO finance.contribution_plans (owner_id, fund_id, amount, preferred_day, version, next_on, next_amount)
        VALUES ($1, $2, $3, $4, $5, $6, $7)

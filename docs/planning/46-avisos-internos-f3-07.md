@@ -21,8 +21,8 @@ avisos de aportaciones programadas.
 
 ## Migración
 
-- SQL exacto en [0019_F3-07_budget_notices.sql](../../src/db/migrations/0019_F3-07_budget_notices.sql).
-- El destino propuesto es la rama Neon `development` del proyecto, después de `0018`.
+- SQL exacto en [0021_F3-07_budget_notices.sql](../../src/db/migrations/0021_F3-07_budget_notices.sql).
+- El destino propuesto es la rama Neon `development` del proyecto, después de `0020`.
 - El SHA-256 es `fe315f450f3956d3ed4ea06fb0ea369a7a64af4c0c4448047677497bd12d5492`.
 - El SQL crea una tabla de avisos con RLS forzada y FK compuesta al
   presupuesto. El rol de la app puede leer e insertar sus propias filas.

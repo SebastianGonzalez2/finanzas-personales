@@ -22,6 +22,7 @@ export type ContributionPeriod = {
   status:
     "missed_insufficient" | "missed_execution" | "completed" | "discarded";
   reason: "insufficient" | "late" | "fund_limit" | null;
+  resolution: "target_final" | "fund_closed" | null;
   resolvedOn: string | null;
 };
 

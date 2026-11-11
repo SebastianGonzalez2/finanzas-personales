@@ -82,7 +82,7 @@ test("F3-07: el centro conserva los cruces y aísla los avisos de cada titular",
       await expect(budgets.getByRole("listitem").nth(1)).toContainText("80%");
       const goals = page.getByRole("region", { name: "Metas de fondos" });
       await expect(goals.getByRole("listitem")).toHaveCount(1);
-      await expect(goals).toContainText("1.600,00 UYU");
+      await expect(goals).toContainText("400,00 UYU");
       await page.reload();
     }
     const {

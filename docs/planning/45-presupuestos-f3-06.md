@@ -23,13 +23,13 @@ Las consultas pueden insertar únicamente referencias faltantes en `budget_rates
 
 ## Migración preparada, no aplicada en Neon
 
-SQL exacto: [0018_F3-06_monthly_budgets.sql](../../src/db/migrations/0018_F3-06_monthly_budgets.sql).
+SQL exacto en [0020_F3-06_monthly_budgets.sql](../../src/db/migrations/0020_F3-06_monthly_budgets.sql).
 
 - SHA-256: `333afc91a98b25bf39ccb9af9f17b1a0c58c5599b673c1ce2da5abb33000189f`.
 - Destino previsto: proyecto `dry-voice-45959315`, rama **development** `br-late-feather-b6czfkx0`, base `neondb`, conexión directa del destino fijado en el repositorio. No se verificó ni modificó el historial remoto durante F3-06.
 - Impacto: crea cuatro tablas vacías, índices, políticas RLS, una vista de consumo y una función/disparador sobre nuevas versiones de planes de cuotas. El disparador captura referencias disponibles sin alterar el plan. Puede requerir un bloqueo breve de DDL en `installment_plans`. No reescribe registros financieros ni checkpoints.
-- Requiere que 0001–0017 estén aplicadas. Verificar primero el historial pendiente: el runner rechaza varios SQL pendientes para una aprobación de un solo hash. Cada migración previa requiere su propia autorización.
-- Aplicar 0018 en el destino compartido requiere aprobación específica conforme a [ADR 0004](../adr/0004-google-only-allowlist-auth.md). Las pruebas sí ejecutan el SQL en PostgreSQL local desechable. Sin 0018, página/API degradan con aviso de actualización pendiente.
+- Requiere que 0001–0019 estén aplicadas. El runner exige el hash del único SQL pendiente. Cada migración previa requiere su propia autorización.
+- Aplicar 0020 en el destino compartido requiere aprobación específica conforme a [ADR 0004](../adr/0004-google-only-allowlist-auth.md). Las pruebas ejecutan el SQL en PostgreSQL local desechable. Hasta aplicar 0020, la página y la API informan que la actualización está pendiente.
 
 ## Evidencia
 

@@ -5,10 +5,9 @@ import {
   budgetAlertPercent,
   budgetAlerts,
   budgetAlertState,
-  fundGoalMessage,
-  fundGoalOverdue,
-  goalAlerts,
 } from "../../src/domain/notices.ts";
+
+import { fundTargetNotices } from "../../src/domain/savings-funds.ts";
 
 const today = "2026-11-11";
 
@@ -96,32 +95,40 @@ test("F3-07: meta incumplida cuando la fecha venció y falta reservado (CA-050)"
     targetDate: "2026-10-31",
     status: "active",
   };
-  assert.equal(fundGoalOverdue(fund, today), true);
-  const message = fundGoalMessage(fund);
-  assert.match(message, /2026-10-31/);
-  assert.match(message, /1.600,00 UYU/);
-  assert.match(message, /2.000,00 UYU/);
-  assert.match(message, /conserva lo reservado/);
+  assert.equal(fundTargetNotices(fund, today).overdue, true);
+  assert.equal(fundTargetNotices(fund, today).remaining, "400.0000");
   assert.equal(
-    fundGoalOverdue({ ...fund, reservedAmount: "2000" }, today),
+    fundTargetNotices({ ...fund, reservedAmount: "2000" }, today).overdue,
     false,
   );
   assert.equal(
-    fundGoalOverdue({ ...fund, reservedAmount: "2500" }, today),
+    fundTargetNotices({ ...fund, reservedAmount: "2500" }, today).overdue,
     false,
   );
   assert.equal(
-    fundGoalOverdue({ ...fund, targetDate: "2026-11-11" }, today),
-    true,
-  );
-  assert.equal(
-    fundGoalOverdue({ ...fund, targetDate: "2026-11-12" }, today),
+    fundTargetNotices({ ...fund, targetDate: "2026-11-11" }, today).overdue,
     false,
   );
-  assert.equal(fundGoalOverdue({ ...fund, targetAmount: null }, today), false);
-  assert.equal(fundGoalOverdue({ ...fund, targetDate: null }, today), false);
-  assert.equal(fundGoalOverdue({ ...fund, status: "closed" }, today), false);
-  assert.equal(fundGoalOverdue({ ...fund, targetDate: "" }, today), false);
+  assert.equal(
+    fundTargetNotices({ ...fund, targetDate: "2026-11-12" }, today).overdue,
+    false,
+  );
+  assert.equal(
+    fundTargetNotices({ ...fund, targetAmount: null }, today).overdue,
+    false,
+  );
+  assert.equal(
+    fundTargetNotices({ ...fund, targetDate: null }, today).overdue,
+    false,
+  );
+  assert.equal(
+    fundTargetNotices({ ...fund, status: "closed" }, today).overdue,
+    false,
+  );
+  assert.equal(
+    fundTargetNotices({ ...fund, targetDate: "" }, today).overdue,
+    false,
+  );
 });
 
 test("F3-07: lista de metas incumplidas ignora fondos sin problema", () => {
@@ -146,7 +153,9 @@ test("F3-07: lista de metas incumplidas ignora fondos sin problema", () => {
     },
   ];
   assert.deepEqual(
-    goalAlerts(funds, today).map(({ fund }) => fund.id),
+    funds
+      .filter((fund) => fundTargetNotices(fund, today).overdue)
+      .map(({ id }) => id),
     ["f1"],
   );
 });

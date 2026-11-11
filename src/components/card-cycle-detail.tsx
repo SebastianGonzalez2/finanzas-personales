@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
+import type { FundSource } from "@/domain/fund-coverage";
+import {
+  formatBankAmount,
+  formatBankReference,
+  type BankAvailability,
+} from "@/domain/bank-balances";
 import type { CatalogCard } from "@/domain/cards";
 import type {
   CreditAction,
@@ -31,6 +36,8 @@ export function CardCycleDetail({
   period,
   today,
   banks,
+  bankAvailability,
+  fundSources,
   categories,
   purchases,
   openPayment,
@@ -40,6 +47,8 @@ export function CardCycleDetail({
   period: string;
   today: string;
   banks: Currency[];
+  bankAvailability: BankAvailability[];
+  fundSources: FundSource[] | null;
   categories: MovementCategory[];
   purchases: CreditPurchaseOption[];
   openPayment: boolean;
@@ -88,6 +97,8 @@ export function CardCycleDetail({
             cards={[card]}
             today={today}
             banks={banks}
+            bankAvailability={bankAvailability}
+            fundSources={fundSources}
             categories={categories}
             purchases={purchases}
             installmentsReady

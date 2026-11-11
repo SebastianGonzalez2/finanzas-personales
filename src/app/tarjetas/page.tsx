@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { bankReferenceToday } from "@/domain/bank-balances";
-import { listBankBalances } from "@/server/bank-balances";
+import { listFundSources } from "@/server/fund-coverage";
+import { listBankAvailability } from "@/server/bank-balances";
 import { listCreditPurchaseOptions } from "@/server/credit-operations";
 import {
   creditOperationsReady,
@@ -36,8 +37,13 @@ export default async function CardsPage() {
       const hasCredit =
         creditReady && cards.some(({ kind }) => kind === "credit");
       const cyclesReady = hasCredit && (await cardCyclesReady(client));
+      const bankAvailability = hasCredit
+        ? await listBankAvailability(client, ownerId)
+        : [];
       return {
         cards,
+        fundSources: hasCredit ? await listFundSources(client, ownerId) : null,
+        bankAvailability,
         creditReady,
         installmentsReady: plansReady,
         cyclesReady,
@@ -46,11 +52,7 @@ export default async function CardsPage() {
           ? await listCardCycleAlerts(client, ownerId, cards, today)
           : [],
         plans: plansReady ? await listCardInstallments(client, ownerId) : [],
-        banks: hasCredit
-          ? (await listBankBalances(client, ownerId)).map(
-              ({ currency }) => currency,
-            )
-          : [],
+        banks: bankAvailability.map(({ currency }) => currency),
         categories: hasCredit
           ? await listMovementCategories(client, ownerId)
           : [],

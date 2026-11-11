@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
+import {
+  formatBankAmount,
+  formatBankReference,
+  type BankAvailability,
+} from "@/domain/bank-balances";
 import type { CatalogCard } from "@/domain/cards";
 import {
   maxPurchaseCategories,
@@ -9,6 +13,16 @@ import {
   type CreditPurchaseOption,
   type PurchaseCategory,
 } from "@/domain/credit-operations";
+import {
+  coverageDecimal,
+  type FundPortion,
+  type FundSource,
+} from "@/domain/fund-coverage";
+import {
+  enteredUnits,
+  formFundPortions,
+  FundPortionFields,
+} from "./fund-portion-fields";
 import type { Currency } from "@/domain/money";
 import {
   formatInstallmentPeriod,
@@ -46,6 +60,8 @@ type Props = {
   cards: CatalogCard[];
   today: string;
   banks: Currency[];
+  bankAvailability?: BankAvailability[];
+  fundSources?: FundSource[] | null;
   categories: MovementCategory[];
   purchases?: CreditPurchaseOption[];
   installmentsReady: boolean;
@@ -64,6 +80,8 @@ type Props = {
     categories: PurchaseCategory[];
     covered: boolean;
     plan?: InstallmentVersion;
+    fundCommitment?: FundPortion;
+    fundPortions?: FundPortion[];
   };
   initialCurrency?: Currency;
   statement?: {
@@ -78,6 +96,8 @@ export function CreditOperationForm({
   cards,
   today,
   banks,
+  bankAvailability,
+  fundSources,
   categories,
   purchases = [],
   installmentsReady,
@@ -90,6 +110,12 @@ export function CreditOperationForm({
   const [cardId, setCardId] = useState(correction?.cardId ?? cards[0]?.id);
   const [currency, setCurrency] = useState<Currency | undefined>(
     initialCurrency,
+  );
+  const [effectiveOn, setEffectiveOn] = useState(
+    correction?.effectiveOn ?? today,
+  );
+  const [debitAmount, setDebitAmount] = useState(
+    correction?.debitAmount.replace(".", ",") ?? "",
   );
   const [financed, setFinanced] = useState(!!correction?.plan);
   const [mixed, setMixed] = useState(!!correction);
@@ -151,6 +177,7 @@ export function CreditOperationForm({
                   ? amount
                   : form.get(`bankAmount-${currency}`),
               fee: form.get(`fee-${currency}`),
+              fundPortions: formFundPortions(form, `paymentFunds-${currency}`),
               ...(statement && { statementPeriod: statement.period }),
               allocations: purchases.flatMap((purchase) => {
                 if (
@@ -159,8 +186,15 @@ export function CreditOperationForm({
                 )
                   return [];
                 const amount = form.get(`allocation-${purchase.id}`);
-                return typeof amount === "string" && amount.trim()
-                  ? [{ purchaseId: purchase.id, amount }]
+                const fundAmount = form.get(`fund-${purchase.id}`);
+                const fund =
+                  purchase.commitment &&
+                  typeof fundAmount === "string" &&
+                  fundAmount.trim()
+                    ? { fundId: purchase.commitment.fundId, amount: fundAmount }
+                    : undefined;
+                return (typeof amount === "string" && amount.trim()) || fund
+                  ? [{ purchaseId: purchase.id, amount, ...(fund && { fund }) }]
                   : [];
               }),
             },
@@ -171,6 +205,8 @@ export function CreditOperationForm({
       const currency = form.get("currency");
       const position = card.currencies.find((row) => row.currency === currency);
       const entry = { ...common, currency, amount: form.get("amount") };
+      const commitment = formFundPortions(form, "fundCommitment");
+      const fundPortions = formFundPortions(form, "mixedFunds");
       fields =
         action === "purchase"
           ? {
@@ -179,6 +215,11 @@ export function CreditOperationForm({
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
+              ...(commitment?.length
+                ? { fundCommitment: commitment[0] }
+                : correction && commitment
+                  ? { fundCommitment: null }
+                  : {}),
               ...(form.get("creditApplied") && {
                 creditApplied: form.get("creditApplied"),
               }),
@@ -194,6 +235,8 @@ export function CreditOperationForm({
                 mixed: {
                   total: form.get("total"),
                   debitAmount: form.get("debitAmount"),
+                  ...(fundPortions &&
+                    (fundPortions.length || correction) && { fundPortions }),
                   debitCardId: form.get("debitCardId"),
                   categories: split
                     ? rows.map(({ key }) => ({
@@ -275,7 +318,8 @@ export function CreditOperationForm({
             type="date"
             required
             max={today}
-            defaultValue={correction?.effectiveOn ?? today}
+            value={effectiveOn}
+            onChange={(event) => setEffectiveOn(event.target.value)}
           />
         </HistoryField>
         {action === "payment" ? (
@@ -287,6 +331,9 @@ export function CreditOperationForm({
                   currency={currency}
                   debt={debt ?? "0"}
                   banks={banks}
+                  bankAvailability={bankAvailability}
+                  fundSources={fundSources}
+                  effectiveOn={effectiveOn}
                   selectedByDefault={
                     statement
                       ? Boolean(statement.suggestions[currency])
@@ -297,7 +344,8 @@ export function CreditOperationForm({
                   purchases={purchases.filter(
                     (purchase) =>
                       purchase.cardId === card.id &&
-                      purchase.currency === currency,
+                      purchase.currency === currency &&
+                      purchase.effectiveOn <= effectiveOn,
                   )}
                 />
               ))
@@ -374,9 +422,31 @@ export function CreditOperationForm({
                   <AmountInput
                     name="debitAmount"
                     required
-                    defaultValue={correction?.debitAmount}
+                    value={debitAmount}
+                    onChange={(event) => setDebitAmount(event.target.value)}
                   />
                 </HistoryField>
+                {fundSources && canUseDebit && (
+                  <FundPortionFields
+                    key={`debit-${selectedCurrency}`}
+                    name="mixedFunds"
+                    funds={fundSources}
+                    currency={selectedCurrency}
+                    amount={debitAmount}
+                    initial={
+                      selectedCurrency === initialCurrency
+                        ? correction?.fundPortions
+                        : undefined
+                    }
+                    available={
+                      bankAvailability?.find(
+                        (bank) =>
+                          bank.currency === selectedCurrency &&
+                          effectiveOn >= bank.asOfDate,
+                      )?.availableAmount
+                    }
+                  />
+                )}
                 {!canUseDebit && (
                   <p role="status" className="text-sm sm:col-span-2">
                     Configurá un saldo bancario en {selectedCurrency} o elegí
@@ -461,6 +531,29 @@ export function CreditOperationForm({
                 <HistoryField label="Saldo a favor aplicado por el emisor (opcional)">
                   <AmountInput name="creditApplied" />
                 </HistoryField>
+              )}
+            {fundSources &&
+              (fundSources.some(
+                (fund) =>
+                  fund.currency === selectedCurrency &&
+                  Number(fund.availableAmount) > 0,
+              ) ||
+                (correction?.fundCommitment &&
+                  selectedCurrency === initialCurrency)) && (
+                <FundPortionFields
+                  key={`credit-${selectedCurrency}`}
+                  name="fundCommitment"
+                  funds={fundSources}
+                  currency={selectedCurrency}
+                  amount=""
+                  commitment
+                  initial={
+                    correction?.fundCommitment &&
+                    selectedCurrency === initialCurrency
+                      ? [correction.fundCommitment]
+                      : undefined
+                  }
+                />
               )}
             <HistoryField label="Concepto">
               <input
@@ -643,6 +736,9 @@ function PaymentFields({
   currency,
   debt,
   banks,
+  bankAvailability,
+  fundSources,
+  effectiveOn,
   purchases,
   selectedByDefault,
   suggestedAmount,
@@ -652,6 +748,9 @@ function PaymentFields({
   debt: string;
   banks: Currency[];
   purchases: CreditPurchaseOption[];
+  bankAvailability?: BankAvailability[];
+  fundSources?: FundSource[] | null;
+  effectiveOn: string;
   selectedByDefault: boolean;
   suggestedAmount?: string;
   requireBankSelection: boolean;
@@ -660,6 +759,38 @@ function PaymentFields({
   const [bank, setBank] = useState<string>(
     requireBankSelection ? "" : banks.includes(currency) ? currency : banks[0],
   );
+  const [debit, setDebit] = useState(suggestedAmount?.replace(".", ",") ?? "");
+  const [foreignDebit, setForeignDebit] = useState("");
+  const [fee, setFee] = useState("");
+  const [funds, setFunds] = useState<Record<string, string>>({});
+  const [allocated, setAllocated] = useState<Record<string, string>>({});
+  const [unassigned, setUnassigned] = useState<FundPortion[]>([]);
+  const sources =
+    bank === currency
+      ? [
+          ...purchases.map(({ id }) => funds[id] ?? ""),
+          ...unassigned.map(({ amount }) => amount),
+        ].reduce(
+          (sum, value) => sum + (enteredUnits(value) ?? BigInt(0)),
+          BigInt(0),
+        )
+      : BigInt(0);
+  const debtPayment = enteredUnits(debit);
+  const debtRemaining =
+    debtPayment === null
+      ? null
+      : (enteredUnits(debt) ?? BigInt(0)) - debtPayment;
+  const total = bank === currency ? debtPayment : enteredUnits(foreignDebit);
+  const free =
+    total === null ? null : total + (enteredUnits(fee) ?? BigInt(0)) - sources;
+  const available = bankAvailability?.find(
+    (row) => row.currency === bank && effectiveOn >= row.asOfDate,
+  );
+  const freeLimit = enteredUnits(available?.availableAmount ?? "");
+  const shortfall =
+    free === null || freeLimit === null
+      ? null
+      : free - (freeLimit > BigInt(0) ? freeLimit : BigInt(0));
   return (
     <fieldset className="grid min-w-0 gap-2 rounded-lg border p-3 sm:grid-cols-2">
       <legend className="px-1 text-sm font-medium">Deuda en {currency}</legend>
@@ -669,7 +800,12 @@ function PaymentFields({
           type="checkbox"
           checked={enabled}
           className="size-5"
-          onChange={(event) => setEnabled(event.target.checked)}
+          onChange={(event) => {
+            setEnabled(event.target.checked);
+            setFunds({});
+            setAllocated({});
+            setUnassigned([]);
+          }}
         />
         Abonar deuda en {currency} ·{" "}
         {formatBankAmount({ currency, amount: debt })}
@@ -680,7 +816,8 @@ function PaymentFields({
             <AmountInput
               name={`amount-${currency}`}
               required
-              defaultValue={suggestedAmount}
+              value={debit}
+              onChange={(event) => setDebit(event.target.value)}
             />
           </HistoryField>
           <HistoryField label={`Saldo bancario para deuda en ${currency}`}>
@@ -689,7 +826,11 @@ function PaymentFields({
               value={bank}
               required
               className={historyControl}
-              onChange={(event) => setBank(event.target.value)}
+              onChange={(event) => {
+                setBank(event.target.value);
+                setFunds({});
+                setUnassigned([]);
+              }}
             >
               {requireBankSelection && <option value="">Elegí un saldo</option>}
               {banks.map((code) => (
@@ -703,32 +844,156 @@ function PaymentFields({
             <HistoryField
               label={`Importe debitado en ${bank} para deuda en ${currency}`}
             >
-              <AmountInput name={`bankAmount-${currency}`} required />
+              <AmountInput
+                name={`bankAmount-${currency}`}
+                required
+                value={foreignDebit}
+                onChange={(event) => setForeignDebit(event.target.value)}
+              />
             </HistoryField>
           )}
           {bank && (
             <HistoryField
               label={`Comisión bancaria en ${bank} para deuda en ${currency} (opcional)`}
             >
-              <AmountInput name={`fee-${currency}`} />
+              <AmountInput
+                name={`fee-${currency}`}
+                value={fee}
+                onChange={(event) => setFee(event.target.value)}
+              />
             </HistoryField>
           )}
           {purchases.length > 0 && (
-            <details className="sm:col-span-2">
+            <details
+              className="sm:col-span-2"
+              open={
+                purchases.some((purchase) => purchase.commitment) || undefined
+              }
+            >
               <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">
                 Asignar a compras en {currency} (opcional)
               </summary>
               <div className="grid gap-2">
-                {purchases.map(({ id, concept, amount, effectiveOn }) => (
-                  <HistoryField
-                    key={id}
-                    label={`${concept} · ${formatBankReference(effectiveOn)} · Hasta ${formatBankAmount({ currency, amount })}`}
-                  >
-                    <AmountInput name={`allocation-${id}`} />
-                  </HistoryField>
-                ))}
+                {purchases.map(
+                  ({ id, concept, amount, effectiveOn, commitment }) => {
+                    const applied = enteredUnits(allocated[id] ?? "");
+                    const used =
+                      bank === currency
+                        ? (enteredUnits(funds[id] ?? "") ?? BigInt(0))
+                        : BigInt(0);
+                    const pending =
+                      (enteredUnits(amount) ?? BigInt(0)) -
+                      (applied ?? BigInt(0));
+                    const reserved =
+                      (enteredUnits(commitment?.amount ?? "") ?? BigInt(0)) -
+                      used;
+                    const remaining = reserved < pending ? reserved : pending;
+                    return (
+                      <div
+                        key={id}
+                        className="grid gap-2 rounded-md border p-2 sm:grid-cols-2"
+                      >
+                        <HistoryField
+                          label={`${concept} · ${formatBankReference(effectiveOn)} · Hasta ${formatBankAmount({ currency, amount })}`}
+                        >
+                          <AmountInput
+                            name={`allocation-${id}`}
+                            value={allocated[id] ?? ""}
+                            onChange={(event) =>
+                              setAllocated((current) => ({
+                                ...current,
+                                [id]: event.target.value,
+                              }))
+                            }
+                          />
+                        </HistoryField>
+                        {commitment && bank === currency && (
+                          <HistoryField
+                            label={`Usar ${commitment.name} para ${concept} · Hasta ${formatBankAmount({ currency, amount: commitment.amount })}`}
+                          >
+                            <AmountInput
+                              name={`fund-${id}`}
+                              value={funds[id] ?? ""}
+                              onChange={(event) =>
+                                setFunds((current) => ({
+                                  ...current,
+                                  [id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </HistoryField>
+                        )}
+                        {commitment &&
+                          applied !== null &&
+                          applied > BigInt(0) &&
+                          used <= applied &&
+                          remaining >= BigInt(0) && (
+                            <p className="text-sm text-muted-foreground sm:col-span-2">
+                              Compromiso restante:{" "}
+                              {formatBankAmount({
+                                currency,
+                                amount: coverageDecimal(remaining),
+                              })}
+                            </p>
+                          )}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </details>
+          )}
+          {fundSources?.some(
+            (fund) =>
+              fund.currency === currency && Number(fund.availableAmount) > 0,
+          ) &&
+            bank === currency && (
+              <FundPortionFields
+                name={`paymentFunds-${currency}`}
+                funds={fundSources}
+                currency={currency}
+                amount=""
+                payment
+                onPortionsChange={setUnassigned}
+              />
+            )}
+          {debtRemaining !== null && debtRemaining >= BigInt(0) && (
+            <p className="text-sm text-muted-foreground sm:col-span-2">
+              Deuda restante:{" "}
+              {formatBankAmount({
+                currency,
+                amount: coverageDecimal(debtRemaining),
+              })}
+            </p>
+          )}
+          {available && free !== null && (
+            <div
+              aria-live="polite"
+              className="text-sm text-muted-foreground sm:col-span-2"
+            >
+              <p>
+                De fondos:{" "}
+                {formatBankAmount({
+                  currency: available.currency,
+                  amount: coverageDecimal(sources),
+                })}{" "}
+                · Del disponible:{" "}
+                {formatBankAmount({
+                  currency: available.currency,
+                  amount: coverageDecimal(free),
+                })}
+              </p>
+              {shortfall !== null && shortfall > BigInt(0) && (
+                <p>
+                  Faltan{" "}
+                  {formatBankAmount({
+                    currency: available.currency,
+                    amount: coverageDecimal(shortfall),
+                  })}{" "}
+                  para cubrir el pago.
+                </p>
+              )}
+            </div>
           )}
         </>
       )}

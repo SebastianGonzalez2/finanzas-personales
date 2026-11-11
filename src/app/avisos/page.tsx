@@ -2,14 +2,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { ContributionNotice } from "@/components/fund-contributions";
-import {
-  BudgetThresholdNotice,
-  GoalDueNotice,
-  NoticeCard,
-} from "@/components/notices";
+import { FundTargetMessage } from "@/components/fund-target-notice";
+import { BudgetThresholdNotice, NoticeCard } from "@/components/notices";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { contributionPending } from "@/domain/contribution-plans";
-import { goalAlerts } from "@/domain/notices";
+import { fundTargetNotices } from "@/domain/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listBudgetNotices } from "@/server/budgets";
 import { savingsFundsReady } from "@/server/bank-balances";
@@ -17,6 +14,7 @@ import { listSavingsFunds } from "@/server/savings-funds";
 import {
   contributionPlansReady,
   listContributionPeriods,
+  listContributionPlans,
   processDueContributions,
 } from "@/server/scheduled-contributions";
 
@@ -30,15 +28,18 @@ export default async function NoticesPage() {
       const today = bankReferenceToday();
       const month = today.slice(0, 7);
       let periods: Awaited<ReturnType<typeof listContributionPeriods>> = [];
+      let plans: Awaited<ReturnType<typeof listContributionPlans>> = [];
       if (await contributionPlansReady(client)) {
         await processDueContributions(client, ownerId);
         periods = (await listContributionPeriods(client, ownerId)).filter(
           ({ reason }) => reason,
         );
+        plans = await listContributionPlans(client, ownerId);
       }
       return {
         today,
         periods,
+        plans,
         budgetNotices: await listBudgetNotices(client, ownerId, month),
         funds: (await savingsFundsReady(client))
           ? await listSavingsFunds(client, ownerId)
@@ -56,11 +57,13 @@ export default async function NoticesPage() {
   const resolved = periods.filter((period) => !contributionPending(period));
   const funds = result ? (result.funds ?? []) : [];
   const thresholdAlerts = result?.budgetNotices ?? [];
-  const overdueGoals = result ? goalAlerts(funds, result.today) : [];
+  const today = result?.today ?? "";
+  const planIds = new Set(result?.plans.map(({ fundId }) => fundId));
+  const goals = funds
+    .map((fund) => ({ fund, ...fundTargetNotices(fund, today) }))
+    .filter(({ pausedByTarget, overdue }) => pausedByTarget || overdue);
   const quiet =
-    pending.length === 0 &&
-    thresholdAlerts.length === 0 &&
-    overdueGoals.length === 0;
+    pending.length === 0 && thresholdAlerts.length === 0 && goals.length === 0;
 
   return (
     <FinanceShell current="avisos">
@@ -111,24 +114,49 @@ export default async function NoticesPage() {
                 </ul>
               </section>
             )}
-            {overdueGoals.length > 0 && (
+            {goals.length > 0 && (
               <section aria-labelledby="avisos-metas" className="grid gap-2">
                 <h2 id="avisos-metas" className="font-semibold">
                   Metas de fondos
                 </h2>
                 <ul className="grid gap-2">
-                  {overdueGoals.map(({ fund }) => (
-                    <li key={fund.id}>
-                      <NoticeCard
-                        level="danger"
-                        href="/fondos"
-                        linkLabel="Ver fondos"
-                      >
-                        <p className="font-medium">
-                          {fund.name} · {fund.currency}
-                        </p>
-                        <GoalDueNotice fund={fund} />
-                      </NoticeCard>
+                  {goals.map(({ fund, pausedByTarget, reached, overdue }) => (
+                    <li key={fund.id} className="grid gap-2">
+                      {pausedByTarget && (
+                        <NoticeCard
+                          level="warning"
+                          href={`/fondos#${reached ? "fondo" : "plan"}-${fund.id}`}
+                          linkLabel={
+                            reached
+                              ? "Aumentar meta"
+                              : planIds.has(fund.id)
+                                ? "Reactivar aportaciones"
+                                : "Programar aportaciones"
+                          }
+                        >
+                          <FundTargetMessage
+                            fund={fund}
+                            today={today}
+                            kind="pause"
+                          />
+                        </NoticeCard>
+                      )}
+                      {overdue && (
+                        <NoticeCard
+                          level="warning"
+                          href={`/fondos#fondo-${fund.id}`}
+                          linkLabel="Revisar meta, fecha y aportaciones"
+                        >
+                          <p className="font-medium">
+                            {fund.name} · {fund.currency}
+                          </p>
+                          <FundTargetMessage
+                            fund={fund}
+                            today={today}
+                            kind="deadline"
+                          />
+                        </NoticeCard>
+                      )}
                     </li>
                   ))}
                 </ul>

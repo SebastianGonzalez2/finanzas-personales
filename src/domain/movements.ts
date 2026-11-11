@@ -5,6 +5,14 @@ import {
 } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
+import {
+  coverageSum,
+  coverageUnits,
+  fundPortionsError,
+  parseFundPortions,
+  type FundPortion,
+} from "./fund-coverage.ts";
+
 export const movementMethods = {
   deposit: "Acreditación bancaria",
   debit: "Débito bancario",
@@ -33,6 +41,7 @@ export type MovementInput = {
   note: string | null;
   categoryId: string | null;
   idempotencyKey: string;
+  fundPortions?: FundPortion[];
 };
 
 type RevisionTarget = { eventId: string; idempotencyKey: string };
@@ -86,6 +95,7 @@ const inputKeys = [
   "note",
   "categoryId",
   "idempotencyKey",
+  "fundPortions",
 ];
 
 function positiveAmount(amount: unknown) {
@@ -223,6 +233,7 @@ export function parseMovement(
     note,
     categoryId,
     idempotencyKey,
+    fundPortions,
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
@@ -243,6 +254,17 @@ export function parseMovement(
     decimal = positiveAmount(amount);
   } catch {
     return { error: amountError };
+  }
+
+  let portions: FundPortion[] | undefined;
+  if (fundPortions !== undefined) {
+    try {
+      portions = parseFundPortions(fundPortions);
+      if (kind !== "expense" || coverageSum(portions) > coverageUnits(decimal))
+        return { error: fundPortionsError };
+    } catch {
+      return { error: fundPortionsError };
+    }
   }
 
   const label = concept ?? "";
@@ -279,6 +301,7 @@ export function parseMovement(
     concept: label.trim(),
     note: details.trim() || null,
     categoryId: category.toLowerCase() || null,
+    ...(portions !== undefined && { fundPortions: portions }),
     idempotencyKey: idempotencyKey.toLowerCase(),
   };
 }
