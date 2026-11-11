@@ -10,6 +10,7 @@ import {
 } from "@/domain/budgets";
 import type { MovementCategory } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
+import { BudgetThresholdNotice } from "./notices";
 import { Card } from "./ui/card";
 
 const button =
@@ -317,11 +318,12 @@ function BudgetEntry({
               El mes siguiente vuelve automáticamente al límite habitual.
             </p>
           )}
-          {percent >= BigInt(100) && (
-            <p className="text-sm text-red-600">
-              Límite del mes alcanzado. Podés seguir gastando: no se bloquean
-              compras.
-            </p>
+          {percent >= BigInt(80) && (
+            <BudgetThresholdNotice
+              categoryName={budget.categoryName}
+              percent={Number(percent)}
+              state={percent >= BigInt(100) ? "danger" : "warning"}
+            />
           )}
         </div>
       </Card>

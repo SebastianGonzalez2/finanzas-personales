@@ -8,7 +8,11 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import {
+  bankCurrencies,
+  bankReferenceToday,
+  formatBankAmount,
+} from "@/domain/bank-balances";
 import type {
   ContributionChange,
   ContributionPeriod,
@@ -22,8 +26,10 @@ import {
   type FundMovement,
   type SavingsFund,
 } from "@/domain/savings-funds";
+import { fundGoalOverdue } from "@/domain/notices";
 import { useFinancialCommand } from "./financial-command";
 import { FundContributions } from "./fund-contributions";
+import { GoalDueNotice } from "./notices";
 import { Card } from "./ui/card";
 
 const button =
@@ -68,6 +74,7 @@ export function SavingsFundCatalog({
   const trigger = useRef<HTMLButtonElement>(null);
   const open = funds.filter(({ status }) => status !== "closed");
   const closed = funds.filter(({ status }) => status === "closed");
+  const today = contributions?.today ?? bankReferenceToday();
 
   function fundContributions(fund: SavingsFund) {
     if (!contributions) return null;
@@ -183,6 +190,7 @@ export function SavingsFundCatalog({
               <FundEntry
                 key={fund.id}
                 fund={fund}
+                today={today}
                 editDisabled={editor !== null}
                 edit={(from) => openEditor({ action: "edit", fund }, from)}
                 move={
@@ -205,7 +213,7 @@ export function SavingsFundCatalog({
           </summary>
           <ul className="mt-3 grid gap-3 xl:grid-cols-2">
             {closed.map((fund) => (
-              <FundEntry key={fund.id} fund={fund}>
+              <FundEntry key={fund.id} fund={fund} today={today}>
                 {fundContributions(fund)}
               </FundEntry>
             ))}
@@ -218,6 +226,7 @@ export function SavingsFundCatalog({
 
 function FundEntry({
   fund,
+  today,
   edit,
   editDisabled,
   move,
@@ -225,6 +234,7 @@ function FundEntry({
   children,
 }: {
   fund: SavingsFund;
+  today: string;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   move?: (action: FundAction, from: HTMLButtonElement) => void;
@@ -290,6 +300,7 @@ function FundEntry({
             Sin dinero reservado todavía.
           </p>
         )}
+        {fundGoalOverdue(fund, today) && <GoalDueNotice fund={fund} />}
         {move && (
           <div className="flex flex-wrap gap-2">
             {(["reserve", "release", "transfer"] as const).map((action) => {
