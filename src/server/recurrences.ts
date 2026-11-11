@@ -8,10 +8,12 @@ import {
 } from "../domain/recurrence-definition.ts";
 import {
   latestRecurrencePeriod,
+  recurrenceIsFinished,
   recurrenceLifecycle,
   recurrencePeriodAt,
 } from "../domain/recurrences.ts";
-import { resolveMovementCategory } from "./movements.ts";
+import type { RecurrencePauseCommand } from "../domain/recurrence-pause.ts";
+import { commandHash, resolveMovementCategory } from "./movements.ts";
 
 export async function recurrencesReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
@@ -74,6 +76,57 @@ export async function createRecurrence(
       definition.dueDay,
       definition.endDate,
     ],
+  );
+  return { status: "created", id } as const;
+}
+
+// Pause and resume move only the lifecycle flag. Periods, settlements and the
+// definition receipt stay untouched, so the past never changes (RF-035). The
+// command receipt reuses the recurring_commands ledger for idempotency.
+export async function setRecurrencePaused(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: RecurrencePauseCommand,
+  today: string,
+) {
+  const { seriesId, idempotencyKey: id, action } = command;
+  const hash = commandHash(["recurring-pause-v1", JSON.stringify(command)]);
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:recurrences:' || jsonb_build_array($1::text, $2::text)::text, 0))",
+    [ownerId, seriesId],
+  );
+  const {
+    rows: [receipt],
+  } = await client.query<{ command_hash: string }>(
+    "SELECT command_hash FROM finance.recurring_commands WHERE owner_id = $1 AND id = $2",
+    [ownerId, id],
+  );
+  if (receipt)
+    return {
+      status: receipt.command_hash === hash ? "replayed" : "conflict",
+      id,
+    } as const;
+
+  const {
+    rows: [series],
+  } = await client.query<{ paused: boolean; endDate: string | null }>(
+    `SELECT paused, end_date::text AS "endDate"
+       FROM finance.recurring_series WHERE owner_id = $1 AND id = $2`,
+    [ownerId, seriesId],
+  );
+  if (!series) return { status: "not-found", id } as const;
+  if (recurrenceIsFinished(series.endDate, today))
+    return { status: "finished", id } as const;
+
+  await client.query(
+    `INSERT INTO finance.recurring_commands (owner_id, id, series_id, command_hash, details)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [ownerId, id, seriesId, hash, JSON.stringify({ action })],
+  );
+  // A repeated request with a fresh key stays a no-op: no version bump.
+  await client.query(
+    "UPDATE finance.recurring_series SET paused = $3, version = version + 1 WHERE owner_id = $1 AND id = $2 AND paused <> $3",
+    [ownerId, seriesId, action === "pause"],
   );
   return { status: "created", id } as const;
 }

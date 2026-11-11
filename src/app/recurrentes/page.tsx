@@ -5,6 +5,7 @@ import { FinanceShell } from "@/components/finance-shell";
 import { RecurrenceSettlementForm } from "@/components/recurrence-settlement-form";
 import { historyButton } from "@/components/history-fields";
 import { RecurrenceForm } from "@/components/recurrence-form";
+import { RecurrenceLifecycleForm } from "@/components/recurrence-lifecycle-form";
 import { Card } from "@/components/ui/card";
 import {
   bankReferenceToday,
@@ -134,6 +135,18 @@ export default async function RecurrencesPage({
                         {frequencies[series.frequency]} ·{" "}
                         {statuses[series.status]}
                       </p>
+                      {series.status !== "finished" && (
+                        <RecurrenceLifecycleForm
+                          seriesId={series.id}
+                          paused={series.status === "paused"}
+                        />
+                      )}
+                      {series.status === "paused" && (
+                        <p role="status" className="text-sm">
+                          Serie pausada. Los períodos quedan como están hasta
+                          que la reanudes.
+                        </p>
+                      )}
                       <dl className="grid gap-2 text-sm sm:grid-cols-2">
                         <div>
                           <dt>Primer período</dt>
