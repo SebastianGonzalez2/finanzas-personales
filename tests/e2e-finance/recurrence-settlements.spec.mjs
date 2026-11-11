@@ -8,6 +8,7 @@ import {
 } from "../support/finance-browser.mjs";
 
 const path = "/api/recurrences/settlements";
+const seriesPath = "/api/recurrences/series";
 const post = (context, route, data, origin = financeTestOrigin) =>
   context.request.post(route, { data, headers: { origin } });
 
@@ -17,6 +18,78 @@ function monthBefore(today, offset) {
     .toISOString()
     .slice(0, 10);
 }
+
+test("F4-03: omite un período, cambia el día futuro y reanuda la serie", async ({
+  page,
+  context,
+  browser,
+}, testInfo) => {
+  const { cookies } = await financeBrowserFixtures();
+  await context.addCookies([cookies.a1]);
+  const today = bankReferenceToday();
+  const response = await post(context, "/api/recurrences", {
+    kind: "income",
+    concept: "Sueldo sintético F4-03",
+    currency: "UYU",
+    firstPeriod: monthBefore(today, 1),
+    dateMode: "exact",
+    dueDay: 5,
+    idempotencyKey: randomUUID(),
+  });
+  expect(response.status()).toBe(201);
+  const { id } = await response.json();
+  await page.goto("/recurrentes");
+  const series = page.locator(`#serie-${id}`);
+  const previous = page.locator(`#periodo-${id}-0`);
+  const current = page.locator(`#periodo-${id}-1`);
+  await previous.getByRole("button", { name: "Omitir este período" }).click();
+  await previous
+    .getByRole("button", { name: "Confirmar", exact: true })
+    .click();
+  await expect(previous).toContainText("No corresponde cobrar");
+  await expect(current).toContainText("Sin cobro confirmado");
+  const currentDue = ["05", today.slice(5, 7), today.slice(0, 4)].join("/");
+  await expect(current).toContainText(currentDue);
+
+  await series.getByText("Editar día de vencimiento", { exact: true }).click();
+  const nextMonth = monthBefore(today, -1);
+  await expect(series.getByText(/Nuevo día a partir de/)).toContainText(
+    `${nextMonth.slice(5, 7)}/${nextMonth.slice(0, 4)}`,
+  );
+  await series.getByLabel("Nuevo día de vencimiento").fill("10");
+  await series.getByRole("button", { name: "Guardar día" }).click();
+  await expect(series.getByText("Día 10", { exact: true })).toBeVisible();
+  await expect(current).toContainText(currentDue);
+  await series.getByRole("button", { name: "Pausar serie" }).click();
+  await expect(series.getByText(/Serie pausada/)).toBeVisible();
+  await expect(previous).toContainText("No corresponde cobrar");
+  await expect(current).toContainText("Sin cobro confirmado");
+  await page.screenshot({
+    path: testInfo.outputPath("F4-03-pausa.png"),
+    fullPage: true,
+  });
+  await series.getByRole("button", { name: "Reanudar serie" }).click();
+  await expect(
+    series.getByRole("button", { name: "Pausar serie" }),
+  ).toBeVisible();
+  await expect(previous).toContainText("No corresponde cobrar");
+  await expect(current).toContainText(currentDue);
+
+  const foreign = await browser.newContext({ baseURL: financeTestOrigin });
+  const pause = { action: "pause", seriesId: id, idempotencyKey: randomUUID() };
+  try {
+    expect((await post(foreign, seriesPath, pause)).status()).toBe(401);
+    await foreign.addCookies([cookies.b]);
+    expect(
+      (
+        await post(foreign, seriesPath, pause, "https://example.invalid")
+      ).status(),
+    ).toBe(403);
+    expect((await post(foreign, seriesPath, pause)).status()).toBe(404);
+  } finally {
+    await foreign.close();
+  }
+});
 
 test("F4-02: depósitos desde Recurrentes, efectos reales y privacidad", async ({
   page,

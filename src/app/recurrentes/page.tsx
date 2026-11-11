@@ -18,18 +18,24 @@ import {
   type MovementKind,
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
+import {
+  followingRecurrenceMonth,
+  latestTrackedIndex,
+} from "@/domain/recurrence-plan";
 import type { TrackedPeriod } from "@/domain/recurrence-settlements";
 import { listCards } from "@/server/cards";
 import { recurrenceTrackingReady } from "@/server/recurrence-links";
 import {
-  latestTrackedIndex,
-  recurrencePageSize,
-  trackedPeriodIndices,
+  trackedPeriodPage,
   trackedPeriods,
 } from "@/server/recurrence-settlements";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listMovementCategories } from "@/server/movements";
-import { listRecurrences, recurrencesReady } from "@/server/recurrences";
+import {
+  listRecurrences,
+  recurrencesReady,
+  recurrenceSeriesControlsReady,
+} from "@/server/recurrences";
 
 export const metadata = { title: "Recurrentes | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -65,8 +71,15 @@ export default async function RecurrencesPage({
           message:
             "Las recurrencias estarán disponibles cuando se actualice la base de datos.",
         };
-      const definitions = await listRecurrences(client, ownerId, today);
       const tracking = await recurrenceTrackingReady(client);
+      const definitions = await listRecurrences(
+        client,
+        ownerId,
+        today,
+        tracking,
+      );
+      const controls =
+        tracking && (await recurrenceSeriesControlsReady(client));
       const cards =
         tracking && definitions.some(({ kind }) => kind === "expense")
           ? (await listCards(client, ownerId)).filter(
@@ -80,17 +93,23 @@ export default async function RecurrencesPage({
           series.id === focus && offset !== null
             ? Math.min(offset, latestIndex)
             : latestIndex;
-        const indices = trackedPeriodIndices(start);
+        const { indices, next } = trackedPeriodPage(series, start);
+        const dueDay =
+          series.changes.findLast((change) => change.action === "due-day")
+            ?.dueDay ?? series.dueDay;
         recurrences.push({
           ...series,
+          dueDay,
           latestIndex,
           start,
+          next,
           periods: await trackedPeriods(client, ownerId, series, indices),
         });
       }
       return {
         recurrences,
         tracking,
+        controls,
         cards,
         categories: await listMovementCategories(client, ownerId),
       };
@@ -135,16 +154,19 @@ export default async function RecurrencesPage({
                         {frequencies[series.frequency]} ·{" "}
                         {statuses[series.status]}
                       </p>
-                      {series.status !== "finished" && (
+                      {result.controls && series.status !== "finished" && (
                         <RecurrenceLifecycleForm
                           seriesId={series.id}
                           paused={series.status === "paused"}
+                          dueDay={series.dueDay}
+                          effectiveMonth={followingRecurrenceMonth(today)}
+                          version={series.version}
                         />
                       )}
                       {series.status === "paused" && (
                         <p role="status" className="text-sm">
-                          Serie pausada. Los períodos quedan como están hasta
-                          que la reanudes.
+                          Serie pausada. Podés gestionar los períodos previos.
+                          Al reanudarla, se programarán los próximos períodos.
                         </p>
                       )}
                       <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -233,7 +255,7 @@ export default async function RecurrencesPage({
                                   seriesId={series.id}
                                   olderCursor={
                                     series.start === series.latestIndex
-                                      ? series.start - recurrencePageSize
+                                      ? series.next
                                       : series.latestIndex
                                   }
                                   period={period}
@@ -262,15 +284,15 @@ export default async function RecurrencesPage({
                             {series.start < series.latestIndex && (
                               <Link
                                 className={historyButton}
-                                href={`/recurrentes?serie=${series.id}&hasta=${Math.min(series.latestIndex, series.start + recurrencePageSize)}#serie-${series.id}`}
+                                href={`/recurrentes#serie-${series.id}`}
                               >
                                 Períodos más recientes
                               </Link>
                             )}
-                            {series.start >= recurrencePageSize && (
+                            {series.next >= 0 && (
                               <Link
                                 className={historyButton}
-                                href={`/recurrentes?serie=${series.id}&hasta=${series.start - recurrencePageSize}#serie-${series.id}`}
+                                href={`/recurrentes?serie=${series.id}&hasta=${series.next}#serie-${series.id}`}
                               >
                                 Períodos anteriores
                               </Link>

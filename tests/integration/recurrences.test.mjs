@@ -7,9 +7,9 @@ import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
 import { parseRecurrencePause } from "../../src/domain/recurrence-pause.ts";
 import {
+  applyRecurrenceSeriesCommand,
   createRecurrence,
   listRecurrences,
-  setRecurrencePaused,
 } from "../../src/server/recurrences.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
@@ -172,9 +172,9 @@ test("F4-03: pausa y reanudación explícitas sin tocar períodos ni historial",
     assert.equal(created.status, "created");
     const seriesId = created.id;
     const pause = (id, command = parsed) =>
-      run(id, (c, ownerId) => setRecurrencePaused(c, ownerId, command, today))
-        .then((result) => result.status)
-        .catch(() => "rejected");
+      run(id, (c, ownerId) =>
+        applyRecurrenceSeriesCommand(c, ownerId, command, today),
+      ).then((result) => result.status);
 
     // Otro titular no puede pausar una serie ajena.
     assert.equal(await pause(other), "not-found");
@@ -189,21 +189,27 @@ test("F4-03: pausa y reanudación explícitas sin tocar períodos ni historial",
       ),
       "not-found",
     );
-    assert.equal(await pause(owner, seriesId), "created");
+    const command = { ...parsed, seriesId };
+    assert.deepEqual(
+      (
+        await Promise.all([pause(owner, command), pause(owner, command)])
+      ).sort(),
+      ["created", "replayed"],
+    );
     // El mismo envío repetido es una reemisión, no un conflicto.
-    assert.equal(await pause(owner, seriesId), "replayed");
+    assert.equal(await pause(owner, command), "replayed");
     // La misma clave con otros datos entra en conflicto.
     assert.equal(
-      await pause(owner, seriesId, {
-        ...parsed,
+      await pause(owner, {
+        ...command,
         action: "resume",
       }),
       "conflict",
     );
     // Pausar dos veces no incrementa la versión ni cambia el estado.
     assert.equal(
-      await pause(owner, seriesId, {
-        ...parsed,
+      await pause(owner, {
+        ...command,
         idempotencyKey: randomUUID(),
       }),
       "created",
@@ -217,8 +223,8 @@ test("F4-03: pausa y reanudación explícitas sin tocar períodos ni historial",
 
     // La reanudación devuelve la serie a activa con otro comprobante.
     assert.equal(
-      await pause(owner, seriesId, {
-        ...parsed,
+      await pause(owner, {
+        ...command,
         idempotencyKey: randomUUID(),
         action: "resume",
       }),
@@ -274,7 +280,7 @@ test("F4-03: pausa y reanudación explícitas sin tocar períodos ni historial",
     );
     assert.equal(closed.status, "created");
     assert.equal(
-      await pause(owner, closed.id, {
+      await pause(owner, {
         ...parsed,
         seriesId: closed.id,
         idempotencyKey: randomUUID(),

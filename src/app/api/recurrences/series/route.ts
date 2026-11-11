@@ -1,10 +1,14 @@
 import { bankReferenceToday } from "@/domain/bank-balances";
-import { parseRecurrencePause } from "@/domain/recurrence-pause";
+import { parseRecurrenceSeriesCommand } from "@/domain/recurrence-pause";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
 import { recurrenceTrackingReady } from "@/server/recurrence-links";
-import { recurrencesReady, setRecurrencePaused } from "@/server/recurrences";
+import {
+  applyRecurrenceSeriesCommand,
+  recurrencesReady,
+  recurrenceSeriesControlsReady,
+} from "@/server/recurrences";
 
 export const runtime = "nodejs";
 
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
   }
   if (new URL(request.url).search)
     return reply({ error: "Solicitud inválida." }, 400);
-  const command = parseRecurrencePause(
+  const command = parseRecurrenceSeriesCommand(
     await limitedJson(request).catch(() => null),
   );
   if ("error" in command) return reply(command, 400);
@@ -49,16 +53,18 @@ export async function POST(request: Request) {
           },
           409,
         );
-      // The pause receipt lives in the tracking ledger introduced by F4-02.
-      if (!(await recurrenceTrackingReady(client)))
+      if (
+        !(await recurrenceTrackingReady(client)) ||
+        !(await recurrenceSeriesControlsReady(client))
+      )
         return reply(
           {
             error:
-              "La pausa estará disponible cuando se actualice la base de datos.",
+              "Los cambios de la serie estarán disponibles cuando se actualice la base de datos.",
           },
           409,
         );
-      const result = await setRecurrencePaused(
+      const result = await applyRecurrenceSeriesCommand(
         client,
         ownerId,
         command,
@@ -68,11 +74,27 @@ export async function POST(request: Request) {
         return reply({ error: "La recurrencia no está disponible." }, 404);
       if (result.status === "finished")
         return reply(
-          { error: "La serie finalizó; no admite pausa ni reanudación." },
+          { error: "La serie finalizó y su programación quedó cerrada." },
           409,
         );
       if (result.status === "conflict")
         return reply({ error: "Ese envío ya se usó con otros datos." }, 409);
+      if (result.status === "stale")
+        return reply(
+          {
+            error:
+              "La programación cambió. Actualizá la página antes de guardar.",
+          },
+          409,
+        );
+      if (result.status === "no-future-period")
+        return reply(
+          {
+            error:
+              "La serie no tiene un vencimiento futuro que admita este día.",
+          },
+          409,
+        );
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {

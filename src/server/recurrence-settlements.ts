@@ -1,9 +1,5 @@
 import "server-only";
 import type pg from "pg";
-import {
-  recurrenceSchedule,
-  type RecurrenceDefinition,
-} from "../domain/recurrence-definition.ts";
 import { coverageDecimal, coverageUnits } from "../domain/fund-coverage.ts";
 import {
   duplicateSettlement,
@@ -13,14 +9,17 @@ import {
   type TrackedPeriod,
 } from "../domain/recurrence-settlements.ts";
 import {
-  latestRecurrencePeriod,
-  recurrencePeriodAt,
-} from "../domain/recurrences.ts";
+  latestTrackedIndex,
+  plannedPeriodAt,
+  suppressedByPause,
+  type RecurrencePlan,
+} from "../domain/recurrence-plan.ts";
 import { lockBankWrites } from "./bank-balances.ts";
 import { saveCreditOperation } from "./credit-operations.ts";
 import { commandHash, findReplay, saveMovement } from "./movements.ts";
+import { loadRecurrence } from "./recurrences.ts";
 
-type Series = RecurrenceDefinition & { id: string };
+type Series = RecurrencePlan & { id: string };
 type Candidate = SettlementEvent & { concept: string; cardId: string | null };
 const conflict = (error: string) => ({ status: "conflict", error }) as const;
 const notFound = {
@@ -30,11 +29,19 @@ const notFound = {
 const maxAmount = coverageUnits("9999999999999999.9999");
 export const recurrencePageSize = 6;
 
-export function trackedPeriodIndices(start: number) {
-  return Array.from(
-    { length: Math.min(recurrencePageSize, start + 1) },
-    (_, index) => start - index,
-  );
+export function trackedPeriodPage(series: Series, start: number) {
+  const indices: number[] = [];
+  let next = start;
+  while (next >= 0) {
+    const pause = suppressedByPause(series, next);
+    if (pause !== null) next = pause - 1;
+    else {
+      if (indices.length === recurrencePageSize) break;
+      indices.push(next);
+      next -= 1;
+    }
+  }
+  return { indices, next };
 }
 
 export async function additionalRecurrencePeriods(
@@ -44,54 +51,17 @@ export async function additionalRecurrencePeriods(
   cursor: number,
   today: string,
 ) {
-  const series = await loadSeries(client, ownerId, seriesId);
+  const series = await loadRecurrence(client, ownerId, seriesId);
   if (!series) return null;
   const start = Math.min(cursor, latestTrackedIndex(series, today));
-  const periods = await trackedPeriods(
-    client,
-    ownerId,
-    series,
-    trackedPeriodIndices(start),
-  );
+  const { indices, next } = trackedPeriodPage(series, start);
+  const periods = await trackedPeriods(client, ownerId, series, indices);
   return {
     periods: periods.filter(
       ({ status }) => status === "expected" || status === "partial",
     ),
-    next: start - recurrencePageSize,
+    next,
   };
-}
-
-async function loadSeries(
-  client: pg.PoolClient,
-  ownerId: string,
-  seriesId: string,
-) {
-  const {
-    rows: [series],
-  } = await client.query<Series>(
-    `SELECT id, kind, concept, currency, note, category_id AS "categoryId",
-       reference_amount::text AS "referenceAmount", frequency,
-       first_period::text AS "firstPeriod", date_mode AS "dateMode",
-       due_day AS "dueDay", end_date::text AS "endDate"
-       FROM finance.recurring_series WHERE owner_id = $1 AND id = $2`,
-    [ownerId, seriesId],
-  );
-  return series;
-}
-
-// Open the current period independently of its due date. Keep the first
-// configured date and the inclusive end of the existing schedule.
-export function latestTrackedIndex(
-  series: RecurrenceDefinition,
-  today: string,
-) {
-  const schedule = recurrenceSchedule(series);
-  const latest = latestRecurrencePeriod({ ...schedule, dueDay: null }, today);
-  if (!latest) return -1;
-  const dueOn = recurrencePeriodAt(schedule, latest.index).dueOn;
-  return schedule.endDate && dueOn && dueOn > schedule.endDate
-    ? latest.index - 1
-    : latest.index;
 }
 
 export async function trackedPeriods(
@@ -126,9 +96,8 @@ export async function trackedPeriods(
     [ownerId, series.id, indices],
   );
   const saved = new Map(rows.map((row) => [row.index, row]));
-  const schedule = recurrenceSchedule(series);
   return indices.map((index) => {
-    const scheduled = recurrencePeriodAt(schedule, index);
+    const scheduled = plannedPeriodAt(series, index);
     const row = saved.get(index);
     const events = row?.events ?? [];
     const recorded = coverageDecimal(
@@ -214,7 +183,7 @@ export async function linkableRecurrenceEvents(
   seriesId: string,
   date: string,
 ) {
-  const series = await loadSeries(client, ownerId, seriesId);
+  const series = await loadRecurrence(client, ownerId, seriesId);
   return series ? eligibleEvents(client, ownerId, series, { date }) : null;
 }
 
@@ -291,7 +260,7 @@ export async function applySettlement(
   if (receipt || (await findReplay(client, ownerId, idempotencyKey, hash)))
     return conflict("Ese envío ya se usó con otros datos.");
 
-  const series = await loadSeries(client, ownerId, seriesId);
+  const series = await loadRecurrence(client, ownerId, seriesId);
   if (!series) return notFound;
   const movement =
     command.action === "record" || command.action === "link" ? command : null;
@@ -300,7 +269,13 @@ export async function applySettlement(
       ? command.targets
       : [{ ...command.target, amount: "0.0000" }];
   const latest = latestTrackedIndex(series, today);
-  if (targets.some(({ index }) => index > latest)) return notFound;
+  if (
+    targets.some(
+      ({ index }) =>
+        index > latest || suppressedByPause(series, index) !== null,
+    )
+  )
+    return notFound;
   if (series.kind === "income" && targets.length !== 1)
     return conflict("Cada cobro corresponde a un único período de ingreso.");
 

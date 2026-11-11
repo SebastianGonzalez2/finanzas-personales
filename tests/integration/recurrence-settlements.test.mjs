@@ -5,6 +5,8 @@ import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
+import { parseRecurrenceSeriesCommand } from "../../src/domain/recurrence-pause.ts";
+import { latestTrackedIndex } from "../../src/domain/recurrence-plan.ts";
 import { parseSettlement } from "../../src/domain/recurrence-settlements.ts";
 import {
   listBankBalances,
@@ -23,11 +25,15 @@ import {
 import { recurrenceEventPeriods } from "../../src/server/recurrence-links.ts";
 import {
   applySettlement,
-  latestTrackedIndex,
+  additionalRecurrencePeriods,
   linkableRecurrenceEvents,
   trackedPeriods,
 } from "../../src/server/recurrence-settlements.ts";
-import { createRecurrence } from "../../src/server/recurrences.ts";
+import {
+  applyRecurrenceSeriesCommand,
+  createRecurrence,
+  loadRecurrence,
+} from "../../src/server/recurrences.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
 const today = "2026-12-15";
@@ -74,13 +80,13 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     const [bank] = await run((c, id) => listBankBalances(c, id));
     return bank.calculatedAmount ?? bank.amount;
   };
-  const apply = (series, fields, user = owner) => {
+  const apply = (series, fields, user = owner, at = today) => {
     const command = parseSettlement(
       { idempotencyKey: randomUUID(), ...fields, seriesId: series.id },
-      today,
+      at,
     );
     assert.ok(!("error" in command), JSON.stringify(command));
-    return run((c, id) => applySettlement(c, id, command, today), user);
+    return run((c, id) => applySettlement(c, id, command, at), user);
   };
   const record = (period, amount, date, fields = {}, method = "deposit") => ({
     action: "record",
@@ -116,6 +122,132 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         await run((c, id) => saveOpeningBalance(c, id, opening), user),
         "created",
       );
+
+    await t.test(
+      "CA-047: omisión, pausa y edición conservan el seguimiento y Bancos",
+      async () => {
+        const subscriber = randomUUID();
+        const read = (work) => run(work, subscriber);
+        assert.equal(
+          await read((c, id) => saveOpeningBalance(c, id, opening)),
+          "created",
+        );
+        const series = await create("income", {}, subscriber);
+        const periods = (plan) =>
+          read((c, id) => trackedPeriods(c, id, plan, [0, 1]));
+        const [november, december] = await periods(series);
+        const settle = (fields, user = subscriber, at = today) =>
+          apply(series, fields, user, at);
+        assert.equal(
+          (await settle(record(november, "100", today))).status,
+          "created",
+        );
+
+        const revise = (fields, date, user = subscriber) => {
+          const command = parseRecurrenceSeriesCommand({
+            seriesId: series.id,
+            idempotencyKey: randomUUID(),
+            ...fields,
+          });
+          assert.ok(!("error" in command));
+          return run(
+            (c, id) => applyRecurrenceSeriesCommand(c, id, command, date),
+            user,
+          );
+        };
+        const history = (date) =>
+          read((c, id) =>
+            additionalRecurrencePeriods(c, id, series.id, 99, date),
+          );
+        const omitKey = randomUUID();
+        const omit = {
+          action: "omit",
+          target: target(december),
+          idempotencyKey: omitKey,
+        };
+        assert.equal((await settle(omit, other)).status, "not-found");
+        const results = await Promise.all([settle(omit), settle(omit)]);
+        assert.deepEqual(results.map(({ status }) => status).sort(), [
+          "created",
+          "replayed",
+        ]);
+        assert.deepEqual(
+          (await history(today)).periods.map(({ key }) => key),
+          ["2026-11"],
+        );
+
+        const edit = {
+          action: "due-day",
+          dueDay: 10,
+          effectiveMonth: "2027-01",
+          version: 1,
+        };
+        assert.equal((await revise(edit, today, other)).status, "not-found");
+        assert.equal((await revise(edit, "2027-01-01")).status, "stale");
+        assert.equal((await revise(edit, today)).status, "created");
+        assert.equal(
+          (await revise({ ...edit, dueDay: 15 }, today)).status,
+          "stale",
+        );
+        const [january] = (await history("2027-01-01")).periods;
+        assert.equal(january.key, "2027-01");
+        assert.equal(january.dueOn, "2027-01-10");
+        assert.equal(january.status, "expected");
+        const plan = await read((c, id) => loadRecurrence(c, id, series.id));
+        const [savedNovember, savedDecember] = await periods(plan);
+        assert.equal(savedNovember.dueOn, november.dueOn);
+        assert.equal(savedNovember.recorded, "100.0000");
+        assert.equal(savedDecember.dueOn, december.dueOn);
+        assert.equal(savedDecember.status, "skipped");
+
+        assert.equal(
+          (
+            await revise(
+              { action: "pause", idempotencyKey: omitKey },
+              "2027-01-12",
+            )
+          ).status,
+          "conflict",
+        );
+        assert.equal(
+          (await revise({ action: "pause" }, "2027-01-12")).status,
+          "created",
+        );
+        const keys = async (date) =>
+          (await history(date)).periods.map(({ key }) => key);
+        assert.deepEqual(await keys("2027-02-12"), ["2027-01", "2026-11"]);
+        const duringPause = {
+          action: "omit",
+          target: { index: 3, version: 0, recorded: "0" },
+        };
+        assert.equal(
+          (await settle(duringPause, subscriber, "2027-02-12")).status,
+          "not-found",
+        );
+        assert.equal(
+          (await revise({ action: "resume" }, "2027-03-01")).status,
+          "created",
+        );
+        assert.deepEqual(await keys("2027-03-12"), ["2027-01", "2026-11"]);
+        assert.deepEqual(await keys("2027-04-01"), [
+          "2027-04",
+          "2027-01",
+          "2026-11",
+        ]);
+        assert.equal(
+          (await settle(duringPause, subscriber, "2027-04-01")).status,
+          "not-found",
+        );
+        const [bank] = await read((c, id) => listBankBalances(c, id));
+        assert.equal(bank.calculatedAmount, "10100.0000");
+        assert.deepEqual(
+          (await read((c, id) => listMovementTotals(c, id, today))).map(
+            ({ kind, amount }) => [kind, amount],
+          ),
+          [["income", "100.0000"]],
+        );
+      },
+    );
 
     await t.test(
       "CA-046: dos depósitos en un mes y reintento concurrente",
