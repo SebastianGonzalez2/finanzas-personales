@@ -51,36 +51,3 @@ export function DueNoticeList({
     </section>
   );
 }
-
-/**
- * Preferencia de avisos push al celular: opcional, solo para vencimientos de
- * tarjetas (v9.10). Nunca es obligatoria: si el dispositivo o el navegador no
- * la permiten, los avisos siguen disponibles dentro de la app. La activación
- * pide permiso solo por acción explícita del usuario.
- */
-export function PushPreference() {
-  return (
-    <section aria-labelledby="preferencia-push" className="grid gap-2">
-      <h2 id="preferencia-push" className="font-semibold">
-        Avisos al celular (opcional)
-      </h2>
-      <div className="grid gap-2 rounded-lg border p-4 text-sm">
-        <p>
-          Podés activar avisos push al celular para los vencimientos de tus
-          tarjetas de crédito. Es opcional: la app y todos tus avisos internos
-          funcionan igual sin esta opción.
-        </p>
-        <p className="text-muted-foreground">
-          Estado en este dispositivo: <strong>no activado</strong>. Para
-          activarlos vas a necesitar un navegador compatible y dar permiso
-          expresamente desde acá, cuando se solicite. Podés desactivarlos en
-          cualquier momento.
-        </p>
-        <p className="text-muted-foreground">
-          Los vencimientos de deudas, préstamos, recurrentes, presupuestos y
-          fondos solo generan avisos dentro de la app, sin push ni correos.
-        </p>
-      </div>
-    </section>
-  );
-}

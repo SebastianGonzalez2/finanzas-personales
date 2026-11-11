@@ -81,6 +81,8 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `fx_reference_rates` | base_currency, quote_currency, observed_at, source, rate, imported_at | No sobreescribir tasa usada por un hecho histórico; fecha/tasa/fuente reproducibles. |
 | `fx_valuations` | event_id, target_currency, rate_id?, manual_rate?, quoted_amount | Conversión **solo de consulta**; no mover dinero. |
 | `notifications` | owner_id, type, object_id, period_key, threshold?, state, due_at | Un aviso por evento/umbral; email financiero excluido; push tarjeta opcional. |
+| `card_push_subscriptions` | owner_id, id, endpoint, p256dh, auth, expires_at, enabled | Opt-in por dispositivo. Endpoint único entre titulares y protegido por RLS. |
+| `card_push_attempts` | owner_id, subscription_id, card_id, period, currency, claimed_at | Un intento por suscripción, tarjeta, ciclo y moneda. Claves foráneas por titular y RLS. |
 | `audit_changes` | actor_owner_id, event_id?, entity, entity_id, change_type, before_after, created_at | Traza de correcciones, reembolsos, conciliación, edición masiva, restauración. |
 | `backup_schema_versions` | version, migration_policy | Contrato de formato, no guardar contraseña de copia ni secretos. |
 

@@ -1,6 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import {
+  defaultNoticeLeadDays,
   loanDueNotice,
   recurrenceDueNotice,
   type DueNotice,
@@ -16,9 +17,6 @@ import { trackedPeriodPage, trackedPeriods } from "./recurrence-settlements.ts";
  * F4-05: avisos internos por vencimientos ciertos de deudas y recurrentes
  * (RF-037/038; CA-049; v9.36/v9.44). Lecturas por titular; nunca inventa
  * fechas y no emite más de un aviso por obligación (antirruido).
- * Los vencimientos de tarjetas usan listCardCycleAlerts (F2-04); el push
- * opcional (permisos, deduplicación y emisión) queda para el cierre de Codex
- * en la ruta MIX.
  */
 
 const byDueOn = (a: DueNotice, b: DueNotice) =>
@@ -55,16 +53,17 @@ export async function listRecurrenceDueNotices(
 ) {
   if (!(await recurrencesReady(client))) return [];
   if (!(await recurrenceTrackingReady(client))) return [];
+  const through = new Date(`${today}T00:00:00Z`);
+  through.setUTCDate(through.getUTCDate() + defaultNoticeLeadDays);
+  const horizon = through.toISOString().slice(0, 10);
   // Solo fecha cierta (v9.36): los períodos aproximados o sin fecha no
   // generan aviso de vencimiento; su estado ya es visible en Recurrentes.
   const seriesList = (
     await listRecurrences(client, ownerId, today, true)
-  ).filter(
-    (series) => series.status === "active" && series.dateMode === "exact",
-  );
+  ).filter((series) => series.dateMode === "exact");
   const notices: DueNotice[] = [];
   for (const series of seriesList) {
-    const latest = latestTrackedIndex(series, today);
+    const latest = latestTrackedIndex(series, horizon);
     if (latest < 0) continue;
     const { indices } = trackedPeriodPage(series, latest);
     const periods = await trackedPeriods(client, ownerId, series, indices);

@@ -1,7 +1,12 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
-import type { Loan, LoanCommand, LoanOperation } from "../domain/loans.ts";
+import {
+  defaultLoanNoticeLeadDays,
+  type Loan,
+  type LoanCommand,
+  type LoanOperation,
+} from "../domain/loans.ts";
 import { Money, type Currency } from "../domain/money.ts";
 import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 import { commandHash, findReplay } from "./movements.ts";
@@ -13,7 +18,8 @@ const conflict = (message: string) =>
 
 const loanFields = `l.id, f.concept, l.direction, l.currency,
   l.installment_loan AS "installmentLoan", l.installment_amount::text AS "installmentAmount",
-  l.frequency, to_char(l.due_on, 'YYYY-MM-DD') AS "dueOn", l.notice_lead_days AS "noticeLeadDays",
+  l.frequency, to_char(l.due_on, 'YYYY-MM-DD') AS "dueOn",
+  coalesce((to_jsonb(l)->>'notice_lead_days')::int, ${defaultLoanNoticeLeadDays}) AS "noticeLeadDays",
   o.outstanding::text, o.accrued_interest::text AS "accruedInterest",
   o.needs_reconciliation AS "needsReconciliation", o.version,
   to_char(latest.effective_on, 'YYYY-MM-DD') AS "effectiveOn"`;
@@ -256,6 +262,23 @@ export async function saveLoanOperation(
   const { idempotencyKey, effectiveOn, action, amount, note } = command;
   const hash = commandHash(["loan-operation", JSON.stringify(command)]);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
+  if (
+    replay?.status === "conflict" &&
+    !("loanId" in command) &&
+    command.noticeLeadDays === defaultLoanNoticeLeadDays
+  ) {
+    // Opening requests registered before notice preferences used the old shape.
+    const legacy = { ...command };
+    Reflect.deleteProperty(legacy, "noticeLeadDays");
+    const oldHash = commandHash(["loan-operation", JSON.stringify(legacy)]);
+    const oldReplay = await findReplay(
+      client,
+      ownerId,
+      idempotencyKey,
+      oldHash,
+    );
+    if (oldReplay?.status === "replayed") return oldReplay;
+  }
   if (replay?.status === "conflict")
     return conflict("La clave ya se usó para otro registro.");
   if (replay) return replay;
@@ -285,6 +308,23 @@ export async function saveLoanOperation(
     effects = openingEffects(command);
   }
   if ("error" in effects) return conflict(effects.error);
+  const customNoticeLead =
+    !("loanId" in command) &&
+    command.noticeLeadDays != null &&
+    command.noticeLeadDays !== defaultLoanNoticeLeadDays;
+  if (customNoticeLead) {
+    const {
+      rows: [schema],
+    } = await client.query<{ ready: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'finance' AND table_name = 'loans'
+           AND column_name = 'notice_lead_days') AS ready`,
+    );
+    if (!schema.ready)
+      return conflict(
+        "La antelación personalizada todavía no está disponible.",
+      );
+  }
   const exchange = action === "settle" ? command.exchange : undefined;
   const bankCurrency = exchange?.bankCurrency ?? currency;
   if (effects.bankDelta) {
@@ -306,8 +346,8 @@ export async function saveLoanOperation(
   );
   if (!("loanId" in command)) {
     await client.query(
-      `INSERT INTO finance.loans (owner_id, id, direction, currency, installment_loan, installment_amount, frequency, due_on, notice_lead_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO finance.loans (owner_id, id, direction, currency, installment_loan, installment_amount, frequency, due_on${customNoticeLead ? ", notice_lead_days" : ""})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8${customNoticeLead ? ", $9" : ""})`,
       [
         ownerId,
         id,
@@ -317,7 +357,7 @@ export async function saveLoanOperation(
         command.installmentAmount,
         command.frequency,
         command.dueOn,
-        command.noticeLeadDays,
+        ...(customNoticeLead ? [command.noticeLeadDays] : []),
       ],
     );
   }

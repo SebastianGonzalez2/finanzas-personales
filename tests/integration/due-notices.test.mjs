@@ -5,12 +5,14 @@ import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseLoanCommand } from "../../src/domain/loans.ts";
+import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
 import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import { findLoan, saveLoanOperation } from "../../src/server/loans.ts";
 import {
   listLoanDueNotices,
   listRecurrenceDueNotices,
 } from "../../src/server/due-notices.ts";
+import { createRecurrence } from "../../src/server/recurrences.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test("F4-05: aviso de vencimiento cierto por titular con antelación configurable", async () => {
@@ -21,6 +23,7 @@ test("F4-05: aviso de vencimiento cierto por titular con antelación configurabl
   const outsider = "f4-05-outsider";
   const today = "2026-11-17";
   const dueOn = "2026-11-20";
+  let installed = false;
   const command = (fields) => {
     const parsed = parseLoanCommand(
       { effectiveOn: today, idempotencyKey: randomUUID(), ...fields },
@@ -35,6 +38,7 @@ test("F4-05: aviso de vencimiento cierto por titular con antelación configurabl
       await client.query("BEGIN");
       await migrateInTransaction(client);
       await client.query("COMMIT");
+      installed = true;
     } finally {
       await client.query("ROLLBACK");
       client.release();
@@ -47,23 +51,26 @@ test("F4-05: aviso de vencimiento cierto por titular con antelación configurabl
       }),
     );
 
+    const opening = command({
+      action: "borrow",
+      direction: "payable",
+      amount: "5000",
+      concept: "Préstamo F4-05",
+      currency: "UYU",
+      installmentLoan: false,
+      dueOn,
+    });
+    const legacyOpening = { ...opening };
+    delete legacyOpening.noticeLeadDays;
     const created = await as(owner, (client, id) =>
-      saveLoanOperation(
-        client,
-        id,
-        command({
-          action: "borrow",
-          direction: "payable",
-          amount: "5000",
-          concept: "Préstamo F4-05",
-          currency: "UYU",
-          installmentLoan: false,
-          dueOn,
-        }),
-      ),
+      saveLoanOperation(client, id, legacyOpening),
     );
     assert.equal(created.status, "created");
     const loanId = created.id;
+    assert.deepEqual(
+      await as(owner, (client, id) => saveLoanOperation(client, id, opening)),
+      { status: "replayed", id: loanId },
+    );
 
     // Predeterminado confirmado: 3 días de antelación (v9.44).
     assert.equal(
@@ -160,16 +167,54 @@ test("F4-05: aviso de vencimiento cierto por titular con antelación configurabl
       [`loan:${widened.id}`],
     );
 
-    // Los recurrentes sin series activas no generan avisos.
+    const recurrence = parseRecurrence({
+      kind: "income",
+      concept: "Cobro de referencia",
+      currency: "UYU",
+      firstPeriod: "2026-12-01",
+      endDate: "2026-12-01",
+      dateMode: "exact",
+      frequency: "monthly",
+      referenceAmount: "1000",
+      idempotencyKey: randomUUID(),
+    });
+    assert.ok(!("error" in recurrence));
     assert.equal(
       (
         await as(owner, (client, id) =>
-          listRecurrenceDueNotices(client, id, today),
+          createRecurrence(client, id, recurrence),
         )
-      ).length,
-      0,
+      ).status,
+      "created",
+    );
+    const recurrenceNotices = (day) =>
+      as(owner, (client, id) => listRecurrenceDueNotices(client, id, day));
+    assert.deepEqual(await recurrenceNotices("2026-11-27"), []);
+    const upcoming = await recurrenceNotices("2026-11-28");
+    assert.equal(upcoming.length, 1);
+    assert.equal(upcoming[0].dueOn, "2026-12-01");
+    assert.equal(
+      (await recurrenceNotices("2026-12-01"))[0].key,
+      upcoming[0].key,
+    );
+    assert.equal(
+      (await recurrenceNotices("2026-12-02"))[0].key,
+      upcoming[0].key,
+    );
+    assert.deepEqual(
+      await as(outsider, (client, id) =>
+        listRecurrenceDueNotices(client, id, "2026-11-28"),
+      ),
+      [],
     );
   } finally {
-    await pool.end();
+    try {
+      if (installed)
+        await pool.query(
+          "DROP SCHEMA finance, finance_meta CASCADE; DROP ROLE finanzas_app",
+        );
+    } finally {
+      await pool.end();
+    }
   }
 });

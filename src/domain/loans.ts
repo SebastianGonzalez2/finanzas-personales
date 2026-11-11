@@ -190,11 +190,15 @@ export function parseLoanCommand(
       const dueOn = data.dueOn === "" ? null : (data.dueOn ?? null);
       if (dueOn !== null && !isBankReferenceDate(dueOn, "9999-12-31"))
         throw new Error();
+      const lead = data.noticeLeadDays;
       const noticeLeadDays =
-        data.noticeLeadDays == null || data.noticeLeadDays === ""
+        lead == null || lead === ""
           ? defaultLoanNoticeLeadDays
-          : Number(data.noticeLeadDays);
+          : typeof lead === "string" && /^\d{1,3}$/.test(lead)
+            ? Number(lead)
+            : lead;
       if (
+        typeof noticeLeadDays !== "number" ||
         !Number.isInteger(noticeLeadDays) ||
         noticeLeadDays < 0 ||
         noticeLeadDays > 365

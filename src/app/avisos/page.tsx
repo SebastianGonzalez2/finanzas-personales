@@ -5,13 +5,15 @@ import { CardCycleAlerts } from "@/components/card-cycle-alerts";
 import { ContributionNotice } from "@/components/fund-contributions";
 import { FundTargetMessage } from "@/components/fund-target-notice";
 import { BudgetThresholdNotice, NoticeCard } from "@/components/notices";
-import { DueNoticeList, PushPreference } from "@/components/due-notices";
+import { DueNoticeList } from "@/components/due-notices";
+import { PushPreference } from "@/components/card-push-preference";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { contributionPending } from "@/domain/contribution-plans";
 import { fundTargetNotices } from "@/domain/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listBudgetNotices } from "@/server/budgets";
 import { cardCyclesReady, listCardCycleAlerts } from "@/server/card-cycles";
+import { cardPushConfig, cardPushReady } from "@/server/card-push";
 import { savingsFundsReady } from "@/server/bank-balances";
 import {
   listLoanDueNotices,
@@ -48,6 +50,7 @@ export default async function NoticesPage() {
         today,
         periods,
         plans,
+        pushReady: await cardPushReady(client),
         budgetNotices: await listBudgetNotices(client, ownerId, month),
         cardAlerts:
           (await cardsReady(client)) && (await cardCyclesReady(client))
@@ -232,7 +235,12 @@ export default async function NoticesPage() {
               </section>
             )}
             {quiet && <p>No tenés avisos nuevos.</p>}
-            <PushPreference />
+            <PushPreference
+              storageReady={result.pushReady}
+              publicKey={
+                result.pushReady ? (cardPushConfig()?.publicKey ?? null) : null
+              }
+            />
             {resolved.length > 0 && (
               <details className="space-y-3 rounded-lg border p-4">
                 <summary className="cursor-pointer font-semibold">
