@@ -3,11 +3,14 @@ import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { bankCurrencies, formatBankAmount } from "../domain/bank-balances.ts";
 import { Money, type Currency } from "../domain/money.ts";
-import type {
-  FundAvailability,
-  FundCommand,
-  FundMovement,
-  SavingsFund,
+import {
+  pendingContributionToken,
+  targetRemainder,
+  type FundAvailability,
+  type FundClosureRecord,
+  type FundCommand,
+  type FundMovement,
+  type SavingsFund,
 } from "../domain/savings-funds.ts";
 import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 
@@ -17,6 +20,15 @@ const conflict = (message: string) =>
 export async function reserveEffectsReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.reserve_effects') IS NOT NULL AS ready",
+  );
+  return rows[0].ready;
+}
+
+export async function fundLifecycleReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+       WHERE attrelid = to_regclass('finance.contribution_periods')
+         AND attname = 'resolution' AND NOT attisdropped) AS ready`,
   );
   return rows[0].ready;
 }
@@ -32,7 +44,7 @@ export async function lockFundWrites(client: pg.PoolClient, ownerId: string) {
 export async function listSavingsFunds(client: pg.PoolClient, ownerId: string) {
   const { rows } = await client.query<SavingsFund>(
     `SELECT id, name, currency, reserved_amount::numeric(20,4)::text AS "reservedAmount",
-            target_amount::text AS "targetAmount",
+            target_amount::numeric(20,4)::text AS "targetAmount",
             to_char(target_date, 'YYYY-MM-DD') AS "targetDate", status, version
        FROM finance.savings_funds
       WHERE owner_id = $1
@@ -58,6 +70,16 @@ export async function listFundAvailability(
   );
 }
 
+export async function listFundClosures(client: pg.PoolClient, ownerId: string) {
+  const { rows } = await client.query<FundClosureRecord>(
+    `SELECT fund_id AS "fundId", configuration->>'releasedAmount' AS amount,
+            to_char(created_at AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD') AS "closedOn"
+       FROM finance.fund_changes WHERE owner_id = $1 AND action = 'close'`,
+    [ownerId],
+  );
+  return rows;
+}
+
 async function recordFundChange(
   client: pg.PoolClient,
   ownerId: string,
@@ -65,7 +87,7 @@ async function recordFundChange(
   hash: string,
   id: string,
   version: number,
-  configuration: Record<string, string>,
+  configuration: Record<string, unknown>,
 ) {
   await client.query(
     `INSERT INTO finance.fund_changes
@@ -182,6 +204,8 @@ async function saveFundMovement(
     `WITH updated AS (
        UPDATE finance.savings_funds AS f
           SET reserved_amount = f.reserved_amount + d.delta,
+              status = CASE WHEN f.status = 'active' AND f.target_amount <= f.reserved_amount + d.delta
+                            THEN 'paused_target_reached' ELSE f.status END,
               version = f.version + 1, updated_at = clock_timestamp()
          FROM unnest($3::uuid[], $4::numeric[]) AS d(id, delta)
         WHERE f.owner_id = $1 AND f.id = d.id
@@ -196,13 +220,78 @@ async function saveFundMovement(
   return { status: "saved", id: fundId } as const;
 }
 
+async function closeFund(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: Extract<FundCommand, { action: "close" }>,
+  hash: string,
+  fund: Pick<SavingsFund, "currency" | "reservedAmount" | "version">,
+) {
+  const { fundId, idempotencyKey } = command;
+  const { rows: pending } = await client.query<{ id: string; amount: string }>(
+    `SELECT id, amount::text FROM finance.contribution_periods
+      WHERE owner_id = $1 AND fund_id = $2 AND status IN ('missed_insufficient', 'missed_execution')
+      ORDER BY id`,
+    [ownerId, fundId],
+  );
+  const ids = pending.map(({ id }) => id);
+  if (command.pendingToken !== (await pendingContributionToken(ids)))
+    return conflict(
+      "Las aportaciones pendientes cambiaron. Actualizá la página y revisá el cierre.",
+    );
+
+  // This phase has no purchase commitments against reserves; F3-05 must
+  // enforce its commitment check here under the same owner locks.
+  const version = fund.version + 1;
+  await recordFundChange(client, ownerId, command, hash, fundId, version, {
+    currency: fund.currency,
+    releasedAmount: fund.reservedAmount,
+    discardedPeriods: pending,
+  });
+  await client.query(
+    `UPDATE finance.savings_funds
+        SET status = 'closed', reserved_amount = 0, version = $3, updated_at = clock_timestamp()
+      WHERE owner_id = $1 AND id = $2`,
+    [ownerId, fundId, version],
+  );
+  if (fund.reservedAmount !== "0.0000")
+    await client.query(
+      `INSERT INTO finance.reserve_effects (owner_id, command_id, fund_id, currency, fund_version, delta)
+       VALUES ($1, $2, $3, $4, $5, -$6::numeric)`,
+      [
+        ownerId,
+        idempotencyKey,
+        fundId,
+        fund.currency,
+        version,
+        fund.reservedAmount,
+      ],
+    );
+  if (pending.length > 0)
+    await client.query(
+      `UPDATE finance.contribution_periods
+          SET status = 'discarded', resolution = 'fund_closed', resolved_at = clock_timestamp()
+        WHERE owner_id = $1 AND fund_id = $2 AND id = ANY($3::uuid[])`,
+      [ownerId, fundId, ids],
+    );
+  return { status: "saved", id: fundId } as const;
+}
+
 // Runs inside withGoogleOwner's transaction; bank balances are read only.
 export async function saveSavingsFund(
   client: pg.PoolClient,
   ownerId: string,
   command: FundCommand,
 ) {
-  if ("amount" in command) {
+  if (
+    (command.action === "close" ||
+      (command.action === "update" &&
+        (command.targetAmount !== undefined ||
+          command.targetDate !== undefined))) &&
+    !(await fundLifecycleReady(client))
+  )
+    return { status: "unavailable" } as const;
+  if ("amount" in command || command.action === "close") {
     if (!(await reserveEffectsReady(client)))
       return { status: "unavailable" } as const;
     await lockBankWrites(client, ownerId);
@@ -228,6 +317,7 @@ export async function saveSavingsFund(
 
   let id: string;
   let version: number;
+  let configuration: Record<string, unknown>;
   if (command.action === "create") {
     id = randomUUID();
     version = 1;
@@ -236,12 +326,23 @@ export async function saveSavingsFund(
        VALUES ($1, $2, $3, $4, 'active')`,
       [ownerId, id, command.name, command.currency],
     );
+    configuration = {
+      name: command.name,
+      currency: command.currency,
+      status: "active",
+    };
   } else {
     id = command.fundId;
     const {
       rows: [current],
-    } = await client.query<Pick<SavingsFund, "status" | "version">>(
-      `SELECT status, version FROM finance.savings_funds
+    } = await client.query<
+      Pick<
+        SavingsFund,
+        "status" | "version" | "currency" | "targetAmount" | "reservedAmount"
+      >
+    >(
+      `SELECT status, version, currency, target_amount::numeric(20,4)::text AS "targetAmount",
+              reserved_amount::numeric(20,4)::text AS "reservedAmount" FROM finance.savings_funds
         WHERE owner_id = $1 AND id = $2 FOR UPDATE`,
       [ownerId, id],
     );
@@ -252,13 +353,50 @@ export async function saveSavingsFund(
       return conflict(
         "El fondo cambió. Actualizá la página y revisá su estado.",
       );
+    if (command.action === "close")
+      return closeFund(client, ownerId, command, hash, current);
+    if (current.status === "paused_target_reached" && command.status)
+      return conflict(
+        "Reactivá las aportaciones de forma expresa desde el aviso de meta alcanzada.",
+      );
+    let status = command.status ?? current.status;
+    const targetAmount =
+      command.targetAmount === undefined
+        ? current.targetAmount
+        : command.targetAmount;
+    const remaining = targetRemainder({ ...current, targetAmount });
+    if (
+      status === "active" &&
+      remaining !== null &&
+      (remaining === "0.0000" || remaining.startsWith("-"))
+    )
+      status = "paused_target_reached";
     version = current.version + 1;
+    const values: unknown[] = [ownerId, id, command.name, status, version];
+    const fields = [];
+    if (command.targetAmount !== undefined) {
+      fields.push(`target_amount = $${values.push(command.targetAmount)}`);
+    }
+    if (command.targetDate !== undefined) {
+      fields.push(`target_date = $${values.push(command.targetDate)}`);
+    }
     await client.query(
       `UPDATE finance.savings_funds
           SET name = $3, status = $4, version = $5, updated_at = clock_timestamp()
+              ${fields.length ? ", " + fields.join(", ") : ""}
         WHERE owner_id = $1 AND id = $2`,
-      [ownerId, id, command.name, command.status, version],
+      values,
     );
+    configuration = {
+      name: command.name,
+      ...(command.status || status !== current.status ? { status } : {}),
+      ...(command.targetAmount === undefined
+        ? {}
+        : { targetAmount: command.targetAmount }),
+      ...(command.targetDate === undefined
+        ? {}
+        : { targetDate: command.targetDate }),
+    };
   }
 
   await recordFundChange(
@@ -268,9 +406,7 @@ export async function saveSavingsFund(
     hash,
     id,
     version,
-    command.action === "create"
-      ? { name: command.name, currency: command.currency, status: "active" }
-      : { name: command.name, status: command.status },
+    configuration,
   );
   return {
     status: command.action === "create" ? "created" : "saved",

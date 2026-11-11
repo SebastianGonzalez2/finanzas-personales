@@ -9,7 +9,12 @@ import {
   type ContributionPeriod,
   type ContributionPlan,
 } from "@/domain/contribution-plans";
-import { parseFundAmount, type SavingsFund } from "@/domain/savings-funds";
+import {
+  contributionTowardTarget,
+  fundTargetNotices,
+  parseFundAmount,
+  type SavingsFund,
+} from "@/domain/savings-funds";
 import {
   firstContributionDate,
   isContributionDay,
@@ -24,6 +29,10 @@ const input =
 
 export function contributionStatus(period: ContributionPeriod) {
   if (contributionPending(period)) return "Pendiente";
+  if (period.resolution === "target_final")
+    return `Aportación final para completar meta · Completada el ${period.resolvedOn}`;
+  if (period.resolution === "fund_closed")
+    return `Descartada por cierre del fondo el ${period.resolvedOn}`;
   return `${period.status === "completed" ? "Completada" : "Descartada"} el ${period.resolvedOn}`;
 }
 
@@ -151,6 +160,7 @@ function PlanEditor({
   const [day, setDay] = useState(String(plan?.preferredDay ?? ""));
   const [editing, setEditing] = useState(false);
   const [pausing, setPausing] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [message, setMessage] = useState("");
   const { send, pending, uncertain, error, clearError } = useFinancialCommand(
     endpoint,
@@ -163,7 +173,15 @@ function PlanEditor({
       ? firstContributionDate(today, preferredDay)
       : null;
   const paused = !!plan && !plan.nextOn;
-  const canConfigure = !plan || editing;
+  const { reached, pausedByTarget } = fundTargetNotices(fund, today);
+  const canConfigure =
+    (!plan || editing) && (fund.status === "active" || pausedByTarget);
+  const nextAfterReactivation = plan
+    ? contributionTowardTarget(plan.amount, fund).amount
+    : null;
+  const displayedNextAmount = plan?.nextAmount
+    ? contributionTowardTarget(plan.nextAmount, fund).amount
+    : null;
   const busy = pending || uncertain;
 
   async function submit(action: "configure" | "pause" | "reactivate") {
@@ -178,6 +196,7 @@ function PlanEditor({
     ) {
       setEditing(false);
       setPausing(false);
+      setReactivating(false);
       setMessage(
         action === "pause" ? "Programación pausada." : "Programación guardada.",
       );
@@ -187,18 +206,21 @@ function PlanEditor({
 
   return (
     <div className="grid gap-2">
-      {plan?.nextOn && plan.nextAmount && (
+      {plan?.nextOn && displayedNextAmount && (
         <p>
           Próxima aportación{" "}
           {formatBankAmount({
             currency: fund.currency,
-            amount: plan.nextAmount,
+            amount: displayedNextAmount,
           })}{" "}
           el {plan.nextOn}.
         </p>
       )}
       {paused && <p>Programación pausada.</p>}
-      {fund.status === "active" &&
+      {reached ? (
+        <p>Aumentá o quitá la meta para programar nuevos aportes.</p>
+      ) : (
+        (fund.status === "active" || pausedByTarget || paused) &&
         (canConfigure ? (
           <form
             className="grid gap-2"
@@ -279,24 +301,53 @@ function PlanEditor({
               )}
             </div>
           </form>
-        ) : paused && plan ? (
+        ) : paused && plan && nextAfterReactivation ? (
           <div className="space-y-2">
-            <p>
-              Al reactivar, el primer aporte será de{" "}
-              {formatBankAmount({
-                currency: fund.currency,
-                amount: plan.amount,
-              })}{" "}
-              el {firstContributionDate(today, plan.preferredDay)}.
-            </p>
-            <button
-              type="button"
-              className={button}
-              disabled={pending}
-              onClick={() => void submit("reactivate")}
-            >
-              {uncertain ? "Reintentar envío" : "Reactivar aportaciones"}
-            </button>
+            {reactivating ? (
+              <>
+                <p>
+                  Primera aportación prevista:{" "}
+                  {formatBankAmount({
+                    currency: fund.currency,
+                    amount: nextAfterReactivation,
+                  })}{" "}
+                  el {firstContributionDate(today, plan.preferredDay)}.
+                </p>
+                <p>
+                  Se conservan las aportaciones pendientes. No se hará ninguna
+                  reserva ahora.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={pending}
+                    onClick={() => void submit("reactivate")}
+                  >
+                    {uncertain ? "Reintentar envío" : "Confirmar reactivación"}
+                  </button>
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy}
+                    onClick={() => {
+                      setReactivating(false);
+                      clearError();
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className={button}
+                onClick={() => setReactivating(true)}
+              >
+                Reactivar aportaciones
+              </button>
+            )}
           </div>
         ) : pausing ? (
           <div className="space-y-2">
@@ -340,7 +391,8 @@ function PlanEditor({
               Pausar aportaciones
             </button>
           </div>
-        ))}
+        ))
+      )}
       {message && <p role="status">{message}</p>}
       {error && (
         <p role="alert" className="text-destructive">
@@ -366,7 +418,12 @@ export function FundContributions({
   available: string | null;
   today: string;
 }) {
-  if (!plan && fund.status !== "active") return null;
+  if (
+    !plan &&
+    fund.status !== "active" &&
+    fund.status !== "paused_target_reached"
+  )
+    return null;
   const pending = periods.filter(contributionPending);
   const resolved = periods.filter((period) => !contributionPending(period));
   return (
@@ -393,7 +450,11 @@ export function FundContributions({
         </ul>
       )}
       {fund.status !== "closed" && (
-        <details className="space-y-2">
+        <details
+          id={`plan-${fund.id}`}
+          open={fund.status === "paused_target_reached" ? true : undefined}
+          className="space-y-2 scroll-mt-4"
+        >
           <summary className="cursor-pointer font-semibold">
             Aportaciones mensuales
             {plan ? (plan.nextOn ? " · Activas" : " · Pausadas") : ""}

@@ -191,6 +191,143 @@ const reserve = (fundId, amount, version = 1) => ({
   idempotencyKey: randomUUID(),
 });
 
+test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", async () => {
+  const client = new pg.Client(testDatabaseConfig());
+  try {
+    await client.connect();
+  } catch {
+    throw new Error("PostgreSQL desechable no disponible");
+  }
+  const owner = `f3-04-metas-${randomUUID()}`;
+  try {
+    await client.query("BEGIN");
+    await migrateInTransaction(client);
+    await setOwnerContext(client, owner);
+    const { id } = await saveSavingsFund(client, owner, create("Meta"));
+    const update = {
+      action: "update",
+      fundId: id,
+      version: 1,
+      name: "Meta",
+      targetAmount: "2000.0000",
+      targetDate: "2027-12-01",
+      idempotencyKey: randomUUID(),
+    };
+    assert.equal(
+      (await saveSavingsFund(client, owner, update)).status,
+      "saved",
+    );
+    assert.equal(
+      (await saveSavingsFund(client, owner, update)).status,
+      "replayed",
+    );
+    let [fund] = await listSavingsFunds(client, owner);
+    assert.deepEqual(
+      {
+        targetAmount: fund.targetAmount,
+        targetDate: fund.targetDate,
+        status: fund.status,
+        version: fund.version,
+      },
+      {
+        targetAmount: "2000.0000",
+        targetDate: "2027-12-01",
+        status: "active",
+        version: 2,
+      },
+    );
+
+    // Quitar la fecha conserva la meta; el envío idempotente con otros datos choca.
+    assert.equal(
+      (
+        await saveSavingsFund(client, owner, {
+          ...update,
+          version: fund.version,
+          targetDate: null,
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "saved",
+    );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.targetDate, null);
+    assert.equal(fund.targetAmount, "2000.0000");
+
+    await saveOpeningBalance(client, owner, {
+      currency: "UYU",
+      amount: "3000.0000",
+      asOfDate: "2026-11-01",
+    });
+    assert.equal(
+      (
+        await saveSavingsFund(
+          client,
+          owner,
+          reserve(id, "2000.0000", fund.version),
+        )
+      ).status,
+      "saved",
+    );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.status, "paused_target_reached");
+    // Cambiar el estado explícito tampoco reactiva: la reactivación es expresa.
+    assert.equal(
+      (
+        await saveSavingsFund(client, owner, {
+          ...update,
+          version: fund.version,
+          status: "active",
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "conflict",
+    );
+    // Aumentar la meta conserva el estado pausado por meta.
+    assert.equal(
+      (
+        await saveSavingsFund(client, owner, {
+          ...update,
+          version: fund.version,
+          targetAmount: "2500.0000",
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "saved",
+    );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.status, "paused_target_reached");
+    assert.equal(fund.targetAmount, "2500.0000");
+    assert.equal(fund.version, 5);
+    assert.deepEqual(
+      (
+        await client.query(
+          "SELECT configuration FROM finance.fund_changes WHERE owner_id = $1 ORDER BY version DESC LIMIT 1",
+          [owner],
+        )
+      ).rows[0].configuration,
+      { name: "Meta", targetAmount: "2500.0000", targetDate: "2027-12-01" },
+    );
+    assert.equal(
+      (
+        await saveSavingsFund(client, owner, {
+          ...update,
+          version: fund.version,
+          targetAmount: null,
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "saved",
+    );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.targetAmount, null);
+    assert.equal(fund.status, "paused_target_reached");
+    assert.equal(fund.reservedAmount, "2000.0000");
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    await client.end();
+  }
+});
+
 test("F3-01: efectos exactos, sin impacto bancario, con RLS y rollback atómico", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
