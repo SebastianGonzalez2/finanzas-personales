@@ -1,0 +1,488 @@
+import "server-only";
+import type pg from "pg";
+import {
+  recurrenceSchedule,
+  type RecurrenceDefinition,
+} from "../domain/recurrence-definition.ts";
+import { coverageDecimal, coverageUnits } from "../domain/fund-coverage.ts";
+import {
+  duplicateSettlement,
+  settlementAmounts,
+  type Settlement,
+  type SettlementEvent,
+  type TrackedPeriod,
+} from "../domain/recurrence-settlements.ts";
+import {
+  latestRecurrencePeriod,
+  recurrencePeriodAt,
+} from "../domain/recurrences.ts";
+import { lockBankWrites } from "./bank-balances.ts";
+import { saveCreditOperation } from "./credit-operations.ts";
+import { commandHash, findReplay, saveMovement } from "./movements.ts";
+
+type Series = RecurrenceDefinition & { id: string };
+type Candidate = SettlementEvent & { concept: string; cardId: string | null };
+const conflict = (error: string) => ({ status: "conflict", error }) as const;
+const notFound = {
+  status: "not-found",
+  error: "La recurrencia, el período o el movimiento no está disponible.",
+} as const;
+const maxAmount = coverageUnits("9999999999999999.9999");
+export const recurrencePageSize = 6;
+
+export function trackedPeriodIndices(start: number) {
+  return Array.from(
+    { length: Math.min(recurrencePageSize, start + 1) },
+    (_, index) => start - index,
+  );
+}
+
+export async function additionalRecurrencePeriods(
+  client: pg.PoolClient,
+  ownerId: string,
+  seriesId: string,
+  cursor: number,
+  today: string,
+) {
+  const series = await loadSeries(client, ownerId, seriesId);
+  if (!series) return null;
+  const start = Math.min(cursor, latestTrackedIndex(series, today));
+  const periods = await trackedPeriods(
+    client,
+    ownerId,
+    series,
+    trackedPeriodIndices(start),
+  );
+  return {
+    periods: periods.filter(
+      ({ status }) => status === "expected" || status === "partial",
+    ),
+    next: start - recurrencePageSize,
+  };
+}
+
+async function loadSeries(
+  client: pg.PoolClient,
+  ownerId: string,
+  seriesId: string,
+) {
+  const {
+    rows: [series],
+  } = await client.query<Series>(
+    `SELECT id, kind, concept, currency, note, category_id AS "categoryId",
+       reference_amount::text AS "referenceAmount", frequency,
+       first_period::text AS "firstPeriod", date_mode AS "dateMode",
+       due_day AS "dueDay", end_date::text AS "endDate"
+       FROM finance.recurring_series WHERE owner_id = $1 AND id = $2`,
+    [ownerId, seriesId],
+  );
+  return series;
+}
+
+// Open the current period independently of its due date. Keep the first
+// configured date and the inclusive end of the existing schedule.
+export function latestTrackedIndex(
+  series: RecurrenceDefinition,
+  today: string,
+) {
+  const schedule = recurrenceSchedule(series);
+  const latest = latestRecurrencePeriod({ ...schedule, dueDay: null }, today);
+  if (!latest) return -1;
+  const dueOn = recurrencePeriodAt(schedule, latest.index).dueOn;
+  return schedule.endDate && dueOn && dueOn > schedule.endDate
+    ? latest.index - 1
+    : latest.index;
+}
+
+export async function trackedPeriods(
+  client: pg.PoolClient,
+  ownerId: string,
+  series: Series,
+  indices: number[],
+): Promise<TrackedPeriod[]> {
+  if (!indices.length) return [];
+  const { rows } = await client.query<{
+    index: number;
+    key: string;
+    dueOn: string | null;
+    referenceAmount: string | null;
+    confirmedTotal: string | null;
+    finalizedAmount: string | null;
+    omitted: boolean;
+    version: number;
+    events: SettlementEvent[];
+  }>(
+    `SELECT p.period_index AS index, p.period_key AS key, p.due_on::text AS "dueOn",
+       p.reference_amount::text AS "referenceAmount", p.confirmed_total::text AS "confirmedTotal", p.finalized_amount::text AS "finalizedAmount",
+       p.omitted, p.version,
+       coalesce(jsonb_agg(jsonb_build_object('id', a.event_id, 'effectiveOn', a.effective_on::text,
+         'amount', a.amount::text, 'method', a.method)
+         ORDER BY a.effective_on DESC, a.event_id)
+         FILTER (WHERE a.event_id IS NOT NULL), '[]') AS events
+     FROM finance.recurring_periods p
+     LEFT JOIN finance.recurring_active_allocations a USING (owner_id, series_id, period_index)
+     WHERE p.owner_id = $1 AND p.series_id = $2 AND p.period_index = ANY($3::integer[])
+     GROUP BY p.owner_id, p.series_id, p.period_index`,
+    [ownerId, series.id, indices],
+  );
+  const saved = new Map(rows.map((row) => [row.index, row]));
+  const schedule = recurrenceSchedule(series);
+  return indices.map((index) => {
+    const scheduled = recurrencePeriodAt(schedule, index);
+    const row = saved.get(index);
+    const events = row?.events ?? [];
+    const recorded = coverageDecimal(
+      events.reduce(
+        (sum, event) => sum + coverageUnits(event.amount),
+        BigInt(0),
+      ),
+    );
+    return {
+      ...scheduled,
+      key: row ? row.key : scheduled.key,
+      dueOn: row ? row.dueOn : scheduled.dueOn,
+      referenceAmount: row ? row.referenceAmount : series.referenceAmount,
+      recorded,
+      ...settlementAmounts(
+        recorded,
+        row?.confirmedTotal ?? null,
+        row?.finalizedAmount ?? null,
+        row?.omitted ?? false,
+      ),
+      version: row?.version ?? 0,
+      events,
+    };
+  });
+}
+
+async function eligibleEvents(
+  client: pg.PoolClient,
+  ownerId: string,
+  series: Series,
+  options:
+    | { eventId: string }
+    | { date: string }
+    | { date: string; amount: string; method: string; cardId: string | null },
+) {
+  const id = "eventId" in options ? options.eventId : null;
+  const date = "date" in options ? options.date : null;
+  const duplicate = "amount" in options ? options : null;
+  const { rows } = await client.query<Candidate>(
+    `SELECT * FROM (
+       SELECT f.id, f.effective_on::text AS "effectiveOn", f.concept,
+         abs(b.amount_signed)::text AS amount, m.method, NULL::uuid AS "cardId"
+       FROM finance.financial_events f
+       JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
+       JOIN finance.bank_effects b ON (b.owner_id, b.id, b.event_id) = (m.owner_id, m.event_id, m.event_id)
+       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.kind = $2
+         AND b.currency = $3 AND ($4::uuid IS NULL OR f.id = $4)
+         AND ($5::date IS NULL OR f.effective_on = $5)
+         AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+       UNION ALL
+       SELECT f.id, f.effective_on::text, f.concept, c.amount::text, 'credit', c.card_id
+       FROM finance.financial_events f
+       JOIN finance.credit_lines c ON (c.owner_id, c.event_id) = (f.owner_id, f.id)
+       WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.kind = 'card_purchase'
+         AND $2 = 'expense' AND c.currency = $3 AND ($4::uuid IS NULL OR f.id = $4)
+         AND ($5::date IS NULL OR f.effective_on = $5) AND c.amount > 0
+         AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases m WHERE (m.owner_id, m.event_id) = (f.owner_id, f.id))
+         AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+     ) candidates
+     WHERE CASE WHEN $6::numeric IS NOT NULL
+       THEN amount::numeric = $6 AND method = $7 AND "cardId" IS NOT DISTINCT FROM $8::uuid
+       ELSE NOT EXISTS (SELECT 1 FROM finance.recurring_event_lineage l
+                        WHERE l.owner_id = $1 AND l.event_id = candidates.id)
+     END
+     ORDER BY id LIMIT CASE WHEN $6::numeric IS NOT NULL THEN 1 END`,
+    [
+      ownerId,
+      series.kind,
+      series.currency,
+      id,
+      date,
+      duplicate?.amount ?? null,
+      duplicate?.method ?? null,
+      duplicate?.cardId ?? null,
+    ],
+  );
+  return rows;
+}
+
+export async function linkableRecurrenceEvents(
+  client: pg.PoolClient,
+  ownerId: string,
+  seriesId: string,
+  date: string,
+) {
+  const series = await loadSeries(client, ownerId, seriesId);
+  return series ? eligibleEvents(client, ownerId, series, { date }) : null;
+}
+
+async function detachSettlement(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: Extract<Settlement, { action: "detach" }>,
+  period: TrackedPeriod,
+  hash: string,
+) {
+  const { seriesId, eventId, idempotencyKey, target } = command;
+  if (period.version !== target.version || period.recorded !== target.recorded)
+    return conflict(
+      "El período cambió. Actualizá la página y revisá los importes.",
+    );
+  const {
+    rows: [link],
+  } = await client.query<{ settlement_id: string }>(
+    `SELECT settlement_id FROM finance.recurring_active_allocations
+      WHERE owner_id = $1 AND series_id = $2 AND period_index = $3 AND event_id = $4`,
+    [ownerId, seriesId, period.index, eventId],
+  );
+  if (!link) return notFound;
+
+  await client.query(
+    `INSERT INTO finance.recurring_commands (owner_id,id,series_id,command_hash,details)
+      VALUES ($1,$2,$3,$4,$5)`,
+    [
+      ownerId,
+      idempotencyKey,
+      seriesId,
+      hash,
+      JSON.stringify({ action: "detach", eventId, target }),
+    ],
+  );
+  const released = await client.query(
+    "UPDATE finance.recurring_commands SET released_by = $3 WHERE owner_id = $1 AND id = $2",
+    [ownerId, link.settlement_id, idempotencyKey],
+  );
+  if (released.rowCount !== 1) throw new Error("Vínculo no actualizado");
+  await client.query(
+    `UPDATE finance.recurring_periods p SET version = p.version + 1, finalized_amount = NULL
+      FROM finance.recurring_allocations a
+      WHERE (p.owner_id,p.series_id,p.period_index) = (a.owner_id,a.series_id,a.period_index)
+        AND a.owner_id = $1 AND a.settlement_id = $2`,
+    [ownerId, link.settlement_id],
+  );
+  return { status: "created", id: idempotencyKey } as const;
+}
+
+export async function applySettlement(
+  client: pg.PoolClient,
+  ownerId: string,
+  command: Settlement,
+  today: string,
+) {
+  const { seriesId, idempotencyKey } = command;
+  const hash = commandHash([
+    "recurring-settlement-v1",
+    JSON.stringify(command),
+  ]);
+  await lockBankWrites(client, ownerId);
+  const {
+    rows: [receipt],
+  } = await client.query<{ command_hash: string; event_id: string | null }>(
+    "SELECT command_hash, event_id FROM finance.recurring_commands WHERE owner_id = $1 AND id = $2",
+    [ownerId, idempotencyKey],
+  );
+  if (receipt?.command_hash === hash)
+    return {
+      status: "replayed",
+      id: receipt.event_id ?? idempotencyKey,
+    } as const;
+  if (receipt || (await findReplay(client, ownerId, idempotencyKey, hash)))
+    return conflict("Ese envío ya se usó con otros datos.");
+
+  const series = await loadSeries(client, ownerId, seriesId);
+  if (!series) return notFound;
+  const movement =
+    command.action === "record" || command.action === "link" ? command : null;
+  const targets =
+    "targets" in command
+      ? command.targets
+      : [{ ...command.target, amount: "0.0000" }];
+  const latest = latestTrackedIndex(series, today);
+  if (targets.some(({ index }) => index > latest)) return notFound;
+  if (series.kind === "income" && targets.length !== 1)
+    return conflict("Cada cobro corresponde a un único período de ingreso.");
+
+  const periods = await trackedPeriods(
+    client,
+    ownerId,
+    series,
+    targets.map(({ index }) => index),
+  );
+  if (command.action === "detach")
+    return detachSettlement(client, ownerId, command, periods[0], hash);
+
+  const updates = [];
+  for (const [position, target] of targets.entries()) {
+    const period = periods[position];
+    if (
+      period.version !== target.version ||
+      period.recorded !== target.recorded
+    )
+      return conflict(
+        "El período cambió. Actualizá la página y revisá los importes.",
+      );
+    if (
+      command.action === "restore"
+        ? period.status !== "skipped"
+        : period.status === "skipped"
+    )
+      return conflict("Revisá el estado del período antes de continuar.");
+    if (movement && period.status === "completed")
+      return conflict(
+        "El período está completo. Actualizá su total confirmado antes de registrar otro movimiento.",
+      );
+    const actual =
+      coverageUnits(period.recorded) + coverageUnits(target.amount);
+    if (actual > maxAmount)
+      return conflict("El total registrado supera el importe admitido.");
+    if (command.action === "omit" && actual > BigInt(0))
+      return conflict(
+        "Para omitir el período debe estar sin pagos ni cobros registrados.",
+      );
+    if (target.final && actual === BigInt(0))
+      return conflict(
+        "Registrá al menos un pago o cobro real antes de finalizar el período.",
+      );
+
+    const finalizedAmount = target.final ? coverageDecimal(actual) : null;
+    const total = target.final
+      ? null
+      : command.action === "total"
+        ? target.total
+        : (target.total ?? period.confirmedTotal);
+    if (total !== null && actual > coverageUnits(total))
+      return conflict(
+        "El total confirmado debe cubrir todos los importes ya registrados, incluido el nuevo movimiento.",
+      );
+    updates.push({ period, total, finalizedAmount });
+  }
+
+  let eventId: string | null = null;
+  if (movement?.action === "link") {
+    const [event] = await eligibleEvents(client, ownerId, series, {
+      eventId: movement.eventId,
+    });
+    if (!event || event.effectiveOn > today) return notFound;
+    if (coverageUnits(event.amount) !== coverageUnits(movement.amount))
+      return conflict(
+        "El importe del movimiento cambió. Volvé a seleccionarlo.",
+      );
+    eventId = event.id;
+  }
+  if (movement?.action === "record") {
+    const { amount, effectiveOn, method, cardId } = movement;
+    if (series.kind === "income" ? method !== "deposit" : method === "deposit")
+      return conflict("El medio elegido no corresponde a la recurrencia.");
+    if (
+      !movement.distinct &&
+      (
+        await eligibleEvents(client, ownerId, series, {
+          date: effectiveOn,
+          amount,
+          method,
+          cardId,
+        })
+      ).length
+    )
+      return { status: "duplicate", error: duplicateSettlement } as const;
+
+    const common = {
+      amount,
+      effectiveOn,
+      idempotencyKey,
+      currency: series.currency,
+      concept: series.concept,
+      note: series.note,
+      categoryId: series.categoryId,
+    };
+    const result =
+      method === "credit"
+        ? await saveCreditOperation(
+            client,
+            ownerId,
+            { ...common, action: "purchase", cardId: cardId!, covered: false },
+            hash,
+          )
+        : await saveMovement(
+            client,
+            ownerId,
+            { ...common, kind: series.kind, method },
+            hash,
+          );
+    if (result.status !== "created") {
+      if (result.status === "not-found") return notFound;
+      return conflict(
+        "message" in result
+          ? result.message
+          : result.status === "unconfigured"
+            ? "Configurá el saldo inicial de Bancos para esta moneda."
+            : result.status === "insufficient-funds"
+              ? "El disponible libre no alcanza para registrar este pago."
+              : result.status === "invalid-category"
+                ? "La categoría de la recurrencia ya no está disponible."
+                : "No pudimos registrar el movimiento con esos datos.",
+      );
+    }
+    eventId = result.id;
+  }
+
+  await client.query(
+    `INSERT INTO finance.recurring_commands (owner_id,id,series_id,event_id,command_hash,details)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      ownerId,
+      idempotencyKey,
+      seriesId,
+      eventId,
+      hash,
+      JSON.stringify({
+        action: command.action,
+        targets,
+        previous: periods.map(({ confirmedTotal, finalized, status }) => ({
+          confirmedTotal,
+          finalized,
+          status,
+        })),
+      }),
+    ],
+  );
+  for (const [
+    position,
+    { period, total, finalizedAmount },
+  ] of updates.entries()) {
+    await client.query(
+      `INSERT INTO finance.recurring_periods
+         (owner_id,series_id,period_index,period_key,due_on,reference_amount,confirmed_total,finalized_amount,omitted)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (owner_id,series_id,period_index) DO UPDATE
+         SET confirmed_total = EXCLUDED.confirmed_total, finalized_amount = EXCLUDED.finalized_amount, omitted = EXCLUDED.omitted,
+             version = recurring_periods.version + 1`,
+      [
+        ownerId,
+        seriesId,
+        period.index,
+        period.key,
+        period.dueOn,
+        period.referenceAmount,
+        total,
+        finalizedAmount,
+        command.action === "omit",
+      ],
+    );
+    if (eventId)
+      await client.query(
+        `INSERT INTO finance.recurring_allocations (owner_id,series_id,period_index,settlement_id,amount)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [
+          ownerId,
+          seriesId,
+          period.index,
+          idempotencyKey,
+          targets.length > 1 ? targets[position].amount : null,
+        ],
+      );
+  }
+  return { status: "created", id: eventId ?? idempotencyKey } as const;
+}
