@@ -65,7 +65,7 @@ const defaultNames = {
 } satisfies Record<MovementKind, string[]>;
 
 // Stable suggestions from v6.3. They become private catalog rows on first use.
-const defaultCategories = (
+export const defaultCategories = (
   Object.entries(defaultNames) as [MovementKind, string[]][]
 ).flatMap(([kind, names]) =>
   names.map((name): MovementCategory => {

@@ -7,11 +7,11 @@ import {
 } from "@/domain/bank-balances";
 import {
   movementDisplayMethods,
-  type MovementCategory,
   type MovementTotal,
   type RecentBankTransfer,
   type RecentMovement,
 } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
 import type { FundSource } from "@/domain/fund-coverage";
 import type { CatalogCard } from "@/domain/cards";
 import {
@@ -83,7 +83,7 @@ export function FinanceSummary({
   reconciliationReady: boolean;
   today: string;
   period: string;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;

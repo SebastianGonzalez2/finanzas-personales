@@ -11,11 +11,12 @@ import {
   conceptLimit,
   movementMethods,
   noteLimit,
-  type MovementCategory,
   type MovementKind,
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
 import type { FundSource } from "@/domain/fund-coverage";
@@ -45,7 +46,7 @@ export function MovementForm({
   today: string;
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
@@ -569,23 +570,12 @@ export function MovementForm({
                   )}
                   {!transfer && (
                     <>
-                      <label className="space-y-1 text-sm">
-                        <span>Categoría (opcional)</span>
-                        <select
-                          name="categoryId"
-                          key={kind}
-                          className={control}
-                        >
-                          <option value="">Sin categorizar</option>
-                          {categories
-                            .filter((category) => category.kind === kind)
-                            .map(({ id, name }) => (
-                              <option key={id} value={id}>
-                                {name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
+                      <CategorySelect
+                        key={kind}
+                        kind={kind}
+                        categories={categories}
+                        controlClassName={control}
+                      />
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>
                           {income ? "Concepto (opcional)" : "Concepto"}

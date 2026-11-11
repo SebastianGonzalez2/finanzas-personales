@@ -4,7 +4,7 @@ import { FinanceShell } from "@/components/finance-shell";
 import { BudgetCatalog } from "@/components/budget-catalog";
 import { Card } from "@/components/ui/card";
 import { bankReferenceToday } from "@/domain/bank-balances";
-import { listMovementCategories } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 import { budgetsReady, listBudgets } from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 
@@ -34,7 +34,7 @@ export default async function BudgetsPage({
       const budgets = await listBudgets(client, ownerId, month);
       return {
         budgets,
-        categories: (await listMovementCategories(client, ownerId)).filter(
+        categories: (await listCatalogCategories(client, ownerId)).filter(
           ({ kind }) => kind === "expense",
         ),
       };

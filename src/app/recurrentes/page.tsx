@@ -9,7 +9,7 @@ import {
   formatBankReference,
 } from "@/domain/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
-import { listMovementCategories } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 import { listRecurrences, recurrencesReady } from "@/server/recurrences";
 
 export const metadata = { title: "Recurrentes | Finanzas personales" };
@@ -39,7 +39,7 @@ export default async function RecurrencesPage() {
         };
       return {
         recurrences: await listRecurrences(client, ownerId, today),
-        categories: await listMovementCategories(client, ownerId),
+        categories: await listCatalogCategories(client, ownerId),
       };
     },
   ).catch((error: unknown) => {
