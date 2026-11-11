@@ -1,4 +1,5 @@
 import "server-only";
+import { commitmentsFit } from "./fund-coverage.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { bankReferenceToday } from "../domain/bank-balances.ts";
@@ -294,8 +295,19 @@ export async function saveRefund(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
-  if (command.action === "void")
-    return voidRefund(client, ownerId, command, hash);
+  if (command.action === "void") {
+    await client.query("SAVEPOINT fund_refund_void");
+    const result = await voidRefund(client, ownerId, command, hash);
+    const fits =
+      result.status !== "revised" || (await commitmentsFit(client, ownerId));
+    if (!fits) await client.query("ROLLBACK TO SAVEPOINT fund_refund_void");
+    await client.query("RELEASE SAVEPOINT fund_refund_void");
+    return fits
+      ? result
+      : conflict(
+          "No hay reserva suficiente para restablecer el compromiso de la compra.",
+        );
+  }
   if (command.action === "return_balance")
     return returnBalance(client, ownerId, command, hash);
   const purchase = await findPurchase(client, ownerId, command.purchaseId);

@@ -98,6 +98,8 @@ export async function handleMovement(
           "El registro de cambios de moneda aún no está disponible.",
           409,
         );
+      case "invalid-coverage":
+        return failure(result.message, 409);
       case "invalid-category":
         return failure(
           "La categoría no está disponible. Elegí otra o dejá el movimiento sin categorizar.",
@@ -168,6 +170,8 @@ export async function handleMovementRevision(
           "Elegí los campos que corresponden al tipo de movimiento.",
           400,
         );
+      case "invalid-coverage":
+        return failure(result.message, 409);
       case "invalid-category":
         return failure(
           "La categoría no está disponible. Elegí otra o dejá el movimiento sin categorizar.",

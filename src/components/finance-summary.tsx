@@ -12,6 +12,7 @@ import {
   type RecentBankTransfer,
   type RecentMovement,
 } from "@/domain/movements";
+import type { FundSource } from "@/domain/fund-coverage";
 import type { CatalogCard } from "@/domain/cards";
 import {
   formatInstallmentPeriod,
@@ -57,6 +58,7 @@ function daysInMonth(period: string) {
 
 export function FinanceSummary({
   balances,
+  fundSources,
   checkpoints,
   reconciliationReady,
   today,
@@ -76,6 +78,7 @@ export function FinanceSummary({
   movementRegistrationReady,
 }: {
   balances: BankAvailability[];
+  fundSources?: FundSource[] | null;
   checkpoints: BankCheckpoint[];
   reconciliationReady: boolean;
   today: string;
@@ -113,6 +116,7 @@ export function FinanceSummary({
           bankTransfersReady={bankTransfersReady}
           today={today}
           balances={balances}
+          fundSources={fundSources}
           categories={categories}
           creditCards={creditCards}
           debitCards={debitCards}
