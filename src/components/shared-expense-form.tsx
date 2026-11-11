@@ -13,6 +13,7 @@ import {
   type MovementCategory,
 } from "@/domain/movements";
 import { maxFriends } from "@/domain/shared-expenses";
+import { NameAutocomplete } from "./name-autocomplete";
 import { useFinancialCommand } from "./financial-command";
 import {
   HistoryField as Field,
@@ -20,6 +21,26 @@ import {
   historyControl,
   historyPrimary,
 } from "./history-fields";
+
+// El contacto se guarda en el catálogo privado al confirmar la operación
+// (v9.41). Es best-effort: el gasto ya quedó registrado y el nombre vuelve a
+// ofrecerse la próxima vez aunque este alta falle.
+function registerPeople(values: Array<FormDataEntryValue | null>) {
+  for (const raw of values) {
+    const name = typeof raw === "string" ? raw.trim() : "";
+    if (name && name.length <= 100)
+      void fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          kind: "person",
+          name,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      }).catch(() => {});
+  }
+}
 
 type Target = {
   id: string;
@@ -134,6 +155,11 @@ export function SharedExpenseForm({
         };
     const id = await send(payload);
     if (id) {
+      if (!editing)
+        registerPeople([
+          ...(payable ? [data.get("creditor")] : []),
+          ...(!payable ? friends.map((key) => data.get(`name-${key}`)) : []),
+        ]);
       setSavedId(id);
       router.refresh();
     }
@@ -364,14 +390,14 @@ export function SharedExpenseForm({
         )}
         {payable && (
           <>
-            <Field label="Persona o entidad a la que le debés">
-              <input
-                name="creditor"
-                className={historyControl}
-                maxLength={conceptLimit}
-                required
-              />
-            </Field>
+            <NameAutocomplete
+              kind="person"
+              name="creditor"
+              label="Persona o entidad a la que le debés"
+              required
+              maxLength={conceptLimit}
+              className={historyControl}
+            />
             <Field label="Fecha prevista de devolución (opcional)">
               <input name="dueOn" className={historyControl} type="date" />
             </Field>
@@ -405,14 +431,14 @@ export function SharedExpenseForm({
                 <legend className="px-1 text-sm font-semibold">
                   Persona {index + 1}
                 </legend>
-                <Field label={`Nombre de la persona ${index + 1}`}>
-                  <input
-                    name={`name-${key}`}
-                    className={historyControl}
-                    maxLength={conceptLimit}
-                    required
-                  />
-                </Field>
+                <NameAutocomplete
+                  kind="person"
+                  name={`name-${key}`}
+                  label={`Nombre de la persona ${index + 1}`}
+                  required
+                  maxLength={conceptLimit}
+                  className={historyControl}
+                />
                 <Field label={`Importe de la persona ${index + 1}`}>
                   <input
                     name={`amount-${key}`}

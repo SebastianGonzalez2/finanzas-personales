@@ -16,6 +16,7 @@ import {
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
+import { catalogNameLimit } from "@/domain/catalog";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
 import type { FundSource } from "@/domain/fund-coverage";
@@ -24,12 +25,30 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import { NameAutocomplete } from "./name-autocomplete";
 import { Card } from "./ui/card";
 
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
 const primary =
   "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
+
+// El comercio se guarda en el catálogo privado al confirmar el gasto (v9.39).
+// Es best-effort: el movimiento ya quedó registrado y el nombre se vuelve a
+// ofrecer aunque este alta falle.
+function registerMerchant(name: string) {
+  if (!name || name.length > catalogNameLimit) return;
+  void fetch("/api/catalog", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "create",
+      kind: "merchant",
+      name,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  }).catch(() => {});
+}
 
 export function MovementForm({
   today,
@@ -126,11 +145,15 @@ export function MovementForm({
     setPending(true);
     setError("");
     try {
+      const merchantName = String(
+        new FormData(event.currentTarget).get("merchantName") ?? "",
+      ).trim();
       if (!uncertain) {
         requestKey.current ??= crypto.randomUUID();
         const form = new FormData(event.currentTarget);
         const fundPortions = formFundPortions(form, expenseFundsField);
         form.delete(expenseFundsField);
+        form.delete("merchantName");
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
           ...(fundPortions?.length && { fundPortions }),
@@ -144,6 +167,7 @@ export function MovementForm({
       });
       const data: { id?: string; error?: string } = await response.json();
       if (response.ok && data.id) {
+        registerMerchant(merchantName);
         setUncertain(false);
         setSavedId(data.id);
         setMessage(
@@ -597,6 +621,15 @@ export function MovementForm({
                           className={control}
                         />
                       </label>
+                      {!income && (
+                        <NameAutocomplete
+                          kind="merchant"
+                          name="merchantName"
+                          label="Comercio (opcional)"
+                          maxLength={catalogNameLimit}
+                          className={control}
+                        />
+                      )}
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>Nota (opcional)</span>
                         <textarea
