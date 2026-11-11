@@ -8,6 +8,7 @@ import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
+import { RecurringSplitCorrection } from "@/components/recurring-split-correction";
 import { SharedExpenseForm } from "@/components/shared-expense-form";
 import { HistoryEditor } from "@/components/history-editor";
 import { LoanOperationDetail } from "@/components/loan-operation-detail";
@@ -96,7 +97,12 @@ export default async function HistoryDetail({
       const shared =
         sharingReady &&
         (entry.kind === "expense" || entry.kind === "card_purchase")
-          ? await sharedExpenseDetail(client, ownerId, id)
+          ? await sharedExpenseDetail(
+              client,
+              ownerId,
+              id,
+              recurrence.length > 0,
+            )
           : undefined;
       const refund =
         entry.kind === "purchase_refund" || entry.kind === "card_credit_return"
@@ -570,6 +576,21 @@ export default async function HistoryDetail({
               </div>
             </details>
           )}
+          {shared && shared.portions.length > 0 && (
+            <details className="border-t pt-4">
+              <summary className="cursor-pointer font-semibold">
+                Corregir reparto del pago
+              </summary>
+              <RecurringSplitCorrection
+                key={shared.version}
+                eventId={entry.id}
+                version={shared.version}
+                currency={shared.currency}
+                ownAmount={shared.ownAmount}
+                parties={shared.portions}
+              />
+            </details>
+          )}
           {shared && shared.revisions.length > 1 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -578,7 +599,14 @@ export default async function HistoryDetail({
               <h2 className="font-semibold">Versiones de los datos</h2>
               <ul className="grid gap-2 text-sm wrap-anywhere">
                 {shared.revisions.map(
-                  ({ version, concept, category, note, recordedOn }) => (
+                  ({
+                    version,
+                    concept,
+                    category,
+                    note,
+                    recordedOn,
+                    correctedOwn,
+                  }) => (
                     <li key={version}>
                       <p>
                         Versión {version} · {recordedOn}
@@ -586,6 +614,15 @@ export default async function HistoryDetail({
                       <p>
                         {concept} · {category ?? "Sin categorizar"}
                       </p>
+                      {correctedOwn !== null && (
+                        <p>
+                          Reparto corregido · Gasto propio{" "}
+                          {formatBankAmount({
+                            currency: shared.currency,
+                            amount: correctedOwn,
+                          })}
+                        </p>
+                      )}
                       {note && <p className="whitespace-pre-wrap">{note}</p>}
                     </li>
                   ),

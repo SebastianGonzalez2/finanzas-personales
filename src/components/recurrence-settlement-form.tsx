@@ -11,6 +11,12 @@ import {
   type TrackedPeriod,
 } from "@/domain/recurrence-settlements";
 import type { Currency } from "@/domain/money";
+import { maxInstallments } from "@/domain/installments";
+import type { Person, UsualShare } from "@/domain/recurring-shares";
+import {
+  RecurringPaymentSplitFields,
+  recurringPaymentSplit,
+} from "./recurring-share-fields";
 import { useFinancialCommand } from "./financial-command";
 import {
   AmountInput,
@@ -33,6 +39,8 @@ export function RecurrenceSettlementForm({
   kind,
   today,
   cards,
+  usualShares,
+  people,
 }: {
   seriesId: string;
   period: TrackedPeriod;
@@ -42,9 +50,15 @@ export function RecurrenceSettlementForm({
   kind: MovementKind;
   today: string;
   cards: { id: string; name: string }[];
+  usualShares: UsualShare[];
+  people: Person[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode | null>(null);
+  const defaultAmount =
+    period.remaining && period.recorded !== "0.0000" ? period.remaining : "";
+  const [paidAmount, setPaidAmount] = useState(defaultAmount);
+  const [installments, setInstallments] = useState(false);
   const [method, setMethod] = useState("debit");
   const [date, setDate] = useState(today);
   const [events, setEvents] = useState<Candidate[] | null>(null);
@@ -63,9 +77,16 @@ export function RecurrenceSettlementForm({
   );
 
   const income = kind === "income";
+  const shared = usualShares.length > 0;
+  const detachable = period.events.filter(({ shared }) => !shared);
   const ready = period.status === "expected" || period.status === "partial";
   const monetary = mode === "record" || mode === "link";
   const event = events?.find(({ id }) => id === selected);
+  const needsSplit =
+    shared &&
+    (mode === "record" || (mode === "link" && event && !event.shared));
+  const financing =
+    shared && mode === "record" && method === "credit" && installments;
   const options = new Map(
     [...additional, ...others].map((entry) => [entry.index, entry]),
   );
@@ -82,6 +103,8 @@ export function RecurrenceSettlementForm({
   function open(next: Mode | null) {
     setMode(next);
     setExtra([]);
+    setPaidAmount(defaultAmount);
+    setInstallments(false);
     setAdditional([]);
     setCursor(olderCursor);
     setPeriodError("");
@@ -168,6 +191,17 @@ export function RecurrenceSettlementForm({
         action: mode,
         targets,
         amount,
+        ...(needsSplit && { split: recurringPaymentSplit(data) }),
+        ...(financing && {
+          installment: {
+            cardAmount: data.get("cardAmount"),
+            plan: {
+              count: Number(data.get("count")),
+              installmentAmount: data.get("installmentAmount"),
+              firstPeriod: data.get("firstPeriod"),
+            },
+          },
+        }),
         ...(mode === "link"
           ? { eventId: selected }
           : {
@@ -226,7 +260,7 @@ export function RecurrenceSettlementForm({
               : "Confirmar total"}
           </button>
         )}
-        {period.events.length > 0 && (
+        {detachable.length > 0 && (
           <button
             type="button"
             className={historyButton}
@@ -264,6 +298,8 @@ export function RecurrenceSettlementForm({
   return (
     <form
       className="grid gap-3 rounded-lg border bg-background p-3"
+      method="post"
+      action={endpoint}
       onSubmit={submit}
       aria-label={`Confirmación para ${period.key}`}
     >
@@ -303,11 +339,8 @@ export function RecurrenceSettlementForm({
                 <AmountInput
                   name="amount"
                   required
-                  defaultValue={
-                    period.remaining && period.recorded !== "0.0000"
-                      ? period.remaining
-                      : undefined
-                  }
+                  value={paidAmount}
+                  onChange={(event) => setPaidAmount(event.target.value)}
                 />
               </HistoryField>
             )}
@@ -345,6 +378,49 @@ export function RecurrenceSettlementForm({
                     </select>
                   </HistoryField>
                 )}
+                {shared && method === "credit" && (
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      checked={installments}
+                      onChange={(event) =>
+                        setInstallments(event.target.checked)
+                      }
+                    />
+                    Compra en cuotas
+                  </label>
+                )}
+                {financing && (
+                  <>
+                    <HistoryField label="Cargo real en la tarjeta hoy">
+                      <AmountInput name="cardAmount" required />
+                    </HistoryField>
+                    <HistoryField label="Cantidad de cuotas">
+                      <input
+                        className={historyControl}
+                        name="count"
+                        type="number"
+                        min={2}
+                        max={maxInstallments}
+                        required
+                      />
+                    </HistoryField>
+                    <HistoryField label="Importe de cada cuota">
+                      <AmountInput name="installmentAmount" required />
+                    </HistoryField>
+                    <HistoryField label="Mes de la primera cuota">
+                      <input
+                        className={historyControl}
+                        name="firstPeriod"
+                        type="month"
+                        min="0001-01"
+                        max="9999-12"
+                        defaultValue={date.slice(0, 7)}
+                        required
+                      />
+                    </HistoryField>
+                  </>
+                )}
               </>
             )}
             {mode === "link" && (
@@ -376,10 +452,11 @@ export function RecurrenceSettlementForm({
                       <option value="" disabled>
                         Elegí el movimiento
                       </option>
-                      {events.map(({ id, concept, amount, method }) => (
+                      {events.map(({ id, concept, amount, method, shared }) => (
                         <option key={id} value={id}>
                           {concept} · {formatBankAmount({ amount, currency })} ·{" "}
                           {movementDisplayMethods[method]}
+                          {shared && " · Con reparto registrado"}
                         </option>
                       ))}
                     </select>
@@ -389,49 +466,64 @@ export function RecurrenceSettlementForm({
             )}
           </div>
         )}
-        {monetary && !income && (choices.length > 0 || cursor >= 0) && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Distribuir el pago entre varios períodos
-            </summary>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {choices.map(({ index, key }) => (
-                <label key={index} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={extra.includes(index)}
-                    disabled={
-                      !extra.includes(index) &&
-                      periods.length >= settlementLimit
-                    }
-                    onChange={(e) =>
-                      setExtra(
-                        e.target.checked
-                          ? [...extra, index]
-                          : extra.filter((value) => value !== index),
-                      )
-                    }
-                  />
-                  {key}
-                </label>
-              ))}
-            </div>
-            {cursor >= 0 && (
-              <button
-                type="button"
-                className={historyButton + " mt-2"}
-                onClick={loadPeriods}
-              >
-                Buscar otros períodos
-              </button>
-            )}
-            {periodError && (
-              <p role="alert" className="text-sm">
-                {periodError}
-              </p>
-            )}
-          </details>
+        {needsSplit && (
+          <RecurringPaymentSplitFields
+            key={mode === "link" ? selected : "record"}
+            shares={usualShares}
+            people={people}
+            amount={mode === "link" ? (event?.amount ?? "") : paidAmount}
+            currency={currency}
+          />
         )}
+        {monetary &&
+          !income &&
+          !shared &&
+          (choices.length > 0 || cursor >= 0) && (
+            <details>
+              <summary className="cursor-pointer text-sm font-medium">
+                Distribuir el pago entre varios períodos
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {choices.map(({ index, key }) => (
+                  <label
+                    key={index}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={extra.includes(index)}
+                      disabled={
+                        !extra.includes(index) &&
+                        periods.length >= settlementLimit
+                      }
+                      onChange={(e) =>
+                        setExtra(
+                          e.target.checked
+                            ? [...extra, index]
+                            : extra.filter((value) => value !== index),
+                        )
+                      }
+                    />
+                    {key}
+                  </label>
+                ))}
+              </div>
+              {cursor >= 0 && (
+                <button
+                  type="button"
+                  className={historyButton + " mt-2"}
+                  onClick={loadPeriods}
+                >
+                  Buscar otros períodos
+                </button>
+              )}
+              {periodError && (
+                <p role="alert" className="text-sm">
+                  {periodError}
+                </p>
+              )}
+            </details>
+          )}
         {(monetary || mode === "total") &&
           periods.map((entry) => (
             <PeriodAmounts
@@ -461,7 +553,7 @@ export function RecurrenceSettlementForm({
                 <option value="" disabled>
                   Elegí el movimiento
                 </option>
-                {period.events.map(({ id, effectiveOn, amount, method }) => (
+                {detachable.map(({ id, effectiveOn, amount, method }) => (
                   <option key={id} value={id}>
                     {formatBankReference(effectiveOn)} ·{" "}
                     {formatBankAmount({ amount, currency })} ·{" "}

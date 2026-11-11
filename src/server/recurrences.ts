@@ -27,6 +27,13 @@ import {
   resolveMovementCategory,
 } from "./movements.ts";
 
+import type { UsualShare } from "../domain/recurring-shares.ts";
+import {
+  recurringSharesReady,
+  resolveUsualShares,
+  saveUsualShares,
+} from "./recurring-shares.ts";
+
 export async function recurrencesReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.recurring_series') IS NOT NULL AS ready",
@@ -61,6 +68,15 @@ export async function createRecurrence(
       id,
     } as const;
 
+  let shares: Awaited<ReturnType<typeof resolveUsualShares>> = null;
+  if (definition.usualShares) {
+    if (definition.kind !== "expense" || !(await recurringSharesReady(client)))
+      return { status: "sharing-unavailable" } as const;
+    await lockBankWrites(client, ownerId);
+    shares = await resolveUsualShares(client, ownerId, definition.usualShares);
+    if (!shares) return { status: "invalid-people" } as const;
+  }
+
   const categoryId = await resolveMovementCategory(
     client,
     ownerId,
@@ -89,6 +105,7 @@ export async function createRecurrence(
       definition.endDate,
     ],
   );
+  if (shares) await saveUsualShares(client, ownerId, id, shares);
   return { status: "created", id } as const;
 }
 
@@ -107,6 +124,7 @@ type Series = RecurrenceDefinition & {
   paused: boolean;
   version: number;
   changes: RecurrenceChange[];
+  usualShares: UsualShare[];
 };
 
 async function readSeries(
@@ -114,6 +132,7 @@ async function readSeries(
   ownerId: string,
   tracking: boolean,
   seriesId: string | null,
+  sharing: boolean,
 ) {
   const changes = tracking
     ? `coalesce((SELECT jsonb_agg(r.details ORDER BY (r.details->>'version')::integer)
@@ -121,12 +140,19 @@ async function readSeries(
          WHERE (r.owner_id,r.series_id) = (s.owner_id,s.id)
            AND r.details ? 'effectiveIndex'), '[]')`
     : "'[]'::jsonb";
+  const usualShares = sharing
+    ? `coalesce((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.canonical_name,
+         'percentage', a.percentage::text) ORDER BY p.normalized_name, p.id)
+         FROM finance.recurring_share_participants a
+         JOIN finance.people p ON (p.owner_id, p.id) = (a.owner_id, a.person_id)
+         WHERE (a.owner_id, a.series_id) = (s.owner_id, s.id)), '[]')`
+    : "'[]'::jsonb";
   const { rows } = await client.query<Series>(
     `SELECT s.id, s.kind, s.concept, s.currency, s.note, c.name AS category,
        s.category_id AS "categoryId", s.reference_amount::text AS "referenceAmount",
        s.frequency, s.first_period::text AS "firstPeriod", s.date_mode AS "dateMode",
        s.due_day AS "dueDay", s.end_date::text AS "endDate", s.paused, s.version,
-       ${changes} AS changes
+       ${changes} AS changes, ${usualShares} AS "usualShares"
      FROM finance.recurring_series s
      LEFT JOIN finance.categories c ON (c.owner_id,c.id) = (s.owner_id,s.category_id)
      WHERE s.owner_id = $1 AND ($2::uuid IS NULL OR s.id = $2)
@@ -141,7 +167,13 @@ export async function loadRecurrence(
   ownerId: string,
   seriesId: string,
 ) {
-  const [series] = await readSeries(client, ownerId, true, seriesId);
+  const [series] = await readSeries(
+    client,
+    ownerId,
+    true,
+    seriesId,
+    await recurringSharesReady(client),
+  );
   return series;
 }
 
@@ -235,8 +267,9 @@ export async function listRecurrences(
   ownerId: string,
   today: string,
   tracking = false,
+  sharing = false,
 ) {
-  const rows = await readSeries(client, ownerId, tracking, null);
+  const rows = await readSeries(client, ownerId, tracking, null, sharing);
   return rows.map(({ paused, ...definition }) => {
     const schedule = recurrenceSchedule(definition);
     return {
