@@ -1,15 +1,23 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
+import { CardCycleAlerts } from "@/components/card-cycle-alerts";
 import { ContributionNotice } from "@/components/fund-contributions";
 import { FundTargetMessage } from "@/components/fund-target-notice";
 import { BudgetThresholdNotice, NoticeCard } from "@/components/notices";
+import { DueNoticeList, PushPreference } from "@/components/due-notices";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { contributionPending } from "@/domain/contribution-plans";
 import { fundTargetNotices } from "@/domain/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listBudgetNotices } from "@/server/budgets";
+import { cardCyclesReady, listCardCycleAlerts } from "@/server/card-cycles";
 import { savingsFundsReady } from "@/server/bank-balances";
+import {
+  listLoanDueNotices,
+  listRecurrenceDueNotices,
+} from "@/server/due-notices";
+import { cardsReady, listCards } from "@/server/cards";
 import { listSavingsFunds } from "@/server/savings-funds";
 import {
   contributionPlansReady,
@@ -41,6 +49,21 @@ export default async function NoticesPage() {
         periods,
         plans,
         budgetNotices: await listBudgetNotices(client, ownerId, month),
+        cardAlerts:
+          (await cardsReady(client)) && (await cardCyclesReady(client))
+            ? await listCardCycleAlerts(
+                client,
+                ownerId,
+                await listCards(client, ownerId),
+                today,
+              )
+            : [],
+        debtNotices: await listLoanDueNotices(client, ownerId, today),
+        recurrenceNotices: await listRecurrenceDueNotices(
+          client,
+          ownerId,
+          today,
+        ),
         funds: (await savingsFundsReady(client))
           ? await listSavingsFunds(client, ownerId)
           : null,
@@ -57,13 +80,21 @@ export default async function NoticesPage() {
   const resolved = periods.filter((period) => !contributionPending(period));
   const funds = result ? (result.funds ?? []) : [];
   const thresholdAlerts = result?.budgetNotices ?? [];
+  const cardAlerts = result?.cardAlerts ?? [];
+  const debtNotices = result?.debtNotices ?? [];
+  const recurrenceNotices = result?.recurrenceNotices ?? [];
   const today = result?.today ?? "";
   const planIds = new Set(result?.plans.map(({ fundId }) => fundId));
   const goals = funds
     .map((fund) => ({ fund, ...fundTargetNotices(fund, today) }))
     .filter(({ pausedByTarget, overdue }) => pausedByTarget || overdue);
   const quiet =
-    pending.length === 0 && thresholdAlerts.length === 0 && goals.length === 0;
+    pending.length === 0 &&
+    thresholdAlerts.length === 0 &&
+    goals.length === 0 &&
+    cardAlerts.length === 0 &&
+    debtNotices.length === 0 &&
+    recurrenceNotices.length === 0;
 
   return (
     <FinanceShell current="avisos">
@@ -76,6 +107,21 @@ export default async function NoticesPage() {
         )}
         {result && (
           <>
+            {cardAlerts.length > 0 && (
+              <CardCycleAlerts alerts={cardAlerts} today={today} />
+            )}
+            <DueNoticeList
+              headingId="avisos-deudas"
+              title="Deudas y préstamos"
+              notices={debtNotices}
+              emptyText="No hay vencimientos de deudas dentro de los próximos días según tus registros."
+            />
+            <DueNoticeList
+              headingId="avisos-recurrentes"
+              title="Recurrentes"
+              notices={recurrenceNotices}
+              emptyText="No hay vencimientos de recurrentes dentro de los próximos días según tu configuración."
+            />
             {thresholdAlerts.length > 0 && (
               <section
                 aria-labelledby="avisos-presupuestos"
@@ -186,6 +232,7 @@ export default async function NoticesPage() {
               </section>
             )}
             {quiet && <p>No tenés avisos nuevos.</p>}
+            <PushPreference />
             {resolved.length > 0 && (
               <details className="space-y-3 rounded-lg border p-4">
                 <summary className="cursor-pointer font-semibold">
