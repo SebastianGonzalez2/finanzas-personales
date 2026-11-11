@@ -71,7 +71,7 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `reserve_effects` | event_id, fund_id, delta, effective_at | Movimiento virtual distinto de bancos; puede reservar, liberar, transferir entre fondos o cubrir gasto. |
 | `fund_schedules` | fund_id, monthly_day, amount, enabled, pause_reason, starts_at | Primer aporte desde siguiente mes, insuficiencia deja pendiente, meta alcanzada pausa automático. |
 | `fund_contribution_periods` | fund_id, period, planned_amount, state, actual_event_id? | Idempotencia por fondo y período; estados pendiente/omitido/completado/descartado. |
-| `recurring_series` | id, owner_id, kind, frequency, start_period, end_period?, reference_amount?, state | Tipo ingreso/gasto; pausa, finalización, período omitido; no banco automático. |
+| `recurring_series` | owner_id, id, kind, concept, category_id?, currency, note?, reference_amount?, frequency, first_period, date_mode, due_day?, end_date?, paused, version | F4-01 guarda la definición inicial y usa `(owner_id, id)` como recibo de alta idempotente. `date_mode` distingue exacto, aproximado y sin fecha. La finalización se deriva después del día final inclusive. |
 | `recurring_periods` | series_id, period_key, expected_amount?, actual_amount?, state, omission_reason? | Único estado por serie/período; múltiples depósitos o pagos vinculables. |
 | `recurring_shares` | period_id/series_id, person_id, amount_or_ratio | Reparto expreso entre titulares ajenos; solo materializar por cobrar al pagar gasto real. |
 | `monthly_budgets` | owner_id, category_id, currency, habitual_limit, effective_from | Versionado de límites por período; padre incluye subcategorías sin doble contabilizar. |
@@ -83,6 +83,8 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `backup_schema_versions` | version, migration_policy | Contrato de formato, no guardar contraseña de copia ni secretos. |
 
 **Reglas técnicas:** claves foráneas y unicidad por titular; `NOT NULL` donde haya dato obligatorio; `CHECK` para importes y tipos; índices `(owner_id, effective_at DESC)`, `(owner_id, category_id)`, recurrencias `(series_id, period_key)`, notificaciones `(owner_id, type, object_id, period_key, threshold)`. Las cotizaciones pueden ser compartidas entre usuarios, pero **no** datos financieros.
+
+F4-01 calcula los períodos previstos desde la definición guardada. Antes de `first_period` se muestra la configuración sin un período pendiente. Un vencimiento aproximado o desconocido carece de fecha exacta, incluido el primer período. F4-02 incorpora el seguimiento persistente por período y sus vínculos con pagos y cobros reales.
 
 ## 4. Tipos monetarios y redondeo
 
