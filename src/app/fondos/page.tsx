@@ -6,7 +6,9 @@ import { Card } from "@/components/ui/card";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { savingsFundsReady } from "@/server/bank-balances";
 import {
+  fundLifecycleReady,
   listFundAvailability,
+  listFundClosures,
   listSavingsFunds,
   reserveEffectsReady,
 } from "@/server/savings-funds";
@@ -33,8 +35,14 @@ export default async function SavingsFundsPage() {
         };
       const contributions = await contributionPlansReady(client);
       if (contributions) await processDueContributions(client, ownerId);
+      const funds = await listSavingsFunds(client, ownerId);
       return {
-        funds: await listSavingsFunds(client, ownerId),
+        funds,
+        closures: funds.some(({ status }) => status === "closed")
+          ? await listFundClosures(client, ownerId)
+          : [],
+        lifecycleReady: await fundLifecycleReady(client),
+        today: bankReferenceToday(),
         availability: (await reserveEffectsReady(client))
           ? await listFundAvailability(client, ownerId)
           : null,
@@ -43,7 +51,6 @@ export default async function SavingsFundsPage() {
               plans: await listContributionPlans(client, ownerId),
               periods: await listContributionPeriods(client, ownerId),
               changes: await listContributionChanges(client, ownerId),
-              today: bankReferenceToday(),
             }
           : null,
       };
@@ -72,8 +79,11 @@ export default async function SavingsFundsPage() {
         {"funds" in result && result.funds ? (
           <SavingsFundCatalog
             funds={result.funds}
+            closures={result.closures}
             availability={result.availability}
             contributions={result.contributions}
+            lifecycleReady={result.lifecycleReady}
+            today={result.today}
           />
         ) : (
           <Card className="p-4">
