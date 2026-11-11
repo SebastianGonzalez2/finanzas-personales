@@ -165,6 +165,11 @@ export async function handleMovementRevision(
         );
       case "unavailable":
         return failure("La edición del historial aún no está disponible.", 409);
+      case "recurrence-conflict":
+        return failure(
+          "El movimiento está vinculado a un período recurrente. Revisá el total confirmado en Recurrentes. Para cambiar la moneda o el importe de un pago distribuido, anulá el registro incorrecto y volvé a cargarlo.",
+          409,
+        );
       case "invalid-kind":
         return failure(
           "Elegí los campos que corresponden al tipo de movimiento.",

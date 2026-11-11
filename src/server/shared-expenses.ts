@@ -1,4 +1,5 @@
 import "server-only";
+import { recurrenceEventPeriods } from "./recurrence-links.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -254,6 +255,8 @@ export async function saveSharedExpense(
   let ownAmount: string;
   let parties: Parameters<typeof openObligations>[4];
   if (command.action === "split") {
+    if ((await recurrenceEventPeriods(client, ownerId, command.eventId)).length)
+      return conflict("Este pago está vinculado a una recurrencia.");
     const existing = await splitSource(client, ownerId, command.eventId);
     if (!existing) return missing;
     if (!allocationMatches(command, existing.amount, existing.currency))

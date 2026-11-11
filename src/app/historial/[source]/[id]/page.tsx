@@ -29,6 +29,7 @@ import {
 } from "@/domain/history";
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { installmentTotal } from "@/domain/installments";
+import { recurrenceEventPeriods } from "@/server/recurrence-links";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
   installmentsReady,
@@ -70,6 +71,9 @@ export default async function HistoryDetail({
         return null;
       const entry = await findHistoryEntry(client, ownerId, id, checkpoint);
       if (!entry) return null;
+      const recurrence = checkpoint
+        ? []
+        : await recurrenceEventPeriods(client, ownerId, id);
       const revisions = checkpoint
         ? []
         : await historyRevisions(client, ownerId, id);
@@ -110,6 +114,7 @@ export default async function HistoryDetail({
       );
       const canSplit =
         sharingReady &&
+        !recurrence.length &&
         !refundLinked &&
         !shared &&
         !mixed &&
@@ -158,6 +163,7 @@ export default async function HistoryDetail({
           : null;
       return {
         entry,
+        recurrence,
         fundUses,
         fundSources,
         revisions,
@@ -200,6 +206,7 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    recurrence,
     fundUses,
     fundSources,
     revisions,
@@ -272,6 +279,24 @@ export default async function HistoryDetail({
                   </div>
                 )}
               </>
+            )}
+            {recurrence.length > 0 && (
+              <div>
+                <dt className="text-sm text-muted-foreground">
+                  Período al que corresponde
+                </dt>
+                <dd className="flex flex-wrap gap-2">
+                  {recurrence.map(({ seriesId, key, index }) => (
+                    <Link
+                      className="underline"
+                      key={key}
+                      href={`/recurrentes?serie=${seriesId}&hasta=${index}#periodo-${seriesId}-${index}`}
+                    >
+                      {key}
+                    </Link>
+                  ))}
+                </dd>
+              </div>
             )}
             {entry.note && (
               <div className="sm:col-span-2">
