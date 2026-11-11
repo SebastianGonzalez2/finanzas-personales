@@ -1,0 +1,11 @@
+# F5-01 — Catálogo de categorías y subcategorías (parte OpenCode)
+
+Cada titular tiene su propio catálogo de categorías y subcategorías ([RF-039](01-alcance-y-requisitos.md), [CA-051](03-criterios-de-aceptacion.md)). En el selector de **Resumen · Nueva transacción · Gasto o Ingreso** aparece «Crear categoría…»: al elegirla se despliega un campo con nombre y, si corresponde, la categoría superior, y el formulario conserva importe, fecha y moneda intactos. La categoría queda seleccionada en el selector y ningún movimiento se registra hasta confirmar el formulario.
+
+La misma creación está disponible en **Recurrentes**, **Presupuestos** y el formulario de gastos compartidos, y hay una vista de navegación del catálogo en **Categorías** (menú lateral), donde se crean categorías y subcategorías a dos niveles: gasto o ingreso, con subcategorías agrupadas bajo su categoría. Los selectores muestran las subcategorías como «Categoría › Subcategoría» junto con las sugerencias estables v6.3, que siguen materializándose como filas privadas al usarlas.
+
+Las reglas vigentes: el nombre se recorta y admite entre 1 y 100 caracteres; no se permiten duplicados por tipo dentro del catálogo del titular (incluye nombres archivados, para no reutilizar referencias históricas); una subcategoría hereda el tipo de su categoría superior, no admite más de dos niveles ni categorías superiores archivadas o de otro titular. La creación verifica sesión y propietario en el servidor (`POST /api/categories`, con las mismas protecciones de origen que el resto de las rutas privadas). El catálogo activo se lista sin filas archivadas.
+
+**Alcance MIX:** esta entrega cubre la parte asignada a OpenCode (formularios, selectores y navegación del catálogo). Pendiente para Codex: refinamiento de permisos, archivo/restauración de categorías y protección formal de referencias históricas al archivar, así como la creación desde el formulario de operaciones de crédito y el editor de historial. Pruebas de integración con PostgreSQL desechable (`tests/integration/categories.test.mjs`) se ejecutan en CI: este entorno local no tiene Docker ni servicio en 55432.
+
+[RF-039](01-alcance-y-requisitos.md) · [CA-051](03-criterios-de-aceptacion.md) · [I-12](02-modelo-de-dominio-y-datos.md). Siguiente: F5-02, división por categorías.
