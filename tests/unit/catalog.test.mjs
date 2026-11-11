@@ -17,7 +17,33 @@ test("F5-03/CA-054: la normalización ignora mayúsculas, acentos y espacios ext
   assert.equal(normalizeName("ÁÉÍÓÚ Ü"), "aeiou u");
   // La ñ no es un acento: «Peña» y «Pena» son identidades distintas.
   assert.equal(normalizeName("Peña"), "peña");
+  assert.equal(normalizeName("Pen\u0303a"), "peña");
   assert.notEqual(normalizeName("Peña"), normalizeName("Pena"));
+});
+
+test("F5-03/CA-053: la fusión exige dos comercios y una vista previa versionada", () => {
+  const command = {
+    action: "merge",
+    kind: "merchant",
+    sourceId: randomUUID(),
+    targetId: randomUUID(),
+    sourceVersion: 1,
+    targetVersion: 2,
+    movementCount: 0,
+    idempotencyKey: randomUUID(),
+  };
+  assert.deepEqual(parseCatalogCommand(command), command);
+  for (const change of [
+    { targetId: command.sourceId },
+    { kind: "person" },
+    { sourceVersion: undefined },
+    { targetVersion: 0 },
+    { movementCount: -1 },
+    { movementCount: 1.2 },
+    { ownerId: "otro" },
+  ]) {
+    assert.ok("error" in parseCatalogCommand({ ...command, ...change }));
+  }
 });
 
 test("F5-03: el comando de alta se recorta y acepta reintentos equivalentes", () => {

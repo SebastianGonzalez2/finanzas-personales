@@ -1,4 +1,5 @@
 import "server-only";
+import { nameCatalogReady, recordLoanPerson } from "./catalog.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { Loan, LoanCommand, LoanOperation } from "../domain/loans.ts";
@@ -259,6 +260,14 @@ export async function saveLoanOperation(
   if (replay?.status === "conflict")
     return conflict("La clave ya se usó para otro registro.");
   if (replay) return replay;
+  if (
+    "personName" in command &&
+    command.personName &&
+    !(await nameCatalogReady(client))
+  )
+    return conflict(
+      "El catálogo estará disponible cuando se actualice la base de datos.",
+    );
 
   const id = randomUUID();
   let loanId: string = id;
@@ -319,6 +328,8 @@ export async function saveLoanOperation(
         command.dueOn,
       ],
     );
+    if (command.personName)
+      await recordLoanPerson(client, ownerId, id, command.personName);
   }
   await client.query(
     `INSERT INTO finance.loan_operations (owner_id, event_id, loan_id, currency, version, action, amount,

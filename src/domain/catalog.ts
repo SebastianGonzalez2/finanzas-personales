@@ -1,11 +1,20 @@
 import { movementUuid as uuid } from "./movements.ts";
+import {
+  catalogNameLimit,
+  parseOptionalCatalogName,
+  personNameLimit,
+} from "./catalog-names.ts";
+export {
+  catalogNameLimit,
+  normalizeName,
+  personNameLimit,
+} from "./catalog-names.ts";
 
 export const catalogKinds = {
   merchant: "Comercio",
   person: "Persona",
 } as const;
 export type CatalogKind = keyof typeof catalogKinds;
-export const catalogNameLimit = 100;
 
 export type CatalogEntry = {
   id: string;
@@ -23,7 +32,21 @@ export type CatalogCommand = { idempotencyKey: string } & (
       entryId: string;
       version: number;
     }
+  | ({
+      action: "merge";
+      kind: "merchant";
+      sourceVersion: number;
+      targetVersion: number;
+      movementCount: number;
+    } & MerchantPair)
 );
+
+export type MerchantPair = { sourceId: string; targetId: string };
+export type MerchantMergePreview = {
+  source: CatalogEntry;
+  target: CatalogEntry;
+  movementCount: number;
+};
 
 type DistributiveOmit<T, K extends keyof never> = T extends unknown
   ? Omit<T, K>
@@ -33,29 +56,43 @@ export type CatalogCommandInput = DistributiveOmit<
   "idempotencyKey"
 >;
 
-// Coincidencia sin mayúsculas, acentos ni espacios redundantes (CA-054).
-// La ñ se conserva: no es un acento y sí diferencia identidades reales. Se usa
-// un marcador de uso privado, imposible en nombres reales, para blindarla.
-export function normalizeName(value: string) {
-  return value
-    .replace(/\uE000/gu, "")
-    .replace(/ñ/giu, "\uE000")
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/\s+/gu, " ")
-    .trim()
-    .replace(/\uE000/g, "ñ");
-}
-
 const keys = {
   create: ["kind", "name"],
   archive: ["kind", "entryId", "version"],
   restore: ["kind", "entryId", "version"],
+  merge: [
+    "kind",
+    "sourceId",
+    "targetId",
+    "sourceVersion",
+    "targetVersion",
+    "movementCount",
+  ],
 };
 
 const isCatalogKind = (value: unknown): value is CatalogKind =>
   value === "merchant" || value === "person";
+
+const isId = (value: unknown): value is string =>
+  typeof value === "string" && uuid.test(value);
+const isVersion = (value: unknown): value is number =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  value >= 1 &&
+  value <= 2147483647;
+
+export function parseMerchantPair(
+  sourceId: unknown,
+  targetId: unknown,
+): MerchantPair | null {
+  if (
+    !isId(sourceId) ||
+    !isId(targetId) ||
+    sourceId.toLowerCase() === targetId.toLowerCase()
+  )
+    return null;
+  return { sourceId: sourceId.toLowerCase(), targetId: targetId.toLowerCase() };
+}
 
 export function parseCatalogCommand(
   input: unknown,
@@ -66,7 +103,10 @@ export function parseCatalogCommand(
   const { action, kind, name, entryId, version, idempotencyKey } =
     input as Record<string, unknown>;
   if (
-    (action !== "create" && action !== "archive" && action !== "restore") ||
+    (action !== "create" &&
+      action !== "archive" &&
+      action !== "restore" &&
+      action !== "merge") ||
     !isCatalogKind(kind)
   )
     return invalid;
@@ -80,29 +120,42 @@ export function parseCatalogCommand(
     return invalid;
   const commandKey = idempotencyKey.toLowerCase();
   if (action === "create") {
+    try {
+      const parsed = parseOptionalCatalogName(
+        name,
+        kind === "person" ? personNameLimit : catalogNameLimit,
+      );
+      if (!parsed) return invalid;
+      return { action, kind, name: parsed, idempotencyKey: commandKey };
+    } catch {
+      return invalid;
+    }
+  }
+  if (action === "merge") {
+    const { sourceId, targetId, sourceVersion, targetVersion, movementCount } =
+      input as Record<string, unknown>;
+    const pair = parseMerchantPair(sourceId, targetId);
     if (
-      typeof name !== "string" ||
-      !name.trim() ||
-      name.trim().length > catalogNameLimit ||
-      name.includes("\0")
+      kind !== "merchant" ||
+      !pair ||
+      !isVersion(sourceVersion) ||
+      !isVersion(targetVersion) ||
+      typeof movementCount !== "number" ||
+      !Number.isSafeInteger(movementCount) ||
+      movementCount < 0
     )
       return invalid;
     return {
       action,
       kind,
-      name: name.trim(),
+      ...pair,
+      sourceVersion,
+      targetVersion,
+      movementCount,
       idempotencyKey: commandKey,
     };
   }
-  if (
-    typeof entryId !== "string" ||
-    !uuid.test(entryId) ||
-    typeof version !== "number" ||
-    !Number.isInteger(version) ||
-    version < 1 ||
-    version > 2147483647
-  )
-    return invalid;
+  if (!isId(entryId) || !isVersion(version)) return invalid;
   return {
     action,
     kind,

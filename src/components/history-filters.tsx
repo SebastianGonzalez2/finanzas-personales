@@ -6,6 +6,7 @@ import {
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
 import { movementDisplayMethods } from "@/domain/movements";
+import type { CatalogEntry } from "@/domain/catalog";
 import type { listHistoryCategories } from "@/server/history";
 import {
   historyButton,
@@ -18,9 +19,11 @@ import { Card } from "./ui/card";
 export function HistoryFilters({
   values,
   categories,
+  merchants,
 }: {
   values: FilterValues;
   categories: Awaited<ReturnType<typeof listHistoryCategories>>;
+  merchants: CatalogEntry[];
 }) {
   const active = Object.values(values).filter(Boolean).length;
   return (
@@ -88,6 +91,7 @@ export function HistoryFilters({
             values.min ||
             values.max ||
             values.category ||
+            values.merchant ||
             values.method ||
             values.status,
           )}
@@ -129,6 +133,29 @@ export function HistoryFilters({
                 ))}
               </select>
             </HistoryField>
+            {merchants.length > 0 && (
+              <HistoryField label="Comercio">
+                <select
+                  name="merchant"
+                  defaultValue={values.merchant}
+                  className={historyControl}
+                >
+                  <option value="">Todos</option>
+                  {values.merchant &&
+                    !merchants.some(({ id }) => id === values.merchant) && (
+                      <option value={values.merchant}>
+                        Comercio del enlace
+                      </option>
+                    )}
+                  {merchants.map(({ id, name, archived }) => (
+                    <option key={id} value={id}>
+                      {name}
+                      {archived ? " (archivado)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </HistoryField>
+            )}
             <HistoryField label="Medio">
               <select
                 name="method"

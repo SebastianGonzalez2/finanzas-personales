@@ -22,26 +22,6 @@ import {
   historyPrimary,
 } from "./history-fields";
 
-// El contacto se guarda en el catálogo privado al confirmar la operación
-// (v9.41). Es best-effort: el gasto ya quedó registrado y el nombre vuelve a
-// ofrecerse la próxima vez aunque este alta falle.
-function registerPeople(values: Array<FormDataEntryValue | null>) {
-  for (const raw of values) {
-    const name = typeof raw === "string" ? raw.trim() : "";
-    if (name && name.length <= 100)
-      void fetch("/api/catalog", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create",
-          kind: "person",
-          name,
-          idempotencyKey: crypto.randomUUID(),
-        }),
-      }).catch(() => {});
-  }
-}
-
 type Target = {
   id: string;
   currency: Currency;
@@ -131,6 +111,7 @@ export function SharedExpenseForm({
           method,
           currency: data.get("currency"),
           amount: data.get("amount"),
+          merchantName: data.get("merchantName"),
           effectiveOn: data.get("effectiveOn"),
           ...(payable
             ? {
@@ -155,11 +136,6 @@ export function SharedExpenseForm({
         };
     const id = await send(payload);
     if (id) {
-      if (!editing)
-        registerPeople([
-          ...(payable ? [data.get("creditor")] : []),
-          ...(!payable ? friends.map((key) => data.get(`name-${key}`)) : []),
-        ]);
       setSavedId(id);
       router.refresh();
     }
@@ -247,6 +223,14 @@ export function SharedExpenseForm({
                 required
               />
             </Field>
+            {!target && (
+              <NameAutocomplete
+                kind="merchant"
+                name="merchantName"
+                label="Comercio (opcional)"
+                className={historyControl}
+              />
+            )}
             <Field label="Categoría (opcional)">
               <select
                 name="categoryId"

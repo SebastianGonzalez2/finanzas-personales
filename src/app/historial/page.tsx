@@ -14,6 +14,7 @@ import {
   parseHistoryParams,
 } from "@/domain/history";
 import { withGoogleOwner } from "@/server/google-auth";
+import { listNameCatalog, nameCatalogReady } from "@/server/catalog";
 import { listHistory, listHistoryCategories } from "@/server/history";
 import { historyReady } from "@/server/movements";
 
@@ -37,6 +38,11 @@ export default async function HistoryPage({
       return {
         ...page,
         categories: await listHistoryCategories(client, ownerId),
+        merchants: (await nameCatalogReady(client))
+          ? (await listNameCatalog(client, ownerId)).filter(
+              ({ kind }) => kind === "merchant",
+            )
+          : [],
       };
     },
   ).catch((error: unknown) => {
@@ -77,6 +83,7 @@ export default async function HistoryPage({
             <HistoryFilters
               values={query.filters}
               categories={data.categories}
+              merchants={data.merchants}
             />
             <Card className="gap-3 p-4 sm:p-5">
               <h2 id="resultados" tabIndex={-1} className="font-semibold">

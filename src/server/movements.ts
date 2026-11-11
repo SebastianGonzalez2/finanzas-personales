@@ -5,6 +5,11 @@ import {
   sharedExpensesReady,
 } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
+import {
+  copyEventMerchant,
+  nameCatalogReady,
+  recordEventMerchant,
+} from "./catalog.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
@@ -126,6 +131,7 @@ type Shortfall = {
   currency: Currency;
 };
 type SaveResult =
+  | { status: "catalog-unavailable" }
   | Replay
   | Omit<Shortfall, "currency">
   | { status: "created"; id: string }
@@ -340,12 +346,15 @@ export async function saveMovement(
       ...(movement.fundPortions?.length
         ? [JSON.stringify(movement.fundPortions)]
         : []),
+      ...(movement.merchantName ? ["merchant", movement.merchantName] : []),
     ]);
 
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
 
+  if (movement.merchantName && !(await nameCatalogReady(client)))
+    return { status: "catalog-unavailable" };
   const [balance] = await listBankAvailability(client, ownerId, [currency]);
   if (!balance) return { status: "unconfigured" };
   const portions = movement.fundPortions ?? [];
@@ -394,6 +403,8 @@ export async function saveMovement(
     { ...movement, categoryId: selectedCategoryId },
     hash,
   );
+  if (movement.merchantName)
+    await recordEventMerchant(client, ownerId, id, movement.merchantName);
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return { status: "created", id };
 }
@@ -495,6 +506,7 @@ async function insertMovement(
 }
 
 type RevisionResult =
+  | { status: "catalog-unavailable" }
   | Replay
   | { status: "invalid-coverage"; message: string }
   | Shortfall
@@ -629,6 +641,8 @@ export async function reviseMovement(
           { ...original, amount, idempotencyKey, fundPortions: portions },
           hash,
         );
+  if (replacement && kind === "expense")
+    await copyEventMerchant(client, ownerId, eventId, replacement);
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
 }
@@ -665,6 +679,9 @@ async function editMovement(
         movement.categoryId,
         ...(movement.fundPortions !== undefined
           ? [JSON.stringify(movement.fundPortions)]
+          : []),
+        ...(movement.merchantName !== undefined
+          ? ["merchant", movement.merchantName]
           : []),
       ];
   const hash = commandHash([
@@ -703,6 +720,8 @@ async function editMovement(
   if (!original) return { status: "not-found" };
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.kind !== movement.kind) return { status: "invalid-kind" };
+  if (!transfer && movement.merchantName && !(await nameCatalogReady(client)))
+    return { status: "catalog-unavailable" };
 
   const newEffects: { currency: Currency; signed: string }[] = transfer
     ? [
@@ -833,6 +852,15 @@ async function editMovement(
       { ...movement, idempotencyKey, categoryId, fundPortions: portions },
       hash,
     );
+    if (movement.merchantName)
+      await recordEventMerchant(
+        client,
+        ownerId,
+        replacement,
+        movement.merchantName,
+      );
+    else if (movement.kind === "expense" && movement.merchantName === undefined)
+      await copyEventMerchant(client, ownerId, eventId, replacement);
   }
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
@@ -940,13 +968,35 @@ export async function listMovementTotals(
   ownerId: string,
   monthStart: string,
 ) {
+  return movementTotals<MovementTotal>(client, ownerId, monthStart, false);
+}
+
+export async function listMerchantTotals(
+  client: pg.PoolClient,
+  ownerId: string,
+  monthStart: string,
+) {
+  return movementTotals<MovementTotal & { merchantId: string }>(
+    client,
+    ownerId,
+    monthStart,
+    true,
+  );
+}
+
+async function movementTotals<T extends MovementTotal>(
+  client: pg.PoolClient,
+  ownerId: string,
+  monthStart: string,
+  byMerchant: boolean,
+) {
   const credit = await creditOperationsReady(client);
   const mixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
-  const { rows } = await client.query<MovementTotal>(
-    `SELECT kind, currency, sum(amount)::text AS amount FROM (
-       SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
+  const { rows } = await client.query<T>(
+    `SELECT kind, currency, sum(amount)::text AS amount ${byMerchant ? ', ref.merchant_id AS "merchantId"' : ""} FROM (
+       SELECT f.id, f.kind, e.currency, abs(e.amount_signed) AS amount
        FROM finance.financial_events f
        JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
        JOIN finance.bank_effects e
@@ -957,7 +1007,7 @@ export async function listMovementTotals(
         shared
           ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
         UNION ALL
-        SELECT 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
+        SELECT f.id, 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
         WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
@@ -966,7 +1016,7 @@ export async function listMovementTotals(
       ${
         credit
           ? `UNION ALL
-        SELECT 'expense', x.currency, x.amount FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
+        SELECT x.id, 'expense', x.currency, x.amount FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
          WHERE x.owner_id = $1 ${shared ? "AND x.amount > 0" : ""} AND x.effective_on >= $2::date
            AND x.effective_on < $2::date + interval '1 month'
            ${
@@ -974,7 +1024,7 @@ export async function listMovementTotals(
                ? `AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases m
              WHERE (m.owner_id, m.event_id) = (x.owner_id, x.id))
            UNION ALL
-           SELECT 'expense', currency, amount FROM finance.mixed_purchase_expenses
+           SELECT id, 'expense', currency, amount FROM finance.mixed_purchase_expenses
             WHERE owner_id = $1 AND effective_on >= $2::date AND effective_on < $2::date + interval '1 month'`
                : ""
            }`
@@ -983,13 +1033,21 @@ export async function listMovementTotals(
       ${
         loans
           ? `UNION ALL
-        SELECT 'expense', o.currency, o.expense FROM finance.loan_operations o
+        SELECT f.id, 'expense', o.currency, o.expense FROM finance.loan_operations o
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
         WHERE o.owner_id = $1 AND o.expense > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
           : ""
       }
-      ) amounts GROUP BY kind, currency`,
+      ) amounts
+      ${
+        byMerchant
+          ? `JOIN finance.canonical_event_merchants ref
+        ON ref.owner_id = $1 AND ref.event_id = amounts.id
+        WHERE amounts.kind = 'expense'`
+          : ""
+      }
+      GROUP BY kind, currency ${byMerchant ? " , ref.merchant_id ORDER BY ref.merchant_id, currency" : ""}`,
     [ownerId, monthStart],
   );
   return rows;

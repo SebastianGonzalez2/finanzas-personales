@@ -98,6 +98,11 @@ export async function handleMovement(
           "El registro de cambios de moneda aún no está disponible.",
           409,
         );
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-coverage":
         return failure(result.message, 409);
       case "invalid-category":
@@ -165,6 +170,11 @@ export async function handleMovementRevision(
         );
       case "unavailable":
         return failure("La edición del historial aún no está disponible.", 409);
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-kind":
         return failure(
           "Elegí los campos que corresponden al tipo de movimiento.",

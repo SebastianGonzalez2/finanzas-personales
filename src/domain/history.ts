@@ -53,6 +53,7 @@ const filterKeys = [
   "currency",
   "kind",
   "category",
+  "merchant",
   "method",
   "min",
   "max",
@@ -82,8 +83,19 @@ export function parseHistoryParams(
     const value = input[key];
     if (typeof value === "string") filters[key] = value.trim();
   }
-  const { q, from, to, currency, kind, category, method, min, max, status } =
-    filters;
+  const {
+    q,
+    from,
+    to,
+    currency,
+    kind,
+    category,
+    merchant,
+    method,
+    min,
+    max,
+    status,
+  } = filters;
   const invalid = {
     error:
       "Revisá los filtros. Usá fechas válidas, rangos en orden e importes con hasta cuatro decimales.",
@@ -97,6 +109,7 @@ export function parseHistoryParams(
     (currency && !bankCurrencies.some((code) => code === currency)) ||
     (kind && !Object.hasOwn(historyKinds, kind)) ||
     (category && category !== "none" && !movementUuid.test(category)) ||
+    (merchant && !movementUuid.test(merchant)) ||
     (method && !Object.hasOwn(movementDisplayMethods, method)) ||
     (status && !Object.hasOwn(historyStates, status))
   )

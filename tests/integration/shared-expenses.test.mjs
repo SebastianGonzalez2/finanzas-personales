@@ -13,6 +13,7 @@ import {
   saveOpeningBalance,
 } from "../../src/server/bank-balances.ts";
 import { listCards, saveCard } from "../../src/server/cards.ts";
+import { findEventMerchant, findLoanPerson } from "../../src/server/catalog.ts";
 import {
   saveCreditOperation,
   voidCreditOperation,
@@ -21,6 +22,7 @@ import { findHistoryEntry, listHistory } from "../../src/server/history.ts";
 import { listMonthlyInstallments } from "../../src/server/installments.ts";
 import { findLoan, saveLoanOperation } from "../../src/server/loans.ts";
 import {
+  listMerchantTotals,
   listMovementTotals,
   reviseMovement,
   saveMovement,
@@ -290,6 +292,7 @@ test("F2-08 · RF-025 · CA-035/036: reparto, deuda y cobros con aislamiento rea
       expense({
         method: "credit",
         concept: "Compra compartida en cuotas",
+        merchantName: "Comercio sintético F5-03",
         amount: "3000",
         cardId,
         cardAmount: "3000",
@@ -307,6 +310,25 @@ test("F2-08 · RF-025 · CA-035/036: reparto, deuda y cobros con aislamiento rea
       (await detail(cardExpenseId)).loans[0].outstanding,
       "2000.0000",
     );
+    const merchant = await as((client, id) =>
+      findEventMerchant(client, id, cardExpenseId),
+    );
+    assert.equal(merchant.name, "Comercio sintético F5-03");
+    const sharedLoanId = (await detail(cardExpenseId)).loans[0].id;
+    assert.equal(
+      (await as((client, id) => findLoanPerson(client, id, sharedLoanId))).name,
+      "Eva",
+    );
+    const merchantTotals = (period) =>
+      as((client, id) => listMerchantTotals(client, id, period));
+    assert.deepEqual(await merchantTotals(month), [
+      {
+        kind: "expense",
+        merchantId: merchant.id,
+        currency: "UYU",
+        amount: "333.3334",
+      },
+    ]);
     assert.deepEqual(await totals(), [["expense", "2433.3334"]]);
     const installments = await as((client, id) =>
       listMonthlyInstallments(client, id, "2026-05-01"),
@@ -316,6 +338,7 @@ test("F2-08 · RF-025 · CA-035/036: reparto, deuda y cobros con aislamiento rea
       [[cardExpenseId, "333.3333"]],
     );
     assert.deepEqual(await totals("2026-06-01"), [["expense", "333.3333"]]);
+    assert.equal((await merchantTotals("2026-06-01"))[0].amount, "333.3333");
     assert.equal(
       (
         await as((client, id) =>
@@ -348,6 +371,7 @@ test("F2-08 · RF-025 · CA-035/036: reparto, deuda y cobros con aislamiento rea
     );
     assert.equal(await bank(), "3000.0000");
     assert.deepEqual(await totals(), [["expense", "2433.3334"]]);
+    assert.equal((await merchantTotals(month))[0].amount, "333.3334");
   } finally {
     try {
       if (initialized)

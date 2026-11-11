@@ -35,6 +35,7 @@ import {
   type MovementCategory,
 } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
+import { NameAutocomplete } from "./name-autocomplete";
 import {
   AmountInput,
   HistoryField,
@@ -212,6 +213,7 @@ export function CreditOperationForm({
           ? {
               ...entry,
               concept: form.get("concept"),
+              ...(!correction && { merchantName: form.get("merchantName") }),
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
@@ -564,6 +566,14 @@ export function CreditOperationForm({
                 defaultValue={correction?.concept}
               />
             </HistoryField>
+            {!correction && (
+              <NameAutocomplete
+                kind="merchant"
+                name="merchantName"
+                label="Comercio (opcional)"
+                className={historyControl}
+              />
+            )}
             {mixed && (
               <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
                 <input

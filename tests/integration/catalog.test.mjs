@@ -6,11 +6,27 @@ import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { normalizeName } from "../../src/domain/catalog.ts";
 import {
+  findEventMerchant,
+  findLoanPerson,
   listNameCatalog,
   nameCatalogReady,
+  previewMerchantMerge,
   saveCatalogCommand,
   searchNameCatalog,
 } from "../../src/server/catalog.ts";
+import {
+  listBankBalances,
+  saveOpeningBalance,
+} from "../../src/server/bank-balances.ts";
+import { listHistory } from "../../src/server/history.ts";
+import { findLoan, saveLoanOperation } from "../../src/server/loans.ts";
+import {
+  listMerchantTotals,
+  listMovementTotals,
+  reviseMovement,
+  saveMovement,
+} from "../../src/server/movements.ts";
+import { parseHistoryParams } from "../../src/domain/history.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con PostgreSQL", async () => {
@@ -44,13 +60,15 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
     ...(idempotencyKey && { idempotencyKey }),
   });
 
+  let installed = false;
   try {
     const admin = await pool.connect();
     try {
       await admin.query("BEGIN");
       const applied = await migrateInTransaction(admin);
       await admin.query("COMMIT");
-      assert.ok(applied.includes("0023_F5-03_catalogo_nombres.sql"));
+      installed = applied.includes("0023_F5-03_catalogo_nombres.sql");
+      assert.ok(installed);
     } finally {
       await admin.query("ROLLBACK");
       admin.release();
@@ -66,7 +84,10 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
       "Tienda Inglesa ",
     ])
       assert.deepEqual(await create(a, merchantCommand(variant)), first);
-    assert.equal(byName("merchant", "tienda", await catalog()).id, first.id);
+    assert.equal(
+      byName("merchant", "tienda inglesa", await catalog()).id,
+      first.id,
+    );
 
     // El mismo nombre en tipos distintos no se comparte.
     const person = await create(a, {
@@ -192,7 +213,224 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
     assert.ok(count("create") >= 3);
     assert.equal(count("archive"), 1);
     assert.equal(count("restore"), 1);
+
+    const date = "2026-01-01";
+    await as(a, (client, owner) =>
+      saveOpeningBalance(client, owner, {
+        currency: "UYU",
+        amount: "100.0000",
+        asOfDate: date,
+      }),
+    );
+    const spend = (merchantName, amount, idempotencyKey = randomUUID()) =>
+      as(a, (client, owner) =>
+        saveMovement(client, owner, {
+          kind: "expense",
+          currency: "UYU",
+          amount,
+          effectiveOn: date,
+          method: "debit",
+          concept: "Compra sintética",
+          note: null,
+          categoryId: null,
+          merchantName,
+          idempotencyKey,
+        }),
+      );
+    const concurrent = await Promise.all([
+      spend("Tda. Ing.", "10.0001"),
+      create(a, merchantCommand("TDA. ING.")),
+    ]);
+    assert.equal(concurrent[0].status, "created");
+    const source = concurrent[1];
+    const targetPurchase = await spend("Tienda Inglesa", "20.0002");
+    const pair = { sourceId: source.id, targetId: first.id };
+    const preview = (owner = a, selection = pair) =>
+      as(owner, (client, id) => previewMerchantMerge(client, id, selection));
+    const merge = (plan, idempotencyKey = randomUUID()) => ({
+      action: "merge",
+      kind: "merchant",
+      sourceId: plan.source.id,
+      targetId: plan.target.id,
+      sourceVersion: plan.source.version,
+      targetVersion: plan.target.version,
+      movementCount: plan.movementCount,
+      idempotencyKey,
+    });
+    const plan = await preview();
+    assert.equal(plan.movementCount, 2);
+    assert.equal(await preview(b), null);
+    assert.equal((await create(b, merge(plan))).status, "not-found");
+    assert.equal((await spend("Tda. Ing.", "2.0000")).status, "created");
+    assert.equal((await create(a, merge(plan))).status, "conflict");
+    const confirmed = merge(await preview());
+    assert.equal(confirmed.movementCount, 3);
+
+    const balances = await as(a, listBankBalances);
+    const total = () =>
+      as(a, (client, owner) => listMovementTotals(client, owner, date));
+    const amounts = await total();
+    const outcomes = await Promise.all([
+      create(a, confirmed),
+      create(a, confirmed),
+    ]);
+    assert.deepEqual(outcomes.map(({ status }) => status).sort(), [
+      "replayed",
+      "saved",
+    ]);
+    assert.deepEqual(await as(a, listBankBalances), balances);
+    assert.deepEqual(await total(), amounts);
+    assert.deepEqual(
+      await as(a, (client, owner) => listMerchantTotals(client, owner, date)),
+      [
+        {
+          kind: "expense",
+          currency: "UYU",
+          amount: "32.0003",
+          merchantId: first.id,
+        },
+      ],
+    );
+    assert.deepEqual(
+      (await search(a, "merchant", "tda.")).map(({ id }) => id),
+      [first.id],
+    );
+    assert.equal((await create(a, merchantCommand("Tda. Ing."))).id, first.id);
+    assert.equal(
+      (
+        await create(a, {
+          action: "restore",
+          kind: "merchant",
+          entryId: source.id,
+          version: 2,
+        })
+      ).status,
+      "not-found",
+    );
+    const history = (owner, merchant) =>
+      as(owner, (client, id) =>
+        listHistory(client, id, parseHistoryParams({ merchant })),
+      );
+    assert.equal((await history(a, first.id)).entries.length, 3);
+    assert.equal((await history(a, source.id)).entries.length, 3);
+    assert.deepEqual((await history(b, first.id)).entries, []);
+    assert.equal(
+      (
+        await as(a, (client, owner) =>
+          findEventMerchant(client, owner, concurrent[0].id),
+        )
+      ).id,
+      first.id,
+    );
+    const second = { sourceId: first.id, targetId: other.id };
+    assert.equal(
+      (await create(a, merge(await preview(a, second)))).id,
+      other.id,
+    );
+    assert.equal((await search(a, "merchant", "tda."))[0].id, other.id);
+    const revised = await as(a, (client, owner) =>
+      reviseMovement(client, owner, {
+        action: "correct",
+        eventId: targetPurchase.id,
+        amount: "21.0002",
+        idempotencyKey: randomUUID(),
+      }),
+    );
+    assert.equal(revised.status, "revised");
+    assert.equal((await history(a, other.id)).entries.length, 4);
+    assert.deepEqual(
+      await as(a, (client, owner) => listMerchantTotals(client, owner, date)),
+      [
+        {
+          kind: "expense",
+          currency: "UYU",
+          amount: "33.0003",
+          merchantId: other.id,
+        },
+      ],
+    );
+    const audit = await as(a, (client) =>
+      client.query(
+        "SELECT entry_id, merged_source_id FROM finance.name_catalog_changes WHERE action = 'merge' ORDER BY created_at",
+      ),
+    );
+    assert.deepEqual(audit.rows, [
+      { entry_id: first.id, merged_source_id: source.id },
+      { entry_id: other.id, merged_source_id: first.id },
+    ]);
+
+    const loan = await as(a, (client, owner) =>
+      saveLoanOperation(client, owner, {
+        action: "existing",
+        direction: "receivable",
+        currency: "UYU",
+        concept: "Deuda sintética",
+        personName: "Juan",
+        effectiveOn: date,
+        amount: "7.0000",
+        note: null,
+        installmentLoan: false,
+        installmentAmount: null,
+        frequency: null,
+        dueOn: null,
+        agreedTotal: null,
+        idempotencyKey: randomUUID(),
+      }),
+    );
+    const contact = await as(a, (client, owner) =>
+      findLoanPerson(client, owner, loan.id),
+    );
+    assert.equal(contact.name, "Juan");
+    assert.equal(
+      (
+        await create(a, {
+          action: "archive",
+          kind: "person",
+          entryId: contact.id,
+          version: 1,
+        })
+      ).status,
+      "saved",
+    );
+    assert.deepEqual(await search(a, "person", "jua"), []);
+    assert.equal(
+      (await as(a, (client, owner) => findLoan(client, owner, loan.id)))
+        .outstanding,
+      "7.0000",
+    );
+    assert.deepEqual(
+      await as(a, (client, owner) => findLoanPerson(client, owner, loan.id)),
+      contact,
+    );
+    assert.equal(
+      await as(b, (client, owner) => findLoanPerson(client, owner, loan.id)),
+      null,
+    );
+    const collected = await as(a, (client, owner) =>
+      saveLoanOperation(client, owner, {
+        action: "settle",
+        loanId: loan.id,
+        expectedVersion: 1,
+        principal: null,
+        financialCharges: null,
+        accruedPaid: null,
+        effectiveOn: date,
+        amount: "7.0000",
+        note: null,
+        idempotencyKey: randomUUID(),
+      }),
+    );
+    assert.equal(collected.status, "created");
+    assert.equal(
+      (await as(a, (client, owner) => findLoan(client, owner, loan.id)))
+        .outstanding,
+      "0.0000",
+    );
   } finally {
+    if (installed)
+      await pool.query(
+        "DROP SCHEMA finance, finance_meta CASCADE; DROP ROLE finanzas_app",
+      );
     await pool.end();
   }
 });

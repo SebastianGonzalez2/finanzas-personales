@@ -33,23 +33,6 @@ const control =
 const primary =
   "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
 
-// El comercio se guarda en el catálogo privado al confirmar el gasto (v9.39).
-// Es best-effort: el movimiento ya quedó registrado y el nombre se vuelve a
-// ofrecer aunque este alta falle.
-function registerMerchant(name: string) {
-  if (!name || name.length > catalogNameLimit) return;
-  void fetch("/api/catalog", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "create",
-      kind: "merchant",
-      name,
-      idempotencyKey: crypto.randomUUID(),
-    }),
-  }).catch(() => {});
-}
-
 export function MovementForm({
   today,
   balances,
@@ -145,15 +128,11 @@ export function MovementForm({
     setPending(true);
     setError("");
     try {
-      const merchantName = String(
-        new FormData(event.currentTarget).get("merchantName") ?? "",
-      ).trim();
       if (!uncertain) {
         requestKey.current ??= crypto.randomUUID();
         const form = new FormData(event.currentTarget);
         const fundPortions = formFundPortions(form, expenseFundsField);
         form.delete(expenseFundsField);
-        form.delete("merchantName");
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
           ...(fundPortions?.length && { fundPortions }),
@@ -167,7 +146,6 @@ export function MovementForm({
       });
       const data: { id?: string; error?: string } = await response.json();
       if (response.ok && data.id) {
-        registerMerchant(merchantName);
         setUncertain(false);
         setSavedId(data.id);
         setMessage(

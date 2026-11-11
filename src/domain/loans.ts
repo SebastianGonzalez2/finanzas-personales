@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { conceptLimit, movementUuid, noteLimit } from "./movements.ts";
+import { parseOptionalCatalogName, personNameLimit } from "./catalog-names.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const loanDirections = {
@@ -30,6 +31,7 @@ type LoanOpening = LoanTerms & {
   action: "existing" | "lend" | "borrow";
   direction: LoanDirection;
   concept: string;
+  personName?: string;
   currency: Currency;
   agreedTotal: string | null;
 };
@@ -162,6 +164,7 @@ export function parseLoanCommand(
       fields(data, [
         "direction",
         "concept",
+        "personName",
         "currency",
         "installmentLoan",
         "installmentAmount",
@@ -171,6 +174,10 @@ export function parseLoanCommand(
       ]);
       const { direction, installmentLoan } = data;
       const concept = text(data.concept, conceptLimit);
+      const personName = parseOptionalCatalogName(
+        data.personName,
+        personNameLimit,
+      );
       const currency = bankCurrencies.find((code) => code === data.currency);
       if (
         !concept ||
@@ -210,6 +217,7 @@ export function parseLoanCommand(
         action,
         direction,
         concept,
+        ...(personName && { personName }),
         currency,
         installmentLoan,
         installmentAmount,

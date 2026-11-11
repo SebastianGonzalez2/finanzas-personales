@@ -30,6 +30,7 @@ import {
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { installmentTotal } from "@/domain/installments";
 import { withGoogleOwner } from "@/server/google-auth";
+import { findEventMerchant } from "@/server/catalog";
 import {
   installmentsReady,
   listInstallmentVersions,
@@ -158,6 +159,10 @@ export default async function HistoryDetail({
           : null;
       return {
         entry,
+        merchant:
+          entry.kind === "expense" || entry.kind === "card_purchase"
+            ? await findEventMerchant(client, ownerId, id)
+            : null,
         fundUses,
         fundSources,
         revisions,
@@ -200,6 +205,7 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    merchant,
     fundUses,
     fundSources,
     revisions,
@@ -239,6 +245,19 @@ export default async function HistoryDetail({
             </h1>
           </header>
           <dl className="grid gap-3 sm:grid-cols-2">
+            {merchant && (
+              <div>
+                <dt className="text-sm text-muted-foreground">Comercio</dt>
+                <dd>
+                  <Link
+                    className="underline"
+                    href={`/historial?merchant=${merchant.id}`}
+                  >
+                    {merchant.name}
+                  </Link>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-sm text-muted-foreground">Fecha</dt>
               <dd>{formatBankReference(entry.effectiveOn)}</dd>

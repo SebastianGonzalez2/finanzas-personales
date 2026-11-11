@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { conceptLimit, movementUuid, noteLimit } from "./movements.ts";
+import { parseOptionalCatalogName } from "./catalog-names.ts";
 import {
   installmentCount,
   installmentPeriodAt,
@@ -58,6 +59,7 @@ export type CreditCommand = {
   | ({
       action: "purchase";
       concept: string;
+      merchantName?: string;
       note: string | null;
       categoryId: string | null;
       covered: boolean;
@@ -420,6 +422,7 @@ export function parseCreditCommand(
             "currency",
             "amount",
             "concept",
+            "merchantName",
             "note",
             "categoryId",
             "covered",
@@ -455,6 +458,7 @@ export function parseCreditCommand(
     if (action !== "purchase" || typeof data.covered !== "boolean")
       return error;
     const concept = optionalText(data.concept, conceptLimit);
+    const merchantName = parseOptionalCatalogName(data.merchantName);
     if (!concept) return { error: "Ingresá un concepto para la compra." };
     const plan =
       data.plan === undefined ? undefined : installmentTerms(data.plan);
@@ -507,6 +511,7 @@ export function parseCreditCommand(
       amount: charge,
       ...(fundCommitment !== undefined && { fundCommitment }),
       concept,
+      ...(merchantName && { merchantName }),
       note: optionalText(data.note, noteLimit),
       categoryId: mixed?.categories.length ? null : categoryId(data.categoryId),
       covered: data.covered,

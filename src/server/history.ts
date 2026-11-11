@@ -1,4 +1,5 @@
 import "server-only";
+import { nameCatalogReady } from "./catalog.ts";
 import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
 import { creditOperationsReady, loansReady } from "./movements.ts";
@@ -111,6 +112,15 @@ export async function listHistory(
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
   const refunds = await refundsReady(client);
+  const merchantMatches =
+    filters.merchant && (await nameCatalogReady(client))
+      ? `AND EXISTS (
+        SELECT 1 FROM finance.canonical_event_merchants ref
+        JOIN finance.merchants selected ON selected.owner_id = ref.owner_id
+          AND coalesce(selected.merged_into, selected.id) = ref.merchant_id
+        WHERE ref.owner_id = f.owner_id AND ref.event_id = f.id AND selected.id = $16::uuid
+      )`
+      : "AND $16::uuid IS NULL";
   const categoryMatches = (field: string) =>
     `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
   const { rows } = await client.query<HistoryEntry>(
@@ -119,6 +129,7 @@ export async function listHistory(
        (SELECT ${eventFields} ${eventSource}
          WHERE f.owner_id = $1 AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')
            ${shared ? excludeShared : ""}
+           ${merchantMatches}
            AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(m.note), lower($2)) > 0)
            AND ($3::date IS NULL OR f.effective_on >= $3) AND ($4::date IS NULL OR f.effective_on <= $4)
            AND ($5::text IS NULL OR f.kind = $5) AND ($6::text IS NULL OR f.status = $6)
@@ -135,6 +146,7 @@ export async function listHistory(
        UNION ALL
        (SELECT ${checkpointFields} ${checkpointSource}
          WHERE b.owner_id = $1 AND ($5 IS NULL OR $5 = 'checkpoint') AND ($6 IS NULL OR $6 = 'confirmed')
+           AND $16::uuid IS NULL
            AND $7 IS NULL AND $8 IS NULL
            AND ($2 IS NULL OR strpos(lower(${checkpointConcept}), lower($2)) > 0 OR strpos(lower(a.note), lower($2)) > 0)
            AND ($3 IS NULL OR b.as_of_date >= $3) AND ($4 IS NULL OR b.as_of_date <= $4)
@@ -148,6 +160,7 @@ export async function listHistory(
            ? `UNION ALL
        (SELECT ${sharedFields} ${sharedSource}
          WHERE f.owner_id = $1
+           ${merchantMatches}
            AND ($2 IS NULL OR strpos(lower(s.concept), lower($2)) > 0 OR strpos(lower(s.note), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
@@ -164,6 +177,7 @@ export async function listHistory(
            ? `UNION ALL
        (SELECT ${loanFields} ${loanSource}
          WHERE f.owner_id = $1 AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+           AND $16::uuid IS NULL
            AND $7 IS NULL AND $8 IS NULL
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(o.note), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
@@ -182,6 +196,7 @@ export async function listHistory(
        (SELECT ${cardFields(withMixed)} ${cardSource(withPlans, withMixed)}
          WHERE f.owner_id = $1 AND f.kind IN ('card_purchase', 'card_payment', 'card_opening', 'card_adjustment')
            ${shared ? excludeShared : ""}
+           ${merchantMatches}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
@@ -214,6 +229,7 @@ export async function listHistory(
            ? `UNION ALL
        (SELECT ${refundFields} ${refundHistorySource}
         WHERE f.owner_id = $1 AND f.kind IN ('purchase_refund', 'card_credit_return')
+          AND $16::uuid IS NULL
           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
           AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR (${refundHistoryStatus}) = $6)
@@ -247,6 +263,7 @@ export async function listHistory(
       cursor?.id ?? null,
       cursor?.kind ?? null,
       pageSize + 1,
+      filters.merchant || null,
     ],
   );
   return {

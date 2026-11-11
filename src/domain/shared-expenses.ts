@@ -1,5 +1,6 @@
 import { bankReferenceToday, isBankReferenceDate } from "./bank-balances.ts";
 import { parseCreditCommand, type CreditCommand } from "./credit-operations.ts";
+import { normalizeName } from "./catalog.ts";
 import { installmentTotal } from "./installments.ts";
 import {
   conceptLimit,
@@ -16,7 +17,7 @@ type Details = Pick<MovementInput, "concept" | "categoryId" | "note">;
 type Purchase = Extract<CreditCommand, { action: "purchase" }>;
 type Allocation = { ownAmount: string; parties: Party[] };
 type Expense = Details &
-  Pick<MovementInput, "currency" | "amount" | "effectiveOn">;
+  Pick<MovementInput, "currency" | "amount" | "effectiveOn" | "merchantName">;
 
 export type SharedExpenseCommand = { idempotencyKey: string } & (
   | ({
@@ -62,7 +63,7 @@ function amount(value: unknown, allowZero = false) {
 function person(value: Record<string, unknown>) {
   if (
     typeof value.name !== "string" ||
-    !value.name.trim() ||
+    !normalizeName(value.name) ||
     value.name.length > conceptLimit ||
     value.name.includes("\0")
   )
@@ -175,6 +176,7 @@ export function parseSharedExpense(
       "currency",
       "amount",
       "effectiveOn",
+      "merchantName",
       ...(method === "third_party" ? ["creditor"] : split),
       ...(method === "credit"
         ? ["cardId", "cardAmount", "plan", "covered"]
@@ -194,6 +196,7 @@ export function parseSharedExpense(
         method: method === "transfer" ? "transfer" : "debit",
         amount: data.amount,
         effectiveOn: data.effectiveOn,
+        merchantName: data.merchantName,
         concept: data.concept,
         note: data.note,
         categoryId: data.categoryId,
@@ -210,6 +213,7 @@ export function parseSharedExpense(
       note,
       effectiveOn,
       idempotencyKey,
+      merchantName,
     } = parsed;
     const expense = {
       currency,
@@ -219,6 +223,7 @@ export function parseSharedExpense(
       note,
       effectiveOn,
       idempotencyKey,
+      ...(merchantName && { merchantName }),
     };
     if (method === "third_party")
       return {
@@ -246,6 +251,7 @@ export function parseSharedExpense(
         idempotencyKey,
         cardId: data.cardId,
         covered: data.covered,
+        ...(merchantName && { merchantName }),
         ...(data.plan !== undefined && { plan: data.plan }),
       },
       today,

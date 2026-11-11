@@ -1,7 +1,12 @@
-import { parseCatalogCommand } from "@/domain/catalog";
+import {
+  parseCatalogCommand,
+  parseMerchantPair,
+  personNameLimit,
+} from "@/domain/catalog";
 import {
   listNameCatalog,
   nameCatalogReady,
+  previewMerchantMerge,
   saveCatalogCommand,
   searchNameCatalog,
 } from "@/server/catalog";
@@ -20,9 +25,10 @@ function reply(
 
 function unauthorized(request: Request) {
   try {
+    const origin = request.headers.get("origin");
+    const expected = authOrigin(process.env.GOOGLE_AUTH_ORIGIN);
     if (
-      request.headers.get("origin") !==
-        authOrigin(process.env.GOOGLE_AUTH_ORIGIN) ||
+      ((request.method !== "GET" || origin !== null) && origin !== expected) ||
       request.headers.get("sec-fetch-site") === "cross-site"
     )
       throw new Error();
@@ -55,13 +61,36 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind");
   const query = url.searchParams.get("q");
-  if ((kind && !kinds.includes(kind)) || (query && !kind))
+  const isPreview =
+    url.searchParams.has("sourceId") || url.searchParams.has("targetId");
+  const pair =
+    isPreview &&
+    parseMerchantPair(
+      url.searchParams.get("sourceId"),
+      url.searchParams.get("targetId"),
+    );
+  if (isPreview && (!pair || url.searchParams.size !== 2))
     return reply({ error: "Solicitud inválida." }, 400);
-  if (url.searchParams.size > (kind ? 1 : 0) + (query ? 1 : 0))
+  if (
+    !isPreview &&
+    ((kind !== null && !kinds.includes(kind)) ||
+      (query !== null &&
+        (!kind || query.length > personNameLimit || query.includes("\0"))) ||
+      url.searchParams.size !== Number(kind !== null) + Number(query !== null))
+  )
     return reply({ error: "Solicitud inválida." }, 400);
   try {
     return await withGoogleOwner(request, async (client, ownerId) => {
       if (!(await nameCatalogReady(client))) return unavailable();
+      if (pair) {
+        const preview = await previewMerchantMerge(client, ownerId, pair);
+        return preview
+          ? reply({ preview }, 200)
+          : reply(
+              { error: "Los comercios no están disponibles para unificar." },
+              404,
+            );
+      }
       const entries = kind
         ? await searchNameCatalog(
             client,

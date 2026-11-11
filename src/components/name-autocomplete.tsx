@@ -4,9 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 type Suggestion = { id: string; name: string };
 
-// Autocompletado de comercios y contactos sobre POST/GET /api/catalog.
-// El texto libre siempre es válido: la app sugiere, no obliga, y el guardado
-// del formulario no depende de las sugerencias (best-effort).
+// El formulario envía el nombre elegido o el texto escrito.
 export function NameAutocomplete({
   kind,
   name,
@@ -23,11 +21,24 @@ export function NameAutocomplete({
   className: string;
 }) {
   const listId = useId();
+  const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const blurOpen = useRef(false);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    const form = input.current?.form;
+    function reset() {
+      setValue("");
+      setSuggestions([]);
+      setOpen(false);
+      setActive(-1);
+    }
+    form?.addEventListener("reset", reset);
+    return () => form?.removeEventListener("reset", reset);
+  }, []);
 
   useEffect(() => {
     const query = value.trim();
@@ -44,7 +55,7 @@ export function NameAutocomplete({
         if (controller.signal.aborted) return;
         const found = data.entries ?? [];
         setSuggestions(found);
-        setOpen(found.length > 0 && !blurOpen.current);
+        setOpen(found.length > 0 && focused.current);
         setActive(-1);
       } catch {
         // Sin sugerencias el formulario sigue funcionando con texto libre.
@@ -57,7 +68,8 @@ export function NameAutocomplete({
   }, [kind, value]);
 
   function apply(suggestion: Suggestion) {
-    setValue(suggestion.name);
+    if (input.current) input.current.value = suggestion.name;
+    setValue("");
     setSuggestions([]);
     setOpen(false);
     setActive(-1);
@@ -83,23 +95,20 @@ export function NameAutocomplete({
       <label className="grid min-w-0 gap-1 text-sm font-medium">
         {label}
         <input
-          value={value}
+          ref={input}
           onChange={(event) => {
-            const next = event.target.value;
-            setValue(next);
-            if (!next.trim()) {
-              setSuggestions([]);
-              setOpen(false);
-              setActive(-1);
-            }
+            setValue(event.target.value);
+            setSuggestions([]);
+            setOpen(false);
+            setActive(-1);
           }}
           onKeyDown={onKeyDown}
           onBlur={() => {
-            blurOpen.current = true;
+            focused.current = false;
             setOpen(false);
           }}
           onFocus={() => {
-            blurOpen.current = false;
+            focused.current = true;
             if (suggestions.length) setOpen(true);
           }}
           name={name}
@@ -108,7 +117,10 @@ export function NameAutocomplete({
           className={className}
           role="combobox"
           aria-expanded={open}
-          aria-controls={listId}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={
+            open && active >= 0 ? `${listId}-${active}` : undefined
+          }
           aria-autocomplete="list"
           autoComplete="off"
         />
@@ -123,11 +135,13 @@ export function NameAutocomplete({
           {suggestions.map((suggestion, index) => (
             <li
               key={suggestion.id}
+              id={`${listId}-${index}`}
               role="option"
               aria-selected={index === active}
             >
               <button
                 type="button"
+                tabIndex={-1}
                 className={`block w-full min-h-9 px-3 text-left text-sm hover:bg-accent ${
                   index === active ? "bg-accent" : ""
                 }`}

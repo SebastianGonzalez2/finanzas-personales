@@ -18,6 +18,11 @@ import {
   savingsFundsReady,
 } from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import {
+  findEventMerchant,
+  findLoanPerson,
+  nameCatalogReady,
+} from "../../src/server/catalog.ts";
 import { installmentsReady } from "../../src/server/installments.ts";
 import { cardCyclesReady } from "../../src/server/card-cycles.ts";
 import { mixedPurchasesReady } from "../../src/server/mixed-purchases.ts";
@@ -69,6 +74,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0020_F3-06_monthly_budgets.sql",
       "0021_F3-07_budget_notices.sql",
       "0022_F4-01_recurring_series.sql",
+      "0023_F5-03_catalogo_nombres.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -84,7 +90,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F5-03: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -112,6 +118,7 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
       budgets,
       notices,
       recurrences,
+      catalog,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -378,15 +385,26 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await recurrencesReady(client), false);
     await assert.rejects(migrateInTransaction(client, notices.sha256));
-    assert.deepEqual(await migrateInTransaction(client, recurrences.sha256), [
-      recurrences.version,
-    ]);
-    assert.deepEqual(
-      await migrateInTransaction(client, recurrences.sha256),
-      [],
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    await client.query(recurrences.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [recurrences.version, recurrences.sha256],
     );
+    assert.equal(await nameCatalogReady(client), false);
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    assert.deepEqual(await migrateInTransaction(client, catalog.sha256), [
+      catalog.version,
+    ]);
+    assert.deepEqual(await migrateInTransaction(client, catalog.sha256), []);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
+    assert.equal(await nameCatalogReady(client), true);
+    assert.equal(
+      await findEventMerchant(client, "legacy-fixture", purchase.id),
+      null,
+    );
+    assert.equal(await findLoanPerson(client, "legacy-fixture", loan.id), null);
     assert.equal(
       (await client.query("SELECT 1 FROM finance.recurring_series")).rowCount,
       0,
