@@ -1,6 +1,6 @@
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { parseBudgetCommand } from "@/domain/budgets";
-import { budgetsReady } from "@/server/budgets";
+import { budgetsReady, saveBudget } from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   );
   if ("error" in command) return reply(command, 400);
   try {
-    return await withGoogleOwner(request, async (client) => {
+    return await withGoogleOwner(request, async (client, ownerId) => {
       if (!(await budgetsReady(client)))
         return reply(
           {
@@ -39,12 +39,15 @@ export async function POST(request: Request) {
           },
           409,
         );
-      // La persistencia, el cálculo del consumo y el historial corresponden a
-      // la parte de servidor asignada a Codex en el ticket F3-06.
-      return reply(
-        { error: "El guardado de presupuestos todavía no está disponible." },
-        503,
-      );
+      const result = await saveBudget(client, ownerId, command);
+      if (result.status === "conflict")
+        return reply({ error: result.message }, 409);
+      if (result.status === "not-found")
+        return reply(
+          { error: "El presupuesto o la categoría no están disponibles." },
+          404,
+        );
+      return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {
     if (error instanceof Error && error.message === "Acceso denegado")

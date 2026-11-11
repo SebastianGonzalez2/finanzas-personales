@@ -5,13 +5,23 @@ import { BudgetCatalog } from "@/components/budget-catalog";
 import { Card } from "@/components/ui/card";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { listMovementCategories } from "@/server/movements";
-import { budgetsPending, budgetsReady, listBudgets } from "@/server/budgets";
+import { budgetsReady, listBudgets } from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 
 export const metadata = { title: "Presupuestos | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const requested = (await searchParams).month;
+  const month =
+    typeof requested === "string" &&
+    /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(requested)
+      ? requested
+      : bankReferenceToday().slice(0, 7);
   const result = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
@@ -20,18 +30,7 @@ export default async function BudgetsPage() {
           message:
             "Los presupuestos estarán disponibles cuando se actualice la base de datos.",
         };
-      const budgets = await listBudgets(client, ownerId).catch(
-        (error: unknown) => {
-          if (error instanceof Error && error.message === budgetsPending)
-            return null;
-          throw error;
-        },
-      );
-      if (!budgets)
-        return {
-          message:
-            "Los presupuestos estarán disponibles cuando se actualice la base de datos.",
-        };
+      const budgets = await listBudgets(client, ownerId, month);
       return {
         budgets,
         categories: (await listMovementCategories(client, ownerId)).filter(
@@ -67,6 +66,7 @@ export default async function BudgetsPage() {
             budgets={result.budgets}
             categories={result.categories}
             today={bankReferenceToday()}
+            viewedMonth={month}
           />
         ) : (
           <Card className="p-4">

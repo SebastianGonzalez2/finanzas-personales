@@ -1,4 +1,4 @@
-import { bankCurrencies } from "./bank-balances.ts";
+import { bankCurrencies, isBankReferenceDate } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 import { movementUuid as uuid } from "./movements.ts";
 
@@ -19,9 +19,24 @@ export type Budget = {
   version: number;
   /** Consumo del mes en la moneda del límite, ya convertido por el servidor. */
   progress: BudgetProgress | null;
+  nextLimit: { currency: Currency; amount: string; exception: boolean } | null;
+  references: {
+    fromCurrency: Currency;
+    rate: string;
+    date: string;
+    source: string;
+  }[];
 };
 
 export type BudgetCommand =
+  | {
+      action: "quote";
+      idempotencyKey: string;
+      fromCurrency: Currency;
+      toCurrency: Currency;
+      rate: string;
+      effectiveOn: string;
+    }
   | {
       action: "save";
       idempotencyKey: string;
@@ -53,6 +68,7 @@ export type BudgetCommand =
     };
 
 const keys = {
+  quote: ["fromCurrency", "toCurrency", "rate", "effectiveOn"],
   save: ["categoryId", "currency", "amount"],
   edit: ["budgetId", "version", "currency", "amount"],
   exception: ["budgetId", "version", "month", "amount"],
@@ -115,9 +131,14 @@ export function parseBudgetCommand(
     amount,
     month,
     idempotencyKey,
+    fromCurrency,
+    toCurrency,
+    rate,
+    effectiveOn,
   } = input as Record<string, unknown>;
   if (
-    (action !== "save" &&
+    (action !== "quote" &&
+      action !== "save" &&
       action !== "edit" &&
       action !== "exception" &&
       action !== "remove") ||
@@ -129,6 +150,27 @@ export function parseBudgetCommand(
   )
     return invalid;
   const commandKey = idempotencyKey.toLowerCase();
+
+  if (action === "quote") {
+    if (
+      !bankCurrencies.includes(fromCurrency as Currency) ||
+      !bankCurrencies.includes(toCurrency as Currency) ||
+      fromCurrency === toCurrency ||
+      typeof rate !== "string" ||
+      !/^(?:0|[1-9]\d{0,7})(?:\.\d{1,8})?$/.test(rate) ||
+      !/[1-9]/.test(rate) ||
+      !isBankReferenceDate(effectiveOn, today)
+    )
+      return invalid;
+    return {
+      action,
+      idempotencyKey: commandKey,
+      fromCurrency: fromCurrency as Currency,
+      toCurrency: toCurrency as Currency,
+      rate: rate.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""),
+      effectiveOn,
+    };
+  }
 
   if (action === "remove") {
     if (

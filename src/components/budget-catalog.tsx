@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
-import { parseBudgetAmount, type Budget } from "@/domain/budgets";
+import {
+  parseBudgetAmount,
+  parseBudgetCommand,
+  type Budget,
+} from "@/domain/budgets";
 import type { MovementCategory } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
 import { Card } from "./ui/card";
@@ -46,10 +50,12 @@ export function BudgetCatalog({
   budgets,
   categories,
   today,
+  viewedMonth,
 }: {
   budgets: Budget[];
   categories: MovementCategory[];
   today: string;
+  viewedMonth: string;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -58,6 +64,7 @@ export function BudgetCatalog({
   const trigger = useRef<HTMLButtonElement>(null);
   const options = monthOptions(today);
   const budgeted = new Set(budgets.map(({ categoryId }) => categoryId));
+  const historical = viewedMonth !== today.slice(0, 7);
 
   function openEditor(next: Editor, from: HTMLButtonElement) {
     trigger.current = from;
@@ -79,6 +86,27 @@ export function BudgetCatalog({
 
   return (
     <>
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        <label className="grid gap-1 text-sm font-medium">
+          Mes del presupuesto
+          <input
+            type="month"
+            name="month"
+            required
+            defaultValue={viewedMonth}
+            disabled={editor !== null}
+            className={control}
+          />
+        </label>
+        <button className={button} type="submit" disabled={editor !== null}>
+          Ver mes
+        </button>
+      </form>
+      {historical && (
+        <p className="text-sm">
+          Vista de otro mes. Para editar límites, volvé al mes actual.
+        </p>
+      )}
       <p role="status" className={message ? "text-sm" : "sr-only"}>
         {message}
       </p>
@@ -86,7 +114,7 @@ export function BudgetCatalog({
         ref={add}
         type="button"
         className={`${primary} justify-self-start`}
-        disabled={editor !== null}
+        disabled={editor !== null || historical}
         onClick={(event) =>
           openEditor({ action: "create" }, event.currentTarget)
         }
@@ -120,7 +148,7 @@ export function BudgetCatalog({
       )}
       <section aria-labelledby="presupuestos-mes" className="grid gap-3">
         <h2 id="presupuestos-mes" className="font-semibold">
-          Presupuestos del mes
+          Presupuestos de {viewedMonth}
         </h2>
         <p className="text-sm text-muted-foreground">
           El seguimiento se reinicia cada mes sin arrastrar sobrantes ni
@@ -139,7 +167,7 @@ export function BudgetCatalog({
                 key={budget.id}
                 budget={budget}
                 options={options}
-                disabled={editor !== null}
+                disabled={editor !== null || historical}
                 edit={(from) => openEditor({ action: "edit", budget }, from)}
                 except={(from) =>
                   openEditor({ action: "exception", budget }, from)
@@ -152,6 +180,7 @@ export function BudgetCatalog({
           </ul>
         )}
       </section>
+      <QuoteEditor today={today} />
     </>
   );
 }
@@ -171,14 +200,19 @@ function BudgetEntry({
   except: (from: HTMLButtonElement) => void;
   remove: (from: HTMLButtonElement) => void;
 }) {
-  const limit = Number(budget.effectiveLimit);
-  const consumed = budget.progress ? Number(budget.progress.consumed) : 0;
-  const percent = limit > 0 ? Math.round((consumed / limit) * 100) : 0;
-  const fill = Math.min(Math.max(percent, 0), 100);
+  const units = (amount: string) => {
+    const [whole, fraction = ""] = amount.split(".");
+    return BigInt(whole + fraction.padEnd(4, "0"));
+  };
+  const limit = units(budget.effectiveLimit);
+  const consumed = units(budget.progress?.consumed ?? "0");
+  const percent =
+    limit > BigInt(0) ? (consumed * BigInt(100)) / limit : BigInt(0);
+  const fill = Number(percent > BigInt(100) ? BigInt(100) : percent);
   const bar =
-    percent >= 100
+    percent >= BigInt(100)
       ? "bg-red-600"
-      : percent >= 80
+      : percent >= BigInt(80)
         ? "bg-amber-500"
         : "bg-primary";
   const exceptionMonth = budget.exception
@@ -230,7 +264,7 @@ function BudgetEntry({
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.min(Math.max(percent, 0), 999)}
+            aria-valuenow={fill}
             aria-label={`Consumo de ${budget.categoryName}`}
           >
             <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -244,8 +278,9 @@ function BudgetEntry({
             <div className="flex flex-wrap justify-between gap-x-2">
               <dt className="text-muted-foreground">Consumo del mes</dt>
               <dd className="font-medium tabular-nums">
-                {money(budget.progress?.consumed ?? "0.0000", budget.currency)}{" "}
-                de {money(budget.effectiveLimit, budget.currency)} ({percent}%)
+                {budget.progress
+                  ? `${money(budget.progress.consumed, budget.currency)} de ${money(budget.effectiveLimit, budget.currency)} (${percent}%)`
+                  : "Falta cotización: consumo sin calcular"}
               </dd>
             </div>
             <div className="flex flex-wrap justify-between gap-x-2">
@@ -255,6 +290,26 @@ function BudgetEntry({
               </dd>
             </div>
           </dl>
+          {!budget.progress && (
+            <p className="text-sm">
+              Agregá una cotización manual para las monedas de tus gastos, con
+              fecha anterior o igual al gasto. En cuotas se usa la fecha de
+              registro de la compra.
+            </p>
+          )}
+          {budget.references.map((ref, index) => (
+            <p className="text-xs text-muted-foreground" key={index}>
+              Referencia {ref.source} del {ref.date}: 1 {ref.fromCurrency} ={" "}
+              {ref.rate} {budget.currency}.
+            </p>
+          ))}
+          <p className="text-sm text-muted-foreground">
+            Límite efectivo del mes siguiente:{" "}
+            {budget.nextLimit
+              ? money(budget.nextLimit.amount, budget.nextLimit.currency)
+              : "Sin presupuesto"}
+            .
+          </p>
           {budget.exception && (
             <p className="text-sm wrap-anywhere">
               Excepción para {exceptionMonth}:{" "}
@@ -262,7 +317,7 @@ function BudgetEntry({
               El mes siguiente vuelve automáticamente al límite habitual.
             </p>
           )}
-          {percent >= 100 && (
+          {percent >= BigInt(100) && (
             <p className="text-sm text-red-600">
               Límite del mes alcanzado. Podés seguir gastando: no se bloquean
               compras.
@@ -286,6 +341,12 @@ function BudgetEditor({
   close: (message?: string) => void;
 }) {
   const [validation, setValidation] = useState("");
+  const [previewCurrency, setPreviewCurrency] = useState(
+    budget?.currency ?? "UYU",
+  );
+  const [previewAmount, setPreviewAmount] = useState(
+    budget?.monthlyLimit ?? "",
+  );
   const { send, pending, uncertain, error, clearError } = useFinancialCommand(
     "/api/budgets",
     "POST",
@@ -300,6 +361,10 @@ function BudgetEditor({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (uncertain) {
+      if (await send({})) close("Presupuesto guardado.");
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const amount = parseBudgetAmount(form.get("amount"));
     if (!amount) {
@@ -358,6 +423,7 @@ function BudgetEditor({
             <select
               className={control}
               name="category"
+              disabled={pending || uncertain}
               required
               defaultValue=""
             >
@@ -378,6 +444,9 @@ function BudgetEditor({
             className={control}
             name="currency"
             defaultValue={budget?.currency ?? "UYU"}
+            onChange={(event) =>
+              setPreviewCurrency(event.target.value as Budget["currency"])
+            }
             disabled={pending || uncertain}
           >
             {bankCurrencies.map((code) => (
@@ -396,6 +465,8 @@ function BudgetEditor({
             maxLength={21}
             required
             defaultValue={budget?.monthlyLimit}
+            disabled={pending || uncertain}
+            onChange={(event) => setPreviewAmount(event.target.value)}
           />
         </label>
         <p className="text-sm text-muted-foreground">
@@ -403,6 +474,27 @@ function BudgetEditor({
           en adelante; los meses anteriores conservan su valor histórico. No
           convertimos automáticamente el importe anterior.
         </p>
+        {budget && parseBudgetAmount(previewAmount) && (
+          <p className="text-sm" role="status">
+            Vista previa: este mes{" "}
+            {money(
+              previewCurrency === budget.currency && budget.exception
+                ? budget.exception.limit
+                : parseBudgetAmount(previewAmount)!,
+              previewCurrency,
+            )}
+            ; mes siguiente{" "}
+            {money(
+              previewCurrency === budget.currency && budget.nextLimit?.exception
+                ? budget.nextLimit.amount
+                : parseBudgetAmount(previewAmount)!,
+              previewCurrency,
+            )}
+            .
+            {previewCurrency !== budget.currency &&
+              " El cambio de moneda deja sin efecto las excepciones actuales y futuras en la moneda anterior; su historial se conserva."}
+          </p>
+        )}
         <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
           {validation || error}
         </p>
@@ -431,6 +523,115 @@ function BudgetEditor({
   );
 }
 
+function QuoteEditor({ today }: { today: string }) {
+  const [validation, setValidation] = useState("");
+  const [message, setMessage] = useState("");
+  const router = useRouter();
+  const { send, pending, uncertain, error } = useFinancialCommand(
+    "/api/budgets",
+    "POST",
+  );
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (uncertain) {
+      if (await send({})) {
+        setMessage("Cotización manual guardada.");
+        router.refresh();
+      }
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const data = {
+      action: "quote",
+      fromCurrency: String(form.get("fromCurrency")),
+      toCurrency: String(form.get("toCurrency")),
+      rate: String(form.get("rate")).trim().replace(",", "."),
+      effectiveOn: String(form.get("effectiveOn")),
+    };
+    if (
+      "error" in
+      parseBudgetCommand(
+        { ...data, idempotencyKey: crypto.randomUUID() },
+        today,
+      )
+    ) {
+      setValidation(
+        "Revisá monedas distintas, tasa positiva (hasta 8 decimales) y fecha no futura.",
+      );
+      return;
+    }
+    setValidation("");
+    if (await send(data)) {
+      setMessage(
+        "Cotización manual guardada. Las conversiones ya calculadas conservan su referencia.",
+      );
+      router.refresh();
+    }
+  }
+  return (
+    <details className="rounded-lg border p-4">
+      <summary className="cursor-pointer font-semibold">
+        Cotización manual para presupuestos
+      </summary>
+      <p className="my-3 text-sm text-muted-foreground">
+        Indicá cuánto vale una unidad de la moneda de origen en la moneda del
+        presupuesto. Solo se utiliza para equivalencias; no mueve dinero. No
+        reemplaza referencias ya utilizadas.
+      </p>
+      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+        <fieldset disabled={pending || uncertain} className="contents">
+          <label className="grid gap-1 text-sm">
+            Moneda de origen
+            <select name="fromCurrency" defaultValue="USD" className={control}>
+              {bankCurrencies.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            Moneda de destino
+            <select name="toCurrency" defaultValue="UYU" className={control}>
+              {bankCurrencies.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            Tasa de referencia
+            <input
+              name="rate"
+              required
+              inputMode="decimal"
+              maxLength={17}
+              className={control}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            Fecha de cotización
+            <input
+              name="effectiveOn"
+              required
+              type="date"
+              defaultValue={today}
+              max={today}
+              className={control}
+            />
+          </label>
+        </fieldset>
+        <p role="alert">{validation || error}</p>
+        <p role="status">{message}</p>
+        <button className={primary} disabled={pending} type="submit">
+          {pending
+            ? "Guardando…"
+            : uncertain
+              ? "Reintentar cotización"
+              : "Guardar cotización manual"}
+        </button>
+      </form>
+    </details>
+  );
+}
+
 function ExceptionEditor({
   budget,
   options,
@@ -452,6 +653,11 @@ function ExceptionEditor({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (uncertain) {
+      if (await send({}))
+        close("Excepción guardada. Solo cambia el límite de ese mes.");
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const amount = parseBudgetAmount(form.get("amount"));
     if (!amount) {
@@ -486,6 +692,7 @@ function ExceptionEditor({
             className={control}
             name="month"
             defaultValue={budget.exception?.month ?? options[0].key}
+            disabled={pending || uncertain}
           >
             {options.map(({ key, label }) => (
               <option key={key} value={key}>
@@ -503,6 +710,7 @@ function ExceptionEditor({
             maxLength={21}
             required
             defaultValue={budget.exception?.limit ?? budget.monthlyLimit}
+            disabled={pending || uncertain}
           />
         </label>
         <p className="text-sm text-muted-foreground">

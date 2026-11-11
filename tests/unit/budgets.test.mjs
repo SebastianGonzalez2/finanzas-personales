@@ -17,6 +17,36 @@ const save = {
   idempotencyKey: randomUUID(),
 };
 
+test("F3-06 referencia manual: fecha histórica, tasa exacta, pares e identidad", () => {
+  const quote = {
+    action: "quote",
+    fromCurrency: "USD",
+    toCurrency: "UYU",
+    rate: "40.00000000",
+    effectiveOn: "2026-11-09",
+    idempotencyKey: randomUUID(),
+  };
+  assert.equal(parseBudgetCommand(quote, today).rate, "40");
+  assert.equal(
+    parseBudgetCommand({ ...quote, rate: "0.00000001" }, today).rate,
+    "0.00000001",
+  );
+  for (const change of [
+    { rate: "0" },
+    { rate: "-1" },
+    { rate: "NaN" },
+    { rate: "1e3" },
+    { rate: "1.000000001" },
+    { rate: "100000000" },
+    { effectiveOn: "2026-11-11" },
+    { effectiveOn: "2026-02-30" },
+    { toCurrency: "USD" },
+    { fromCurrency: "BRL" },
+    { ownerId: "ajeno" },
+  ])
+    assert.ok("error" in parseBudgetCommand({ ...quote, ...change }, today));
+});
+
 test("F3-06 acepta el alta de un presupuesto con importe y moneda normalizados", () => {
   assert.deepEqual(parseBudgetCommand(save, today), {
     ...save,
