@@ -1,4 +1,3 @@
-import { bankReferenceToday } from "@/domain/bank-balances";
 import { parseRecurrenceSeriesCommand } from "@/domain/recurrence-pause";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
@@ -68,7 +67,6 @@ export async function POST(request: Request) {
         client,
         ownerId,
         command,
-        bankReferenceToday(),
       );
       if (result.status === "not-found")
         return reply({ error: "La recurrencia no está disponible." }, 404);

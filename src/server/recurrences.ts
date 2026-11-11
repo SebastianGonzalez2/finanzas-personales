@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type pg from "pg";
+import { bankReferenceToday } from "../domain/bank-balances.ts";
 import {
   recurrenceSchedule,
   type CreateRecurrence,
@@ -148,7 +149,7 @@ export async function applyRecurrenceSeriesCommand(
   client: pg.PoolClient,
   ownerId: string,
   command: RecurrenceSeriesCommand,
-  today: string,
+  referenceDate?: string,
 ) {
   const { seriesId, idempotencyKey: id, action } = command;
   const hash = commandHash([
@@ -174,6 +175,8 @@ export async function applyRecurrenceSeriesCommand(
 
   const series = await loadRecurrence(client, ownerId, seriesId);
   if (!series) return { status: "not-found", id } as const;
+  // A queued command may reach the write lock after a calendar boundary.
+  const today = referenceDate ?? bankReferenceToday();
   if (recurrenceIsFinished(series.endDate, today))
     return { status: "finished", id } as const;
 
