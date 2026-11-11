@@ -75,8 +75,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0023_F4-02_recurring_periods.sql",
       "0024_F4-03_series_pause.sql",
       "0025_F4-04_recurring_shared_expenses.sql",
-      "0026_F4-05_loan_notice_lead.sql",
-      "0027_F4-05_card_push.sql",
+      "0026_F4-05_due_notice_preferences.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -123,8 +122,7 @@ test("F4-05: aplica solo el SQL autorizado y conserva el historial previo", asyn
       settlements,
       pause,
       sharing,
-      loanNotice,
-      push,
+      dueNotices,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -423,23 +421,25 @@ test("F4-05: aplica solo el SQL autorizado y conserva el historial previo", asyn
       [pause.version, pause.sha256],
     );
     await assert.rejects(migrateInTransaction(client, sharing.sha256));
-    for (const migration of [sharing, loanNotice]) {
-      await client.query(migration.sql);
-      await client.query(
-        "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
-        [migration.version, migration.sha256],
-      );
-    }
+    await client.query(sharing.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [sharing.version, sharing.sha256],
+    );
     assert.equal(await cardPushReady(client), false);
-    assert.deepEqual(await migrateInTransaction(client, push.sha256), [
-      push.version,
+    assert.deepEqual(await migrateInTransaction(client, dueNotices.sha256), [
+      dueNotices.version,
     ]);
-    assert.deepEqual(await migrateInTransaction(client, push.sha256), []);
+    assert.deepEqual(await migrateInTransaction(client, dueNotices.sha256), []);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
     assert.equal(await recurrenceTrackingReady(client), true);
     assert.equal(await recurringSharesReady(client), true);
     assert.equal(await cardPushReady(client), true);
+    assert.equal(
+      (await findLoan(client, "legacy-fixture", loan.id)).noticeLeadDays,
+      3,
+    );
     assert.deepEqual(
       (await client.query("SELECT id FROM finance.recurring_series")).rows,
       [{ id: seriesId }],
