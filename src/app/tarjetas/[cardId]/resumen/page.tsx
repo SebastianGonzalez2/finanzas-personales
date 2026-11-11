@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { listCatalogCategories } from "@/server/categories";
 import { notFound, redirect } from "next/navigation";
 import { CardCycleDetail } from "@/components/card-cycle-detail";
 import { ReturnCreditForm } from "@/components/refund-form";
@@ -16,7 +17,6 @@ import { cardCyclesReady, loadCardCycle } from "@/server/card-cycles";
 import { listCards } from "@/server/cards";
 import { listCreditPurchaseOptions } from "@/server/credit-operations";
 import { withGoogleOwner } from "@/server/google-auth";
-import { listMovementCategories } from "@/server/movements";
 
 export const metadata = { title: "Resumen de tarjeta | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export default async function StatementPage({
         card,
         cycle: await loadCardCycle(client, ownerId, card, period, today),
         banks: bankAvailability.map(({ currency }) => currency),
-        categories: await listMovementCategories(client, ownerId),
+        categories: await listCatalogCategories(client, ownerId),
         purchases: (await listCreditPurchaseOptions(client, ownerId)).filter(
           (purchase) => purchase.cardId === card.id,
         ),

@@ -511,6 +511,7 @@ export default async function HistoryDetail({
                 covered: mixed.covered && !credit.creditApplied,
                 effectiveOn: entry.effectiveOn,
                 categoryId: entry.categoryId,
+                category: entry.category,
                 concept: entry.concept,
                 note: entry.note,
                 plan,

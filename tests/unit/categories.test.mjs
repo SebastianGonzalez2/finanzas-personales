@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   categoryNameLimit,
   groupCatalogCategories,
+  parseCategoryArchiveCommand,
   parseCreateCategoryCommand,
 } from "../../src/domain/categories.ts";
 
@@ -44,6 +45,25 @@ test("F5-01 comando de creación: valida tipo, nombre y subcategoría", () => {
     parentId: "",
   });
   assert.ok(!("error" in blank) && blank.parentId === null);
+});
+
+test("F5-01 archivo: acepta únicamente ID y estado booleano", () => {
+  const id = "0194c0d2-7a9b-7dd3-b52e-5f2c4d9e1a77";
+  assert.deepEqual(
+    parseCategoryArchiveCommand({ id: id.toUpperCase(), archived: false }),
+    {
+      id,
+      archived: false,
+    },
+  );
+  for (const input of [
+    null,
+    { id },
+    { id, archived: "true" },
+    { id, archived: true, ownerId: "otro" },
+  ]) {
+    assert.ok("error" in parseCategoryArchiveCommand(input));
+  }
 });
 
 test("F5-01 catálogo: agrupa subcategorías bajo su categoría", () => {

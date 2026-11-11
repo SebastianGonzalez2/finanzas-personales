@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { CategoryCatalog } from "@/components/category-catalog";
 import { Card } from "@/components/ui/card";
-import { listCatalogCategories } from "@/server/categories";
+import { listManagedCategories } from "@/server/categories";
 import { withGoogleOwner } from "@/server/google-auth";
 
 export const metadata = { title: "Categorías | Finanzas personales" };
@@ -13,7 +13,7 @@ export default async function CategoriesPage() {
   const result = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => ({
-      categories: await listCatalogCategories(client, ownerId),
+      categories: await listManagedCategories(client, ownerId),
     }),
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
@@ -36,8 +36,8 @@ export default async function CategoriesPage() {
             Categorías
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tu catálogo de categorías y subcategorías, con creación desde acá y
-            desde los formularios.
+            Al archivar una categoría, se oculta junto con sus subcategorías de
+            los formularios. Los movimientos existentes conservan su categoría.
           </p>
         </header>
         {result.categories ? (

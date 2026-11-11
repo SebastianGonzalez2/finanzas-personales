@@ -1,13 +1,11 @@
 import { headers } from "next/headers";
+import { listCatalogCategories } from "@/server/categories";
 import { redirect } from "next/navigation";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { listFundSources } from "@/server/fund-coverage";
 import { listBankAvailability } from "@/server/bank-balances";
 import { listCreditPurchaseOptions } from "@/server/credit-operations";
-import {
-  creditOperationsReady,
-  listMovementCategories,
-} from "@/server/movements";
+import { creditOperationsReady } from "@/server/movements";
 import { CardCatalog } from "@/components/card-catalog";
 import { FinanceShell } from "@/components/finance-shell";
 import { Card } from "@/components/ui/card";
@@ -54,7 +52,7 @@ export default async function CardsPage() {
         plans: plansReady ? await listCardInstallments(client, ownerId) : [],
         banks: bankAvailability.map(({ currency }) => currency),
         categories: hasCredit
-          ? await listMovementCategories(client, ownerId)
+          ? await listCatalogCategories(client, ownerId)
           : [],
         purchases: hasCredit
           ? await listCreditPurchaseOptions(client, ownerId)

@@ -19,12 +19,10 @@ const kinds = {
   expense: "Gastos",
 } satisfies Record<MovementKind, string>;
 
-// Navegación del catálogo del titular (RF-039). El archivo de categorías
-// se gestiona aparte; acá solo se crean y se recorren.
 export function CategoryCatalog({
   categories,
 }: {
-  categories: CatalogCategory[];
+  categories: (CatalogCategory & { archived: boolean })[];
 }) {
   const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -36,6 +34,60 @@ export function CategoryCatalog({
   const [error, setError] = useState("");
 
   const { tops, childrenOf } = groupCatalogCategories(categories);
+  const activeTops = tops.filter((top) => !top.archived);
+
+  async function changeArchive(category: (typeof categories)[number]) {
+    setPending(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: category.id, archived: !category.archived }),
+      });
+      if (!response.ok) {
+        const data: { error?: string } = await response.json();
+        setError(data.error ?? "No pudimos actualizar la categoría.");
+        return;
+      }
+      if (!category.archived && parentId === category.id) setParentId("");
+      setMessage(
+        category.archived ? "Categoría restaurada." : "Categoría archivada.",
+      );
+      router.refresh();
+    } catch {
+      setError("No pudimos actualizar la categoría. Reintentá el envío.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function categoryRow(
+    category: (typeof categories)[number],
+    parentArchived = false,
+  ) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <span className="font-medium">{category.name}</span>
+        {parentArchived ? (
+          <span className="text-muted-foreground">
+            Categoría superior archivada
+          </span>
+        ) : (
+          <button
+            type="button"
+            aria-label={`${category.archived ? "Restaurar" : "Archivar"} ${category.name}`}
+            className="min-h-11 rounded-lg px-2 hover:bg-accent disabled:opacity-60"
+            disabled={pending}
+            onClick={() => void changeArchive(category)}
+          >
+            {category.archived ? "Restaurar" : "Archivar"}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -126,7 +178,7 @@ export function CategoryCatalog({
               disabled={pending}
             >
               <option value="">Sin subcategoría</option>
-              {tops
+              {activeTops
                 .filter((top) => top.kind === kind)
                 .map(({ id, name: topName }) => (
                   <option key={id} value={id}>
@@ -169,11 +221,13 @@ export function CategoryCatalog({
                   const children = childrenOf(top.id);
                   return (
                     <li key={top.id} className="grid gap-1">
-                      <span className="font-medium">{top.name}</span>
+                      {categoryRow(top)}
                       {children.length > 0 && (
                         <ul className="ml-4 grid gap-1 border-l pl-3 text-muted-foreground">
                           {children.map((child) => (
-                            <li key={child.id}>{child.name}</li>
+                            <li key={child.id}>
+                              {categoryRow(child, top.archived)}
+                            </li>
                           ))}
                         </ul>
                       )}

@@ -69,6 +69,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0020_F3-06_monthly_budgets.sql",
       "0021_F3-07_budget_notices.sql",
       "0022_F4-01_recurring_series.sql",
+      "0027_F5-01_category_archive.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -84,7 +85,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F5-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -112,6 +113,7 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
       budgets,
       notices,
       recurrences,
+      categoryArchive,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -378,12 +380,37 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await recurrencesReady(client), false);
     await assert.rejects(migrateInTransaction(client, notices.sha256));
-    assert.deepEqual(await migrateInTransaction(client, recurrences.sha256), [
-      recurrences.version,
-    ]);
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    await assert.rejects(migrateInTransaction(client, categoryArchive.sha256));
+    await client.query(recurrences.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [recurrences.version, recurrences.sha256],
+    );
+    assert.equal(
+      (
+        await client.query(
+          "SELECT has_column_privilege('finanzas_app', 'finance.categories', 'archived_at', 'UPDATE') AS allowed",
+        )
+      ).rows[0].allowed,
+      false,
+    );
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
     assert.deepEqual(
-      await migrateInTransaction(client, recurrences.sha256),
+      await migrateInTransaction(client, categoryArchive.sha256),
+      [categoryArchive.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, categoryArchive.sha256),
       [],
+    );
+    assert.equal(
+      (
+        await client.query(
+          "SELECT has_column_privilege('finanzas_app', 'finance.categories', 'archived_at', 'UPDATE') AS allowed",
+        )
+      ).rows[0].allowed,
+      true,
     );
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);

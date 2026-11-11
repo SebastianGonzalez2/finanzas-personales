@@ -1,5 +1,11 @@
-import { parseCreateCategoryCommand } from "@/domain/categories";
-import { createCatalogCategory } from "@/server/categories";
+import {
+  parseCategoryArchiveCommand,
+  parseCreateCategoryCommand,
+} from "@/domain/categories";
+import {
+  createCatalogCategory,
+  setCategoryArchived,
+} from "@/server/categories";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
@@ -10,7 +16,7 @@ function reply(body: { error: string } | { id: string }, status: number) {
   return Response.json(body, { status, headers: googlePrivateHeaders });
 }
 
-export async function POST(request: Request) {
+async function manageCategory(request: Request, action: "create" | "archive") {
   try {
     if (
       request.headers.get("origin") !==
@@ -23,12 +29,25 @@ export async function POST(request: Request) {
   }
   if (new URL(request.url).search)
     return reply({ error: "Solicitud inválida." }, 400);
-  const command = parseCreateCategoryCommand(
-    await limitedJson(request).catch(() => null),
-  );
+  const input = await limitedJson(request).catch(() => null);
+  const command =
+    action === "archive"
+      ? parseCategoryArchiveCommand(input)
+      : parseCreateCategoryCommand(input);
   if ("error" in command) return reply(command, 400);
   try {
     return await withGoogleOwner(request, async (client, ownerId) => {
+      if ("archived" in command) {
+        const result = await setCategoryArchived(client, ownerId, command);
+        if (result === "not-found")
+          return reply({ error: "No encontramos esa categoría." }, 404);
+        if (result === "archived-parent")
+          return reply(
+            { error: "Restaurá primero la categoría superior." },
+            409,
+          );
+        return reply({ id: command.id }, 200);
+      }
       const result = await createCatalogCategory(client, ownerId, command);
       if (result.status === "conflict")
         return reply({ error: result.message }, 409);
@@ -40,8 +59,19 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === "Acceso denegado")
       return reply({ error: "Volvé a entrar para gestionar categorías." }, 401);
     return reply(
-      { error: "No pudimos crear la categoría. Reintentá el mismo envío." },
+      {
+        error:
+          "No pudimos guardar el cambio en el catálogo. Reintentá el envío.",
+      },
       503,
     );
   }
+}
+
+export function POST(request: Request) {
+  return manageCategory(request, "create");
+}
+
+export function PATCH(request: Request) {
+  return manageCategory(request, "archive");
 }

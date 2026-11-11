@@ -1,54 +1,174 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
-import type { MovementKind } from "../domain/movements.ts";
-import type {
-  CatalogCategory,
-  CreateCategoryCommand,
+import {
+  normalizeCategoryName,
+  type CatalogCategory,
+  type CreateCategoryCommand,
+  type CategoryArchiveCommand,
 } from "../domain/categories.ts";
-import { defaultCategories } from "./movements.ts";
+import type { MovementKind } from "../domain/movements.ts";
 
-type CatalogRow = {
-  id: string;
-  kind: MovementKind;
-  name: string;
-  parent_id: string | null;
-  archived: boolean;
+const defaultNames = {
+  income: [
+    "Sueldo",
+    "Negocios",
+    "Alquileres cobrados",
+    "Intereses y dividendos",
+    "Ventas",
+    "Reembolsos",
+    "Otros ingresos",
+  ],
+  expense: [
+    "Alimentación",
+    "Vivienda",
+    "Servicios",
+    "Transporte",
+    "Auto",
+    "Salud",
+    "Educación",
+    "Ropa",
+    "Entretenimiento",
+    "Viajes",
+    "Seguros",
+    "Impuestos",
+    "Otros gastos",
+  ],
+} satisfies Record<MovementKind, string[]>;
+
+const defaultChildren: Record<string, string[]> = {
+  Alimentación: ["Supermercado", "Restaurantes", "Delivery"],
+  Transporte: ["Transporte público", "Taxi/Uber"],
+  Vivienda: ["Alquiler", "Mantenimiento"],
+  Ropa: ["Ropa", "Calzado"],
 };
 
-// Catálogo activo del titular + sugerencias estables de v6.3 que aún no son filas.
+function defaultId(key: string) {
+  const hash = createHash("sha256").update(key).digest("hex");
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+// Preserve the existing v6.3 IDs. Defaults become private rows on first write.
+const defaults: CatalogCategory[] = (
+  Object.entries(defaultNames) as [MovementKind, string[]][]
+).flatMap(([kind, names]) =>
+  names.flatMap((name) => {
+    const id = defaultId(`finanzas:v6.3:${kind}:${name}`);
+    const children = kind === "expense" ? (defaultChildren[name] ?? []) : [];
+    return [
+      { id, kind, name, parentId: null },
+      ...children.map((child) => ({
+        id: defaultId(`finanzas:v6.6:${id}:${child}`),
+        kind,
+        name: child,
+        parentId: id,
+      })),
+    ];
+  }),
+);
+
+type CatalogEntry = CatalogCategory & { archived: boolean };
+
+function categoryKey({ kind, parentId, name }: CatalogCategory) {
+  return JSON.stringify([
+    kind,
+    parentId,
+    normalizeCategoryName(name).toLocaleLowerCase("es"),
+  ]);
+}
+
+async function readCatalog(client: pg.PoolClient, ownerId: string) {
+  const { rows } = await client.query<CatalogEntry>(
+    `SELECT id, kind, name, parent_id AS "parentId", archived_at IS NOT NULL AS archived
+       FROM finance.categories WHERE owner_id = $1
+       ORDER BY archived_at NULLS FIRST, id`,
+    [ownerId],
+  );
+  const entries = new Map(rows.map((entry) => [entry.id, entry]));
+  const storedIds = new Set(entries.keys());
+  const byName = new Map<string, CatalogEntry>();
+  for (const row of rows) {
+    const key = categoryKey(row);
+    if (!byName.has(key)) byName.set(key, row);
+  }
+
+  // A private row with the same name in the same group replaces the suggestion.
+  // The alias also resolves submissions from a form opened before that row existed.
+  const aliases = new Map<string, CatalogEntry>();
+  for (const suggestion of defaults) {
+    const parentId = suggestion.parentId
+      ? aliases.get(suggestion.parentId)!.id
+      : null;
+    const entry = { ...suggestion, parentId, archived: false };
+    const existing = entries.get(entry.id) ?? byName.get(categoryKey(entry));
+    aliases.set(entry.id, existing ?? entry);
+    if (!existing) entries.set(entry.id, entry);
+  }
+
+  function available(entry: CatalogEntry) {
+    const parent = entry.parentId ? entries.get(entry.parentId) : null;
+    return (
+      !entry.archived &&
+      (entry.parentId === null ||
+        (parent &&
+          !parent.archived &&
+          !parent.parentId &&
+          parent.kind === entry.kind))
+    );
+  }
+
+  return {
+    entries: [...entries.values()],
+    find: (id: string) => entries.get(id) ?? aliases.get(id),
+    available,
+    async materialize(entry: CatalogEntry) {
+      if (storedIds.has(entry.id)) return;
+      const parent = entry.parentId ? entries.get(entry.parentId) : null;
+      if (parent && !storedIds.has(parent.id))
+        await insertCategory(client, ownerId, parent);
+      await insertCategory(client, ownerId, entry);
+    },
+  };
+}
+
+async function insertCategory(
+  client: pg.PoolClient,
+  ownerId: string,
+  category: CatalogCategory,
+) {
+  await client.query(
+    `INSERT INTO finance.categories (owner_id, id, parent_id, kind, name)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [ownerId, category.id, category.parentId, category.kind, category.name],
+  );
+}
+
+async function lockCatalog(client: pg.PoolClient, ownerId: string) {
+  // Serialize selection/materialization with creation and archival until commit.
+  // Financial callers acquire their own write locks before reaching this lock.
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:categories:' || $1::text, 0))",
+    [ownerId],
+  );
+}
+
 export async function listCatalogCategories(
   client: pg.PoolClient,
   ownerId: string,
 ): Promise<CatalogCategory[]> {
-  const { rows } = await client.query<CatalogRow>(
-    `SELECT id, kind, name, parent_id, archived_at IS NOT NULL AS archived
-       FROM finance.categories WHERE owner_id = $1`,
-    [ownerId],
-  );
-  const active = rows.filter(({ archived }) => !archived);
-  const suggestions = defaultCategories.filter(
-    (suggestion) =>
-      !rows.some(
-        (row) =>
-          row.id === suggestion.id ||
-          (row.kind === suggestion.kind && row.name === suggestion.name),
-      ),
-  );
-  return [
-    ...active.map(({ id, kind, name, parent_id }) => ({
-      id,
-      kind,
-      name,
-      parentId: parent_id,
-    })),
-    ...suggestions.map(({ id, kind, name }) => ({
-      id,
-      kind,
-      name,
-      parentId: null,
-    })),
-  ].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const catalog = await readCatalog(client, ownerId);
+  return catalog.entries
+    .filter(catalog.available)
+    .map(({ id, kind, name, parentId }) => ({ id, kind, name, parentId }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+export async function listManagedCategories(
+  client: pg.PoolClient,
+  ownerId: string,
+) {
+  const { entries } = await readCatalog(client, ownerId);
+  return entries.sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
 export type CategorySaveResult =
@@ -56,69 +176,76 @@ export type CategorySaveResult =
   | { status: "conflict"; message: string }
   | { status: "invalid-parent"; message: string };
 
-// Creación desde formularios (RF-039, CA-051). El titular lo fija el servidor
-// de sesión; el archivo y las referencias históricas se gestionan aparte.
 export async function createCatalogCategory(
   client: pg.PoolClient,
   ownerId: string,
   command: CreateCategoryCommand,
 ): Promise<CategorySaveResult> {
-  // Serializa creaciones simultáneas del mismo titular: la unicidad por
-  // nombre no está garantizada por la base y se verifica en la transacción.
-  await client.query(
-    "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:categories:' || $1::text, 0))",
-    [ownerId],
-  );
-  const {
-    rows: [duplicate],
-  } = await client.query<{ id: string }>(
-    `SELECT id FROM finance.categories
-      WHERE owner_id = $1 AND kind = $2 AND lower(btrim(name)) = lower($3)
-      ORDER BY archived_at NULLS FIRST, id
-      LIMIT 1`,
-    [ownerId, command.kind, command.name],
-  );
-  if (duplicate)
+  await lockCatalog(client, ownerId);
+  const catalog = await readCatalog(client, ownerId);
+  const parent = command.parentId ? catalog.find(command.parentId) : undefined;
+  if (
+    command.parentId &&
+    (!parent ||
+      !catalog.available(parent) ||
+      parent.parentId ||
+      parent.kind !== command.kind)
+  )
     return {
-      status: "conflict",
-      message: "Ya existe una categoría con ese nombre en tu catálogo.",
+      status: "invalid-parent",
+      message: "Elegí una categoría superior activa del mismo tipo.",
     };
 
-  if (command.parentId) {
-    const {
-      rows: [parent],
-    } = await client.query<{
-      parent_id: string | null;
-      kind: MovementKind;
-      archived: boolean;
-    }>(
-      `SELECT parent_id, kind, archived_at IS NOT NULL AS archived
-         FROM finance.categories WHERE owner_id = $1 AND id = $2`,
-      [ownerId, command.parentId],
-    );
-    if (!parent || parent.archived)
-      return {
-        status: "invalid-parent",
-        message: "La categoría superior no está disponible.",
-      };
-    if (parent.kind !== command.kind)
-      return {
-        status: "invalid-parent",
-        message:
-          "La subcategoría debe ser del mismo tipo que la categoría superior.",
-      };
-    if (parent.parent_id)
-      return {
-        status: "invalid-parent",
-        message: "Solo se permiten dos niveles: categoría y subcategoría.",
-      };
-  }
+  const entry = { ...command, id: randomUUID(), parentId: parent?.id ?? null };
+  const key = categoryKey(entry);
+  if (catalog.entries.some((existing) => categoryKey(existing) === key))
+    return {
+      status: "conflict",
+      message: "Ya existe una categoría con ese nombre en este grupo.",
+    };
 
-  const id = randomUUID();
+  if (parent) await catalog.materialize(parent);
+  await insertCategory(client, ownerId, entry);
+  return { status: "created", id: entry.id };
+}
+
+export async function resolveMovementCategory(
+  client: pg.PoolClient,
+  ownerId: string,
+  kind: MovementKind,
+  categoryId: string | null,
+) {
+  if (!categoryId) return null;
+  await lockCatalog(client, ownerId);
+  const catalog = await readCatalog(client, ownerId);
+  const entry = catalog.find(categoryId);
+  if (!entry || entry.kind !== kind || !catalog.available(entry))
+    return undefined;
+  await catalog.materialize(entry);
+  return entry.id;
+}
+
+export async function setCategoryArchived(
+  client: pg.PoolClient,
+  ownerId: string,
+  { id, archived }: CategoryArchiveCommand,
+) {
+  await lockCatalog(client, ownerId);
+  const catalog = await readCatalog(client, ownerId);
+  const entry = catalog.find(id);
+  if (!entry) return "not-found";
+  if (entry.archived === archived) return "saved";
+
+  if (!archived && entry.parentId) {
+    const parent = catalog.find(entry.parentId);
+    if (!parent || !catalog.available(parent)) return "archived-parent";
+  }
+  await catalog.materialize(entry);
   await client.query(
-    `INSERT INTO finance.categories (owner_id, id, parent_id, kind, name)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [ownerId, id, command.parentId, command.kind, command.name],
+    `UPDATE finance.categories
+        SET archived_at = CASE WHEN $3 THEN clock_timestamp() END
+      WHERE owner_id = $1 AND id = $2`,
+    [ownerId, entry.id, archived],
   );
-  return { status: "created", id };
+  return "saved";
 }

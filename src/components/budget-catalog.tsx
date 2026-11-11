@@ -368,9 +368,6 @@ function BudgetEditor({
   useEffect(() => {
     heading.current?.focus();
   }, []);
-  const available = categories.filter(
-    ({ id }) => !budgeted.has(id) || id === budget?.categoryId,
-  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -433,7 +430,8 @@ function BudgetEditor({
         ) : (
           <CategorySelect
             kind="expense"
-            categories={available}
+            categories={categories}
+            excludedIds={budgeted}
             controlClassName={control}
             labelClassName="grid gap-1 text-sm font-medium"
             labelText="Categoría de gasto"

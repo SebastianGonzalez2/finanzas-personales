@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useId, useRef, useState, type ChangeEvent } from "react";
 import {
   categoryNameLimit,
   groupCatalogCategories,
+  normalizeCategoryName,
   type CatalogCategory,
 } from "@/domain/categories";
 import type { MovementKind } from "@/domain/movements";
@@ -25,6 +27,7 @@ export function CategorySelect({
   defaultValue = "",
   optional = true,
   unlisted = null,
+  excludedIds,
 }: {
   kind: MovementKind;
   categories: CatalogCategory[];
@@ -35,7 +38,9 @@ export function CategorySelect({
   defaultValue?: string;
   optional?: boolean;
   unlisted?: { value: string; label: string } | null;
+  excludedIds?: ReadonlySet<string>;
 }) {
+  const router = useRouter();
   const id = useId();
   const nameInput = useRef<HTMLInputElement>(null);
   const select = useRef<HTMLSelectElement>(null);
@@ -82,7 +87,8 @@ export function CategorySelect({
   }
 
   async function create() {
-    const trimmed = newName.trim();
+    if (pending) return;
+    const trimmed = normalizeCategoryName(newName);
     if (!trimmed) {
       setError("Ingresá el nombre de la categoría.");
       return;
@@ -112,6 +118,7 @@ export function CategorySelect({
         ]);
         setValue(data.id);
         closePanel();
+        router.refresh();
       } else {
         setError(
           data.error ?? "No pudimos crear la categoría. Reintentá el envío.",
@@ -146,12 +153,18 @@ export function CategorySelect({
             Elegí una categoría
           </option>
         )}
-        {unlisted && <option value={unlisted.value}>{unlisted.label}</option>}
+        {unlisted && !catalog.some(({ id }) => id === unlisted.value) && (
+          <option value={unlisted.value}>{unlisted.label}</option>
+        )}
         {tops.map((top) => {
-          const children = childrenOf(top.id);
+          const children = childrenOf(top.id).filter(
+            ({ id }) => !excludedIds?.has(id),
+          );
+          const showTop = !excludedIds?.has(top.id);
+          if (!showTop && !children.length) return null;
           return (
             <optgroup key={top.id} label={top.name}>
-              <option value={top.id}>{top.name}</option>
+              {showTop && <option value={top.id}>{top.name}</option>}
               {children.map(({ id: childId, name: childName }) => (
                 <option key={childId} value={childId}>
                   {top.name} › {childName}
@@ -170,6 +183,12 @@ export function CategorySelect({
               ref={nameInput}
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void create();
+                }
+              }}
               inputMode="text"
               maxLength={categoryNameLimit}
               autoComplete="off"

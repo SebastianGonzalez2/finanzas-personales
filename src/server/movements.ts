@@ -9,7 +9,6 @@ import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
   BankTransfer,
-  MovementCategory,
   MovementInput,
   MovementKind,
   MovementRevision,
@@ -17,6 +16,11 @@ import type {
   RecentBankTransfer,
   RecentMovement,
 } from "../domain/movements.ts";
+import { resolveMovementCategory } from "./categories.ts";
+export {
+  listCatalogCategories as listMovementCategories,
+  resolveMovementCategory,
+} from "./categories.ts";
 import type { Currency } from "../domain/money.ts";
 import {
   coverageDecimal,
@@ -37,48 +41,6 @@ import {
   lockBankWrites,
 } from "./bank-balances.ts";
 
-const defaultNames = {
-  income: [
-    "Sueldo",
-    "Negocios",
-    "Alquileres cobrados",
-    "Intereses y dividendos",
-    "Ventas",
-    "Reembolsos",
-    "Otros ingresos",
-  ],
-  expense: [
-    "Alimentación",
-    "Vivienda",
-    "Servicios",
-    "Transporte",
-    "Auto",
-    "Salud",
-    "Educación",
-    "Ropa",
-    "Entretenimiento",
-    "Viajes",
-    "Seguros",
-    "Impuestos",
-    "Otros gastos",
-  ],
-} satisfies Record<MovementKind, string[]>;
-
-// Stable suggestions from v6.3. They become private catalog rows on first use.
-export const defaultCategories = (
-  Object.entries(defaultNames) as [MovementKind, string[]][]
-).flatMap(([kind, names]) =>
-  names.map((name): MovementCategory => {
-    const hash = createHash("sha256")
-      .update(`finanzas:v6.3:${kind}:${name}`)
-      .digest("hex");
-    const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-    return { id, kind, name };
-  }),
-);
-
-type CatalogRow = MovementCategory & { archived: boolean };
-
 export async function movementAvailability(client: pg.PoolClient) {
   const {
     rows: [state],
@@ -92,31 +54,6 @@ export async function movementAvailability(client: pg.PoolClient) {
             to_regclass('finance.recent_bank_transfers') IS NOT NULL AS transfers`,
   );
   return state;
-}
-
-export async function listMovementCategories(
-  client: pg.PoolClient,
-  ownerId: string,
-) {
-  const { rows } = await client.query<CatalogRow>(
-    `SELECT id, kind, name, archived_at IS NOT NULL AS archived
-       FROM finance.categories WHERE owner_id = $1`,
-    [ownerId],
-  );
-  const suggestions = defaultCategories.filter(
-    (suggestion) =>
-      !rows.some(
-        (row) =>
-          row.id === suggestion.id ||
-          (row.kind === suggestion.kind && row.name === suggestion.name),
-      ),
-  );
-  return [
-    ...rows
-      .filter((row) => !row.archived)
-      .map(({ id, kind, name }) => ({ id, kind, name })),
-    ...suggestions,
-  ].sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
 type Replay = { status: "replayed"; id: string } | { status: "conflict" };
@@ -396,45 +333,6 @@ export async function saveMovement(
   );
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return { status: "created", id };
-}
-
-export async function resolveMovementCategory(
-  client: pg.PoolClient,
-  ownerId: string,
-  kind: MovementKind,
-  categoryId: string | null,
-) {
-  const suggestion = defaultCategories.find(
-    (category) => category.id === categoryId && category.kind === kind,
-  );
-  let selectedCategoryId = categoryId;
-  if (categoryId) {
-    const {
-      rows: [existing],
-    } = await client.query<CatalogRow>(
-      `SELECT id, kind, archived_at IS NOT NULL AS archived
-         FROM finance.categories
-        WHERE owner_id = $1 AND (id = $2 OR (kind = $3 AND name = $4))
-        ORDER BY (id = $2) DESC, archived_at NULLS FIRST, id
-        LIMIT 1`,
-      [ownerId, categoryId, kind, suggestion?.name ?? null],
-    );
-    if (existing) {
-      if (existing.archived || existing.kind !== kind) return undefined;
-      selectedCategoryId = existing.id;
-    } else if (!suggestion) {
-      return undefined;
-    }
-  }
-
-  if (suggestion && selectedCategoryId === suggestion.id) {
-    await client.query(
-      `INSERT INTO finance.categories (owner_id, id, kind, name)
-       VALUES ($1, $2, $3, $4) ON CONFLICT (owner_id, id) DO NOTHING`,
-      [ownerId, suggestion.id, kind, suggestion.name],
-    );
-  }
-  return selectedCategoryId;
 }
 
 async function insertMovement(
