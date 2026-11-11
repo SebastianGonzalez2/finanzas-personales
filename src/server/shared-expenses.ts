@@ -1,4 +1,5 @@
 import "server-only";
+import { classificationReady, readClassification } from "./classification.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -259,6 +260,14 @@ export async function saveSharedExpense(
     if (!allocationMatches(command, existing.amount, existing.currency))
       return conflict(
         "Tu parte y las de tus amigos deben sumar el total exacto del gasto.",
+      );
+    if (
+      (await classificationReady(client)) &&
+      (await readClassification(client, ownerId, command.eventId)).allocations
+        .length
+    )
+      return conflict(
+        "Quitá el desglose por categorías antes de dividir el gasto entre personas.",
       );
     expense = existing;
     id = command.eventId;

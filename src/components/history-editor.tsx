@@ -8,6 +8,8 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import type { CategoryAllocation } from "@/domain/classification";
+import { AllocationFields, formClassification } from "./classification-fields";
 import { type HistoryEntry } from "@/domain/history";
 import {
   conceptLimit,
@@ -60,6 +62,7 @@ function CurrencyField({
 
 export function HistoryEditor({
   entry,
+  classification,
   categories,
   currencies,
   today,
@@ -67,6 +70,10 @@ export function HistoryEditor({
   fundPortions,
 }: {
   entry: HistoryEntry;
+  classification: {
+    version: number;
+    allocations: (CategoryAllocation & { category: string | null })[];
+  } | null;
   categories: MovementCategory[];
   currencies: Currency[];
   today: string;
@@ -106,15 +113,27 @@ export function HistoryEditor({
     const form = new FormData(event.currentTarget);
     const portions = formFundPortions(form, expenseFundsField);
     form.delete(expenseFundsField);
+    const fields = formClassification(form);
+    const allocations =
+      fields.allocations ??
+      (classification?.allocations.length ? [] : undefined);
     const movement = {
       kind: entry.kind,
       ...Object.fromEntries(form),
       ...(portions && { fundPortions: portions }),
+      ...(allocations && { allocations }),
     };
     if (
       await send(
         action === "edit"
-          ? { action, eventId: entry.id, movement }
+          ? {
+              action,
+              eventId: entry.id,
+              movement,
+              ...(allocations && {
+                classificationVersion: classification?.version,
+              }),
+            }
           : { action, eventId: entry.id },
       )
     ) {
@@ -259,28 +278,34 @@ export function HistoryEditor({
                       className={historyControl}
                     />
                   </HistoryField>
-                  <HistoryField label="Categoría">
-                    <select
-                      name="categoryId"
-                      defaultValue={entry.categoryId ?? ""}
-                      className={historyControl}
-                    >
-                      <option value="">Sin categorizar</option>
-                      {entry.categoryId &&
-                        !categories.some(
-                          ({ id }) => id === entry.categoryId,
-                        ) && (
-                          <option value={entry.categoryId}>
-                            {entry.category}
+                  <AllocationFields
+                    categories={categories}
+                    available={!!classification}
+                    initial={classification?.allocations}
+                  >
+                    <HistoryField label="Categoría">
+                      <select
+                        name="categoryId"
+                        defaultValue={entry.categoryId ?? ""}
+                        className={historyControl}
+                      >
+                        <option value="">Sin categorizar</option>
+                        {entry.categoryId &&
+                          !categories.some(
+                            ({ id }) => id === entry.categoryId,
+                          ) && (
+                            <option value={entry.categoryId}>
+                              {entry.category}
+                            </option>
+                          )}
+                        {categories.map(({ id, name }) => (
+                          <option key={id} value={id}>
+                            {name}
                           </option>
-                        )}
-                      {categories.map(({ id, name }) => (
-                        <option key={id} value={id}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </HistoryField>
+                        ))}
+                      </select>
+                    </HistoryField>
+                  </AllocationFields>
                   <HistoryField label="Nota">
                     <textarea
                       name="note"

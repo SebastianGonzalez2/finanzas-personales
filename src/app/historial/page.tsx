@@ -13,6 +13,7 @@ import {
   historyStates,
   parseHistoryParams,
 } from "@/domain/history";
+import { classificationReady, listTags } from "@/server/classification";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listHistory, listHistoryCategories } from "@/server/history";
 import { historyReady } from "@/server/movements";
@@ -37,6 +38,9 @@ export default async function HistoryPage({
       return {
         ...page,
         categories: await listHistoryCategories(client, ownerId),
+        tags: (await classificationReady(client))
+          ? await listTags(client, ownerId)
+          : [],
       };
     },
   ).catch((error: unknown) => {
@@ -77,6 +81,7 @@ export default async function HistoryPage({
             <HistoryFilters
               values={query.filters}
               categories={data.categories}
+              tags={data.tags}
             />
             <Card className="gap-3 p-4 sm:p-5">
               <h2 id="resultados" tabIndex={-1} className="font-semibold">

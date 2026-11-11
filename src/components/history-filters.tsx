@@ -6,6 +6,8 @@ import {
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
 import { movementDisplayMethods } from "@/domain/movements";
+import { TagFields } from "./classification-fields";
+import type { MovementTag } from "@/domain/classification";
 import type { listHistoryCategories } from "@/server/history";
 import {
   historyButton,
@@ -18,9 +20,11 @@ import { Card } from "./ui/card";
 export function HistoryFilters({
   values,
   categories,
+  tags,
 }: {
   values: FilterValues;
   categories: Awaited<ReturnType<typeof listHistoryCategories>>;
+  tags: MovementTag[];
 }) {
   const active = Object.values(values).filter(Boolean).length;
   return (
@@ -29,6 +33,9 @@ export function HistoryFilters({
         Buscar y filtrar{active > 0 && ` (${active})`}
       </h2>
       <form action="/historial" method="get" className="grid gap-3">
+        {tags.length > 0 && (
+          <TagFields tags={tags} initial={values.tags?.split(",")} filter />
+        )}
         <HistoryField label="Concepto o nota">
           <input
             name="q"

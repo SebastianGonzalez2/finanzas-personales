@@ -69,6 +69,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0020_F3-06_monthly_budgets.sql",
       "0021_F3-07_budget_notices.sql",
       "0022_F4-01_recurring_series.sql",
+      "0028_F5-02_movement_classification.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -112,6 +113,7 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
       budgets,
       notices,
       recurrences,
+      classification,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -378,11 +380,19 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await recurrencesReady(client), false);
     await assert.rejects(migrateInTransaction(client, notices.sha256));
-    assert.deepEqual(await migrateInTransaction(client, recurrences.sha256), [
-      recurrences.version,
-    ]);
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    await client.query(recurrences.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [recurrences.version, recurrences.sha256],
+    );
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
     assert.deepEqual(
-      await migrateInTransaction(client, recurrences.sha256),
+      await migrateInTransaction(client, classification.sha256),
+      [classification.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, classification.sha256),
       [],
     );
     await setOwnerContext(client, "legacy-fixture");
