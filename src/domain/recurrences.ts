@@ -21,7 +21,8 @@ export type RecurrenceSchedule = {
   /**
    * Día habitual 1–31 para frecuencias de calendario. Si se omite, se conserva
    * el día del primer período. `null` indica fecha aproximada/desconocida y no
-   * se inventa un vencimiento exacto. En frecuencia semanal se ignora.
+   * se inventa un vencimiento exacto. En frecuencia semanal solo se usa `null`
+   * para indicar que el día de inicio no es un vencimiento.
    */
   dueDay?: number | null;
   /** Último día inclusive en que puede existir un período. */
@@ -33,7 +34,7 @@ export type RecurrencePeriod = {
   index: number;
   /** Clave estable dentro de la serie; el día flexible no la modifica. */
   key: string;
-  /** Inicio del período calendario; para semanal coincide con el vencimiento. */
+  /** Inicio del período calendario; para semanal coincide con su fecha ancla. */
   startsOn: string;
   /** Vencimiento conocido o `null` si la fecha es aproximada (v9.37/v9.43). */
   dueOn: string | null;
@@ -73,7 +74,12 @@ export function daysInRecurrenceMonth(year: number, month: number) {
 }
 
 export function isRecurrenceDate(value: unknown): value is string {
-  if (typeof value !== "string" || !datePattern.test(value)) return false;
+  if (
+    typeof value !== "string" ||
+    value.length !== 10 ||
+    !datePattern.test(value)
+  )
+    return false;
   const [year, month, day] = value.split("-").map(Number);
   return day <= daysInRecurrenceMonth(year, month);
 }
@@ -154,16 +160,15 @@ function addCalendarDays(date: string, days: number) {
   );
 }
 
+function monthStep(frequency: RecurrenceFrequency) {
+  return frequency === "monthly" ? 1 : frequency === "quarterly" ? 3 : 12;
+}
+
 function calendarPeriodAt(schedule: RecurrenceSchedule, offset: number) {
   const [firstYear, firstMonth, firstDay] = schedule.firstPeriod
     .split("-")
     .map(Number);
-  const step =
-    schedule.frequency === "monthly"
-      ? 1
-      : schedule.frequency === "quarterly"
-        ? 3
-        : 12;
+  const step = monthStep(schedule.frequency);
   const monthIndex = firstYear * 12 + (firstMonth - 1) + offset * step;
   const year = Math.floor(monthIndex / 12);
   const month = (monthIndex % 12) + 1;
@@ -173,10 +178,10 @@ function calendarPeriodAt(schedule: RecurrenceSchedule, offset: number) {
   const preferredDay =
     schedule.dueDay === undefined ? firstDay : schedule.dueDay;
   const dueOn =
-    offset === 0
-      ? schedule.firstPeriod
-      : preferredDay === null
-        ? null
+    preferredDay === null
+      ? null
+      : offset === 0
+        ? schedule.firstPeriod
         : formatDate(
             year,
             month,
@@ -190,12 +195,13 @@ function calendarPeriodAt(schedule: RecurrenceSchedule, offset: number) {
         ? formatDate(year, Math.floor((month - 1) / 3) * 3 + 1, 1)
         : formatDate(year, 1, 1);
 
+  const calendarYear = startsOn.slice(0, 4);
   const key =
     schedule.frequency === "monthly"
-      ? `${year}-${pad(month)}`
+      ? `${calendarYear}-${pad(month)}`
       : schedule.frequency === "quarterly"
-        ? `${year}-Q${Math.floor((month - 1) / 3) + 1}`
-        : String(year);
+        ? `${calendarYear}-Q${Math.floor((month - 1) / 3) + 1}`
+        : calendarYear;
 
   return { index: offset, key, startsOn, dueOn };
 }
@@ -214,8 +220,13 @@ export function recurrencePeriodAt(
     throw new Error("La posición del período debe ser un entero no negativo.");
 
   if (schedule.frequency === "weekly") {
-    const dueOn = addCalendarDays(schedule.firstPeriod, offset * 7);
-    return { index: offset, key: dueOn, startsOn: dueOn, dueOn };
+    const startsOn = addCalendarDays(schedule.firstPeriod, offset * 7);
+    return {
+      index: offset,
+      key: startsOn,
+      startsOn,
+      dueOn: schedule.dueDay === null ? null : startsOn,
+    };
   }
 
   return calendarPeriodAt(schedule, offset);
@@ -233,6 +244,49 @@ export function recurrencePeriodDueDate(
   offset: number,
 ) {
   return recurrencePeriodAt(schedule, offset).dueOn;
+}
+
+function periodBoundary(
+  schedule: RecurrenceSchedule,
+  period: RecurrencePeriod,
+) {
+  return (
+    period.dueOn ??
+    (period.index === 0 ? schedule.firstPeriod : period.startsOn)
+  );
+}
+
+/** Último período previsto a la fecha, sin recorrer la historia de la serie. */
+export function latestRecurrencePeriod(
+  schedule: RecurrenceSchedule,
+  through: string,
+) {
+  assertRecurrenceSchedule(schedule);
+  if (!isRecurrenceDate(through))
+    throw new Error("Fecha de consulta inválida.");
+  const lastDay =
+    schedule.endDate && schedule.endDate < through ? schedule.endDate : through;
+  if (lastDay < schedule.firstPeriod) return null;
+
+  const first = recurrencePeriodAt(schedule, 0);
+  const anchor = first.dueOn ?? first.startsOn;
+  const index =
+    schedule.frequency === "weekly"
+      ? Math.floor(
+          (Date.parse(lastDay) - Date.parse(anchor)) / (7 * 86_400_000),
+        )
+      : Math.floor(
+          (monthIndex(lastDay) - monthIndex(anchor)) /
+            monthStep(schedule.frequency),
+        );
+  const period = recurrencePeriodAt(schedule, index);
+  return periodBoundary(schedule, period) <= lastDay
+    ? period
+    : recurrencePeriodAt(schedule, index - 1);
+}
+
+function monthIndex(date: string) {
+  return Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
 }
 
 /**
@@ -255,8 +309,7 @@ export function recurrencePeriods(
   const endDate = schedule.endDate ?? null;
   for (let index = 0; index < limit; index += 1) {
     const period = recurrencePeriodAt(schedule, index);
-    const boundary =
-      period.dueOn ?? (index === 0 ? schedule.firstPeriod : period.startsOn);
+    const boundary = periodBoundary(schedule, period);
     if (boundary > through) break;
     if (endDate !== null && boundary > endDate) break;
     periods.push(period);

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
 import {
   defaultRecurrenceFrequency,
   daysInRecurrenceMonth,
@@ -8,6 +9,7 @@ import {
   isRecurrenceFrequency,
   isRecurrencePeriodStatus,
   isRecurrenceSchedule,
+  latestRecurrencePeriod,
   periodIsPending,
   periodIsSettled,
   recurrenceIsFinished,
@@ -49,6 +51,7 @@ test("F4-01 valida frecuencias, días y fechas sin aceptar valores ambiguos", ()
     "2026-13-01",
     "0000-01-01",
     "2026-1-01",
+    "2026-01-01\n",
     "2026-01-01T00:00:00Z",
   ])
     assert.equal(isRecurrenceDate(date), false);
@@ -384,7 +387,7 @@ test("F4-01 no inventa vencimientos cuando el día es aproximado o desconocido",
     index: 0,
     key: "2026-01",
     startsOn: "2026-01-01",
-    dueOn: "2026-01-15",
+    dueOn: null,
   });
   assert.deepEqual(recurrencePeriodAt(schedule, 1), {
     index: 1,
@@ -405,6 +408,86 @@ test("F4-01 no inventa vencimientos cuando el día es aproximado o desconocido",
       (period) => period.key,
     ),
     ["2026-01"],
+  );
+});
+
+test("F4-01 valida la definición y normaliza solo la referencia y los datos de alta", () => {
+  const input = {
+    kind: "expense",
+    concept: " Seguro sintético ",
+    currency: "USD",
+    firstPeriod: "2027-01-31",
+    idempotencyKey: "e6b60819-779b-4b4a-bf22-99a14a65c405",
+  };
+  const exact = parseRecurrence({
+    ...input,
+    dateMode: "exact",
+    referenceAmount: "1,2345",
+  });
+  assert.equal(exact.concept, "Seguro sintético");
+  assert.equal(exact.referenceAmount, "1.2345");
+  assert.equal(exact.frequency, "monthly");
+  assert.equal(exact.dueDay, 31);
+  assert.equal(parseRecurrence(input).referenceAmount, null);
+  assert.equal(
+    parseRecurrence({ ...input, frequency: "weekly", dateMode: "exact" })
+      .dueDay,
+    null,
+  );
+  for (const invalid of [
+    { firstPeriod: "2027-02-29" },
+    { endDate: "2027-01-30" },
+    { endDate: "2027-01-31\n" },
+    { dateMode: "none", dueDay: 10 },
+    { frequency: "weekly", dateMode: "exact", dueDay: 10 },
+    { dateMode: "exact", dueDay: 32 },
+    { referenceAmount: 1.25 },
+    { referenceAmount: "1.00001" },
+    { referenceAmount: "0" },
+    { referenceAmount: "-1" },
+    { ownerId: "ajeno" },
+    { paused: true },
+  ])
+    assert.ok("error" in parseRecurrence({ ...input, ...invalid }));
+});
+
+test("F4-01 obtiene el último período previsto sin truncar ni inventar vencimientos", () => {
+  for (const frequency of ["weekly", "monthly", "quarterly", "yearly"]) {
+    for (const dueDay of [undefined, null, 31]) {
+      const schedule = {
+        frequency,
+        firstPeriod: "2024-02-29",
+        endDate: "2027-01-15",
+        dueDay,
+      };
+      for (const through of [
+        "2024-02-28",
+        "2024-02-29",
+        "2024-12-01",
+        "2025-03-01",
+        "2030-01-01",
+      ]) {
+        assert.deepEqual(
+          latestRecurrencePeriod(schedule, through),
+          recurrencePeriods(schedule, through).at(-1) ?? null,
+        );
+      }
+    }
+  }
+  const weekly = {
+    frequency: "weekly",
+    firstPeriod: "0001-01-01",
+    dueDay: null,
+  };
+  const latest = latestRecurrencePeriod(weekly, "9999-12-31");
+  assert.equal(latest.dueOn, null);
+  assert.ok(latest.index > 1000);
+  assert.equal(
+    recurrencePeriodKeyAt(
+      { frequency: "yearly", firstPeriod: "0001-01-01" },
+      0,
+    ),
+    "0001",
   );
 });
 
