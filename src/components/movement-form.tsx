@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   bankCurrencies,
   formatBankReference,
-  type BankBalance,
+  type BankAvailability,
 } from "@/domain/bank-balances";
 import {
   conceptLimit,
@@ -18,6 +18,12 @@ import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
+import type { FundSource } from "@/domain/fund-coverage";
+import {
+  expenseFundsField,
+  formFundPortions,
+  FundPortionFields,
+} from "./fund-portion-fields";
 import { Card } from "./ui/card";
 
 const control =
@@ -28,6 +34,7 @@ const primary =
 export function MovementForm({
   today,
   balances,
+  fundSources,
   categories,
   bankTransfersReady,
   creditCards,
@@ -36,7 +43,8 @@ export function MovementForm({
   sharedExpensesReady,
 }: {
   today: string;
-  balances: BankBalance[];
+  balances: BankAvailability[];
+  fundSources?: FundSource[] | null;
   categories: MovementCategory[];
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
@@ -50,6 +58,8 @@ export function MovementForm({
   const [sharedOpen, setSharedOpen] = useState(false);
   const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
+  const [amount, setAmount] = useState("");
+  const [effectiveOn, setEffectiveOn] = useState(today);
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [message, setMessage] = useState("");
@@ -95,6 +105,8 @@ export function MovementForm({
     if (!uncertain) {
       setKind("expense");
       setCurrency(configured[0]);
+      setAmount("");
+      setEffectiveOn(today);
       setError("");
       setMessage("");
       setSavedId(null);
@@ -116,8 +128,12 @@ export function MovementForm({
     try {
       if (!uncertain) {
         requestKey.current ??= crypto.randomUUID();
+        const form = new FormData(event.currentTarget);
+        const fundPortions = formFundPortions(form, expenseFundsField);
+        form.delete(expenseFundsField);
         sentBody.current = JSON.stringify({
-          ...Object.fromEntries(new FormData(event.currentTarget)),
+          ...Object.fromEntries(form),
+          ...(fundPortions?.length && { fundPortions }),
           idempotencyKey: requestKey.current,
         });
       }
@@ -395,6 +411,8 @@ export function MovementForm({
                 cards={creditCards}
                 banks={configured}
                 categories={categories}
+                fundSources={fundSources}
+                bankAvailability={balances}
                 debitCards={debitCards}
                 today={today}
                 installmentsReady={installmentsReady}
@@ -474,6 +492,8 @@ export function MovementForm({
                         <span>Importe</span>
                         <input
                           name="amount"
+                          value={amount}
+                          onChange={(event) => setAmount(event.target.value)}
                           required
                           inputMode="decimal"
                           maxLength={22}
@@ -517,7 +537,8 @@ export function MovementForm({
                         type="date"
                         required
                         max={today}
-                        defaultValue={today}
+                        value={effectiveOn}
+                        onChange={(event) => setEffectiveOn(event.target.value)}
                         className={control}
                         aria-describedby="fecha-transaccion-ayuda"
                       />
@@ -532,6 +553,19 @@ export function MovementForm({
                             : "Ingresá la fecha en que ocurrió."}
                       </span>
                     </label>
+                  )}
+                  {!transfer && !income && selectedCurrency && fundSources && (
+                    <FundPortionFields
+                      key={selectedCurrency}
+                      funds={fundSources}
+                      currency={selectedCurrency}
+                      amount={amount}
+                      available={
+                        bank && effectiveOn >= bank.asOfDate
+                          ? bank.availableAmount
+                          : undefined
+                      }
+                    />
                   )}
                   {!transfer && (
                     <>

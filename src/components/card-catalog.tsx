@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import type { FundSource } from "@/domain/fund-coverage";
+import {
+  bankCurrencies,
+  formatBankAmount,
+  type BankAvailability,
+} from "@/domain/bank-balances";
 import { cardKinds, type CardKind, type CatalogCard } from "@/domain/cards";
 import type {
   CreditAction,
@@ -38,6 +43,8 @@ export function CardCatalog({
   today,
   creditReady,
   banks,
+  fundSources,
+  bankAvailability,
   categories,
   purchases,
   installmentsReady,
@@ -49,6 +56,8 @@ export function CardCatalog({
   today: string;
   creditReady: boolean;
   banks: Currency[];
+  fundSources: FundSource[] | null;
+  bankAvailability: BankAvailability[];
   categories: MovementCategory[];
   purchases: CreditPurchaseOption[];
   installmentsReady: boolean;
@@ -109,6 +118,8 @@ export function CardCatalog({
               cards={[editor.card]}
               today={today}
               banks={banks}
+              fundSources={fundSources}
+              bankAvailability={bankAvailability}
               categories={categories}
               debitCards={
                 mixedReady

@@ -10,6 +10,7 @@ import {
   listBankAvailability,
   listBankCheckpoints,
 } from "@/server/bank-balances";
+import { listFundSources } from "@/server/fund-coverage";
 import { listCards } from "@/server/cards";
 import { sharedExpensesReady } from "@/server/shared-expense-schema";
 import { mixedPurchasesReady } from "@/server/mixed-purchases";
@@ -82,6 +83,7 @@ export default async function SummaryPage({
         bankTransfers: transfers
           ? await listRecentBankTransfers(client, ownerId)
           : [],
+        fundSources: writable ? await listFundSources(client, ownerId) : null,
         categories: writable
           ? await listMovementCategories(client, ownerId)
           : [],

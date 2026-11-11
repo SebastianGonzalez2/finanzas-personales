@@ -14,6 +14,9 @@ import {
 } from "../domain/savings-funds.ts";
 import { listBankAvailability, lockBankWrites } from "./bank-balances.ts";
 
+import { fundCoverageReady, listFundSources } from "./fund-coverage.ts";
+import { coverageUnits } from "../domain/fund-coverage.ts";
+
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 
@@ -42,11 +45,18 @@ export async function lockFundWrites(client: pg.PoolClient, ownerId: string) {
 }
 
 export async function listSavingsFunds(client: pg.PoolClient, ownerId: string) {
+  const coverage = await fundCoverageReady(client);
   const { rows } = await client.query<SavingsFund>(
     `SELECT id, name, currency, reserved_amount::numeric(20,4)::text AS "reservedAmount",
             target_amount::numeric(20,4)::text AS "targetAmount",
             to_char(target_date, 'YYYY-MM-DD') AS "targetDate", status, version
-       FROM finance.savings_funds
+            ${
+              coverage
+                ? `, (SELECT coalesce(sum(remaining), 0)::text FROM finance.fund_purchase_commitments c
+              WHERE (c.owner_id, c.fund_id) = (f.owner_id, f.id)) AS "committedAmount"`
+                : ""
+            }
+       FROM finance.savings_funds f
       WHERE owner_id = $1
       ORDER BY CASE status
                  WHEN 'active' THEN 0
@@ -164,6 +174,18 @@ async function saveFundMovement(
         ),
         reason: "insufficient" as const,
       };
+  }
+
+  if (action !== "reserve") {
+    const [fund] = (await listFundSources(client, ownerId, [fundId])) ?? [];
+    if (
+      fund &&
+      coverageUnits(fund.committedAmount) > BigInt(0) &&
+      coverageUnits(amount) > coverageUnits(fund.availableAmount)
+    )
+      return conflict(
+        `Solo podés usar la reserva sin comprometer: ${formatBankAmount({ currency, amount: fund.availableAmount })}.`,
+      );
   }
 
   const deltas =

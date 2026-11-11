@@ -38,7 +38,25 @@ export async function POST(request: Request) {
           },
           409,
         );
-      const result = await saveSavingsFund(client, ownerId, command);
+      // A database guard also protects reserve writers introduced independently.
+      await client.query("SAVEPOINT save_fund");
+      const result = await saveSavingsFund(client, ownerId, command).catch(
+        async (error: unknown) => {
+          if (
+            !(error instanceof Error) ||
+            !("constraint" in error) ||
+            error.constraint !== "protect_fund_commitments"
+          )
+            throw error;
+          await client.query("ROLLBACK TO SAVEPOINT save_fund");
+          return {
+            status: "conflict",
+            message:
+              "Hay compras de tarjeta que todavía usan esta reserva. Revisá los compromisos antes de liberar o cerrar el fondo.",
+          } as const;
+        },
+      );
+      await client.query("RELEASE SAVEPOINT save_fund");
       switch (result.status) {
         case "unavailable":
           return reply(
