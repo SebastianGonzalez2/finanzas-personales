@@ -15,6 +15,11 @@ import {
   recurrencePeriodAt,
   type RecurrenceFrequency,
 } from "@/domain/recurrences";
+import type { Person } from "@/domain/recurring-shares";
+import {
+  RecurringAgreementFields,
+  recurringAgreement,
+} from "./recurring-share-fields";
 import { useFinancialCommand } from "./financial-command";
 import { Card } from "./ui/card";
 
@@ -25,10 +30,12 @@ export function RecurrenceForm({
   today,
   categories,
   frequencies,
+  people,
 }: {
   today: string;
   categories: MovementCategory[];
   frequencies: Record<RecurrenceFrequency, string>;
+  people: Person[] | null;
 }) {
   const router = useRouter();
   const { send, pending, uncertain, error } = useFinancialCommand(
@@ -39,6 +46,7 @@ export function RecurrenceForm({
   const [frequency, setFrequency] = useState(defaultRecurrenceFrequency);
   const [firstPeriod, setFirstPeriod] = useState(today);
   const [dateMode, setDateMode] = useState("none");
+  const [shared, setShared] = useState(false);
   const [saved, setSaved] = useState(false);
   const first = isRecurrenceDate(firstPeriod)
     ? recurrencePeriodAt({ frequency, firstPeriod }, 0)
@@ -53,6 +61,8 @@ export function RecurrenceForm({
     if (
       await send({
         kind,
+        ...(kind === "expense" &&
+          shared && { usualShares: recurringAgreement(data) }),
         frequency,
         firstPeriod,
         dateMode,
@@ -67,6 +77,7 @@ export function RecurrenceForm({
     ) {
       form.reset();
       setKind("expense");
+      setShared(false);
       setFrequency(defaultRecurrenceFrequency);
       setFirstPeriod(today);
       setDateMode("none");
@@ -78,6 +89,8 @@ export function RecurrenceForm({
   return (
     <Card className="p-4">
       <form
+        method="post"
+        action="/api/recurrences"
         onSubmit={submit}
         onChange={() => setSaved(false)}
         className="grid gap-4"
@@ -202,6 +215,19 @@ export function RecurrenceForm({
                 placeholder={firstPeriod.slice(8)}
               />
             </label>
+          )}
+          {kind === "expense" && people && (
+            <>
+              <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={shared}
+                  onChange={(event) => setShared(event.target.checked)}
+                />
+                Compartida
+              </label>
+              {shared && <RecurringAgreementFields people={people} />}
+            </>
           )}
           <label className={`${label} sm:col-span-2`}>
             Nota (opcional)

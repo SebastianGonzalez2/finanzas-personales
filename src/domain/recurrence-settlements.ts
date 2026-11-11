@@ -1,4 +1,10 @@
 import { isBankReferenceDate } from "./bank-balances.ts";
+import { installmentTerms } from "./credit-operations.ts";
+import type { InstallmentTerms } from "./installments.ts";
+import {
+  parseSharedAllocation,
+  type SharedAllocation,
+} from "./shared-expenses.ts";
 import { coverageDecimal, coverageUnits } from "./fund-coverage.ts";
 import { normalizeDecimalAmount } from "./money.ts";
 import { movementUuid } from "./movements.ts";
@@ -32,12 +38,15 @@ export type Settlement = {
       method: "deposit" | "debit" | "transfer" | "credit";
       cardId: string | null;
       distinct: boolean;
+      split?: SharedAllocation;
+      installment?: { cardAmount: string; plan: InstallmentTerms };
     }
   | {
       action: "link";
       targets: SettlementTarget[];
       amount: string;
       eventId: string;
+      split?: SharedAllocation;
     }
   | {
       action: "detach";
@@ -55,6 +64,7 @@ export type SettlementEvent = {
   effectiveOn: string;
   amount: string;
   method: "deposit" | "debit" | "transfer" | "credit";
+  shared?: boolean;
 };
 
 export type TrackedPeriod = RecurrencePeriod & {
@@ -147,6 +157,8 @@ export function parseSettlement(
       "method",
       "cardId",
       "distinct",
+      "split",
+      "installment",
       "eventId",
     ]);
     const command = {
@@ -175,12 +187,13 @@ export function parseSettlement(
         : { ...command, action, target: period };
     }
     if (action !== "record" && action !== "link") throw new Error();
-    const { targets, amount, eventId } = fields(input, [
+    const { targets, amount, eventId, split, installment } = fields(input, [
       ...base,
       "targets",
       "amount",
+      "split",
       ...(action === "record"
-        ? ["effectiveOn", "method", "cardId", "distinct"]
+        ? ["effectiveOn", "method", "cardId", "distinct", "installment"]
         : ["eventId"]),
     ]);
     if (
@@ -205,7 +218,20 @@ export function parseSettlement(
           "Los importes asignados deben sumar exactamente el importe real.",
       };
     }
-    const settlement = { ...command, targets: parsed, amount: actual };
+    let allocation: SharedAllocation | undefined;
+    if (split !== undefined) {
+      const data = fields(split, ["ownAmount", "parties"]);
+      allocation =
+        Array.isArray(data.parties) && data.parties.length === 0
+          ? { ownAmount: exact(data.ownAmount), parties: [] }
+          : parseSharedAllocation(data.ownAmount, data.parties);
+    }
+    const settlement = {
+      ...command,
+      targets: parsed,
+      amount: actual,
+      ...(allocation && { split: allocation }),
+    };
     if (action === "link")
       return { ...settlement, action, eventId: uuid(eventId) };
 
@@ -225,6 +251,11 @@ export function parseSettlement(
       (method !== "credit" && cardId !== null)
     )
       throw new Error();
+    const financed =
+      installment === undefined
+        ? undefined
+        : fields(installment, ["cardAmount", "plan"]);
+    if (financed && (method !== "credit" || !allocation)) throw new Error();
     return {
       ...settlement,
       action,
@@ -232,6 +263,12 @@ export function parseSettlement(
       method,
       cardId: method === "credit" ? uuid(cardId) : null,
       distinct,
+      ...(financed && {
+        installment: {
+          cardAmount: exact(financed.cardAmount, true),
+          plan: installmentTerms(financed.plan),
+        },
+      }),
     };
   } catch {
     return {

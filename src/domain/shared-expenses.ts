@@ -12,9 +12,13 @@ import { Money, normalizeDecimalAmount, type Currency } from "./money.ts";
 export const maxFriends = 20;
 
 type Party = { name: string; amount: string; dueOn: string | null };
+export type RevisedShares = {
+  ownAmount: string;
+  parties: { loanId: string; amount: string }[];
+};
 type Details = Pick<MovementInput, "concept" | "categoryId" | "note">;
 type Purchase = Extract<CreditCommand, { action: "purchase" }>;
-type Allocation = { ownAmount: string; parties: Party[] };
+export type SharedAllocation = { ownAmount: string; parties: Party[] };
 type Expense = Details &
   Pick<MovementInput, "currency" | "amount" | "effectiveOn">;
 
@@ -29,8 +33,13 @@ export type SharedExpenseCommand = { idempotencyKey: string } & (
       method: "debit" | "transfer" | "credit";
       purchase?: Purchase;
     } & Expense &
-      Allocation)
-  | ({ action: "split"; eventId: string } & Allocation)
+      SharedAllocation)
+  | ({ action: "split"; eventId: string } & SharedAllocation)
+  | ({
+      action: "revise-split";
+      eventId: string;
+      expectedVersion: number;
+    } & RevisedShares)
   | ({ action: "edit"; eventId: string; expectedVersion: number } & Details)
 );
 
@@ -59,24 +68,31 @@ function amount(value: unknown, allowZero = false) {
   return normalized;
 }
 
-function person(value: Record<string, unknown>) {
+export function sharedPersonName(value: unknown) {
   if (
-    typeof value.name !== "string" ||
-    !value.name.trim() ||
-    value.name.length > conceptLimit ||
-    value.name.includes("\0")
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.trim().length > conceptLimit ||
+    value.includes("\0")
   )
     throw new Error();
+  return value.trim().replace(/\s+/g, " ").normalize("NFC");
+}
+
+function person(value: Record<string, unknown>) {
   const dueOn = value.dueOn === "" ? null : (value.dueOn ?? null);
   if (dueOn !== null && !isBankReferenceDate(dueOn, "9999-12-31"))
     throw new Error();
   return {
-    name: value.name.trim().replace(/\s+/g, " ").normalize("NFC"),
+    name: sharedPersonName(value.name),
     dueOn,
   };
 }
 
-function allocation(own: unknown, list: unknown): Allocation {
+export function parseSharedAllocation(
+  own: unknown,
+  list: unknown,
+): SharedAllocation {
   if (!Array.isArray(list) || list.length < 1 || list.length > maxFriends)
     throw new Error();
   const parties = list.map((item) => {
@@ -92,7 +108,7 @@ function allocation(own: unknown, list: unknown): Allocation {
 }
 
 export function allocationMatches(
-  { ownAmount, parties }: Allocation,
+  { ownAmount, parties }: SharedAllocation,
   total: string,
   currency: Currency,
 ) {
@@ -123,15 +139,15 @@ export function parseSharedExpense(
         action,
         eventId: uuid(data.eventId),
         idempotencyKey: uuid(data.idempotencyKey),
-        ...allocation(data.ownAmount, data.parties),
+        ...parseSharedAllocation(data.ownAmount, data.parties),
       };
     }
-    if (action === "edit") {
+    if (action === "edit" || action === "revise-split") {
       const data = fields(input, [
         ...common,
         "eventId",
         "expectedVersion",
-        ...details,
+        ...(action === "edit" ? details : split),
       ]);
       const { expectedVersion } = data;
       if (
@@ -140,6 +156,35 @@ export function parseSharedExpense(
         expectedVersion < 1
       )
         throw new Error();
+      if (action === "revise-split") {
+        if (
+          !Array.isArray(data.parties) ||
+          !data.parties.length ||
+          data.parties.length > maxFriends
+        )
+          throw new Error();
+        const parties = data.parties
+          .map((entry) => {
+            const row = fields(entry, ["loanId", "amount"]);
+            return {
+              loanId: uuid(row.loanId),
+              amount: amount(row.amount, true),
+            };
+          })
+          .sort((a, b) => a.loanId.localeCompare(b.loanId));
+        if (
+          new Set(parties.map(({ loanId }) => loanId)).size !== parties.length
+        )
+          throw new Error();
+        return {
+          action,
+          eventId: uuid(data.eventId),
+          idempotencyKey: uuid(data.idempotencyKey),
+          expectedVersion,
+          ownAmount: amount(data.ownAmount, true),
+          parties,
+        };
+      }
       const parsed = parseMovement(
         {
           kind: "expense",
@@ -227,7 +272,7 @@ export function parseSharedExpense(
         ...expense,
         creditor: person(fields(data.creditor, ["name", "dueOn"])),
       };
-    const shares = allocation(data.ownAmount, data.parties);
+    const shares = parseSharedAllocation(data.ownAmount, data.parties);
     if (!allocationMatches(shares, total, currency))
       return {
         error: "Tu parte y las de tus amigos deben sumar el total exacto.",

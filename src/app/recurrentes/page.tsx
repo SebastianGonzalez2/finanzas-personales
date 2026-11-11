@@ -23,6 +23,7 @@ import {
   latestTrackedIndex,
 } from "@/domain/recurrence-plan";
 import type { TrackedPeriod } from "@/domain/recurrence-settlements";
+import { listPeople, recurringSharesReady } from "@/server/recurring-shares";
 import { listCards } from "@/server/cards";
 import { recurrenceTrackingReady } from "@/server/recurrence-links";
 import {
@@ -72,11 +73,13 @@ export default async function RecurrencesPage({
             "Las recurrencias estarán disponibles cuando se actualice la base de datos.",
         };
       const tracking = await recurrenceTrackingReady(client);
+      const sharing = tracking && (await recurringSharesReady(client));
       const definitions = await listRecurrences(
         client,
         ownerId,
         today,
         tracking,
+        sharing,
       );
       const controls =
         tracking && (await recurrenceSeriesControlsReady(client));
@@ -111,6 +114,7 @@ export default async function RecurrencesPage({
         tracking,
         controls,
         cards,
+        people: sharing ? await listPeople(client, ownerId) : null,
         categories: await listMovementCategories(client, ownerId),
       };
     },
@@ -134,6 +138,7 @@ export default async function RecurrencesPage({
               today={today}
               categories={result.categories}
               frequencies={frequencies}
+              people={result.people}
             />
             {!result.tracking && result.recurrences.length > 0 && (
               <p role="status" className="text-sm">
@@ -206,6 +211,19 @@ export default async function RecurrencesPage({
                                   : `Día ${series.dueDay}`}
                           </dd>
                         </div>
+                        {series.usualShares.length > 0 && (
+                          <div>
+                            <dt>Compartida · reparto habitual</dt>
+                            <dd>
+                              {series.usualShares
+                                .map(
+                                  ({ name, percentage }) =>
+                                    `${name} · ${percentage.replace(/\.?0+$/, "").replace(".", ",")} %`,
+                                )
+                                .join(" · ")}
+                            </dd>
+                          </div>
+                        )}
                         {series.category && (
                           <div>
                             <dt>Categoría</dt>
@@ -268,6 +286,8 @@ export default async function RecurrencesPage({
                                   currency={series.currency}
                                   kind={series.kind}
                                   today={today}
+                                  usualShares={series.usualShares}
+                                  people={result.people ?? []}
                                   cards={result.cards
                                     .filter(({ currencies }) =>
                                       currencies.some(
@@ -385,12 +405,13 @@ function PeriodSummary({
       </dl>
       {period.events.length > 0 && (
         <ul className="grid gap-1 text-sm" aria-label="Movimientos vinculados">
-          {period.events.map(({ id, amount, effectiveOn, method }) => (
+          {period.events.map(({ id, amount, effectiveOn, method, shared }) => (
             <li key={id}>
               <Link className="underline" href={`/historial/movimientos/${id}`}>
                 {formatBankReference(effectiveOn)} ·{" "}
                 {formatBankAmount({ amount, currency })} ·{" "}
                 {movementDisplayMethods[method]}
+                {shared && " · Ver reparto y cobros"}
               </Link>
             </li>
           ))}

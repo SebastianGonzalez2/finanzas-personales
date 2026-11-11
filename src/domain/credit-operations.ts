@@ -259,7 +259,7 @@ function paymentLine(input: unknown): CreditPaymentLine {
 
 const common = ["action", "cardId", "effectiveOn", "idempotencyKey"];
 
-function installmentTerms(input: unknown): InstallmentTerms {
+export function installmentTerms(input: unknown): InstallmentTerms {
   const plan = record(input, ["installmentAmount", "count", "firstPeriod"]);
   const { count, firstPeriod } = plan;
   if (

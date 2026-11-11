@@ -975,7 +975,7 @@ export async function listMovementTotals(
         shared
           ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
         UNION ALL
-        SELECT 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
+        SELECT 'expense', s.currency, s.own_amount FROM finance.current_shared_expenses s
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
         WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`

@@ -4,6 +4,7 @@ import {
 } from "@/domain/bank-balances";
 import { movementUuid } from "@/domain/movements";
 import { parseSettlement } from "@/domain/recurrence-settlements";
+import { refreshBudgetNotices } from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     return reply({ error: "Solicitud inválida." }, 400);
   const today = bankReferenceToday();
   const command = parseSettlement(
-    await limitedJson(request).catch(() => null),
+    await limitedJson(request, 16384).catch(() => null),
     today,
   );
   if ("error" in command) return reply(command, 400);
@@ -108,6 +109,8 @@ export async function POST(request: Request) {
           { error: result.error },
           result.status === "not-found" ? 404 : 409,
         );
+      if (result.status === "created" && "split" in command && command.split)
+        await refreshBudgetNotices(client, ownerId);
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {
