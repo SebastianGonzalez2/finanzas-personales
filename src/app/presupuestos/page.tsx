@@ -17,11 +17,12 @@ export default async function BudgetsPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const requested = (await searchParams).month;
+  const today = bankReferenceToday();
   const month =
     typeof requested === "string" &&
     /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(requested)
       ? requested
-      : bankReferenceToday().slice(0, 7);
+      : today.slice(0, 7);
   const result = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
     async (client, ownerId) => {
@@ -65,7 +66,7 @@ export default async function BudgetsPage({
           <BudgetCatalog
             budgets={result.budgets}
             categories={result.categories}
-            today={bankReferenceToday()}
+            today={today}
             viewedMonth={month}
           />
         ) : (

@@ -118,6 +118,7 @@ function budgetVersion(value: unknown): value is number {
 export function parseBudgetCommand(
   input: unknown,
   today: string,
+  { checkExceptionWindow = true }: { checkExceptionWindow?: boolean } = {},
 ): BudgetCommand | { error: string } {
   const invalid = { error: "Revisá los datos del presupuesto." };
   if (!input || typeof input !== "object" || Array.isArray(input))
@@ -219,13 +220,16 @@ export function parseBudgetCommand(
     idempotencyKey: commandKey,
   };
   if (action === "exception") {
-    const exceptionMonth = parseBudgetMonth(month, today);
-    if (!exceptionMonth)
+    if (
+      typeof month !== "string" ||
+      !monthPattern.test(month) ||
+      (checkExceptionWindow && !parseBudgetMonth(month, today))
+    )
       return {
         error:
           "La excepción aplica solo al mes actual o a un mes futuro próximo.",
       };
-    return { action, ...target, month: exceptionMonth, amount: decimal };
+    return { action, ...target, month, amount: decimal };
   }
   const code = bankCurrencies.find((item) => item === currency);
   if (!code) return { error: "Elegí UYU, USD o EUR para el límite." };

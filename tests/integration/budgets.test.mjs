@@ -156,15 +156,39 @@ test("F3-06: historial, jerarquía, cuotas fijas, RLS, reintentos y concurrencia
     const customary = (await list("2026-12")).find(
       (x) => x.id === id,
     ).monthlyLimit;
-    await save(
-      {
-        action: "exception",
-        budgetId: id,
-        version: 2,
-        month: "2026-12",
-        amount: "15000",
-      },
-      "2026-12-01",
+    const december = {
+      action: "exception",
+      budgetId: id,
+      version: 2,
+      month: "2026-12",
+      amount: "15000",
+      idempotencyKey: randomUUID(),
+    };
+    assert.equal((await save(december, "2026-12-31")).status, "saved");
+    const retryInJanuary = (data) =>
+      run((c, owner) =>
+        saveBudget(
+          c,
+          owner,
+          parseBudgetCommand(data, "2027-01-01", {
+            checkExceptionWindow: false,
+          }),
+          "2027-01-01",
+        ),
+      );
+    assert.deepEqual(await retryInJanuary(december), {
+      status: "replayed",
+      id,
+    });
+    assert.equal(
+      (
+        await retryInJanuary({
+          ...december,
+          version: 3,
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "conflict",
     );
     assert.equal(
       (await list("2026-12")).find((x) => x.id === id).effectiveLimit,

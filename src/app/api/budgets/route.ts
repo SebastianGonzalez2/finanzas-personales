@@ -24,9 +24,11 @@ export async function POST(request: Request) {
   }
   if (new URL(request.url).search)
     return reply({ error: "Solicitud inválida." }, 400);
+  const today = bankReferenceToday();
   const command = parseBudgetCommand(
     await limitedJson(request).catch(() => null),
-    bankReferenceToday(),
+    today,
+    { checkExceptionWindow: false },
   );
   if ("error" in command) return reply(command, 400);
   try {
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
           },
           409,
         );
-      const result = await saveBudget(client, ownerId, command);
+      const result = await saveBudget(client, ownerId, command, today);
       if (result.status === "conflict")
         return reply({ error: result.message }, 409);
       if (result.status === "not-found")

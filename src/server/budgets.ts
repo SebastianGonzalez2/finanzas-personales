@@ -2,7 +2,11 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { bankReferenceToday } from "../domain/bank-balances.ts";
-import type { Budget, BudgetCommand } from "../domain/budgets.ts";
+import {
+  parseBudgetMonth,
+  type Budget,
+  type BudgetCommand,
+} from "../domain/budgets.ts";
 import { resolveMovementCategory } from "./movements.ts";
 
 export async function budgetsReady(client: pg.PoolClient) {
@@ -72,6 +76,12 @@ export async function saveBudget(
     return receipt.hash === hash
       ? ({ status: "replayed", id: receipt.id } as const)
       : conflict("Ese envío ya se usó con otros datos.");
+  // A response lost on the last day of the month remains replayable after the
+  // month changes. Only new mutations must satisfy the current window.
+  if (command.action === "exception" && !parseBudgetMonth(command.month, today))
+    return conflict(
+      "La excepción aplica solo al mes actual o a un mes futuro próximo.",
+    );
   let id: string;
   if (command.action === "save") {
     const category = await resolveMovementCategory(
