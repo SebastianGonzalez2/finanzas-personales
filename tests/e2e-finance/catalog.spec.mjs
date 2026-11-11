@@ -82,6 +82,7 @@ test("F5-03: autocompletar, unificar y consultar las compras de un comercio", as
       name: "Comercio (opcional)",
     });
     await merchant.fill("TDA.");
+    await expect(merchant).toBeFocused();
     await expect(
       page.getByRole("option", { name: "Tienda Inglesa" }),
     ).toBeVisible();

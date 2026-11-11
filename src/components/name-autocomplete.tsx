@@ -26,7 +26,6 @@ export function NameAutocomplete({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const focused = useRef(false);
 
   useEffect(() => {
     const form = input.current?.form;
@@ -54,8 +53,13 @@ export function NameAutocomplete({
         const data: { entries?: Suggestion[] } = await response.json();
         if (controller.signal.aborted) return;
         const found = data.entries ?? [];
+        const field = input.current;
         setSuggestions(found);
-        setOpen(found.length > 0 && focused.current);
+        setOpen(
+          found.length > 0 &&
+            field !== null &&
+            field.ownerDocument.activeElement === field,
+        );
         setActive(-1);
       } catch {
         // Sin sugerencias el formulario sigue funcionando con texto libre.
@@ -103,12 +107,8 @@ export function NameAutocomplete({
             setActive(-1);
           }}
           onKeyDown={onKeyDown}
-          onBlur={() => {
-            focused.current = false;
-            setOpen(false);
-          }}
+          onBlur={() => setOpen(false)}
           onFocus={() => {
-            focused.current = true;
             if (suggestions.length) setOpen(true);
           }}
           name={name}
