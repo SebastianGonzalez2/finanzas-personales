@@ -45,14 +45,16 @@ export type FundCommand =
       | ({
           action: "update";
           name: string;
-          status: EditableFundStatus;
-        } & FundTarget)
+          targetAmount: string | null;
+          targetDate: string | null;
+        } & FundTarget &
+          Partial<{ status: EditableFundStatus }>)
     ));
 
 const editableStatuses: EditableFundStatus[] = ["active", "paused_manual"];
 const keys = {
   create: ["name", "currency"],
-  update: ["fundId", "version", "name", "status"],
+  update: ["fundId", "version", "name", "status", "targetAmount", "targetDate"],
   reserve: ["fundId", "version", "amount"],
   release: ["fundId", "version", "amount"],
   transfer: [
@@ -85,6 +87,41 @@ export function parseFundAmount(input: unknown) {
   return null;
 }
 
+export function parseFundDate(input: unknown) {
+  if (typeof input !== "string") return null;
+  const value = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  )
+    return null;
+  return value;
+}
+
+/** Whole calendar months between two YYYY-MM-DD dates, at least one. */
+export function monthsUntil(today: string, deadline: string) {
+  const months = (value: string) => {
+    const [year, month] = value.split("-").map(Number);
+    return year * 12 + month;
+  };
+  return Math.max(1, months(deadline) - months(today));
+}
+
+/** Monthly amount needed to close a gap within a whole number of months. */
+export function orientativeMonthlySaving(remaining: string, months: number) {
+  if (!Number.isInteger(months) || months < 1) return null;
+  const units = BigInt(remaining.replace(".", ""));
+  // Round half up to four fractional digits, like the exact amounts.
+  const scaled =
+    (units * BigInt(2) + BigInt(months)) / (BigInt(months) * BigInt(2));
+  const digits = scaled.toString().padStart(5, "0");
+  return `${digits.slice(0, -4)}.${digits.slice(-4)}`;
+}
+
 export function parseFundCommand(
   input: unknown,
 ): FundCommand | { error: string } {
@@ -100,6 +137,8 @@ export function parseFundCommand(
     status,
     idempotencyKey,
     amount,
+    targetAmount,
+    targetDate,
     destinationFundId,
     destinationVersion,
   } = input as Record<string, unknown>;
@@ -175,14 +214,35 @@ export function parseFundCommand(
 
   if (typeof fundId !== "string" || !uuid.test(fundId) || !fundVersion(version))
     return invalid;
-  if (!editableStatuses.includes(status as EditableFundStatus))
+  if (
+    status !== undefined &&
+    !editableStatuses.includes(status as EditableFundStatus)
+  )
     return { error: "Solo podés activar o pausar un fondo desde el catálogo." };
+  const rawTarget =
+    targetAmount === null || targetAmount === "" || targetAmount === undefined
+      ? null
+      : targetAmount;
+  const meta = rawTarget === null ? null : parseFundAmount(rawTarget);
+  if (rawTarget !== null && !meta)
+    return {
+      error: "Ingresá una meta positiva con hasta cuatro decimales, o quitala.",
+    };
+  const rawDeadline =
+    targetDate === null || targetDate === "" || targetDate === undefined
+      ? null
+      : targetDate;
+  const deadline = rawDeadline === null ? null : parseFundDate(rawDeadline);
+  if (rawDeadline !== null && !deadline)
+    return { error: "Ingresá una fecha válida para la meta, o quitála." };
   return {
     action,
     fundId: fundId.toLowerCase(),
     version,
     name: name.trim(),
-    status: status as EditableFundStatus,
+    ...(status === undefined ? {} : { status: status as EditableFundStatus }),
+    targetAmount: meta,
+    targetDate: deadline,
     idempotencyKey: commandKey,
   };
 }

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import { Money } from "@/domain/money";
 import type {
   ContributionChange,
   ContributionPeriod,
@@ -16,7 +17,10 @@ import type {
 } from "@/domain/contribution-plans";
 import {
   fundStatuses,
+  monthsUntil,
+  orientativeMonthlySaving,
   parseFundAmount,
+  parseFundDate,
   type EditableFundStatus,
   type FundAvailability,
   type FundMovement,
@@ -46,6 +50,71 @@ const movementLabels = {
     confirmed: "Traspaso guardado.",
   },
 };
+
+function formatFundAmount(fund: SavingsFund, amount: string) {
+  return formatBankAmount({ currency: fund.currency, amount });
+}
+
+/** Exact remainders and percents computed on the four-digit transport scale. */
+function TargetProgress({
+  fund,
+  today,
+}: {
+  fund: SavingsFund;
+  today?: string;
+}) {
+  const target = fund.targetAmount;
+  if (!target) return null;
+  const units = (amount: string) => BigInt(amount.replace(".", ""));
+  const remaining = Money.parse(target, fund.currency)
+    .add(Money.parse(fund.reservedAmount, fund.currency).negate())
+    .toDecimal();
+  const reached = units(remaining) <= BigInt(0);
+  const percent = (
+    (units(fund.reservedAmount) * BigInt(100)) /
+    units(target)
+  ).toString();
+  return (
+    <div className="grid gap-1 text-sm">
+      <div className="flex flex-wrap justify-between gap-x-2">
+        <span className="text-muted-foreground">Progreso</span>
+        <span className="font-medium tabular-nums">{percent} %</span>
+      </div>
+      {reached ? (
+        <p className="font-medium">Meta alcanzada.</p>
+      ) : (
+        <p>
+          Te faltan {formatFundAmount(fund, remaining)} de{" "}
+          {formatFundAmount(fund, target)}.
+        </p>
+      )}
+      {fund.targetDate &&
+        !reached &&
+        today &&
+        (fund.targetDate < today ? (
+          <p className="font-medium">
+            Pasó la fecha objetivo ({fund.targetDate}); aún faltan{" "}
+            {formatFundAmount(fund, remaining)}.
+          </p>
+        ) : (
+          (() => {
+            const saving = orientativeMonthlySaving(
+              remaining,
+              monthsUntil(today, fund.targetDate),
+            );
+            return (
+              saving && (
+                <p className="text-muted-foreground">
+                  Ahorro mensual orientativo: {formatFundAmount(fund, saving)}{" "}
+                  hasta {fund.targetDate}.
+                </p>
+              )
+            );
+          })()
+        ))}
+    </div>
+  );
+}
 
 export function SavingsFundCatalog({
   funds,
@@ -183,6 +252,7 @@ export function SavingsFundCatalog({
               <FundEntry
                 key={fund.id}
                 fund={fund}
+                today={contributions?.today}
                 editDisabled={editor !== null}
                 edit={(from) => openEditor({ action: "edit", fund }, from)}
                 move={
@@ -205,7 +275,7 @@ export function SavingsFundCatalog({
           </summary>
           <ul className="mt-3 grid gap-3 xl:grid-cols-2">
             {closed.map((fund) => (
-              <FundEntry key={fund.id} fund={fund}>
+              <FundEntry key={fund.id} fund={fund} today={contributions?.today}>
                 {fundContributions(fund)}
               </FundEntry>
             ))}
@@ -218,6 +288,7 @@ export function SavingsFundCatalog({
 
 function FundEntry({
   fund,
+  today,
   edit,
   editDisabled,
   move,
@@ -225,6 +296,7 @@ function FundEntry({
   children,
 }: {
   fund: SavingsFund;
+  today?: string;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   move?: (action: FundAction, from: HTMLButtonElement) => void;
@@ -244,7 +316,9 @@ function FundEntry({
               {fundStatuses[fund.status]}
             </span>
             {edit &&
-              (fund.status === "active" || fund.status === "paused_manual") && (
+              (fund.status === "active" ||
+                fund.status === "paused_manual" ||
+                fund.status === "paused_target_reached") && (
                 <button
                   type="button"
                   disabled={editDisabled}
@@ -285,6 +359,7 @@ function FundEntry({
             </div>
           )}
         </dl>
+        <TargetProgress fund={fund} today={today} />
         {fund.reservedAmount === "0.0000" && fund.status !== "closed" && (
           <p className="text-sm text-muted-foreground">
             Sin dinero reservado todavía.
@@ -502,9 +577,11 @@ function FundEditor({
   fund?: SavingsFund;
   close: (message?: string) => void;
 }) {
+  const reached = fund?.status === "paused_target_reached";
   const [status, setStatus] = useState<EditableFundStatus>(
     fund?.status === "paused_manual" ? "paused_manual" : "active",
   );
+  const [validation, setValidation] = useState("");
   const { send, pending, uncertain, error } = useFinancialCommand(
     "/api/funds",
     "POST",
@@ -518,14 +595,31 @@ function FundEditor({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const fields = { name: form.get("name") };
+    const meta = String(form.get("targetAmount") ?? "").trim();
+    const targetAmount = meta ? parseFundAmount(meta) : null;
+    if (meta && !targetAmount) {
+      setValidation(
+        "Ingresá una meta positiva con hasta cuatro decimales, o quitala.",
+      );
+      return;
+    }
+    const deadline = String(form.get("targetDate") ?? "");
+    const targetDate = deadline ? parseFundDate(deadline) : null;
+    if (deadline && !targetDate) {
+      setValidation("Ingresá una fecha válida para la meta, o quitála.");
+      return;
+    }
+    setValidation("");
     const saved = await send(
       fund
         ? {
             action: "update",
             fundId: fund.id,
             version: fund.version,
-            status,
             ...fields,
+            ...(reached ? {} : { status }),
+            targetAmount,
+            targetDate,
           }
         : { action: "create", currency: form.get("currency"), ...fields },
     );
@@ -579,24 +673,58 @@ function FundEditor({
               </select>
             </label>
           )}
+          {fund &&
+            (reached ? (
+              <p className="text-sm sm:col-span-2">
+                {fundStatuses[fund.status]}. Reactivar las aportaciones
+                automáticas es una decisión expresa desde el aviso.
+              </p>
+            ) : (
+              <label className="grid gap-1 text-sm font-medium sm:col-span-2">
+                Estado
+                <select
+                  className={control}
+                  value={status}
+                  onChange={(event) =>
+                    setStatus(event.target.value as EditableFundStatus)
+                  }
+                >
+                  <option value="active">Activo</option>
+                  <option value="paused_manual">Pausado</option>
+                </select>
+              </label>
+            ))}
           {fund && (
-            <label className="grid gap-1 text-sm font-medium sm:col-span-2">
-              Estado
-              <select
-                className={control}
-                value={status}
-                onChange={(event) =>
-                  setStatus(event.target.value as EditableFundStatus)
-                }
-              >
-                <option value="active">Activo</option>
-                <option value="paused_manual">Pausado</option>
-              </select>
-            </label>
+            <>
+              <label className="grid gap-1 text-sm font-medium">
+                Meta ({fund.currency}, opcional)
+                <input
+                  className={control}
+                  name="targetAmount"
+                  inputMode="decimal"
+                  maxLength={21}
+                  defaultValue={fund.targetAmount ?? ""}
+                  placeholder="Sin meta"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium">
+                Fecha objetivo (opcional)
+                <input
+                  className={control}
+                  name="targetDate"
+                  type="date"
+                  defaultValue={fund.targetDate ?? ""}
+                />
+              </label>
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                Dejalos vacíos para quitar la meta o la fecha. Cambiarlos no
+                mueve dinero ni altera las reservas.
+              </p>
+            </>
           )}
         </fieldset>
-        <p role="alert" className={error ? "text-sm" : "sr-only"}>
-          {error}
+        <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
+          {validation || error}
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="submit" className={primary} disabled={pending}>

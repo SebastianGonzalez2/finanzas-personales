@@ -65,7 +65,7 @@ async function recordFundChange(
   hash: string,
   id: string,
   version: number,
-  configuration: Record<string, string>,
+  configuration: Record<string, string | null>,
 ) {
   await client.query(
     `INSERT INTO finance.fund_changes
@@ -252,12 +252,32 @@ export async function saveSavingsFund(
       return conflict(
         "El fondo cambió. Actualizá la página y revisá su estado.",
       );
+    if (current.status === "paused_target_reached") {
+      if (command.status)
+        return conflict(
+          "Reactivá las aportaciones de forma expresa desde el aviso de meta alcanzada.",
+        );
+      if (command.targetAmount === null)
+        return conflict(
+          "Un fondo con meta alcanzada conserva su meta. Aumentala o cambiála en lugar de quitarla.",
+        );
+    }
+    const status = command.status ?? current.status;
     version = current.version + 1;
     await client.query(
       `UPDATE finance.savings_funds
-          SET name = $3, status = $4, version = $5, updated_at = clock_timestamp()
+          SET name = $3, status = $4, target_amount = $5, target_date = $6,
+              version = $7, updated_at = clock_timestamp()
         WHERE owner_id = $1 AND id = $2`,
-      [ownerId, id, command.name, command.status, version],
+      [
+        ownerId,
+        id,
+        command.name,
+        status,
+        command.targetAmount,
+        command.targetDate,
+        version,
+      ],
     );
   }
 
@@ -270,7 +290,12 @@ export async function saveSavingsFund(
     version,
     command.action === "create"
       ? { name: command.name, currency: command.currency, status: "active" }
-      : { name: command.name, status: command.status },
+      : {
+          name: command.name,
+          ...(command.status ? { status: command.status } : {}),
+          targetAmount: command.targetAmount,
+          targetDate: command.targetDate,
+        },
   );
   return {
     status: command.action === "create" ? "created" : "saved",
