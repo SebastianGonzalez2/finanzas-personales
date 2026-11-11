@@ -24,7 +24,7 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
   await page.getByLabel("Concepto").fill("Seguro sintético de enero");
   await page.getByLabel("Comienza en").fill(firstPeriod);
   await page
-    .getByLabel("Vencimiento", { exact: true })
+    .getByRole("combobox", { name: "Vencimiento", exact: true })
     .selectOption("approximate");
   await page.getByLabel("Importe de referencia (opcional)").fill("125,1234");
   await expect(
