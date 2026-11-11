@@ -108,7 +108,11 @@ test("F3-06: editor, progreso exacto, excepción, cotización y autorización A/
     await entry.getByRole("button", { name: /Cambiar el límite/ }).click();
     await page.getByLabel("Mes de la excepción").selectOption(month);
     await page.getByLabel(/Límite solo para ese mes/).fill("15000");
+    const exception = page.waitForResponse((r) =>
+      r.url().endsWith("/api/budgets"),
+    );
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    expect((await exception).status()).toBe(200);
     await expect(entry).toContainText("15.000,00 UYU");
     await expect(entry).toContainText("12.000,00 UYU");
 

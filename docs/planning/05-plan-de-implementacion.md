@@ -106,7 +106,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F3-04 | Metas monetarias opcionales y fechas, última aportación exacta, pausa automática por meta, reactivación expresa, fondos cerrables con advertencia. | RF-029; CA-040/050 |
 | F3-05 | Cubrir gasto con uno o más fondos y disponible; tarjeta de crédito usa reserva **al pagar** deuda, no al comprar. | RF-030; CA-041 |
 | F3-06 | Presupuestos categoría/subcategoría por moneda y mes, jerarquía, cuotas, edición con historial y excepción temporal. | RF-031/032; CA-042/043. [Implementación y migración](45-presupuestos-f3-06.md). |
-| F3-07 | Avisos internos de presupuestos 80%/100%, metas/fondos y validación de concurrencia. | RF-032/038; CA-042/050 |
+| F3-07 | Avisos internos de presupuestos 80%/100%, metas/fondos y validación de concurrencia. | RF-032/038; CA-042/050. [Implementación y migración](46-avisos-internos-f3-07.md). |
 
 **Puerta F3:** reserva virtual no genera gasto ni débito; ninguna compra gasta más del disponible autorizado; un límite excepcional de diciembre no modifica enero ni meses históricos.
 

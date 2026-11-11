@@ -1,46 +1,33 @@
 # F3-07 — Avisos internos de presupuestos y metas
 
-Parte MIX de OpenCode en `codex/F3-07-avisos-internos` (rama creada sobre
-`codex/F3-06-presupuestos`, que ya contiene `origin/main`). RF-032/038,
-CA-042/050. La persistencia de umbrales, la deduplicación y las pruebas de
-concurrencia quedan para Codex.
+RF-032/038, CA-042/050. El centro `/avisos` muestra los cruces de presupuesto
+del mes calendario en Montevideo, las metas vencidas de los fondos y los
+avisos de aportaciones programadas.
 
-## Comportamiento entregado (mensajes, estados y componentes)
+- Cada cruce conserva el porcentaje entero observado y la moneda del límite.
+  Hay un registro por titular, presupuesto, mes y umbral. Si el primer
+  cruce alcanza 100%, se registra solo ese aviso. Si el 80% ya quedó
+  registrado, ambos avisos se conservan durante el mes.
+- Las compras y cambios que afectan el consumo o los límites evalúan los
+  umbrales en la misma transacción. Al abrir `/avisos` se evalúa también el
+  mes actual para contemplar cuotas ya registradas y el cambio de mes.
+  El cálculo usa el consumo exacto de F3-06, con su jerarquía, cuotas y
+  cotizaciones fijas. Si falta una cotización, se espera a tener el consumo
+  completo.
+- Los avisos de meta se derivan de la fecha objetivo y la reserva vigente.
+  La evaluación de la meta conserva la reserva, el estado del fondo y su
+  programación. El presupuesto es informativo y superar el límite permite
+  seguir registrando compras.
 
-- `src/domain/notices.ts`: estados y mensajes puros de avisos. Porcentaje
-  entero con piso sobre unidades de 4 decimales; 80% advertencia y 100%
-  límite alcanzado (CA-042); meta incumplida cuando la fecha objetivo está
-  vencida y lo reservado es menor que la meta, sin alterar el fondo ni los
-  aportes (CA-050). Sin correos ni servicios externos (RF-032/038).
-- `src/components/notices.tsx`: `NoticeCard`, `BudgetThresholdNotice` y
-  `GoalDueNotice`, con nivel `warning` (ámbar) y `danger` (rojo), enlaces al
-  origen y roles `status`/`alert`.
-- La página `/avisos` agrega secciones «Presupuestos» y «Metas de fondos»
-  junto a las aportaciones existentes, con estado «No tenés avisos nuevos».
-- `/presupuestos` muestra el aviso de 80% y 100% en cada presupuesto; antes
-  solo existía el mensaje de 100%.
-- `/fondos` muestra el aviso de meta incumplida en la tarjeta del fondo.
+## Migración
 
-No hay migraciones ni cambios de esquema, API o movimientos financieros.
-
-## Pendiente de Codex (parte crítica)
-
-- Registrar el cruce de umbral 80%/100% **una sola vez por umbral y mes**
-  (CA-042): hoy el aviso es derivado del consumo corriente, sin historial de
-  avisos. Definir persistencia/migración si corresponde, con SQL exacto,
-  destino, impacto y SHA-256, y aprobación según ADR 0004.
-- Validación de concurrencia del sistema de avisos (comandos simultáneos,
-  idempotencia y deduplicación con datos reales en DB desechable) y pruebas
-  A/B de aislamiento.
-- Integración y E2E dirigidas de los avisos (no ejecutadas localmente por
-  falta del servicio desechable en 127.0.0.1:55432; ver evidencia).
-
-## Evidencia
-
-- `npm run check`: formato, lint, tipos y build correctos.
-- `npm run test:unit`: 53 pruebas correctas, incluidas 6 nuevas de
-  `tests/unit/notices.test.mjs` (umbrales, mensajes, metas vencidas).
-- `npm run test:integration`: no ejecutada en este entorno (sin Docker ni
-  servicio PostgreSQL local); pendiente en CI o entorno con DB desechable.
-- `npm run test:e2e` / `test:e2e:finance`: pendientes de Codex con entorno
-  autenticado.
+- SQL exacto en [0019_F3-07_budget_notices.sql](../../src/db/migrations/0019_F3-07_budget_notices.sql).
+- El destino propuesto es la rama Neon `development` del proyecto, después de `0018`.
+- El SHA-256 es `fe315f450f3956d3ed4ea06fb0ea369a7a64af4c0c4448047677497bd12d5492`.
+- El SQL crea una tabla de avisos con RLS forzada y FK compuesta al
+  presupuesto. El rol de la app puede leer e insertar sus propias filas.
+  La migración parte de una tabla vacía y no modifica registros existentes.
+- La aplicación en Neon requiere autorización específica según
+  [ADR 0004](../adr/0004-google-only-allowlist-auth.md). El SQL se valida en
+  PostgreSQL local desechable. Mientras falta la tabla, las compras y
+  presupuestos funcionan y el centro sigue mostrando metas y aportaciones.

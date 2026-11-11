@@ -85,9 +85,7 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
     await other.addCookies([cookies.b]);
     const otherPage = await other.newPage();
     await otherPage.goto("/avisos");
-    await expect(
-      otherPage.getByText("No tenés aportaciones pendientes."),
-    ).toBeVisible();
+    await expect(otherPage.getByText("No tenés avisos nuevos.")).toBeVisible();
     const forbidden = await other.request.post("/api/funds/contributions", {
       data: { action: "complete", periodId, idempotencyKey: randomUUID() },
       headers: origin,
@@ -143,9 +141,7 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
     page.getByText("Historial de aportaciones", { exact: true }),
   ).toBeVisible();
   await page.goto("/avisos");
-  await expect(
-    page.getByText("No tenés aportaciones pendientes."),
-  ).toBeVisible();
+  await expect(page.getByText("No tenés avisos nuevos.")).toBeVisible();
   await page.getByText("Avisos resueltos", { exact: true }).click();
   await expect(page.getByText(`Completada el ${today}`)).toBeVisible();
   await page.goto("/resumen");

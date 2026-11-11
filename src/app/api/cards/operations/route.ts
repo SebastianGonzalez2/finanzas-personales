@@ -9,6 +9,7 @@ import { mixedPurchasesReady } from "@/server/mixed-purchases";
 import { cardCyclesReady } from "@/server/card-cycles";
 import { creditOperationsReady } from "@/server/movements";
 import { withGoogleOwner } from "@/server/google-auth";
+import { refreshBudgetNotices } from "@/server/budgets";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
 
@@ -95,6 +96,11 @@ export async function POST(request: Request) {
         );
       if (result.status === "conflict")
         return reply({ error: result.message }, 409);
+      if (
+        result.status === "created" &&
+        (revision || command.action === "purchase")
+      )
+        await refreshBudgetNotices(client, ownerId);
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {

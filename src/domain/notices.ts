@@ -3,14 +3,12 @@ import type { Budget } from "./budgets.ts";
 import type { SavingsFund } from "./savings-funds.ts";
 
 // F3-07 (RF-032/038): avisos internos de presupuestos y metas de fondos.
-// Solo estados y mensajes de interfaz; sin correos ni servicios externos.
-// La persistencia de umbrales y la deduplicación «una sola vez por
-// umbral/mes» (CA-042) corresponden a la parte de servidor del ticket.
+// Cálculo y mensajes compartidos por el servidor y la interfaz.
 
 const scale = BigInt(10000);
 
 function decimalUnits(value: string) {
-  if (typeof value !== "string" || value.length > 22) return null;
+  if (typeof value !== "string") return null;
   if (!/^-?\d+(\.\d+)?$/.test(value)) return null;
   const negative = value.startsWith("-");
   const [whole, fraction = ""] = (negative ? value.slice(1) : value).split(".");
@@ -78,7 +76,7 @@ export function budgetAlertMessage(
 ) {
   return state === "danger"
     ? `Llegaste al límite del presupuesto de ${categoryName} este mes (${percent}%). Podés seguir gastando: no se bloquean compras.`
-    : `Llevás gastado el ${percent}% del presupuesto de ${categoryName} este mes.`;
+    : `El consumo llegó al ${percent}% del presupuesto de ${categoryName} este mes.`;
 }
 
 /** Meta incumplida (CA-050): fecha objetivo vencida con reservado por debajo de la meta. */

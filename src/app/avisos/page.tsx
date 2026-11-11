@@ -9,9 +9,9 @@ import {
 } from "@/components/notices";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { contributionPending } from "@/domain/contribution-plans";
-import { budgetAlerts, goalAlerts } from "@/domain/notices";
+import { goalAlerts } from "@/domain/notices";
 import { withGoogleOwner } from "@/server/google-auth";
-import { budgetsReady, listBudgets } from "@/server/budgets";
+import { listBudgetNotices } from "@/server/budgets";
 import { savingsFundsReady } from "@/server/bank-balances";
 import { listSavingsFunds } from "@/server/savings-funds";
 import {
@@ -39,9 +39,7 @@ export default async function NoticesPage() {
       return {
         today,
         periods,
-        budgets: (await budgetsReady(client))
-          ? await listBudgets(client, ownerId, month)
-          : null,
+        budgetNotices: await listBudgetNotices(client, ownerId, month),
         funds: (await savingsFundsReady(client))
           ? await listSavingsFunds(client, ownerId)
           : null,
@@ -56,11 +54,8 @@ export default async function NoticesPage() {
   const periods = result?.periods ?? [];
   const pending = periods.filter(contributionPending);
   const resolved = periods.filter((period) => !contributionPending(period));
-  const budgets = result ? (result.budgets ?? []) : [];
   const funds = result ? (result.funds ?? []) : [];
-  const thresholdAlerts = result
-    ? budgetAlerts(budgets, result.today.slice(0, 7))
-    : [];
+  const thresholdAlerts = result?.budgetNotices ?? [];
   const overdueGoals = result ? goalAlerts(funds, result.today) : [];
   const quiet =
     pending.length === 0 &&
@@ -87,24 +82,32 @@ export default async function NoticesPage() {
                   Presupuestos
                 </h2>
                 <ul className="grid gap-2">
-                  {thresholdAlerts.map(({ budget, state, percent }) => (
-                    <li key={budget.id}>
-                      <NoticeCard
-                        level={state}
-                        href="/presupuestos"
-                        linkLabel="Ver presupuestos"
-                      >
-                        <p className="font-medium">
-                          {budget.categoryName} · {budget.currency}
-                        </p>
-                        <BudgetThresholdNotice
-                          categoryName={budget.categoryName}
-                          percent={percent}
-                          state={state}
-                        />
-                      </NoticeCard>
-                    </li>
-                  ))}
+                  {thresholdAlerts.map(
+                    ({
+                      budgetId,
+                      categoryName,
+                      currency,
+                      threshold,
+                      percent,
+                    }) => (
+                      <li key={`${budgetId}-${threshold}`}>
+                        <NoticeCard
+                          level={threshold === 100 ? "danger" : "warning"}
+                          href="/presupuestos"
+                          linkLabel="Ver presupuestos"
+                        >
+                          <p className="font-medium">
+                            {categoryName} · {currency}
+                          </p>
+                          <BudgetThresholdNotice
+                            categoryName={categoryName}
+                            percent={percent}
+                            state={threshold === 100 ? "danger" : "warning"}
+                          />
+                        </NoticeCard>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </section>
             )}

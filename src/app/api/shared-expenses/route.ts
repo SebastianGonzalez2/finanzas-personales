@@ -2,6 +2,7 @@ import { parseSharedExpense } from "@/domain/shared-expenses";
 import { saveSharedExpense } from "@/server/shared-expenses";
 
 import { withGoogleOwner } from "@/server/google-auth";
+import { refreshBudgetNotices } from "@/server/budgets";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
 
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
         );
       if (result.status === "conflict")
         return reply({ error: result.message }, 409);
+      if (result.status === "created")
+        await refreshBudgetNotices(client, ownerId);
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {
