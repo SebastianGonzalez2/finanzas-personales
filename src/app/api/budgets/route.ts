@@ -1,6 +1,10 @@
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { parseBudgetCommand } from "@/domain/budgets";
-import { budgetsReady, saveBudget } from "@/server/budgets";
+import {
+  budgetsReady,
+  refreshBudgetNotices,
+  saveBudget,
+} from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
@@ -49,6 +53,8 @@ export async function POST(request: Request) {
           { error: "El presupuesto o la categoría no están disponibles." },
           404,
         );
+      if (result.status !== "replayed")
+        await refreshBudgetNotices(client, ownerId, today.slice(0, 7));
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });
   } catch (error) {

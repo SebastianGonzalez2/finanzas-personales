@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
 import {
   parseBudgetAmount,
@@ -10,6 +16,7 @@ import {
 } from "@/domain/budgets";
 import type { MovementCategory } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
+import { BudgetThresholdNotice } from "./notices";
 import { Card } from "./ui/card";
 
 const button =
@@ -60,11 +67,17 @@ export function BudgetCatalog({
   const router = useRouter();
   const [editor, setEditor] = useState<Editor | null>(null);
   const [message, setMessage] = useState("");
+  const [refreshing, startRefresh] = useTransition();
   const add = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const options = monthOptions(today);
   const budgeted = new Set(budgets.map(({ categoryId }) => categoryId));
   const historical = viewedMonth !== today.slice(0, 7);
+  const editingDisabled = editor !== null || historical || refreshing;
+
+  useEffect(() => {
+    if (message && !refreshing) add.current?.focus();
+  }, [message, refreshing]);
 
   function openEditor(next: Editor, from: HTMLButtonElement) {
     trigger.current = from;
@@ -76,12 +89,10 @@ export function BudgetCatalog({
     setEditor(null);
     if (result) {
       setMessage(result);
-      router.refresh();
+      startRefresh(() => router.refresh());
+      return;
     }
-    requestAnimationFrame(() => {
-      const target = result ? add.current : trigger.current;
-      target?.focus();
-    });
+    requestAnimationFrame(() => trigger.current?.focus());
   }
 
   return (
@@ -114,7 +125,7 @@ export function BudgetCatalog({
         ref={add}
         type="button"
         className={`${primary} justify-self-start`}
-        disabled={editor !== null || historical}
+        disabled={editingDisabled}
         onClick={(event) =>
           openEditor({ action: "create" }, event.currentTarget)
         }
@@ -167,7 +178,7 @@ export function BudgetCatalog({
                 key={budget.id}
                 budget={budget}
                 options={options}
-                disabled={editor !== null || historical}
+                disabled={editingDisabled}
                 edit={(from) => openEditor({ action: "edit", budget }, from)}
                 except={(from) =>
                   openEditor({ action: "exception", budget }, from)
@@ -317,11 +328,12 @@ function BudgetEntry({
               El mes siguiente vuelve automáticamente al límite habitual.
             </p>
           )}
-          {percent >= BigInt(100) && (
-            <p className="text-sm text-red-600">
-              Límite del mes alcanzado. Podés seguir gastando: no se bloquean
-              compras.
-            </p>
+          {percent >= BigInt(80) && (
+            <BudgetThresholdNotice
+              categoryName={budget.categoryName}
+              percent={Number(percent)}
+              state={percent >= BigInt(100) ? "danger" : "warning"}
+            />
           )}
         </div>
       </Card>

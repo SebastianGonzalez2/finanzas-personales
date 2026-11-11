@@ -1,4 +1,5 @@
 import { withGoogleOwner } from "@/server/google-auth";
+import { refreshBudgetNotices } from "@/server/budgets";
 import {
   reviseMovement,
   saveBankTransfer,
@@ -13,11 +14,14 @@ export const runtime = "nodejs";
 
 export function POST(request: Request) {
   return handleMovement(request, process.env.GOOGLE_AUTH_ORIGIN, (movement) =>
-    withGoogleOwner(request, async (client, ownerId) =>
-      movement.kind === "bank_transfer"
-        ? saveBankTransfer(client, ownerId, movement)
-        : saveMovement(client, ownerId, movement),
-    ),
+    withGoogleOwner(request, async (client, ownerId) => {
+      if (movement.kind === "bank_transfer")
+        return saveBankTransfer(client, ownerId, movement);
+      const result = await saveMovement(client, ownerId, movement);
+      if (movement.kind === "expense" && result.status === "created")
+        await refreshBudgetNotices(client, ownerId);
+      return result;
+    }),
   );
 }
 
@@ -26,8 +30,11 @@ export function PATCH(request: Request) {
     request,
     process.env.GOOGLE_AUTH_ORIGIN,
     (revision) =>
-      withGoogleOwner(request, (client, ownerId) =>
-        reviseMovement(client, ownerId, revision),
-      ),
+      withGoogleOwner(request, async (client, ownerId) => {
+        const result = await reviseMovement(client, ownerId, revision);
+        if (result.status === "revised")
+          await refreshBudgetNotices(client, ownerId);
+        return result;
+      }),
   );
 }

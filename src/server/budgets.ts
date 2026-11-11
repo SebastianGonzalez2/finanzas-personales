@@ -7,6 +7,7 @@ import {
   type Budget,
   type BudgetCommand,
 } from "../domain/budgets.ts";
+import { budgetAlerts } from "../domain/notices.ts";
 import { resolveMovementCategory } from "./movements.ts";
 
 export async function budgetsReady(client: pg.PoolClient) {
@@ -217,6 +218,72 @@ export async function listBudgets(
       ) cons ON true
      WHERE b.owner_id=$1 AND l.action<>'remove' ORDER BY c.name,b.id`,
     [ownerId, `${month}-01`, month],
+  );
+  return rows;
+}
+
+type BudgetNotice = {
+  budgetId: string;
+  categoryName: string;
+  currency: Budget["currency"];
+  threshold: 80 | 100;
+  percent: number;
+};
+
+// Call after the command's monetary locks. listBudgets serializes evaluation
+// with other observations and configuration changes for this owner.
+export async function refreshBudgetNotices(
+  client: pg.PoolClient,
+  ownerId: string,
+  month = bankReferenceToday().slice(0, 7),
+) {
+  const {
+    rows: [schema],
+  } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.budget_notices') IS NOT NULL AS ready",
+  );
+  if (!schema.ready) return false;
+
+  const alerts = budgetAlerts(await listBudgets(client, ownerId, month), month);
+  if (alerts.length) {
+    const candidates = alerts.map(({ budget, state, percent }) => ({
+      budget_id: budget.id,
+      currency: budget.currency,
+      threshold: state === "danger" ? 100 : 80,
+      percent,
+    }));
+    await client.query(
+      `INSERT INTO finance.budget_notices(owner_id,budget_id,month,threshold,percent,currency)
+       SELECT $1, candidate.budget_id, $2, candidate.threshold, candidate.percent, candidate.currency
+         FROM jsonb_to_recordset($3::jsonb) AS candidate(
+           budget_id uuid, threshold smallint, percent numeric, currency finance.currency)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM finance.budget_notices previous
+           WHERE previous.owner_id=$1 AND previous.budget_id=candidate.budget_id
+             AND previous.month=$2 AND previous.threshold>=candidate.threshold
+        )
+       ON CONFLICT (owner_id,budget_id,month,threshold) DO NOTHING`,
+      [ownerId, `${month}-01`, JSON.stringify(candidates)],
+    );
+  }
+  return true;
+}
+
+export async function listBudgetNotices(
+  client: pg.PoolClient,
+  ownerId: string,
+  month: string,
+): Promise<BudgetNotice[] | null> {
+  if (!(await refreshBudgetNotices(client, ownerId, month))) return null;
+  const { rows } = await client.query<BudgetNotice>(
+    `SELECT n.budget_id AS "budgetId", c.name AS "categoryName", n.currency,
+            n.threshold, n.percent::float8 AS percent
+       FROM finance.budget_notices n
+       JOIN finance.budget_limits b ON (b.owner_id,b.id)=(n.owner_id,n.budget_id)
+       JOIN finance.categories c ON (c.owner_id,c.id)=(b.owner_id,b.category_id)
+      WHERE n.owner_id=$1 AND n.month=$2
+      ORDER BY n.threshold DESC,n.percent DESC,c.name,n.budget_id`,
+    [ownerId, `${month}-01`],
   );
   return rows;
 }
