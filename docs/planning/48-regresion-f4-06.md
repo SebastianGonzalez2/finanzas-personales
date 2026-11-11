@@ -1,10 +1,8 @@
 # F4-06 · Regresión de calendario y horarios
 
-I-09 y CA-044…049. Esta entrega es la parte **MIX** asignada a OpenCode: matriz
-de fechas, husos horarios, meses omitidos, reintentos base, pagos tardíos y
-facturas sin importe definitivo, con pruebas unitarias puras y sin efectos
-bancarios. La validación de idempotencia real, concurrencia y regresión contra
-PostgreSQL queda asignada a Codex.
+I-09 y CA-044…049. La matriz unitaria de OpenCode se complementa con
+regresiones de idempotencia, concurrencia y aislamiento en PostgreSQL 17.6
+desechable y con una prueba de navegador en el huso de Montevideo.
 
 ## Alcance cubierto
 
@@ -20,21 +18,37 @@ La suite `tests/unit/recurrence-calendar-matrix.test.mjs` cubre:
 | Factura sin importe definitivo | Total desconocido no inventa restante ni cierra; cierre final exacto; aviso sin importe inventado. |
 | Reintentos base | La misma solicitud y un reintento equivalente se normalizan al mismo comando, con importes exactos e identificadores en minúsculas. |
 
+## Regresión de integración y navegador
+
+- PostgreSQL: se omite diciembre de 2027 y se confirma en febrero de 2028 una
+  factura de enero con referencia de 300 UYU. Un reintento equivalente devuelve
+  el mismo evento y reutilizar su clave con otra fecha da conflicto. Dos pagos
+  finales con claves distintas y la misma versión del período producen un solo
+  pago. Los dos pagos válidos suman 200 UYU en Bancos y en febrero, conservan el
+  vínculo con enero y dejan previsto febrero con vencimiento el día 29.
+- Avisos y titularidad: diciembre omitido y enero liquidado quedan fuera de los
+  avisos. El aviso de enero durante el pago parcial carece de un importe pendiente
+  mientras se desconoce el total. Un segundo titular recibe `not-found` al
+  reintentar el pago y RLS oculta los recibos de la serie.
+- Chromium, escritorio y móvil: dos sesiones del mismo titular reciben
+  `201` y `200` para el mismo pago. Recurrentes muestra un solo movimiento y
+  permite cerrar la factura por el importe efectivamente pagado. Avisos retira
+  el recordatorio y Bancos refleja un solo débito.
+- La regresión de fase incluye el alta con comienzo futuro, sueldo definitivo
+  menor a la referencia, depósitos parciales, pausas, alquiler compartido y
+  avisos por fecha cierta (CA-044…049).
+
 ## Verificación
 
 ```text
+npm run check
 npm run test:unit
-npm run test:unit -- tests/unit/recurrence-calendar-matrix.test.mjs
+npm run test:integration
+npm run test:e2e:finance
 ```
 
-No hay migraciones, cambios de esquema ni escrituras en Neon.
+Las suites con datos usan el servicio PostgreSQL local definido en
+[`docs/testing.md`](../testing.md). F4-06 agrega pruebas y documentación.
 
-## Pendiente para Codex
-
-- Reintento concurrente y conflicto de idempotencia contra PostgreSQL.
-- Aislamiento por titular, bloqueo y orden de comandos en la base real.
-- Regresión de pagos tardíos y omisiones con movimientos y bancos reales.
-- Verificación E2E de recurrentes y avisos bajo el huso de Montevideo.
-- Rebase/retarget de la rama cuando se integren F4-02…F4-05: esta rama parte
-  de `origin/codex/F4-05-centro-avisos` porque esas dependencias aún no están
-  en `origin/main`.
+La revisión queda apilada sobre F4-05 (PR #47). La integración de la cadena
+F4-02…F4-05 en `main` precede al cambio de base de esta PR.

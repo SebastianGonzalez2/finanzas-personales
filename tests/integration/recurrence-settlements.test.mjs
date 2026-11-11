@@ -13,6 +13,7 @@ import {
   saveBalanceAdjustment,
   saveOpeningBalance,
 } from "../../src/server/bank-balances.ts";
+import { listRecurrenceDueNotices } from "../../src/server/due-notices.ts";
 import {
   listMovementTotals,
   reviseMovement,
@@ -657,6 +658,135 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         assert.equal(paid.status, "created");
         assert.equal(await balance(), "105978.1234");
         assert.equal(await total("2026-12-01", "expense"), "1234.0000");
+      },
+    );
+
+    await t.test(
+      "F4-06: diciembre omitido y factura de enero pagada en febrero bisiesto",
+      async () => {
+        const payer = randomUUID();
+        const read = (work) => run(work, payer);
+        const at = "2028-02-26";
+        const series = await create(
+          "expense",
+          { firstPeriod: "2027-12-01", dueDay: 31, referenceAmount: "300" },
+          payer,
+        );
+        const periods = () =>
+          read((c, id) => trackedPeriods(c, id, series, [0, 1, 2]));
+        const notices = () =>
+          read((c, id) => listRecurrenceDueNotices(c, id, at));
+        const bank = async () => {
+          const [row] = await read(listBankBalances);
+          return row.calculatedAmount ?? row.amount;
+        };
+        const settle = (fields, user = payer) =>
+          apply(series, fields, user, at);
+        assert.equal(
+          await read((c, id) => saveOpeningBalance(c, id, opening)),
+          "created",
+        );
+        const [december, january] = await periods();
+        assert.equal(
+          (await settle({ action: "omit", target: target(december) })).status,
+          "created",
+        );
+        assert.equal(await bank(), "10000.0000");
+        assert.deepEqual(
+          (await notices()).map(({ dueOn }) => dueOn),
+          ["2028-01-31", "2028-02-29"],
+        );
+
+        const first = {
+          ...record(january, "125.1234", "2028-02-02", {}, "transfer"),
+          idempotencyKey: randomUUID(),
+        };
+        const [original, retry] = await Promise.all([
+          settle(first),
+          settle({
+            ...first,
+            idempotencyKey: first.idempotencyKey.toUpperCase(),
+          }),
+        ]);
+        assert.deepEqual([original.status, retry.status].sort(), [
+          "created",
+          "replayed",
+        ]);
+        assert.equal(original.id, retry.id);
+        assert.equal((await settle(first, other)).status, "not-found");
+        assert.equal(
+          (await settle({ ...first, effectiveOn: at })).status,
+          "conflict",
+        );
+        const [, partial] = await periods();
+        assert.equal(partial.status, "partial");
+        assert.equal(partial.confirmedTotal, null);
+        assert.equal(partial.remaining, null);
+        assert.equal(await bank(), "9874.8766");
+        const [januaryNotice] = await notices();
+        assert.equal(januaryNotice.dueOn, "2028-01-31");
+        assert.equal(januaryNotice.amount, null);
+
+        // Dos solicitudes distintas compiten por la misma versión del período.
+        const finalPayment = record(
+          partial,
+          "74.8766",
+          at,
+          { final: true },
+          "transfer",
+        );
+        const results = await Promise.all([
+          settle(finalPayment),
+          settle(finalPayment),
+        ]);
+        assert.deepEqual(results.map(({ status }) => status).sort(), [
+          "conflict",
+          "created",
+        ]);
+        const [skipped, completed, february] = await periods();
+        assert.equal(skipped.status, "skipped");
+        assert.equal(skipped.events.length, 0);
+        assert.equal(completed.status, "completed");
+        assert.equal(completed.key, "2028-01");
+        assert.equal(completed.dueOn, "2028-01-31");
+        assert.equal(completed.confirmedTotal, "200.0000");
+        assert.deepEqual(
+          completed.events.map(({ effectiveOn, amount }) => [
+            effectiveOn,
+            amount,
+          ]),
+          [
+            [at, "74.8766"],
+            ["2028-02-02", "125.1234"],
+          ],
+        );
+        assert.equal(february.status, "expected");
+        assert.equal(await bank(), "9800.0000");
+        assert.deepEqual(
+          (await notices()).map(({ dueOn }) => dueOn),
+          ["2028-02-29"],
+        );
+        assert.deepEqual(
+          await read((c, id) => listMovementTotals(c, id, "2028-01-01")),
+          [],
+        );
+        assert.deepEqual(
+          (await read((c, id) => listMovementTotals(c, id, "2028-02-01"))).map(
+            ({ kind, amount }) => [kind, amount],
+          ),
+          [["expense", "200.0000"]],
+        );
+        const receipts = (user) =>
+          run(
+            (c) =>
+              c.query(
+                "SELECT id FROM finance.recurring_commands WHERE series_id = $1",
+                [series.id],
+              ),
+            user,
+          );
+        assert.equal((await receipts(payer)).rowCount, 3);
+        assert.equal((await receipts(other)).rowCount, 0);
       },
     );
   } finally {

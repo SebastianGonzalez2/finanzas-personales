@@ -19,6 +19,100 @@ function monthBefore(today, offset) {
     .slice(0, 10);
 }
 
+test.describe("Calendario de Montevideo", () => {
+  test.use({ timezoneId: "America/Montevideo" });
+
+  test("F4-06: pago tardío, reintento y cierre de una factura variable", async ({
+    page,
+    context,
+    browser,
+  }) => {
+    const { cookies } = await financeBrowserFixtures();
+    await context.addCookies([cookies.a1]);
+    const today = bankReferenceToday();
+    const firstPeriod = monthBefore(today, 1);
+    const concept = "Factura variable sintética";
+    expect(
+      (
+        await post(context, "/api/bank-balances", {
+          currency: "UYU",
+          amount: "1000",
+          asOfDate: firstPeriod,
+        })
+      ).status(),
+    ).toBe(201);
+    const definition = await post(context, "/api/recurrences", {
+      kind: "expense",
+      concept,
+      currency: "UYU",
+      firstPeriod,
+      endDate: firstPeriod,
+      dateMode: "exact",
+      dueDay: 1,
+      referenceAmount: "300",
+      idempotencyKey: randomUUID(),
+    });
+    expect(definition.status()).toBe(201);
+    const { id } = await definition.json();
+    const payment = {
+      action: "record",
+      seriesId: id,
+      idempotencyKey: randomUUID(),
+      method: "transfer",
+      effectiveOn: today,
+      amount: "125.50",
+      targets: [{ index: 0, version: 0, recorded: "0", amount: "125.50" }],
+    };
+    const second = await browser.newContext({ baseURL: financeTestOrigin });
+    try {
+      await second.addCookies([cookies.a2]);
+      const responses = await Promise.all([
+        post(context, path, payment),
+        post(second, path, payment),
+      ]);
+      expect(responses.map((response) => response.status()).sort()).toEqual([
+        200, 201,
+      ]);
+      const [original, retry] = await Promise.all(
+        responses.map((response) => response.json()),
+      );
+      expect(original.id).toBe(retry.id);
+    } finally {
+      await second.close();
+    }
+
+    await page.goto("/avisos");
+    const notices = page.getByRole("region", { name: "Recurrentes" });
+    const notice = notices.getByRole("listitem").filter({ hasText: concept });
+    await expect(notice).toHaveCount(1);
+    await expect(notice.getByRole("status")).toContainText("ya pasó");
+    await expect(notice).not.toContainText(/Importe|300,00/);
+    await notice.getByRole("link", { name: "Ver recurrentes" }).click();
+    const period = page.locator(`#periodo-${id}-0`);
+    await expect(period).toContainText(firstPeriod.slice(0, 7));
+    await expect(period).toContainText("Pago parcial");
+    await expect(period).not.toContainText("Restante");
+    await expect(
+      period
+        .getByRole("list", { name: "Movimientos vinculados" })
+        .getByRole("link"),
+    ).toHaveCount(1);
+    await period.getByRole("button", { name: "Confirmar total" }).click();
+    await period.getByLabel("Con esto queda pagado el período").check();
+    await period
+      .getByRole("button", { name: "Confirmar", exact: true })
+      .click();
+    await expect(period).toContainText("Total definitivo");
+    await expect(period).toContainText("125,50 UYU");
+    await page.goto("/avisos");
+    await expect(notice).toHaveCount(0);
+    await page.goto("/resumen");
+    await expect(
+      page.getByRole("list", { name: "Saldos bancarios por moneda" }),
+    ).toContainText("874,50 UYU");
+  });
+});
+
 test("F4-03: omite un período, cambia el día futuro y reanuda la serie", async ({
   page,
   context,
