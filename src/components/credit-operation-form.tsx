@@ -114,7 +114,9 @@ export function CreditOperationForm({
   const [effectiveOn, setEffectiveOn] = useState(
     correction?.effectiveOn ?? today,
   );
-  const [debitAmount, setDebitAmount] = useState(correction?.debitAmount ?? "");
+  const [debitAmount, setDebitAmount] = useState(
+    correction?.debitAmount.replace(".", ",") ?? "",
+  );
   const [financed, setFinanced] = useState(!!correction?.plan);
   const [mixed, setMixed] = useState(!!correction);
   const [split, setSplit] = useState(!!correction?.categories.length);
@@ -757,7 +759,7 @@ function PaymentFields({
   const [bank, setBank] = useState<string>(
     requireBankSelection ? "" : banks.includes(currency) ? currency : banks[0],
   );
-  const [debit, setDebit] = useState(suggestedAmount ?? "");
+  const [debit, setDebit] = useState(suggestedAmount?.replace(".", ",") ?? "");
   const [foreignDebit, setForeignDebit] = useState("");
   const [fee, setFee] = useState("");
   const [funds, setFunds] = useState<Record<string, string>>({});
