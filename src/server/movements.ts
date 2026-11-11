@@ -1,4 +1,5 @@
 import "server-only";
+import { validRecurringRevision } from "./recurrence-links.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import {
   isSharedExpense,
@@ -495,6 +496,7 @@ async function insertMovement(
 }
 
 type RevisionResult =
+  | { status: "recurrence-conflict" }
   | Replay
   | { status: "invalid-coverage"; message: string }
   | Shortfall
@@ -568,6 +570,11 @@ export async function reviseMovement(
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
   const { currency, kind, effectiveOn } = original;
+  if (
+    amount !== null &&
+    !(await validRecurringRevision(client, ownerId, eventId, amount, currency))
+  )
+    return { status: "recurrence-conflict" };
   const [balance] = await listBankAvailability(
     client,
     ownerId,
@@ -703,6 +710,17 @@ async function editMovement(
   if (!original) return { status: "not-found" };
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.kind !== movement.kind) return { status: "invalid-kind" };
+  if (
+    !transfer &&
+    !(await validRecurringRevision(
+      client,
+      ownerId,
+      eventId,
+      movement.amount,
+      movement.currency,
+    ))
+  )
+    return { status: "recurrence-conflict" };
 
   const newEffects: { currency: Currency; signed: string }[] = transfer
     ? [
