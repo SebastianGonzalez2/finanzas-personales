@@ -25,6 +25,7 @@ import { sharedExpensesReady } from "../../src/server/shared-expense-schema.ts";
 import { saveLoanOperation, findLoan } from "../../src/server/loans.ts";
 import { loansReady } from "../../src/server/movements.ts";
 import { refundsReady } from "../../src/server/refund-schema.ts";
+import { budgetsReady } from "../../src/server/budgets.ts";
 import {
   fundLifecycleReady,
   reserveEffectsReady,
@@ -64,6 +65,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0017_F3-03_scheduled_contributions.sql",
       "0018_F3-04_fund_targets.sql",
       "0019_F3-05_fund_coverage.sql",
+      "0020_F3-06_monthly_budgets.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -79,7 +81,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F3-05: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F3-06: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -104,6 +106,7 @@ test("F3-05: aplica solo el SQL autorizado y conserva el historial previo", asyn
       contributions,
       targets,
       coverage,
+      budgets,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -341,12 +344,20 @@ test("F3-05: aplica solo el SQL autorizado y conserva el historial previo", asyn
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [targets.version, targets.sha256],
     );
-    assert.deepEqual(await migrateInTransaction(client, coverage.sha256), [
-      coverage.version,
+    await assert.rejects(migrateInTransaction(client, coverage.sha256));
+    await client.query(coverage.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [coverage.version, coverage.sha256],
+    );
+    assert.equal(await budgetsReady(client), false);
+    assert.deepEqual(await migrateInTransaction(client, budgets.sha256), [
+      budgets.version,
     ]);
-    assert.deepEqual(await migrateInTransaction(client, coverage.sha256), []);
+    assert.deepEqual(await migrateInTransaction(client, budgets.sha256), []);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await fundLifecycleReady(client), true);
+    assert.equal(await budgetsReady(client), true);
     assert.equal(await sharedExpensesReady(client), true);
     assert.equal(await refundsReady(client), true);
     assert.equal(await savingsFundsReady(client), true);
