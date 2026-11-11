@@ -13,7 +13,7 @@ const conflict = (message: string) =>
 
 const loanFields = `l.id, f.concept, l.direction, l.currency,
   l.installment_loan AS "installmentLoan", l.installment_amount::text AS "installmentAmount",
-  l.frequency, to_char(l.due_on, 'YYYY-MM-DD') AS "dueOn",
+  l.frequency, to_char(l.due_on, 'YYYY-MM-DD') AS "dueOn", l.notice_lead_days AS "noticeLeadDays",
   o.outstanding::text, o.accrued_interest::text AS "accruedInterest",
   o.needs_reconciliation AS "needsReconciliation", o.version,
   to_char(latest.effective_on, 'YYYY-MM-DD') AS "effectiveOn"`;
@@ -306,8 +306,8 @@ export async function saveLoanOperation(
   );
   if (!("loanId" in command)) {
     await client.query(
-      `INSERT INTO finance.loans (owner_id, id, direction, currency, installment_loan, installment_amount, frequency, due_on)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO finance.loans (owner_id, id, direction, currency, installment_loan, installment_amount, frequency, due_on, notice_lead_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         ownerId,
         id,
@@ -317,6 +317,7 @@ export async function saveLoanOperation(
         command.installmentAmount,
         command.frequency,
         command.dueOn,
+        command.noticeLeadDays,
       ],
     );
   }
