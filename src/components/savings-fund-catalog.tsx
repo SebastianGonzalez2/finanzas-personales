@@ -23,6 +23,7 @@ import {
   type SavingsFund,
 } from "@/domain/savings-funds";
 import { useFinancialCommand } from "./financial-command";
+import { coverageDecimal, coverageUnits } from "@/domain/fund-coverage";
 import { FundContributions } from "./fund-contributions";
 import { Card } from "./ui/card";
 
@@ -267,6 +268,36 @@ function FundEntry({
               })}
             </dd>
           </div>
+          {fund.committedAmount &&
+            coverageUnits(fund.committedAmount) > BigInt(0) && (
+              <>
+                <div className="flex flex-wrap justify-between gap-x-2">
+                  <dt className="text-muted-foreground">
+                    Comprometido con tarjeta
+                  </dt>
+                  <dd>
+                    {formatBankAmount({
+                      currency: fund.currency,
+                      amount: fund.committedAmount,
+                    })}
+                  </dd>
+                </div>
+                <div className="flex flex-wrap justify-between gap-x-2">
+                  <dt className="text-muted-foreground">
+                    Reserva sin comprometer
+                  </dt>
+                  <dd>
+                    {formatBankAmount({
+                      currency: fund.currency,
+                      amount: coverageDecimal(
+                        coverageUnits(fund.reservedAmount) -
+                          coverageUnits(fund.committedAmount),
+                      ),
+                    })}
+                  </dd>
+                </div>
+              </>
+            )}
           {fund.targetAmount && (
             <div className="flex flex-wrap justify-between gap-x-2">
               <dt className="text-muted-foreground">Meta</dt>

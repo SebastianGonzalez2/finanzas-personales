@@ -12,7 +12,10 @@ import type {
   OpeningDebt,
   PurchaseCategory,
 } from "../domain/credit-operations.ts";
-import { bankReferenceToday } from "../domain/bank-balances.ts";
+import {
+  bankReferenceToday,
+  formatBankAmount,
+} from "../domain/bank-balances.ts";
 import {
   installmentPeriodAt,
   installmentTotal,
@@ -36,18 +39,28 @@ import {
   refundsReady,
 } from "./refund-schema.ts";
 
+import {
+  applyFundDeltas,
+  commitmentTotals,
+  commitmentsFit,
+  fundCoverageReady,
+  listEventFundUses,
+  planFundExpense,
+  recordEventFundUses,
+} from "./fund-coverage.ts";
+import {
+  coverageDecimal,
+  coverageSum,
+  coverageUnits,
+  type FundUse,
+} from "../domain/fund-coverage.ts";
+
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 const zero = "0.0000";
 const maxUnits = BigInt("99999999999999999999");
-const units = (amount: string) => {
-  const [whole, fraction = ""] = amount.split(".");
-  return BigInt(whole + fraction.padEnd(4, "0"));
-};
-const decimal = (units: bigint) => {
-  const digits = units.toString().padStart(5, "0");
-  return digits.slice(0, -4) + "." + digits.slice(-4);
-};
+const units = coverageUnits;
+const decimal = coverageDecimal;
 
 export async function lockCardWrites(client: pg.PoolClient, ownerId: string) {
   await client.query(
@@ -283,6 +296,7 @@ export async function listCreditPurchaseOptions(
   ownerId: string,
 ) {
   const refunds = await refundsReady(client);
+  const coverage = await fundCoverageReady(client);
   const available = refunds
     ? "l.amount - coalesce(used.total, 0) - coalesce(credited.amount, 0) + coalesce(applied.delta, 0)"
     : "l.amount - coalesce(used.total, 0)";
@@ -290,8 +304,21 @@ export async function listCreditPurchaseOptions(
     `SELECT f.id, l.card_id AS "cardId", f.concept, l.currency,
             to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn",
             (${available})::text AS amount
+            ${
+              coverage
+                ? `, CASE WHEN committed.remaining > 0 THEN jsonb_build_object(
+              'fundId', committed.fund_id, 'name', fund.name, 'amount', committed.remaining::text) END AS commitment`
+                : ""
+            }
        FROM finance.credit_lines l
        JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
+       ${
+         coverage
+           ? `LEFT JOIN finance.fund_purchase_commitments committed
+         ON (committed.owner_id, committed.purchase_id, committed.currency) = (l.owner_id, l.event_id, l.currency)
+       LEFT JOIN finance.savings_funds fund ON (fund.owner_id, fund.id) = (committed.owner_id, committed.fund_id)`
+           : ""
+       }
        LEFT JOIN LATERAL (
          SELECT sum(a.amount) AS total
            FROM finance.credit_allocations a
@@ -334,8 +361,72 @@ export async function voidCreditOperation(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  const restored = (await listEventFundUses(client, ownerId, eventId)).filter(
+    ({ purpose }) => purpose !== "commitment",
+  );
+  const before = restored.length
+    ? await listBankAvailability(client, ownerId, [
+        ...new Set(restored.map(({ currency }) => currency)),
+      ])
+    : [];
+  await client.query("SAVEPOINT fund_credit_void");
   const blocked = await reverseCreditDebt(client, ownerId, eventId);
-  return blocked ?? recordRevision(client, ownerId, command, hash, null);
+  if (blocked) {
+    await client.query("ROLLBACK TO SAVEPOINT fund_credit_void");
+    await client.query("RELEASE SAVEPOINT fund_credit_void");
+    return blocked;
+  }
+  const revision = await recordRevision(client, ownerId, command, hash, null);
+  let problem: string | undefined;
+  for (const { currency } of before) {
+    const plan = await planFundExpense(
+      client,
+      ownerId,
+      currency,
+      "0",
+      [],
+      restored.filter((use) => use.currency === currency),
+    );
+    if ("error" in plan) {
+      problem = plan.error;
+      break;
+    }
+    await applyFundDeltas(client, ownerId, plan.deltas);
+  }
+  if (!problem && !(await commitmentsFit(client, ownerId)))
+    problem =
+      "No hay reserva suficiente para restablecer el compromiso de la compra.";
+  if (
+    !problem &&
+    before.length &&
+    (await worsensShortfall(client, ownerId, before))
+  )
+    problem =
+      "El disponible libre no permite restablecer la reserva sin modificar el saldo confirmado.";
+  if (problem) await client.query("ROLLBACK TO SAVEPOINT fund_credit_void");
+  await client.query("RELEASE SAVEPOINT fund_credit_void");
+  return problem ? conflict(problem) : revision;
+}
+
+async function worsensShortfall(
+  client: pg.PoolClient,
+  ownerId: string,
+  before: Awaited<ReturnType<typeof listBankAvailability>>,
+) {
+  const after = await listBankAvailability(
+    client,
+    ownerId,
+    before.map(({ currency }) => currency),
+  );
+  return after.some(
+    (balance) =>
+      units(balance.availableAmount) < BigInt(0) &&
+      units(balance.availableAmount) <
+        units(
+          before.find(({ currency }) => currency === balance.currency)!
+            .availableAmount,
+        ),
+  );
 }
 
 async function reverseCreditDebt(
@@ -507,6 +598,8 @@ async function applyMixedPurchase(
   hash: string,
   id: string,
 ) {
+  let prior: FundUse[] = [];
+  let originalBanks: Awaited<ReturnType<typeof listBankAvailability>> = [];
   if (mixed.correction) {
     const { eventId, planVersion } = mixed.correction;
     const {
@@ -565,6 +658,16 @@ async function applyMixedPurchase(
       return conflict(
         "Restablecé las asignaciones manuales de la compra al resumen antes de corregirla.",
       );
+    prior = await listEventFundUses(client, ownerId, eventId);
+    const currencies = [
+      ...new Set(
+        prior
+          .filter(({ purpose }) => purpose === "expense")
+          .map(({ currency }) => currency),
+      ),
+    ];
+    if (currencies.length)
+      originalBanks = await listBankAvailability(client, ownerId, currencies);
     const blocked = await reverseCreditDebt(client, ownerId, eventId);
     if (blocked) return blocked;
     await client.query(
@@ -578,11 +681,26 @@ async function applyMixedPurchase(
       id,
     );
   }
-  const result = await applyCreditOperation(client, ownerId, command, hash, id);
-  if (mixed.correction && result.status === "created")
+  const result = await applyCreditOperation(
+    client,
+    ownerId,
+    command,
+    hash,
+    id,
+    prior,
+  );
+  if (mixed.correction && result.status === "created") {
+    if (
+      originalBanks.length &&
+      (await worsensShortfall(client, ownerId, originalBanks))
+    )
+      return conflict(
+        "El disponible libre no permite restablecer la reserva sin modificar el saldo confirmado.",
+      );
     await client.query(
       "SET CONSTRAINTS finance.audit_changes_owner_id_replacement_event_id_fkey IMMEDIATE",
     );
+  }
   return result;
 }
 
@@ -592,6 +710,7 @@ async function applyCreditOperation(
   command: CreditCommand,
   hash: string,
   eventId?: string,
+  prior: FundUse[] = [],
 ) {
   const { cardId, effectiveOn, idempotencyKey, action } = command;
   const {
@@ -622,6 +741,9 @@ async function applyCreditOperation(
   const event = { cardId, effectiveOn, idempotencyKey };
   if (action === "payment") {
     const bankDebits = new Map<Currency, bigint>();
+    const fundDebits = new Map<Currency, bigint>();
+    const fundDeltas = new Map<string, bigint>();
+    const commitments = await commitmentTotals(client, ownerId, cardId);
     const lines: RecordedLine[] = [];
     const purchases = command.lines.some(
       ({ allocations }) => allocations.length,
@@ -686,12 +808,68 @@ async function applyCreditOperation(
           return conflict(
             "Una compra elegida ya no está disponible por ese importe.",
           );
+        const remaining = units(purchase.commitment?.amount ?? zero);
+        const fundAmount = units(allocation.fund?.amount ?? zero);
+        if (allocation.fund) {
+          if (
+            currency !== bankCurrency ||
+            allocation.fund.fundId !== purchase.commitment?.fundId ||
+            fundAmount > remaining ||
+            fundAmount > applied
+          )
+            return conflict(
+              "Revisá el fondo comprometido y el importe asignado a la compra.",
+            );
+          fundDebits.set(
+            bankCurrency,
+            (fundDebits.get(bankCurrency) ?? BigInt(0)) + fundAmount,
+          );
+          fundDeltas.set(
+            allocation.fund.fundId,
+            (fundDeltas.get(allocation.fund.fundId) ?? BigInt(0)) - fundAmount,
+          );
+        }
+        const stillOwed = units(purchase.amount) - applied;
+        const stillReserved = remaining - fundAmount;
+        const after = stillOwed < stillReserved ? stillOwed : stillReserved;
+        commitments.set(
+          currency,
+          (commitments.get(currency) ?? BigInt(0)) - (remaining - after),
+        );
         allocated += applied;
       }
+      if (
+        units(position.debt) - paid <
+        (commitments.get(currency) ?? BigInt(0))
+      )
+        return conflict(
+          "Asigná el pago a las compras comprometidas que estás pagando.",
+        );
       if (allocated > paid)
         return conflict(
           "La asignación a compras supera el pago en esa moneda.",
         );
+      const direct = line.fundPortions ?? [];
+      if (direct.length) {
+        if (bankCurrency !== currency)
+          return conflict(
+            "Usá fondos de la misma moneda del pago y de la deuda.",
+          );
+        const plan = await planFundExpense(
+          client,
+          ownerId,
+          currency,
+          decimal(paid - allocated),
+          direct,
+        );
+        if ("error" in plan) return conflict(plan.error);
+        for (const { fundId, delta } of plan.deltas)
+          fundDeltas.set(fundId, (fundDeltas.get(fundId) ?? BigInt(0)) + delta);
+        fundDebits.set(
+          currency,
+          (fundDebits.get(currency) ?? BigInt(0)) + coverageSum(direct),
+        );
+      }
       bankDebits.set(
         bankCurrency,
         (bankDebits.get(bankCurrency) ?? BigInt(0)) +
@@ -717,8 +895,21 @@ async function applyCreditOperation(
           `El importe bancario total en ${currency} está fuera de rango.`,
         );
       // A bank anchor already includes payments before its date.
-      if (effectiveOn >= bank.asOfDate && debit > units(bank.availableAmount))
-        return conflict(`Disponible libre insuficiente en ${currency}.`);
+      const fundDebit = fundDebits.get(currency) ?? BigInt(0);
+      const freeDebit = debit - fundDebit;
+      if (effectiveOn >= bank.asOfDate) {
+        const free = units(bank.availableAmount);
+        const freeGap = freeDebit - (free > BigInt(0) ? free : BigInt(0));
+        const bankGap =
+          fundDebit > BigInt(0)
+            ? debit - units(bank.calculatedAmount ?? bank.amount)
+            : BigInt(0);
+        const gap = freeGap > bankGap ? freeGap : bankGap;
+        if (gap > BigInt(0))
+          return conflict(
+            `Disponible libre insuficiente en ${currency}. Faltan ${formatBankAmount({ currency, amount: decimal(gap) })} para cubrir el pago.`,
+          );
+      }
     }
     const id = await insertCreditEvent(
       client,
@@ -732,6 +923,29 @@ async function applyCreditOperation(
       hash,
       bankDebits,
     );
+    for (const line of command.lines) {
+      await recordEventFundUses(
+        client,
+        ownerId,
+        id,
+        line.currency,
+        line.fundPortions ?? [],
+        "payment",
+      );
+      for (const { purchaseId, fund } of line.allocations) {
+        if (!fund) continue;
+        await client.query(
+          `INSERT INTO finance.fund_payment_allocations (owner_id, payment_id, purchase_id, fund_id, currency, amount)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [ownerId, id, purchaseId, fund.fundId, line.currency, fund.amount],
+        );
+      }
+    }
+    await applyFundDeltas(
+      client,
+      ownerId,
+      [...fundDeltas].map(([fundId, delta]) => ({ fundId, delta })),
+    );
     return { status: "created", id } as const;
   }
 
@@ -740,6 +954,14 @@ async function applyCreditOperation(
   if (!position) return conflict("La moneda no está habilitada en la tarjeta.");
   const debt = Money.parse(position.debt, currency);
   if (action === "adjustment") {
+    if (
+      units(amount) <
+      ((await commitmentTotals(client, ownerId, cardId)).get(currency) ??
+        BigInt(0))
+    )
+      return conflict(
+        "Revisá los pagos de las compras comprometidas antes de reducir la deuda.",
+      );
     if (
       await hasLaterCreditChange(client, ownerId, cardId, currency, effectiveOn)
     )
@@ -835,6 +1057,46 @@ async function applyCreditOperation(
     return conflict("La deuda resultante está fuera de rango.");
   }
   const { mixed } = command;
+  const fundCommitment =
+    command.fundCommitment === undefined
+      ? prior.find(({ purpose }) => purpose === "commitment")
+      : command.fundCommitment;
+  const priorDirect = prior.filter(({ purpose }) => purpose === "expense");
+  const direct = mixed?.fundPortions ?? priorDirect;
+  if (fundCommitment) {
+    const committed = coverageUnits(fundCommitment.amount);
+    if (
+      committed > coverageUnits(charge) ||
+      committed +
+        ((await commitmentTotals(client, ownerId, cardId)).get(currency) ??
+          BigInt(0)) >
+        coverageUnits(debtAfter)
+    )
+      return conflict(
+        "El compromiso no puede superar el importe pendiente de pago de la compra.",
+      );
+    const checked = await planFundExpense(
+      client,
+      ownerId,
+      currency,
+      coverageDecimal(
+        coverageUnits(charge) + coverageUnits(mixed?.debitAmount ?? zero),
+      ),
+      [fundCommitment, ...direct],
+      priorDirect,
+    );
+    if ("error" in checked) return conflict(checked.error);
+  }
+  const coveredDebit = coverageSum(direct);
+  const fundPlan = await planFundExpense(
+    client,
+    ownerId,
+    currency,
+    mixed?.debitAmount ?? zero,
+    direct,
+    priorDirect,
+  );
+  if ("error" in fundPlan) return conflict(fundPlan.error);
   const bankDebits = new Map<Currency, bigint>();
   const categories: PurchaseCategory[] = [];
   if (mixed) {
@@ -857,7 +1119,16 @@ async function applyCreditOperation(
     const [bank] = await listBankAvailability(client, ownerId, [currency]);
     if (!bank) return conflict(`Configurá un saldo bancario en ${currency}.`);
     const debit = units(mixed.debitAmount);
-    if (effectiveOn >= bank.asOfDate && debit > units(bank.availableAmount)) {
+    const restored = coverageSum(
+      priorDirect.filter((part) => part.currency === currency),
+    );
+    const free = units(bank.availableAmount) + restored;
+    if (
+      effectiveOn >= bank.asOfDate &&
+      (debit - coveredDebit > (free > BigInt(0) ? free : BigInt(0)) ||
+        (coveredDebit > BigInt(0) &&
+          debit > units(bank.calculatedAmount ?? bank.amount)))
+    ) {
       // A same-day replacement can be before the latest checkpoint.
       const covered =
         mixed.correction &&
@@ -931,6 +1202,17 @@ async function applyCreditOperation(
     bankDebits,
     eventId,
   );
+  await recordEventFundUses(client, ownerId, id, currency, direct, "expense");
+  await applyFundDeltas(client, ownerId, fundPlan.deltas);
+  if (fundCommitment)
+    await recordEventFundUses(
+      client,
+      ownerId,
+      id,
+      currency,
+      [fundCommitment],
+      "commitment",
+    );
   if (command.plan) {
     await insertInstallmentVersion(client, ownerId, id, currency, {
       ...command.plan,

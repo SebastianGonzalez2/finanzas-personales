@@ -19,6 +19,17 @@ import type {
 } from "../domain/movements.ts";
 import type { Currency } from "../domain/money.ts";
 import {
+  coverageDecimal,
+  coverageSum,
+  coverageUnits,
+} from "../domain/fund-coverage.ts";
+import {
+  applyFundDeltas,
+  listEventFundUses,
+  planFundExpense,
+  recordEventFundUses,
+} from "./fund-coverage.ts";
+import {
   bankEventPosition,
   bankEventSource,
   bankReconciliationReady,
@@ -118,7 +129,8 @@ type SaveResult =
   | Replay
   | Omit<Shortfall, "currency">
   | { status: "created"; id: string }
-  | { status: "unconfigured" | "invalid-category" };
+  | { status: "unconfigured" | "invalid-category" }
+  | { status: "invalid-coverage"; message: string };
 
 export function commandHash(fields: readonly (string | null)[]) {
   return createHash("sha256").update(JSON.stringify(fields)).digest("hex");
@@ -325,6 +337,9 @@ export async function saveMovement(
       concept,
       note,
       categoryId,
+      ...(movement.fundPortions?.length
+        ? [JSON.stringify(movement.fundPortions)]
+        : []),
     ]);
 
   await lockBankWrites(client, ownerId);
@@ -333,6 +348,16 @@ export async function saveMovement(
 
   const [balance] = await listBankAvailability(client, ownerId, [currency]);
   if (!balance) return { status: "unconfigured" };
+  const portions = movement.fundPortions ?? [];
+  const coverage = await planFundExpense(
+    client,
+    ownerId,
+    currency,
+    amount,
+    portions,
+  );
+  if ("error" in coverage)
+    return { status: "invalid-coverage", message: coverage.error };
   // Dates before the anchor are historical: they cannot spend its balance.
   if (kind === "expense" && effectiveOn >= balance.asOfDate) {
     const gap = await bankShortfall(
@@ -340,9 +365,20 @@ export async function saveMovement(
       currency,
       balance.availableAmount,
       "0",
-      signedAmount(kind, amount),
+      coverageDecimal(coverageSum(portions) - coverageUnits(amount)),
     );
     if (gap) return { status: gap.status, shortfall: gap.shortfall };
+    if (portions.length) {
+      const bankGap = await bankShortfall(
+        client,
+        currency,
+        balance.calculatedAmount ?? balance.amount,
+        "0",
+        signedAmount(kind, amount),
+      );
+      if (bankGap)
+        return { status: bankGap.status, shortfall: bankGap.shortfall };
+    }
   }
 
   const selectedCategoryId = await resolveMovementCategory(
@@ -358,6 +394,7 @@ export async function saveMovement(
     { ...movement, categoryId: selectedCategoryId },
     hash,
   );
+  await applyFundDeltas(client, ownerId, coverage.deltas);
   return { status: "created", id };
 }
 
@@ -446,11 +483,20 @@ async function insertMovement(
     "INSERT INTO finance.audit_changes (owner_id, id, event_id, change_type) VALUES ($1, $2, $2, 'created')",
     [ownerId, id],
   );
+  await recordEventFundUses(
+    client,
+    ownerId,
+    id,
+    currency,
+    movement.fundPortions ?? [],
+    "expense",
+  );
   return id;
 }
 
 type RevisionResult =
   | Replay
+  | { status: "invalid-coverage"; message: string }
   | Shortfall
   | { status: "revised"; id: string }
   | {
@@ -529,15 +575,49 @@ export async function reviseMovement(
     reconciliationReady,
   );
   if (!balance) return { status: "unconfigured" };
-  if (!original.covered && effectiveOn >= balance.asOfDate) {
+  const prior = await listEventFundUses(client, ownerId, eventId);
+  const portions = amount === null ? [] : prior;
+  const coverage = await planFundExpense(
+    client,
+    ownerId,
+    currency,
+    amount ?? "0",
+    portions,
+    prior,
+  );
+  if ("error" in coverage)
+    return {
+      status: "invalid-coverage",
+      message:
+        amount !== null && coverageSum(portions) > coverageUnits(amount)
+          ? "El nuevo importe es menor que lo cubierto por fondos. Usá Editar para revisar la distribución."
+          : coverage.error,
+    };
+  const applies = !original.covered && effectiveOn >= balance.asOfDate;
+  const after = amount === null ? "0" : signedAmount(kind, amount);
+  if (applies || prior.length) {
     const gap = await bankShortfall(
       client,
       currency,
       balance.availableAmount,
-      original.signed,
-      amount === null ? "0" : signedAmount(kind, amount),
+      coverageDecimal(
+        coverageUnits(applies ? original.signed : "0") + coverageSum(prior),
+      ),
+      coverageDecimal(
+        coverageUnits(applies ? after : "0") + coverageSum(portions),
+      ),
     );
     if (gap) return gap;
+    if (applies && prior.length) {
+      const bankGap = await bankShortfall(
+        client,
+        currency,
+        balance.calculatedAmount ?? balance.amount,
+        original.signed,
+        after,
+      );
+      if (bankGap) return bankGap;
+    }
   }
 
   const replacement =
@@ -546,9 +626,10 @@ export async function reviseMovement(
       : await insertMovement(
           client,
           ownerId,
-          { ...original, amount, idempotencyKey },
+          { ...original, amount, idempotencyKey, fundPortions: portions },
           hash,
         );
+  await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
 }
 
@@ -582,6 +663,9 @@ async function editMovement(
         movement.concept,
         movement.note,
         movement.categoryId,
+        ...(movement.fundPortions !== undefined
+          ? [JSON.stringify(movement.fundPortions)]
+          : []),
       ];
   const hash = commandHash([
     "movement-edit-v1",
@@ -668,6 +752,22 @@ async function editMovement(
       newEffects.map(({ signed }) => signed),
     ],
   );
+  const prior = transfer
+    ? []
+    : await listEventFundUses(client, ownerId, eventId);
+  const portions = transfer ? [] : (movement.fundPortions ?? prior);
+  const coverage = transfer
+    ? { deltas: [] }
+    : await planFundExpense(
+        client,
+        ownerId,
+        movement.currency,
+        movement.amount,
+        portions,
+        prior,
+      );
+  if ("error" in coverage)
+    return { status: "invalid-coverage", message: coverage.error };
   const balances = await listBankAvailability(
     client,
     ownerId,
@@ -681,10 +781,31 @@ async function editMovement(
       client,
       currency,
       balance.availableAmount,
-      before,
-      after,
+      coverageDecimal(
+        coverageUnits(before) +
+          coverageSum(prior.filter((part) => part.currency === currency)),
+      ),
+      coverageDecimal(
+        coverageUnits(after) +
+          (!transfer && movement.currency === currency
+            ? coverageSum(portions)
+            : BigInt(0)),
+      ),
     );
     if (gap) return gap;
+    if (
+      prior.some((part) => part.currency === currency) ||
+      (!transfer && movement.currency === currency && portions.length)
+    ) {
+      const bankGap = await bankShortfall(
+        client,
+        currency,
+        balance.calculatedAmount ?? balance.amount,
+        before,
+        after,
+      );
+      if (bankGap) return bankGap;
+    }
   }
 
   let replacement: string;
@@ -709,10 +830,11 @@ async function editMovement(
     replacement = await insertMovement(
       client,
       ownerId,
-      { ...movement, idempotencyKey, categoryId },
+      { ...movement, idempotencyKey, categoryId, fundPortions: portions },
       hash,
     );
   }
+  await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
 }
 

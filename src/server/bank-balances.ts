@@ -100,7 +100,7 @@ export async function listBankAvailability(
   ownerId: string,
   currencies: readonly Currency[] = bankCurrencies,
   reconciliationReady?: boolean,
-) {
+): Promise<BankAvailability[]> {
   const ready = reconciliationReady ?? (await bankReconciliationReady(client));
   const fundsReady = await savingsFundsReady(client);
   const reserves = fundsReady

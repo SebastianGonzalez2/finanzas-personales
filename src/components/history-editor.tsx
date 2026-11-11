@@ -2,6 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
+import { type FundPortion, type FundSource } from "@/domain/fund-coverage";
+import {
+  expenseFundsField,
+  formFundPortions,
+  FundPortionFields,
+} from "./fund-portion-fields";
 import { type HistoryEntry } from "@/domain/history";
 import {
   conceptLimit,
@@ -23,17 +29,24 @@ function CurrencyField({
   label,
   value,
   currencies,
+  onChange,
 }: {
   name: string;
   label: string;
   value: Currency | null;
   currencies: Currency[];
+  onChange?: (currency: Currency) => void;
 }) {
   return (
     <HistoryField label={label}>
       <select
         name={name}
         defaultValue={value ?? ""}
+        onChange={
+          onChange
+            ? (event) => onChange(event.target.value as Currency)
+            : undefined
+        }
         required
         className={historyControl}
       >
@@ -50,14 +63,20 @@ export function HistoryEditor({
   categories,
   currencies,
   today,
+  fundSources,
+  fundPortions,
 }: {
   entry: HistoryEntry;
   categories: MovementCategory[];
   currencies: Currency[];
   today: string;
+  fundSources: FundSource[] | null;
+  fundPortions: FundPortion[];
 }) {
   const router = useRouter();
   const [action, setAction] = useState<"edit" | "void" | null>(null);
+  const [currency, setCurrency] = useState(entry.currency);
+  const [amount, setAmount] = useState(entry.amount);
   const [done, setDone] = useState(false);
   const editorHeading = useRef<HTMLHeadingElement>(null);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -69,6 +88,8 @@ export function HistoryEditor({
   const transfer = entry.kind === "bank_transfer";
 
   function begin(next: "edit" | "void") {
+    setCurrency(entry.currency);
+    setAmount(entry.amount);
     setAction(next);
     requestAnimationFrame(() => editorHeading.current?.focus());
   }
@@ -82,9 +103,13 @@ export function HistoryEditor({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const portions = formFundPortions(form, expenseFundsField);
+    form.delete(expenseFundsField);
     const movement = {
       kind: entry.kind,
-      ...Object.fromEntries(new FormData(event.currentTarget)),
+      ...Object.fromEntries(form),
+      ...(portions && { fundPortions: portions }),
     };
     if (
       await send(
@@ -182,6 +207,7 @@ export function HistoryEditor({
                 <>
                   <CurrencyField
                     name="currency"
+                    onChange={setCurrency}
                     label="Moneda"
                     value={entry.currency}
                     currencies={currencies}
@@ -191,10 +217,20 @@ export function HistoryEditor({
                       name="amount"
                       inputMode="decimal"
                       required
-                      defaultValue={entry.amount}
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
                       className={historyControl}
                     />
                   </HistoryField>
+                  {entry.kind === "expense" && fundSources && (
+                    <FundPortionFields
+                      key={currency}
+                      funds={fundSources}
+                      currency={currency}
+                      amount={amount}
+                      initial={currency === entry.currency ? fundPortions : []}
+                    />
+                  )}
                   <HistoryField label="Medio">
                     <select
                       name="method"

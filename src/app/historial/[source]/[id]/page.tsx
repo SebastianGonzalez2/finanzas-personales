@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { listEventFundUses, listFundSources } from "@/server/fund-coverage";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { PurchaseRefundPanel, RefundRecord } from "@/components/refund-form";
@@ -148,8 +149,17 @@ export default async function HistoryDetail({
         editable || mixedEditable
           ? await listHistoryCurrencies(client, ownerId)
           : [];
+      const fundUses = checkpoint
+        ? []
+        : await listEventFundUses(client, ownerId, id);
+      const fundSources =
+        (editable && entry.kind === "expense") || mixedEditable
+          ? await listFundSources(client, ownerId)
+          : null;
       return {
         entry,
+        fundUses,
+        fundSources,
         revisions,
         editable,
         categories,
@@ -190,6 +200,8 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    fundUses,
+    fundSources,
     revisions,
     editable,
     categories,
@@ -270,6 +282,41 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {fundUses.length > 0 && (
+            <section
+              className="grid gap-2 border-t pt-4"
+              aria-label="Fondos vinculados"
+            >
+              <h2 className="font-semibold">Fondos vinculados</h2>
+              <ul className="grid gap-1 text-sm">
+                {fundUses.map((use) => (
+                  <li
+                    key={`${use.purpose}-${use.fundId}-${use.purchaseId ?? ""}`}
+                    className="wrap-anywhere"
+                  >
+                    {use.purpose === "commitment"
+                      ? "Compromiso original"
+                      : use.purpose === "payment"
+                        ? "Aplicado al pago"
+                        : "Usado para el gasto"}
+                    : {use.name} · {formatBankAmount(use)}
+                    {use.purchaseId && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <a
+                          className="underline"
+                          href={`/historial/movimientos/${use.purchaseId}`}
+                        >
+                          {use.purchaseConcept}
+                        </a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {refund && <RefundRecord entry={refund} linkPurchase />}
           {purchaseRefunds && (
             <PurchaseRefundPanel purchase={purchaseRefunds} today={today} />
@@ -453,6 +500,7 @@ export default async function HistoryDetail({
               categories={categories}
               today={today}
               initialCurrency={entry.currency}
+              fundSources={fundSources}
               correction={{
                 ...mixed,
                 cardId: mixed.creditCardId,
@@ -465,6 +513,12 @@ export default async function HistoryDetail({
                 concept: entry.concept,
                 note: entry.note,
                 plan,
+                fundCommitment: fundUses.find(
+                  ({ purpose }) => purpose === "commitment",
+                ),
+                fundPortions: fundUses.filter(
+                  ({ purpose }) => purpose === "expense",
+                ),
               }}
             />
           )}
@@ -531,6 +585,8 @@ export default async function HistoryDetail({
           {editable && (
             <HistoryEditor
               entry={entry}
+              fundSources={fundSources}
+              fundPortions={fundUses}
               categories={categories}
               currencies={currencies}
               today={today}

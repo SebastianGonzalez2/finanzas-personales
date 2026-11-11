@@ -16,6 +16,7 @@ export type SavingsFund = {
   name: string;
   currency: Currency;
   reservedAmount: string;
+  committedAmount?: string;
   targetAmount: string | null;
   targetDate: string | null;
   status: FundStatus;
