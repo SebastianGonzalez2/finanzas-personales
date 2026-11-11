@@ -119,7 +119,7 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 | F4-03 | Omitir mes/período, pausar/reanudar serie y períodos independientes; ediciones futuras sin cambiar pasado. | RF-035; CA-047 |
 | F4-04 | Recurrente compartido con persona/contacto y desglose real al pagarse; cobros parciales posteriores. | RF-036; CA-048 |
 | F4-05 | Centro de avisos, tres días de antelación si fecha conocida, push solo tarjetas cuando el usuario lo activa, antirruido. | RF-037/038; CA-049 |
-| F4-06 | Tests de calendarios (febrero, fin de año, husos horarios), reintentos, meses omitidos, pagos tardíos y facturas sin importe definitivo. | I-09; CA-044…049 |
+| F4-06 | Tests de calendarios (febrero, fin de año, husos horarios), reintentos, meses omitidos, pagos tardíos y facturas sin importe definitivo. [Pruebas](48-regresion-f4-06.md). | I-09; CA-044…049 |
 
 ## F5 — Catálogos, analítica, exportaciones y mantenimiento
 
