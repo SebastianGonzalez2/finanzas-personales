@@ -242,6 +242,7 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
       (
         await saveSavingsFund(client, owner, {
           ...update,
+          version: fund.version,
           targetDate: null,
           idempotencyKey: randomUUID(),
         })
@@ -252,28 +253,29 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
     assert.equal(fund.targetDate, null);
     assert.equal(fund.targetAmount, "2000.0000");
 
-    // El motor de aportes (Codex) marca la meta como alcanzada; el SQL del
-    // simulacro reemplaza esa transición automática.
-    await client.query(
-      "UPDATE finance.savings_funds SET status = 'paused_target_reached' WHERE owner_id = $1 AND id = $2",
-      [owner, id],
-    );
-    // Quitar la meta con pausa por meta alcanzada está prohibido.
+    await saveOpeningBalance(client, owner, {
+      currency: "UYU",
+      amount: "3000.0000",
+      asOfDate: "2026-11-01",
+    });
     assert.equal(
       (
-        await saveSavingsFund(client, owner, {
-          ...update,
-          targetAmount: null,
-          idempotencyKey: randomUUID(),
-        })
+        await saveSavingsFund(
+          client,
+          owner,
+          reserve(id, "2000.0000", fund.version),
+        )
       ).status,
-      "conflict",
+      "saved",
     );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.status, "paused_target_reached");
     // Cambiar el estado explícito tampoco reactiva: la reactivación es expresa.
     assert.equal(
       (
         await saveSavingsFund(client, owner, {
           ...update,
+          version: fund.version,
           status: "active",
           idempotencyKey: randomUUID(),
         })
@@ -285,6 +287,7 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
       (
         await saveSavingsFund(client, owner, {
           ...update,
+          version: fund.version,
           targetAmount: "2500.0000",
           idempotencyKey: randomUUID(),
         })
@@ -294,8 +297,8 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
     [fund] = await listSavingsFunds(client, owner);
     assert.equal(fund.status, "paused_target_reached");
     assert.equal(fund.targetAmount, "2500.0000");
-    assert.equal(fund.version, 4);
-    assert.equal(
+    assert.equal(fund.version, 5);
+    assert.deepEqual(
       (
         await client.query(
           "SELECT configuration FROM finance.fund_changes WHERE owner_id = $1 ORDER BY version DESC LIMIT 1",
@@ -304,6 +307,21 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
       ).rows[0].configuration,
       { name: "Meta", targetAmount: "2500.0000", targetDate: "2027-12-01" },
     );
+    assert.equal(
+      (
+        await saveSavingsFund(client, owner, {
+          ...update,
+          version: fund.version,
+          targetAmount: null,
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+      "saved",
+    );
+    [fund] = await listSavingsFunds(client, owner);
+    assert.equal(fund.targetAmount, null);
+    assert.equal(fund.status, "paused_target_reached");
+    assert.equal(fund.reservedAmount, "2000.0000");
   } finally {
     await client.query("ROLLBACK").catch(() => {});
     await client.end();

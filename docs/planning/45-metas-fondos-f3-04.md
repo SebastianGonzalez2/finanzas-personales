@@ -1,38 +1,23 @@
-# F3-04 — Metas monetarias, fechas objetivo y mensajes
+# F3-04 — Metas, pausa y reactivación de fondos
 
-Implementación MIX sobre la rama `codex/F3-04-metas-ahorro`. OpenCode entregó la edición visual de metas, fechas y mensajes. Codex debe completar los aportes exactos, la pausa automática por meta, la reactivación expresa y el estado persistente de avisos.
+Ruta MIX: se conserva la edición visual de OpenCode y se integra con el motor de aportes de F3-03. Contrato: [RF-029](01-alcance-y-requisitos.md), [CA-040/050](03-criterios-de-aceptacion.md), I-03, I-11 e I-12; decisiones v5.6, v9.28–31, v9.36 y v9.47.
 
-- [RF-029](01-alcance-y-requisitos.md)
-- [CA-040 y CA-050](03-criterios-de-aceptacion.md)
-- Decisiones §11.3.2: v5.6, v9.28, v9.29, v9.30, v9.47.
+- La meta y la fecha son opcionales. Alcanzar la meta con un aporte, traspaso o cambio de meta pausa el plan activo. La última aportación automática se limita a lo que falta: si faltan 50 de un aporte de 200, se reservan 50 y el historial marca el aporte final. Si ni siquiera hay 50 disponibles, queda una aportación pendiente por 50 sin reserva parcial; el importe habitual no cambia.
+- Bajar la reserva, aumentar la meta o quitarla conserva la pausa por meta. Reactivar exige confirmar y agenda una primera aportación el día elegido del mes siguiente, ajustado al último día si corresponde. Se conservan las aportaciones pendientes de meses anteriores para resolución manual.
+- El centro de avisos y el detalle leen los estados persistidos del fondo. Hay un aviso vigente por fondo y condición, sin generar filas diarias. Vencer la fecha solo informa el faltante; al moverla al futuro o alcanzar la meta, ese aviso desaparece.
+- Cerrar requiere confirmar el importe exacto a liberar y la lista de pendientes a descartar. Se revalidan la versión y la lista bajo los mismos bloqueos que usan Bancos y los fondos. Cierre, efecto virtual y descartes se registran juntos; se conserva el historial. El modelo actual no tiene compromisos de tarjeta contra fondos. F3-05 debe impedir este cierre cuando introduzca esas reservas comprometidas.
 
-## Edición visual (OpenCode)
+## Migración pendiente de autorización
 
-- El editor de fondo en `/fondos` acepta **meta** (importe positivo exacto) y **fecha objetivo** opcionales. Campos vacíos quitan la meta o la fecha; cambiarlos no mueve dinero ni altera reservas. El alta (`create`) sigue sin exigir meta, conforme v2.9.
-- El comando `update` de `/api/funds` lleva `targetAmount` y `targetDate` normalizados (`null` para quitar). `status` pasó a ser opcional: los fondos con estado `paused_target_reached` se editan **sin cambiar su estado**, y la reactivación queda reservada al aviso expreso (v9.28/v9.30). Quitar la meta con la pausa por meta activa se rechaza (además la exige la restricción de 0015).
-- La tarjeta del fondo muestra **progreso porcentual** calculado con aritmética exacta a cuatro decimales, el faltante real («Te faltan …», sin recortes si supera el 100 %), **«Meta alcanzada»** cuando el reservado cubre la meta, el **ahorro mensual orientativo** hasta la fecha futura (v5.6, solo informativo) y el aviso de **fecha objetivo vencida** «Pasó la fecha objetivo; aún faltan …» (v9.47) sin pausar aportes ni marcar la meta cumplida.
-- Los mensajes usan `today` del titular (Montevideo) ya disponible en el catálogo; fondos cerrados no muestran botones de edición.
+Destino: Neon **development** (`br-late-feather-b6czfkx0`, base `neondb`, proyecto `dry-voice-45959315`), con 0017 como predecesora.
 
-## Pendiente de Codex
+| SQL exacto | SHA-256 | Impacto |
+| --- | --- | --- |
+| [0018_F3-04_fund_targets.sql](../../src/db/migrations/0018_F3-04_fund_targets.sql) | `b56799e25593e6002ecdf028f8cb78c458b20bd159c0a995ef8429074f7b2810` | Habilita edición de meta y fecha, conserva la pausa si se quita la meta y admite auditar el cierre y el motivo de resolución. No migra saldos ni registros históricos. |
 
-1. **Última aportación exacta** (v9.29/v9.40-CA-040): reservar solo el remanente positivo cuando el aporte programado excede lo que falta; pausar automáticamente y registrar «Aportación final para completar meta» en el historial. Si el disponible no alcanza ni para el remanente, dejar pendiente según v9.24 sin reservas parciales.
-2. **Pausa automática por meta** (v9.28): transición a `paused_target_reached` al ejecutar el aporte que completa o supera la meta; distinguible de la pausa manual; no afecta fondos sin meta.
-3. **Reactivación expresa** (v9.31): desde el aviso, con primera aportación en el mes siguiente; no reactivar por editar la meta ni por gastar la reserva tras alcanzarla (v9.30).
-4. **Avisos persistentes** en el centro de avisos y el detalle: «Alcanzaste tu meta…», «Aumentar meta» como acción principal y «Reactivar aportaciones» tras gastar la reserva; antirrepetición diaria.
-5. **Cierre de fondos con advertencia**: el cierre sigue bloqueado a nivel de base (0015 exige reservado cero); falta la operación y su advertencia visual.
-6. Pruebas de aceptación CA-040/050 con DB real desechable, incluida la reducción de la última cuota y el aviso de fecha vencida.
+La migración se aplica en las pruebas sobre PostgreSQL desechable. La aplicación a Neon compartido exige aprobación específica de ese SQL y su hash, conforme a [ADR 0004](../adr/0004-google-only-allowlist-auth.md) y las reglas del repositorio.
 
-## Migraciones para Neon development
+## Verificación
 
-| Orden | SQL exacto | SHA-256 | Impacto |
-| --- | --- | --- | --- |
-| 0018 | [Metas de fondos](../../src/db/migrations/0018_F3-04_fund_targets.sql) | `4c62bba415814ba33ade9d7a19a674ffbd557c27afd3711cf72faac0f5e11383` | Habilita `UPDATE (target_amount, target_date)` para el rol de aplicación. Sin cambios de filas ni esquema. |
-
-Aplicación a Neon **pendiente de autorización específica** según [ADR 0004](../adr/0004-google-only-allowlist-auth.md). Verificado en solo lectura: development tiene 0017 aplicado y `finanzas_app` aún no puede actualizar las columnas de meta. Hasta aplicar 0018, la edición de metas responde 503 en producción de datos.
-
-## Verificación local
-
-- `npm run check` — formato, lint, tipos y build aprobados.
-- `npm run test:unit` — 44 pruebas aprobadas (normalización de meta/fecha, fecha inválida, ahorro orientativo exacto y estado opcional).
-- `npm run test:integration` — nueva prueba F3-04 escrita (persistencia, idempotencia, protección de meta alcanzada); **no ejecutada localmente** por falta de PostgreSQL desechable/Docker; pendiente en CI o Codex.
-- Pruebas e2e de metas: requieren 0018 aplicada a Neon development; quedan para Codex junto con las de CA-040/050.
+- Las pruebas de integración cubren aporte exacto, insuficiencia, idempotencia, reversión atómica, concurrencia, RLS A/B, reactivación y cierre con un aviso obsoleto.
+- La prueba de navegador recorre CA-040/050 y el cierre en escritorio y móvil, con sesiones y saldos sintéticos.

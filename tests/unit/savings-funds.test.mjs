@@ -49,8 +49,6 @@ test("F3-01 permite editar nombre y estado sin cambiar moneda ni reservas", () =
     ...update,
     fundId: update.fundId.toLowerCase(),
     name: "Emergencia",
-    targetAmount: null,
-    targetDate: null,
     idempotencyKey: update.idempotencyKey.toLowerCase(),
   });
   for (const invalid of [

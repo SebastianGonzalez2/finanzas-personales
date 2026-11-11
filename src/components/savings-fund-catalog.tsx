@@ -9,25 +9,30 @@ import {
   type ReactNode,
 } from "react";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
-import { Money } from "@/domain/money";
-import type {
-  ContributionChange,
-  ContributionPeriod,
-  ContributionPlan,
+import {
+  contributionPending,
+  type ContributionChange,
+  type ContributionPeriod,
+  type ContributionPlan,
 } from "@/domain/contribution-plans";
 import {
   fundStatuses,
+  fundTargetNotices,
   monthsUntil,
   orientativeMonthlySaving,
   parseFundAmount,
   parseFundDate,
+  pendingContributionToken,
+  targetRemainder,
   type EditableFundStatus,
   type FundAvailability,
+  type FundClosureRecord,
   type FundMovement,
   type SavingsFund,
 } from "@/domain/savings-funds";
 import { useFinancialCommand } from "./financial-command";
 import { FundContributions } from "./fund-contributions";
+import { FundTargetMessage } from "./fund-target-notice";
 import { Card } from "./ui/card";
 
 const button =
@@ -39,6 +44,7 @@ const control =
 type FundAction = FundMovement["action"];
 type Editor =
   | { action: "edit"; fund?: SavingsFund }
+  | { action: "close"; fund: SavingsFund; periods: ContributionPeriod[] }
   | { action: FundAction; fund: SavingsFund };
 
 const movementLabels = {
@@ -56,19 +62,11 @@ function formatFundAmount(fund: SavingsFund, amount: string) {
 }
 
 /** Exact remainders and percents computed on the four-digit transport scale. */
-function TargetProgress({
-  fund,
-  today,
-}: {
-  fund: SavingsFund;
-  today?: string;
-}) {
+function TargetProgress({ fund, today }: { fund: SavingsFund; today: string }) {
   const target = fund.targetAmount;
-  if (!target) return null;
+  const remaining = targetRemainder(fund);
+  if (!target || remaining === null) return null;
   const units = (amount: string) => BigInt(amount.replace(".", ""));
-  const remaining = Money.parse(target, fund.currency)
-    .add(Money.parse(fund.reservedAmount, fund.currency).negate())
-    .toDecimal();
   const reached = units(remaining) <= BigInt(0);
   const percent = (
     (units(fund.reservedAmount) * BigInt(100)) /
@@ -90,12 +88,8 @@ function TargetProgress({
       )}
       {fund.targetDate &&
         !reached &&
-        today &&
         (fund.targetDate < today ? (
-          <p className="font-medium">
-            Pasó la fecha objetivo ({fund.targetDate}); aún faltan{" "}
-            {formatFundAmount(fund, remaining)}.
-          </p>
+          <FundTargetMessage fund={fund} today={today} kind="deadline" />
         ) : (
           (() => {
             const saving = orientativeMonthlySaving(
@@ -118,17 +112,22 @@ function TargetProgress({
 
 export function SavingsFundCatalog({
   funds,
+  closures,
   availability,
   contributions,
+  lifecycleReady,
+  today,
 }: {
   funds: SavingsFund[];
+  closures: FundClosureRecord[];
   availability: FundAvailability[] | null;
   contributions: {
     plans: ContributionPlan[];
     periods: ContributionPeriod[];
     changes: ContributionChange[];
-    today: string;
   } | null;
+  lifecycleReady: boolean;
+  today: string;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -150,7 +149,7 @@ export function SavingsFundCatalog({
         changes={contributions.changes.filter(
           ({ fundId }) => fundId === fund.id,
         )}
-        today={contributions.today}
+        today={today}
         available={
           availability?.find(({ currency }) => currency === fund.currency)
             ?.amount ?? null
@@ -225,9 +224,20 @@ export function SavingsFundCatalog({
         Agregar fondo
       </button>
       {editor?.action === "edit" && (
-        <FundEditor fund={editor.fund} close={close} />
+        <FundEditor
+          fund={editor.fund}
+          close={close}
+          lifecycleReady={lifecycleReady}
+        />
       )}
-      {editor && editor.action !== "edit" && (
+      {editor?.action === "close" && (
+        <FundClosure
+          fund={editor.fund}
+          periods={editor.periods}
+          close={close}
+        />
+      )}
+      {editor && editor.action !== "edit" && editor.action !== "close" && (
         <FundMovementEditor
           action={editor.action}
           fund={editor.fund}
@@ -252,7 +262,7 @@ export function SavingsFundCatalog({
               <FundEntry
                 key={fund.id}
                 fund={fund}
-                today={contributions?.today}
+                today={today}
                 editDisabled={editor !== null}
                 edit={(from) => openEditor({ action: "edit", fund }, from)}
                 move={
@@ -261,6 +271,24 @@ export function SavingsFundCatalog({
                     : undefined
                 }
                 canTransfer={destinations(fund).length > 0}
+                closeFund={
+                  lifecycleReady && availability
+                    ? (from) =>
+                        openEditor(
+                          {
+                            action: "close",
+                            fund,
+                            periods:
+                              contributions?.periods.filter(
+                                (period) =>
+                                  period.fundId === fund.id &&
+                                  contributionPending(period),
+                              ) ?? [],
+                          },
+                          from,
+                        )
+                    : undefined
+                }
               >
                 {fundContributions(fund)}
               </FundEntry>
@@ -275,7 +303,12 @@ export function SavingsFundCatalog({
           </summary>
           <ul className="mt-3 grid gap-3 xl:grid-cols-2">
             {closed.map((fund) => (
-              <FundEntry key={fund.id} fund={fund} today={contributions?.today}>
+              <FundEntry
+                key={fund.id}
+                fund={fund}
+                today={today}
+                closure={closures.find(({ fundId }) => fundId === fund.id)}
+              >
                 {fundContributions(fund)}
               </FundEntry>
             ))}
@@ -293,18 +326,23 @@ function FundEntry({
   editDisabled,
   move,
   canTransfer,
+  closeFund,
+  closure,
   children,
 }: {
   fund: SavingsFund;
-  today?: string;
+  today: string;
   edit?: (from: HTMLButtonElement) => void;
   editDisabled?: boolean;
   move?: (action: FundAction, from: HTMLButtonElement) => void;
   canTransfer?: boolean;
+  closeFund?: (from: HTMLButtonElement) => void;
+  closure?: FundClosureRecord;
   children?: ReactNode;
 }) {
+  const { pausedByTarget, reached, overdue } = fundTargetNotices(fund, today);
   return (
-    <li className="min-w-0">
+    <li id={`fondo-${fund.id}`} className="min-w-0 scroll-mt-4">
       <Card className="gap-3 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
@@ -359,7 +397,24 @@ function FundEntry({
             </div>
           )}
         </dl>
-        <TargetProgress fund={fund} today={today} />
+        {fund.status !== "closed" && (
+          <>
+            <TargetProgress fund={fund} today={today} />
+            {pausedByTarget && (
+              <FundTargetMessage fund={fund} today={today} kind="pause" />
+            )}
+            {edit && (reached || overdue) && (
+              <button
+                type="button"
+                className={`${reached ? primary : button} justify-self-start`}
+                disabled={editDisabled}
+                onClick={(event) => edit(event.currentTarget)}
+              >
+                {reached ? "Aumentar meta" : "Revisar meta y fecha"}
+              </button>
+            )}
+          </>
+        )}
         {fund.reservedAmount === "0.0000" && fund.status !== "closed" && (
           <p className="text-sm text-muted-foreground">
             Sin dinero reservado todavía.
@@ -387,11 +442,111 @@ function FundEntry({
                 </button>
               );
             })}
+            {closeFund && (
+              <button
+                type="button"
+                className={button}
+                disabled={editDisabled}
+                onClick={(event) => closeFund(event.currentTarget)}
+              >
+                Cerrar fondo
+              </button>
+            )}
           </div>
+        )}
+        {closure && (
+          <p className="text-sm">
+            Cerrado el {closure.closedOn}. Se liberaron{" "}
+            {formatFundAmount(fund, closure.amount)} al disponible libre.
+          </p>
         )}
         {children}
       </Card>
     </li>
+  );
+}
+
+function FundClosure({
+  fund,
+  periods,
+  close,
+}: {
+  fund: SavingsFund;
+  periods: ContributionPeriod[];
+  close: (message?: string) => void;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []);
+  const { send, pending, uncertain, error } = useFinancialCommand(
+    "/api/funds",
+    "POST",
+  );
+  return (
+    <Card className="gap-3 p-4 sm:p-5">
+      <h2
+        id="titulo-cierre-fondo"
+        ref={heading}
+        tabIndex={-1}
+        className="font-semibold"
+      >
+        Cerrar fondo · {fund.name}
+      </h2>
+      <form
+        className="grid gap-3 text-sm"
+        aria-labelledby="titulo-cierre-fondo"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (
+            await send({
+              action: "close",
+              fundId: fund.id,
+              version: fund.version,
+              pendingToken: await pendingContributionToken(
+                periods.map(({ id }) => id),
+              ),
+            })
+          )
+            close("Fondo cerrado.");
+        }}
+      >
+        <p>
+          Volverán {formatFundAmount(fund, fund.reservedAmount)} al disponible
+          libre.
+        </p>
+        <p>
+          Se detendrán las nuevas aportaciones. El historial quedará
+          consultable.
+        </p>
+        <p>Aportaciones pendientes que se descartarán: {periods.length}.</p>
+        {periods.length > 0 && (
+          <ul className="list-disc pl-5">
+            {periods.map((period) => (
+              <li key={period.id}>
+                {period.scheduledOn} · {formatBankAmount(period)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {error && (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={primary} disabled={pending}>
+            {uncertain ? "Reintentar guardado" : "Confirmar cierre"}
+          </button>
+          <button
+            type="button"
+            className={button}
+            disabled={pending || uncertain}
+            onClick={() => close()}
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </Card>
   );
 }
 
@@ -573,9 +728,11 @@ function FundMovementEditor({
 function FundEditor({
   fund,
   close,
+  lifecycleReady,
 }: {
   fund?: SavingsFund;
   close: (message?: string) => void;
+  lifecycleReady: boolean;
 }) {
   const reached = fund?.status === "paused_target_reached";
   const [status, setStatus] = useState<EditableFundStatus>(
@@ -618,8 +775,7 @@ function FundEditor({
             version: fund.version,
             ...fields,
             ...(reached ? {} : { status }),
-            targetAmount,
-            targetDate,
+            ...(lifecycleReady ? { targetAmount, targetDate } : {}),
           }
         : { action: "create", currency: form.get("currency"), ...fields },
     );
@@ -694,7 +850,7 @@ function FundEditor({
                 </select>
               </label>
             ))}
-          {fund && (
+          {fund && lifecycleReady && (
             <>
               <label className="grid gap-1 text-sm font-medium">
                 Meta ({fund.currency}, opcional)

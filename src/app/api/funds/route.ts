@@ -44,7 +44,7 @@ export async function POST(request: Request) {
           return reply(
             {
               error:
-                "Las reservas estarán disponibles cuando se actualice la base de datos.",
+                "Esta operación de fondos estará disponible cuando se actualice la base de datos.",
             },
             409,
           );

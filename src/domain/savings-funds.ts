@@ -1,11 +1,11 @@
 import { bankCurrencies } from "./bank-balances.ts";
-import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import { Money, normalizeDecimalAmount, type Currency } from "./money.ts";
 import { movementUuid as uuid } from "./movements.ts";
 
 export const fundStatuses = {
   active: "Activo",
   paused_manual: "Pausado",
-  paused_target_reached: "Meta alcanzada · Aportes automáticos pausados",
+  paused_target_reached: "Aportes pausados por meta",
   closed: "Cerrado",
 } as const;
 export type FundStatus = keyof typeof fundStatuses;
@@ -37,16 +37,22 @@ export type FundMovement = {
   );
 
 export type FundAvailability = { currency: Currency; amount: string };
+export type FundClosureRecord = {
+  fundId: string;
+  amount: string;
+  closedOn: string;
+};
 
 export type FundCommand =
   | FundMovement
   | ({ idempotencyKey: string } & (
       | { action: "create"; name: string; currency: Currency }
+      | ({ action: "close"; pendingToken: string } & FundTarget)
       | ({
           action: "update";
           name: string;
-          targetAmount: string | null;
-          targetDate: string | null;
+          targetAmount?: string | null;
+          targetDate?: string | null;
         } & FundTarget &
           Partial<{ status: EditableFundStatus }>)
     ));
@@ -55,6 +61,7 @@ const editableStatuses: EditableFundStatus[] = ["active", "paused_manual"];
 const keys = {
   create: ["name", "currency"],
   update: ["fundId", "version", "name", "status", "targetAmount", "targetDate"],
+  close: ["fundId", "version", "pendingToken"],
   reserve: ["fundId", "version", "amount"],
   release: ["fundId", "version", "amount"],
   transfer: [
@@ -102,6 +109,54 @@ export function parseFundDate(input: unknown) {
   return value;
 }
 
+export function targetRemainder(
+  fund: Pick<SavingsFund, "targetAmount" | "reservedAmount" | "currency">,
+) {
+  if (fund.targetAmount === null) return null;
+  return Money.parse(fund.targetAmount, fund.currency)
+    .add(Money.parse(fund.reservedAmount, fund.currency).negate())
+    .toDecimal();
+}
+
+export async function pendingContributionToken(ids: readonly string[]) {
+  const data = new TextEncoder().encode([...ids].sort().join(","));
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export function contributionTowardTarget(
+  scheduledAmount: string,
+  fund: Parameters<typeof targetRemainder>[0],
+) {
+  const remaining = targetRemainder(fund);
+  if (remaining === null) return { amount: scheduledAmount, final: false };
+  const units = (amount: string) => BigInt(amount.replace(".", ""));
+  if (units(remaining) <= BigInt(0)) return { amount: null, final: false };
+  return units(remaining) <= units(scheduledAmount)
+    ? { amount: remaining, final: true }
+    : { amount: scheduledAmount, final: false };
+}
+
+// The live notices are projections of durable fund state: one per kind and
+// fund, updated or removed as that state changes, with no daily inserts.
+export function fundTargetNotices(fund: SavingsFund, today: string) {
+  const remaining = targetRemainder(fund);
+  const below =
+    remaining !== null && BigInt(remaining.replace(".", "")) > BigInt(0);
+  return {
+    remaining,
+    reached: remaining !== null && !below,
+    pausedByTarget: fund.status === "paused_target_reached",
+    overdue:
+      fund.status !== "closed" &&
+      below &&
+      !!fund.targetDate &&
+      fund.targetDate < today,
+  };
+}
+
 /** Whole calendar months between two YYYY-MM-DD dates, at least one. */
 export function monthsUntil(today: string, deadline: string) {
   const months = (value: string) => {
@@ -139,12 +194,14 @@ export function parseFundCommand(
     amount,
     targetAmount,
     targetDate,
+    pendingToken,
     destinationFundId,
     destinationVersion,
   } = input as Record<string, unknown>;
   if (
     action !== "create" &&
     action !== "update" &&
+    action !== "close" &&
     action !== "reserve" &&
     action !== "release" &&
     action !== "transfer"
@@ -159,6 +216,23 @@ export function parseFundCommand(
   )
     return invalid;
   const commandKey = idempotencyKey.toLowerCase();
+  if (action === "close") {
+    if (
+      typeof fundId !== "string" ||
+      !uuid.test(fundId) ||
+      !fundVersion(version) ||
+      typeof pendingToken !== "string" ||
+      !/^[a-f0-9]{64}$/.test(pendingToken)
+    )
+      return invalid;
+    return {
+      action,
+      fundId: fundId.toLowerCase(),
+      version,
+      pendingToken,
+      idempotencyKey: commandKey,
+    };
+  }
   if (action !== "create" && action !== "update") {
     if (
       typeof fundId !== "string" ||
@@ -241,8 +315,8 @@ export function parseFundCommand(
     version,
     name: name.trim(),
     ...(status === undefined ? {} : { status: status as EditableFundStatus }),
-    targetAmount: meta,
-    targetDate: deadline,
+    ...(targetAmount === undefined ? {} : { targetAmount: meta }),
+    ...(targetDate === undefined ? {} : { targetDate: deadline }),
     idempotencyKey: commandKey,
   };
 }
