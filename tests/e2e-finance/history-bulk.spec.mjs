@@ -96,11 +96,13 @@ test("F5-04: aplicar categoría, guardar el período y respetar el titular", asy
 
     await page.getByLabel("Desde", { exact: true }).fill(today);
     await page
-      .getByLabel("Período", { exact: true })
+      .getByRole("combobox", { name: "Período", exact: true })
       .selectOption("mes-actual");
     await expect(page.getByLabel("Desde", { exact: true })).toBeDisabled();
     await page.getByText("Más filtros", { exact: true }).click();
-    await page.getByLabel("Categoría", { exact: true }).selectOption(category);
+    await page
+      .getByRole("combobox", { name: "Categoría", exact: true })
+      .selectOption(category);
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(page).toHaveURL(/period=mes-actual/);
     await expect(
