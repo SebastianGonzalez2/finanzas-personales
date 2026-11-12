@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { bankReferenceToday } from "@/domain/bank-balances";
+import { classificationReady, listTags } from "@/server/classification";
 import { listFundSources } from "@/server/fund-coverage";
 import { listBankAvailability } from "@/server/bank-balances";
 import { listCreditPurchaseOptions } from "@/server/credit-operations";
@@ -42,6 +43,10 @@ export default async function CardsPage() {
         : [];
       return {
         cards,
+        tags:
+          hasCredit && (await classificationReady(client))
+            ? await listTags(client, ownerId)
+            : null,
         fundSources: hasCredit ? await listFundSources(client, ownerId) : null,
         bankAvailability,
         creditReady,

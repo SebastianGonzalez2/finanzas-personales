@@ -26,6 +26,7 @@ import {
   CreditOperationForm,
   creditActionLabels,
 } from "./credit-operation-form";
+import type { MovementTag } from "@/domain/classification";
 import { useFinancialCommand } from "./financial-command";
 import { Card } from "./ui/card";
 
@@ -46,6 +47,7 @@ export function CardCatalog({
   fundSources,
   bankAvailability,
   categories,
+  tags,
   purchases,
   installmentsReady,
   cyclesReady,
@@ -59,6 +61,7 @@ export function CardCatalog({
   fundSources: FundSource[] | null;
   bankAvailability: BankAvailability[];
   categories: MovementCategory[];
+  tags?: MovementTag[] | null;
   purchases: CreditPurchaseOption[];
   installmentsReady: boolean;
   cyclesReady: boolean;
@@ -121,6 +124,7 @@ export function CardCatalog({
               fundSources={fundSources}
               bankAvailability={bankAvailability}
               categories={categories}
+              tags={tags}
               debitCards={
                 mixedReady
                   ? cards.filter(

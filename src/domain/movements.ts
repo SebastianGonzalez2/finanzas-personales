@@ -31,7 +31,14 @@ export type MovementKind = "income" | "expense";
 export type MovementMethod = keyof typeof movementMethods;
 export type MovementCategory = { id: string; kind: MovementKind; name: string };
 
-export type MovementInput = {
+import {
+  allocationError,
+  allocationSumMatches,
+  parseClassification,
+  type ClassificationInput,
+} from "./classification.ts";
+
+export type MovementInput = ClassificationInput & {
   kind: MovementKind;
   currency: Currency;
   amount: string;
@@ -49,7 +56,11 @@ export type MovementRevision = RevisionTarget &
   (
     | { action: "void" }
     | { action: "correct"; amount: string }
-    | { action: "edit"; movement: MovementInput | BankTransfer }
+    | {
+        action: "edit";
+        movement: MovementInput | BankTransfer;
+        classificationVersion?: number;
+      }
   );
 
 export type RecentMovement = Pick<
@@ -96,6 +107,8 @@ const inputKeys = [
   "categoryId",
   "idempotencyKey",
   "fundPortions",
+  "allocations",
+  "tagIds",
 ];
 
 function positiveAmount(amount: unknown) {
@@ -165,10 +178,14 @@ export function parseMovementRevision(
 ): MovementRevision | { error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input))
     return { error: "Solicitud inválida." };
-  const { action, eventId, idempotencyKey, amount, movement } = input as Record<
-    string,
-    unknown
-  >;
+  const {
+    action,
+    eventId,
+    idempotencyKey,
+    amount,
+    movement,
+    classificationVersion,
+  } = input as Record<string, unknown>;
   if (
     (action !== "void" && action !== "correct" && action !== "edit") ||
     typeof eventId !== "string" ||
@@ -179,7 +196,10 @@ export function parseMovementRevision(
       (key) =>
         !["action", "eventId", "idempotencyKey"].includes(key) &&
         !(key === "amount" && action === "correct") &&
-        !(key === "movement" && action === "edit"),
+        !(
+          (key === "movement" || key === "classificationVersion") &&
+          action === "edit"
+        ),
     )
   )
     return { error: "Solicitud inválida." };
@@ -202,7 +222,23 @@ export function parseMovementRevision(
       "kind" in movement && movement.kind === "bank_transfer"
         ? parseBankTransfer(replacement, today)
         : parseMovement(replacement, today);
-    return "error" in parsed ? parsed : { action, ...target, movement: parsed };
+    if (
+      classificationVersion !== undefined &&
+      (typeof classificationVersion !== "number" ||
+        !Number.isInteger(classificationVersion) ||
+        classificationVersion < 0 ||
+        classificationVersion >= 2147483647 ||
+        !("allocations" in parsed))
+    )
+      return { error: "Solicitud de clasificación inválida." };
+    return "error" in parsed
+      ? parsed
+      : {
+          action,
+          ...target,
+          movement: parsed,
+          ...(classificationVersion !== undefined && { classificationVersion }),
+        };
   }
   try {
     return { action, ...target, amount: positiveAmount(amount) };
@@ -234,6 +270,8 @@ export function parseMovement(
     categoryId,
     idempotencyKey,
     fundPortions,
+    allocations,
+    tagIds,
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
@@ -292,7 +330,16 @@ export function parseMovement(
   )
     return { error: "Elegí una categoría válida." };
 
+  const classification = parseClassification({ allocations, tagIds });
+  if ("error" in classification) return classification;
+  if (
+    classification.allocations?.length &&
+    (category || !allocationSumMatches(classification.allocations, decimal))
+  )
+    return { error: allocationError };
+
   return {
+    ...classification,
     kind,
     currency,
     amount: decimal,

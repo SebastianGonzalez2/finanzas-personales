@@ -5,6 +5,11 @@ import { FinanceIcon } from "./finance-icon";
 
 const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
+  estadisticas: {
+    href: "/estadisticas",
+    label: "Estadísticas",
+    icon: "summary",
+  },
   historial: { href: "/historial", label: "Historial", icon: "calendar" },
   recurrentes: { href: "/recurrentes", label: "Recurrentes", icon: "calendar" },
   presupuestos: {

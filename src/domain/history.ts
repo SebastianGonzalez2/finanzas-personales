@@ -69,6 +69,7 @@ const filterKeys = [
   "min",
   "max",
   "status",
+  "tags",
 ] as const;
 export type HistoryFilters = Partial<
   Record<(typeof filterKeys)[number], string>
@@ -107,12 +108,18 @@ export function parseHistoryParams(
     max,
     status,
   } = filters;
+  const rawTags = Array.isArray(input.tags)
+    ? input.tags.join(",")
+    : filters.tags;
+  const tagIds = rawTags ? rawTags.split(",") : [];
   const invalid = {
     error:
       "Revisá los filtros. Usá fechas válidas, rangos en orden e importes con hasta cuatro decimales.",
   } as const;
   if (
-    Object.values(input).some(Array.isArray) ||
+    Object.entries(input).some(
+      ([key, value]) => key !== "tags" && Array.isArray(value),
+    ) ||
     (q && (q.length > 200 || q.includes("\0"))) ||
     (period && (!Object.hasOwn(historyPeriods, period) || from || to)) ||
     (from && !isBankReferenceDate(from, "9999-12-31")) ||
@@ -120,11 +127,16 @@ export function parseHistoryParams(
     (from && to && from > to) ||
     (currency && !bankCurrencies.some((code) => code === currency)) ||
     (kind && !Object.hasOwn(historyKinds, kind)) ||
+    tagIds.length > 20 ||
+    tagIds.some((id) => !movementUuid.test(id)) ||
     (category && category !== "none" && !movementUuid.test(category)) ||
     (method && !Object.hasOwn(movementDisplayMethods, method)) ||
     (status && !Object.hasOwn(historyStates, status))
   )
     return invalid;
+
+  if (tagIds.length)
+    filters.tags = [...new Set(tagIds.map((id) => id.toLowerCase()))].join(",");
 
   let minimum: string | null;
   let maximum: string | null;

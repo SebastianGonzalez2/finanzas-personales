@@ -9,6 +9,14 @@ import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
 import { SharedExpenseForm } from "@/components/shared-expense-form";
+import { MovementClassification } from "@/components/movement-classification";
+import {
+  classificationReady,
+  classificationTarget,
+  listTags,
+  emptyClassification,
+  listClassificationVersions,
+} from "@/server/classification";
 import { HistoryEditor } from "@/components/history-editor";
 import { LoanOperationDetail } from "@/components/loan-operation-detail";
 import { InstallmentEditor } from "@/components/installment-editor";
@@ -108,8 +116,22 @@ export default async function HistoryDetail({
       const refundLinked = purchaseRefunds?.entries.some(
         ({ status }) => status !== "voided",
       );
+      const versions =
+        !checkpoint && (await classificationReady(client))
+          ? await listClassificationVersions(client, ownerId, id)
+          : null;
+      const classification = versions
+        ? (versions[0] ?? emptyClassification)
+        : null;
+      const tags = classification ? await listTags(client, ownerId) : [];
+      const classificationTargetData =
+        classification && entry.status === "confirmed"
+          ? await classificationTarget(client, ownerId, id)
+          : null;
+      const canAllocate = !!classificationTargetData?.amount && !refundLinked;
       const canSplit =
         sharingReady &&
+        !classification?.allocations.length &&
         !refundLinked &&
         !shared &&
         !mixed &&
@@ -139,10 +161,13 @@ export default async function HistoryDetail({
         !shared &&
         entry.status === "confirmed";
       const categories =
-        (editable && entry.kind !== "bank_transfer") || mixedEditable || shared
+        (editable && entry.kind !== "bank_transfer") ||
+        mixedEditable ||
+        shared ||
+        canAllocate
           ? (await listMovementCategories(client, ownerId)).filter(
               ({ kind }) =>
-                kind === (mixedEditable || shared ? "expense" : entry.kind),
+                kind === (entry.kind === "income" ? "income" : "expense"),
             )
           : [];
       const currencies =
@@ -158,6 +183,10 @@ export default async function HistoryDetail({
           : null;
       return {
         entry,
+        classification,
+        previousClassifications: versions?.slice(1) ?? [],
+        tags,
+        canAllocate,
         fundUses,
         fundSources,
         revisions,
@@ -200,6 +229,10 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    classification,
+    previousClassifications,
+    tags,
+    canAllocate,
     fundUses,
     fundSources,
     revisions,
@@ -263,14 +296,18 @@ export default async function HistoryDetail({
                   <dt className="text-sm text-muted-foreground">Medio</dt>
                   <dd>{movementDisplayMethods[entry.method]}</dd>
                 </div>
-                {entry.kind !== "card_payment" && !mixed?.categories.length && (
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Categoría</dt>
-                    <dd className="wrap-anywhere">
-                      {entry.category ?? "Sin categorizar"}
-                    </dd>
-                  </div>
-                )}
+                {entry.kind !== "card_payment" &&
+                  !mixed?.categories.length &&
+                  !classification?.allocations.length && (
+                    <div>
+                      <dt className="text-sm text-muted-foreground">
+                        Categoría
+                      </dt>
+                      <dd className="wrap-anywhere">
+                        {entry.category ?? "Sin categorizar"}
+                      </dd>
+                    </div>
+                  )}
               </>
             )}
             {entry.note && (
@@ -282,6 +319,62 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {classification && (
+            <MovementClassification
+              key={entry.id}
+              eventId={entry.id}
+              {...classification}
+              tags={tags}
+              categories={categories}
+              currency={entry.currency}
+              editable={entry.status === "confirmed"}
+              allocatable={canAllocate}
+            />
+          )}
+          {previousClassifications.length > 0 && (
+            <details className="border-t pt-3 text-sm">
+              <summary className="cursor-pointer font-medium">
+                Últimas clasificaciones anteriores
+              </summary>
+              <ul className="mt-2 grid gap-2">
+                {previousClassifications.map((previous) => (
+                  <li
+                    key={previous.version}
+                    className="grid gap-1 rounded-md border p-3"
+                  >
+                    <p className="font-medium">
+                      Versión {previous.version} ·{" "}
+                      {formatBankReference(previous.recordedOn)}
+                    </p>
+                    {previous.allocations.map(
+                      ({ categoryId, category, amount }) => (
+                        <p key={categoryId ?? "none"}>
+                          {category ?? "Sin categorizar"} ·{" "}
+                          {formatBankAmount({
+                            currency: entry.currency,
+                            amount,
+                          })}
+                        </p>
+                      ),
+                    )}
+                    {previous.tagIds.length > 0 && (
+                      <p>
+                        Etiquetas ·{" "}
+                        {tags
+                          .filter(({ id }) => previous.tagIds.includes(id))
+                          .map(({ name }) => name)
+                          .join(", ")}
+                      </p>
+                    )}
+                    {!previous.allocations.length &&
+                      !previous.tagIds.length && (
+                        <p>Sin desglose ni etiquetas.</p>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {fundUses.length > 0 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -584,6 +677,7 @@ export default async function HistoryDetail({
           )}
           {editable && (
             <HistoryEditor
+              classification={classification}
               entry={entry}
               fundSources={fundSources}
               fundPortions={fundUses}

@@ -14,6 +14,7 @@ import {
   historyToday,
   parseHistoryParams,
 } from "@/domain/history";
+import { classificationReady, listTags } from "@/server/classification";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listHistory, listHistoryCategories } from "@/server/history";
 import { listSavedFilters, savedFiltersReady } from "@/server/history-filters";
@@ -50,6 +51,9 @@ export default async function HistoryPage({
         categories: await listHistoryCategories(client, ownerId),
         savedFilters: (await savedFiltersReady(client))
           ? await listSavedFilters(client, ownerId)
+          : [],
+        tags: (await classificationReady(client))
+          ? await listTags(client, ownerId)
           : [],
       };
     },
@@ -91,6 +95,7 @@ export default async function HistoryPage({
             <HistoryFilters
               values={query.filters}
               categories={data.categories}
+              tags={data.tags}
             />
             {"savedFilters" in data && (
               <SavedHistoryFilters

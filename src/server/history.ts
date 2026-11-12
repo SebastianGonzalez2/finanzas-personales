@@ -1,4 +1,5 @@
 import "server-only";
+import { classificationReady } from "./classification.ts";
 import type pg from "pg";
 import type { CreditHistoryLine } from "../domain/credit-operations.ts";
 import { creditOperationsReady, loansReady } from "./movements.ts";
@@ -113,6 +114,19 @@ export async function listHistory(
   const refunds = await refundsReady(client);
   const categoryMatches = (field: string) =>
     `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
+  const classifications = await classificationReady(client);
+  const tagFilter = classifications
+    ? `($16::uuid[] IS NULL OR EXISTS (SELECT 1 FROM finance.current_event_tags t
+       WHERE (t.owner_id,t.event_id)=(f.owner_id,f.id) AND t.tag_id=ANY($16)))`
+    : "$16::uuid[] IS NULL";
+  const categoryFilter = (legacy: string) =>
+    classifications
+      ? `CASE WHEN EXISTS (SELECT 1 FROM finance.current_movement_allocations a
+         WHERE (a.owner_id,a.event_id)=(f.owner_id,f.id))
+       THEN EXISTS (SELECT 1 FROM finance.current_movement_allocations a
+         WHERE (a.owner_id,a.event_id)=(f.owner_id,f.id) AND ${categoryMatches("a.category_id")})
+       ELSE ${legacy} END`
+      : legacy;
   const { rows } = await client.query<HistoryEntry>(
     `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn"
        FROM (
@@ -122,8 +136,8 @@ export async function listHistory(
            AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(m.note), lower($2)) > 0)
            AND ($3::date IS NULL OR f.effective_on >= $3) AND ($4::date IS NULL OR f.effective_on <= $4)
            AND ($5::text IS NULL OR f.kind = $5) AND ($6::text IS NULL OR f.status = $6)
-           AND ($7::text IS NULL OR (m.event_id IS NOT NULL AND
-             CASE WHEN $7 = 'none' THEN m.category_id IS NULL ELSE m.category_id::text = lower($7) END))
+           AND ${tagFilter}
+           AND ($7::text IS NULL OR (m.event_id IS NOT NULL AND ${categoryFilter(categoryMatches("m.category_id"))}))
            AND ($8::text IS NULL OR m.method = $8)
            AND ((($9::text IS NULL OR e.currency = $9) AND ($10::numeric IS NULL OR abs(e.amount_signed) >= $10)
              AND ($11::numeric IS NULL OR abs(e.amount_signed) <= $11)) OR
@@ -135,7 +149,7 @@ export async function listHistory(
        UNION ALL
        (SELECT ${checkpointFields} ${checkpointSource}
          WHERE b.owner_id = $1 AND ($5 IS NULL OR $5 = 'checkpoint') AND ($6 IS NULL OR $6 = 'confirmed')
-           AND $7 IS NULL AND $8 IS NULL
+           AND $7 IS NULL AND $8 IS NULL AND $16::uuid[] IS NULL
            AND ($2 IS NULL OR strpos(lower(${checkpointConcept}), lower($2)) > 0 OR strpos(lower(a.note), lower($2)) > 0)
            AND ($3 IS NULL OR b.as_of_date >= $3) AND ($4 IS NULL OR b.as_of_date <= $4)
            AND ($9 IS NULL OR b.currency = $9) AND ($10 IS NULL OR b.confirmed_amount >= $10)
@@ -151,7 +165,8 @@ export async function listHistory(
            AND ($2 IS NULL OR strpos(lower(s.concept), lower($2)) > 0 OR strpos(lower(s.note), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
-           AND ($7 IS NULL OR ${categoryMatches("s.category_id")})
+           AND ${tagFilter}
+           AND ($7 IS NULL OR ${categoryFilter(categoryMatches("s.category_id"))})
            AND ($8 IS NULL OR s.method = $8)
            AND ($9 IS NULL OR s.currency = $9) AND ($10 IS NULL OR s.total >= $10) AND ($11 IS NULL OR s.total <= $11)
            AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
@@ -164,7 +179,7 @@ export async function listHistory(
            ? `UNION ALL
        (SELECT ${loanFields} ${loanSource}
          WHERE f.owner_id = $1 AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
-           AND $7 IS NULL AND $8 IS NULL
+           AND $7 IS NULL AND $8 IS NULL AND ${tagFilter}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(o.note), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ((($9 IS NULL OR o.currency = $9) AND ($10 IS NULL OR o.amount >= $10)
@@ -186,16 +201,17 @@ export async function listHistory(
              OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+           AND ${tagFilter}
            AND ($7 IS NULL OR (f.kind = 'card_purchase' AND
-             ${
+             ${categoryFilter(
                withMixed
                  ? `CASE WHEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
                WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
                THEN EXISTS (SELECT 1 FROM finance.mixed_purchase_categories s
                  WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id) AND ${categoryMatches("s.category_id")})
                ELSE ${categoryMatches("o.category_id")} END`
-                 : categoryMatches("o.category_id")
-             }))
+                 : categoryMatches("o.category_id"),
+             )}))
            AND ($8 IS NULL OR ($8 = 'credit' AND f.kind IN ('card_purchase', 'card_payment'))
              ${withMixed ? "OR ($8 IN ('mixed', 'debit') AND d.id IS NOT NULL)" : ""})
            AND EXISTS (
@@ -217,6 +233,7 @@ export async function listHistory(
           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
           AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR (${refundHistoryStatus}) = $6)
+          AND ${tagFilter}
           AND (($7 IS NULL AND $8 IS NULL) OR EXISTS (
             SELECT 1 FROM finance.refund_parts part WHERE (part.owner_id, part.event_id) = (f.owner_id, f.id)
              AND ($7 IS NULL OR ${categoryMatches("part.category_id")})
@@ -247,6 +264,7 @@ export async function listHistory(
       cursor?.id ?? null,
       cursor?.kind ?? null,
       pageSize + 1,
+      filters.tags ? filters.tags.split(",") : null,
     ],
   );
   return {

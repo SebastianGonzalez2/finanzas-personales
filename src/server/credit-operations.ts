@@ -1,4 +1,10 @@
 import "server-only";
+import {
+  classificationReady,
+  insertClassification,
+  prepareClassification,
+  readClassification,
+} from "./classification.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
@@ -1176,6 +1182,30 @@ async function applyCreditOperation(
   );
   if (categoryId === undefined)
     return conflict("La categoría no está disponible.");
+  const hasClassification =
+    command.allocations?.length || command.tagIds?.length;
+  const ready =
+    (hasClassification || correction) && (await classificationReady(client));
+  if (hasClassification && !ready)
+    return conflict("Actualizá la base de datos para clasificar la compra.");
+  if (command.allocations?.length && (mixed || command.plan || categoryId))
+    return conflict("Usá el desglose del medio de pago para esta compra.");
+  const previous =
+    ready && correction
+      ? await readClassification(client, ownerId, correction.eventId)
+      : undefined;
+  const prepared =
+    ready && (hasClassification || previous?.tagIds.length)
+      ? await prepareClassification(
+          client,
+          ownerId,
+          command,
+          amount,
+          "expense",
+          previous,
+        )
+      : null;
+  if (prepared && "error" in prepared) return conflict(prepared.error);
   const id = await insertCreditEvent(
     client,
     ownerId,
@@ -1202,6 +1232,16 @@ async function applyCreditOperation(
     bankDebits,
     eventId,
   );
+  if (prepared)
+    await insertClassification(
+      client,
+      ownerId,
+      id,
+      1,
+      idempotencyKey,
+      hash,
+      prepared,
+    );
   await recordEventFundUses(client, ownerId, id, currency, direct, "expense");
   await applyFundDeltas(client, ownerId, fundPlan.deltas);
   if (fundCommitment)
