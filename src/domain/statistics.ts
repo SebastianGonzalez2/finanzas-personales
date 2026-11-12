@@ -317,7 +317,12 @@ export function parseStatisticsParams(
     error:
       "Revisá los filtros. Usá fechas válidas en orden y monedas, categorías o medios conocidos.",
   } as const;
-  if (Object.values(input).some(Array.isArray)) return invalid;
+  if (
+    Object.entries(input).some(
+      ([key, value]) => key !== "tags" && Array.isArray(value),
+    )
+  )
+    return invalid;
 
   const values: Record<string, string> = {};
   for (const key of filterKeys) {
