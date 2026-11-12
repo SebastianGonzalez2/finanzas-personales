@@ -12,6 +12,11 @@ const destinations = {
     label: "Presupuestos",
     icon: "wallet",
   },
+  categorias: {
+    href: "/categorias",
+    label: "Categorías",
+    icon: "savings",
+  },
   tarjetas: { href: "/tarjetas", label: "Tarjetas", icon: "card" },
   fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   avisos: { href: "/avisos", label: "Avisos", icon: "bell" },

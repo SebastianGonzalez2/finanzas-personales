@@ -21,12 +21,12 @@ import {
 } from "@/server/installments";
 import {
   creditOperationsReady,
-  listMovementCategories,
   listMovementTotals,
   listRecentBankTransfers,
   listRecentMovements,
   movementAvailability,
 } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 
 export const metadata = { title: "Resumen | Finanzas personales" };
 export const dynamic = "force-dynamic";
@@ -85,7 +85,7 @@ export default async function SummaryPage({
           : [],
         fundSources: writable ? await listFundSources(client, ownerId) : null,
         categories: writable
-          ? await listMovementCategories(client, ownerId)
+          ? await listCatalogCategories(client, ownerId)
           : [],
         creditCards: cards.filter(({ kind }) => kind === "credit"),
         debitCards: (await mixedPurchasesReady(client))

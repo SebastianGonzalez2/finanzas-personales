@@ -3,11 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { bankCurrencies, formatBankReference } from "@/domain/bank-balances";
-import {
-  conceptLimit,
-  noteLimit,
-  type MovementCategory,
-} from "@/domain/movements";
+import { conceptLimit, noteLimit, type MovementKind } from "@/domain/movements";
 import {
   defaultRecurrenceFrequency,
   isRecurrenceDate,
@@ -20,7 +16,9 @@ import {
   RecurringAgreementFields,
   recurringAgreement,
 } from "./recurring-share-fields";
+import type { CatalogCategory } from "@/domain/categories";
 import { useFinancialCommand } from "./financial-command";
+import { CategorySelect } from "./category-select";
 import { Card } from "./ui/card";
 
 const field = "h-11 w-full rounded-md border bg-background px-3";
@@ -33,7 +31,7 @@ export function RecurrenceForm({
   people,
 }: {
   today: string;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   frequencies: Record<RecurrenceFrequency, string>;
   people: Person[] | null;
 }) {
@@ -123,19 +121,14 @@ export function RecurrenceForm({
               maxLength={conceptLimit}
             />
           </label>
-          <label className={label}>
-            Categoría
-            <select key={kind} className={field} name="categoryId">
-              <option value="">Sin categorizar</option>
-              {categories
-                .filter((category) => category.kind === kind)
-                .map(({ id, name }) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <CategorySelect
+            key={kind}
+            kind={kind as MovementKind}
+            categories={categories}
+            controlClassName={field}
+            labelClassName={label}
+            labelText="Categoría"
+          />
           <label className={label}>
             Moneda
             <select className={field} name="currency">

@@ -31,7 +31,7 @@ import {
   trackedPeriods,
 } from "@/server/recurrence-settlements";
 import { withGoogleOwner } from "@/server/google-auth";
-import { listMovementCategories } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 import {
   listRecurrences,
   recurrencesReady,
@@ -115,7 +115,7 @@ export default async function RecurrencesPage({
         controls,
         cards,
         people: sharing ? await listPeople(client, ownerId) : null,
-        categories: await listMovementCategories(client, ownerId),
+        categories: await listCatalogCategories(client, ownerId),
       };
     },
   ).catch((error: unknown) => {

@@ -42,7 +42,8 @@ import {
   historyRevisions,
   listHistoryCurrencies,
 } from "@/server/history";
-import { historyReady, listMovementCategories } from "@/server/movements";
+import { historyReady } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 import { listCards } from "@/server/cards";
 import { mixedPurchaseDetail } from "@/server/mixed-purchases";
 import { sharedExpenseDetail } from "@/server/shared-expenses";
@@ -151,7 +152,7 @@ export default async function HistoryDetail({
         entry.status === "confirmed";
       const categories =
         (editable && entry.kind !== "bank_transfer") || mixedEditable || shared
-          ? (await listMovementCategories(client, ownerId)).filter(
+          ? (await listCatalogCategories(client, ownerId)).filter(
               ({ kind }) =>
                 kind === (mixedEditable || shared ? "expense" : entry.kind),
             )
@@ -541,6 +542,7 @@ export default async function HistoryDetail({
                 covered: mixed.covered && !credit.creditApplied,
                 effectiveOn: entry.effectiveOn,
                 categoryId: entry.categoryId,
+                category: entry.category,
                 concept: entry.concept,
                 note: entry.note,
                 plan,

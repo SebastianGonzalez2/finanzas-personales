@@ -7,11 +7,9 @@ import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
 import type { CatalogCard } from "@/domain/cards";
 import { maxInstallments } from "@/domain/installments";
 import type { Currency } from "@/domain/money";
-import {
-  conceptLimit,
-  noteLimit,
-  type MovementCategory,
-} from "@/domain/movements";
+import { conceptLimit, noteLimit } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
 import { maxFriends } from "@/domain/shared-expenses";
 import { useFinancialCommand } from "./financial-command";
 import {
@@ -41,7 +39,7 @@ export function SharedExpenseForm({
   onClose,
 }: {
   today: string;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   cards?: CatalogCard[];
   banks?: Currency[];
   plansReady?: boolean;
@@ -222,26 +220,22 @@ export function SharedExpenseForm({
               />
             </Field>
             <Field label="Categoría (opcional)">
-              <select
-                name="categoryId"
-                className={historyControl}
+              <CategorySelect
+                kind="expense"
+                categories={categories}
+                controlClassName={historyControl}
+                labelText=""
                 defaultValue={target?.categoryId ?? ""}
-              >
-                <option value="">Sin categorizar</option>
-                {target?.categoryId &&
-                  !categories.some(({ id }) => id === target.categoryId) && (
-                    <option value={target.categoryId}>
-                      Conservar categoría actual
-                    </option>
-                  )}
-                {categories
-                  .filter(({ kind }) => kind === "expense")
-                  .map(({ id, name }) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-              </select>
+                unlisted={
+                  target?.categoryId &&
+                  !categories.some(({ id }) => id === target.categoryId)
+                    ? {
+                        value: target.categoryId,
+                        label: "Conservar categoría actual",
+                      }
+                    : null
+                }
+              />
             </Field>
             <Field label="Nota (opcional)">
               <textarea

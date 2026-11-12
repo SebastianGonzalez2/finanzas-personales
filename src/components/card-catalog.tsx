@@ -21,7 +21,7 @@ import {
   installmentPeriodAt,
   type InstallmentSummary,
 } from "@/domain/installments";
-import type { MovementCategory } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
 import {
   CreditOperationForm,
   creditActionLabels,
@@ -58,7 +58,7 @@ export function CardCatalog({
   banks: Currency[];
   fundSources: FundSource[] | null;
   bankAvailability: BankAvailability[];
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   purchases: CreditPurchaseOption[];
   installmentsReady: boolean;
   cyclesReady: boolean;

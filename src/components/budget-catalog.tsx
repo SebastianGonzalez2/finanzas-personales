@@ -14,7 +14,8 @@ import {
   parseBudgetCommand,
   type Budget,
 } from "@/domain/budgets";
-import type { MovementCategory } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
 import { useFinancialCommand } from "./financial-command";
 import { BudgetThresholdNotice } from "./notices";
 import { Card } from "./ui/card";
@@ -60,7 +61,7 @@ export function BudgetCatalog({
   viewedMonth,
 }: {
   budgets: Budget[];
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   today: string;
   viewedMonth: string;
 }) {
@@ -347,7 +348,7 @@ function BudgetEditor({
   budget,
   close,
 }: {
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   budgeted: Set<string>;
   budget?: Budget;
   close: (message?: string) => void;
@@ -367,9 +368,6 @@ function BudgetEditor({
   useEffect(() => {
     heading.current?.focus();
   }, []);
-  const available = categories.filter(
-    ({ id }) => !budgeted.has(id) || id === budget?.categoryId,
-  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -430,25 +428,16 @@ function BudgetEditor({
             Categoría: <strong>{budget.categoryName}</strong>
           </p>
         ) : (
-          <label className="grid gap-1 text-sm font-medium">
-            Categoría de gasto
-            <select
-              className={control}
-              name="category"
-              disabled={pending || uncertain}
-              required
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Elegí una categoría
-              </option>
-              {available.map(({ id, name }) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CategorySelect
+            kind="expense"
+            categories={categories}
+            excludedIds={budgeted}
+            controlClassName={control}
+            labelClassName="grid gap-1 text-sm font-medium"
+            labelText="Categoría de gasto"
+            name="category"
+            optional={false}
+          />
         )}
         <label className="grid gap-1 text-sm font-medium">
           Moneda del límite

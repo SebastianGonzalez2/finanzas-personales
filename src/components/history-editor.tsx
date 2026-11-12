@@ -9,12 +9,9 @@ import {
   FundPortionFields,
 } from "./fund-portion-fields";
 import { type HistoryEntry } from "@/domain/history";
-import {
-  conceptLimit,
-  movementMethods,
-  noteLimit,
-  type MovementCategory,
-} from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
+import { conceptLimit, movementMethods, noteLimit } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import { useFinancialCommand } from "./financial-command";
 import {
@@ -67,7 +64,7 @@ export function HistoryEditor({
   fundPortions,
 }: {
   entry: HistoryEntry;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   currencies: Currency[];
   today: string;
   fundSources: FundSource[] | null;
@@ -259,28 +256,22 @@ export function HistoryEditor({
                       className={historyControl}
                     />
                   </HistoryField>
-                  <HistoryField label="Categoría">
-                    <select
-                      name="categoryId"
-                      defaultValue={entry.categoryId ?? ""}
-                      className={historyControl}
-                    >
-                      <option value="">Sin categorizar</option>
-                      {entry.categoryId &&
-                        !categories.some(
-                          ({ id }) => id === entry.categoryId,
-                        ) && (
-                          <option value={entry.categoryId}>
-                            {entry.category}
-                          </option>
-                        )}
-                      {categories.map(({ id, name }) => (
-                        <option key={id} value={id}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </HistoryField>
+                  <CategorySelect
+                    kind={entry.kind === "income" ? "income" : "expense"}
+                    categories={categories}
+                    labelClassName="grid min-w-0 gap-1 text-sm font-medium"
+                    labelText="Categoría"
+                    controlClassName={historyControl}
+                    defaultValue={entry.categoryId ?? ""}
+                    unlisted={
+                      entry.categoryId
+                        ? {
+                            value: entry.categoryId,
+                            label: `${entry.category ?? "Categoría"} (archivada)`,
+                          }
+                        : null
+                    }
+                  />
                   <HistoryField label="Nota">
                     <textarea
                       name="note"
