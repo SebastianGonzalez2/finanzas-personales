@@ -13,6 +13,7 @@ const paths = {
   calendar: "M4 7h16v13H4V7Zm0 4h16M8 4v5m8-5v5",
   savings: "M4 7h16v13H4V7Zm-1 0h18V4H3v3Zm6 5h6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0",
+  report: "M6 3h12v18H6V3Zm3 5h6m-6 4h6m-6 4h4",
 } as const;
 
 export function FinanceIcon({

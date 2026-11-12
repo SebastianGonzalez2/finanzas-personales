@@ -16,6 +16,7 @@ const destinations = {
   fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   avisos: { href: "/avisos", label: "Avisos", icon: "bell" },
   deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },
+  informes: { href: "/informes", label: "Informes", icon: "report" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
 } as const;
 
