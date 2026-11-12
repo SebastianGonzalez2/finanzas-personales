@@ -5,11 +5,6 @@ import { FinanceIcon } from "./finance-icon";
 
 const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
-  estadisticas: {
-    href: "/estadisticas",
-    label: "Estadísticas",
-    icon: "summary",
-  },
   historial: { href: "/historial", label: "Historial", icon: "calendar" },
   estadisticas: {
     href: "/estadisticas",
@@ -36,6 +31,7 @@ const destinations = {
   fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   avisos: { href: "/avisos", label: "Avisos", icon: "bell" },
   deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },
+  informes: { href: "/informes", label: "Informes", icon: "report" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
 } as const;
 

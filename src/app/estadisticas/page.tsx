@@ -15,13 +15,13 @@ import {
 } from "@/domain/statistics";
 import { withGoogleOwner } from "@/server/google-auth";
 import { displayCurrency, exchangeRatesReady } from "@/server/exchange-rates";
+import { listTags } from "@/server/classification";
 import { listHistoryCategories } from "@/server/history";
 import {
   listStatisticsFavorites,
   loadStatistics,
   prepareStatisticsFx,
   listStatisticsCards,
-  listStatisticsTags,
   statisticsReady,
 } from "@/server/statistics";
 
@@ -92,7 +92,7 @@ export default async function StatisticsPage({
         : [];
       const categories = await listHistoryCategories(client, ownerId);
       const cards = await listStatisticsCards(client, ownerId);
-      const tags = ready.tags ? await listStatisticsTags(client, ownerId) : [];
+      const tags = ready.tags ? await listTags(client, ownerId) : [];
       const snapshot = await loadStatistics(
         client,
         ownerId,

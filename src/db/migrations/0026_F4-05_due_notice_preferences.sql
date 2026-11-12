@@ -26,7 +26,7 @@ CREATE TABLE finance.card_push_attempts (
   FOREIGN KEY (owner_id, subscription_id)
     REFERENCES finance.card_push_subscriptions(owner_id, id),
   FOREIGN KEY (owner_id, card_id)
-    REFERENCES finance.cards(owner_id, id)
+    REFERENCES finance.cards(owner_id, id) DEFERRABLE INITIALLY DEFERRED
 );
 
 ALTER TABLE finance.card_push_subscriptions ENABLE ROW LEVEL SECURITY;

@@ -34,7 +34,6 @@ type HistoryQuery = Exclude<
   ReturnType<typeof parseHistoryParams>,
   { error: string }
 >;
-const pageSize = 20;
 
 const eventFields = `f.id, f.kind, f.status, f.effective_on, f.concept, m.note,
   e.currency, abs(e.amount_signed)::text AS amount,
@@ -106,6 +105,7 @@ export async function listHistory(
   client: pg.PoolClient,
   ownerId: string,
   query: HistoryQuery,
+  pageSize = 20,
 ) {
   const { filters, minimum, maximum, cursor } = query;
   const credit = await creditOperationsReady(client);
@@ -131,14 +131,14 @@ export async function listHistory(
     ? `OR EXISTS (SELECT 1 FROM finance.canonical_event_merchants ref
         JOIN finance.merchants merchant ON (merchant.owner_id, merchant.id) = (ref.owner_id, ref.merchant_id)
         WHERE (ref.owner_id, ref.event_id) = (f.owner_id, f.id)
-          AND strpos(merchant.normalized_name, merchant8) > 0)`
+          AND strpos(merchant.normalized_name, $18) > 0)`
     : "";
   const personSearch = (loan: string) =>
     nameCatalog
       ? `OR EXISTS (SELECT 1 FROM finance.loan_people ref
           JOIN finance.people person ON (person.owner_id, person.id) = (ref.owner_id, ref.person_id)
           WHERE ref.owner_id = f.owner_id AND ${loan}
-            AND strpos(person.normalized_name, person8) > 0)`
+            AND strpos(person.normalized_name, $18) > 0)`
       : "";
   const classifications = await classificationReady(client);
   const tagFilter = classifications

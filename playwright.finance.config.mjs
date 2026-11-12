@@ -32,6 +32,7 @@ export default defineConfig({
       GOOGLE_AUTH_READY: "true",
       GOOGLE_AUTH_ORIGIN: financeTestOrigin,
       GOOGLE_AUTH_SECRET: financeTestSecret,
+      FINANCE_BACKUP_SIGNING_KEY: "01".repeat(32),
       GOOGLE_CLIENT_ID: "finance-fixture-client",
       GOOGLE_CLIENT_SECRET: "finance-fixture-secret",
       GOOGLE_AUTH_DATABASE_URL: url("auth"),

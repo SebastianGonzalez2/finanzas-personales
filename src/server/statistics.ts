@@ -126,10 +126,10 @@ scoped_source AS (
      AND ($6::text IS NULL OR ($6 = 'mixed' AND x.mixed) OR x.method = $6)
      AND ($7::uuid IS NULL OR x.card_id = $7)
      AND ($8::text IS NULL OR x.kind = $8)
-     AND ($9::uuid IS NULL${
+     AND ($9::uuid[] IS NULL${
        schema.tags
          ? ` OR EXISTS (SELECT 1 FROM finance.current_event_tags t
-        WHERE (t.owner_id, t.event_id, t.tag_id) = ($1, x.event_id, $9))`
+        WHERE (t.owner_id, t.event_id) = ($1, x.event_id) AND t.tag_id = ANY($9))`
          : ""
      })
 )`;
@@ -167,7 +167,7 @@ function parameters(
     filters.method ?? null,
     filters.card ?? null,
     filters.kind ?? null,
-    filters.tag ?? null,
+    filters.tags?.split(",") ?? (filters.tag ? [filters.tag] : null),
     ...(target ? [target] : []),
   ];
 }
@@ -532,7 +532,8 @@ export async function loadStatistics(
     filters.kind ||
     filters.method ||
     filters.card ||
-    filters.tag
+    filters.tag ||
+    filters.tags
       ? await entries(
           client,
           source,
@@ -593,22 +594,6 @@ export async function listStatisticsCards(
 ) {
   const { rows } = await client.query<{ id: string; name: string }>(
     `SELECT id, name FROM finance.cards WHERE owner_id = $1 ORDER BY name, id`,
-    [ownerId],
-  );
-  return rows;
-}
-
-export async function listStatisticsTags(
-  client: pg.PoolClient,
-  ownerId: string,
-) {
-  const { rows } = await client.query<{
-    id: string;
-    name: string;
-    archived: boolean;
-  }>(
-    `SELECT id, name, archived_at IS NOT NULL AS archived
-       FROM finance.tags WHERE owner_id = $1 ORDER BY archived, name, id`,
     [ownerId],
   );
   return rows;

@@ -244,7 +244,7 @@ function StatisticsDrilldown({
               : ""}
         </h2>
         <Link
-          href={`/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, tag: undefined, detailPage: undefined })}`}
+          href={`/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, tag: undefined, tags: undefined, detailPage: undefined })}`}
           className={historyButton}
         >
           Quitar filtros de detalle
@@ -591,7 +591,8 @@ export function StatisticsDashboard({
         filters.method ||
         filters.kind ||
         filters.card ||
-        filters.tag) && (
+        filters.tag ||
+        filters.tags) && (
         <StatisticsDrilldown
           snapshot={snapshot}
           filters={filters}

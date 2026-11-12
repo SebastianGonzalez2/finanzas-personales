@@ -104,7 +104,10 @@ export default async function SummaryPage({
         ? await listRecentBankTransfers(client, ownerId)
         : [],
       fundSources: writable ? await listFundSources(client, ownerId) : null,
-      tags: writable && (await classificationReady(client)) ? await listTags(client, ownerId) : null,
+      tags:
+        writable && (await classificationReady(client))
+          ? await listTags(client, ownerId)
+          : null,
       categories: writable ? await listCatalogCategories(client, ownerId) : [],
       creditCards: cards.filter(({ kind }) => kind === "credit"),
       debitCards: (await mixedPurchasesReady(client))

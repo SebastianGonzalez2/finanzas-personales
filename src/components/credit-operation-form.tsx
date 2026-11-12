@@ -676,13 +676,13 @@ export function CreditOperationForm({
                 available={!!tags && !financed && !mixed}
                 categories={expenseCategories}
               >
-                <HistoryField label="Categoría (opcional)">
-                  <CategorySelect
-                    name="categoryId"
-                    categories={expenseCategories}
-                    initial={correction?.categoryId}
-                  />
-                </HistoryField>
+                <PurchaseCategorySelect
+                  name="categoryId"
+                  label="Categoría (opcional)"
+                  categories={expenseCategories}
+                  initial={correction?.categoryId}
+                  initialName={correction?.category}
+                />
               </AllocationFields>
             )}
             {tags && !correction && <TagFields tags={tags} />}

@@ -1,5 +1,4 @@
 -- F5-04: RF-043 / CA-057…058 (parte OpenCode). Filtros guardados por titular.
--- La numeración 0024 deja 0023 reservado para F5-03 (catálogo de nombres).
 CREATE TABLE finance.saved_history_filters (
   owner_id text NOT NULL CHECK (length(owner_id) BETWEEN 1 AND 200),
   id uuid NOT NULL,

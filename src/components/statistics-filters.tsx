@@ -14,6 +14,8 @@ import {
   historyPrimary,
 } from "./history-fields";
 import { Card } from "./ui/card";
+import { TagFields } from "./classification-fields";
+import type { MovementTag } from "@/domain/classification";
 
 export function StatisticsFiltersForm({
   filters,
@@ -30,9 +32,22 @@ export function StatisticsFiltersForm({
     kind: "income" | "expense";
   }[];
   cards: { id: string; name: string }[];
-  tags: { id: string; name: string; archived: boolean }[];
+  tags: MovementTag[];
 }) {
   const custom = filters.period === "personalizado";
+  const selectedTags =
+    filters.tags?.split(",") ?? (filters.tag ? [filters.tag] : []);
+  const availableTags = [
+    ...tags,
+    ...selectedTags
+      .filter((id) => !tags.some((tag) => tag.id === id))
+      .map((id) => ({
+        id,
+        name: "Etiqueta no disponible",
+        archived: false,
+        version: 1,
+      })),
+  ];
   return (
     <Card className="gap-3 p-4 sm:p-5">
       <h2 className="font-semibold">Filtros de estadísticas</h2>
@@ -133,27 +148,10 @@ export function StatisticsFiltersForm({
               </select>
             </HistoryField>
           )}
-          {(tags.length > 0 || filters.tag) && (
-            <HistoryField label="Etiqueta">
-              <select
-                name="tag"
-                defaultValue={filters.tag}
-                className={historyControl}
-              >
-                <option value="">Todas</option>
-                {filters.tag && !tags.some(({ id }) => id === filters.tag) && (
-                  <option value={filters.tag}>Etiqueta no disponible</option>
-                )}
-                {tags.map(({ id, name, archived }) => (
-                  <option key={id} value={id}>
-                    {name}
-                    {archived ? " (archivada)" : ""}
-                  </option>
-                ))}
-              </select>
-            </HistoryField>
-          )}
         </div>
+        {availableTags.length > 0 && (
+          <TagFields tags={availableTags} filter initial={selectedTags} />
+        )}
         <details open={custom}>
           <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
             Rango de fechas personalizado
@@ -212,6 +210,7 @@ export function StatisticsFiltersForm({
               currency: undefined,
               category: undefined,
               tag: undefined,
+              tags: undefined,
               method: undefined,
               kind: undefined,
               card: undefined,

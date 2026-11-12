@@ -51,8 +51,7 @@ export async function resolveUsualShares(
         ? byId.get(share.personId)
         : byName.get(normalizeName(share.name));
     if (selected?.archived || (!selected && name === null)) return null;
-    const normalized =
-      selected?.normalized_name ?? normalizeName(name!);
+    const normalized = selected?.normalized_name ?? normalizeName(name!);
     if (seen.has(normalized)) return null;
     seen.add(normalized);
     resolved.push({

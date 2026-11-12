@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  serverExternalPackages: ["pdfkit"],
   // OAuth callback URLs contain private authorization codes/state. Avoid
   // development request logs and browser/server-function argument forwarding.
   logging: {

@@ -32,6 +32,7 @@ export type StatisticsFilters = {
   display?: Currency | "original";
   category?: string;
   tag?: string;
+  tags?: string;
   kind?: "income" | "expense";
   method?: MovementDisplayMethod;
   card?: string;
@@ -171,6 +172,7 @@ const filterKeys = [
   "display",
   "category",
   "tag",
+  "tags",
   "kind",
   "method",
   "card",
@@ -320,7 +322,7 @@ export function parseStatisticsParams(
   const values: Record<string, string> = {};
   for (const key of filterKeys) {
     const value = input[key];
-    if (value === undefined) continue;
+    if (value === undefined || key === "tags") continue;
     if (typeof value !== "string") return invalid;
     const trimmed = value.trim();
     if (trimmed) values[key] = trimmed;
@@ -366,7 +368,15 @@ export function parseStatisticsParams(
   if (values.method && !Object.hasOwn(movementDisplayMethods, values.method))
     return invalid;
   if (values.card && !movementUuid.test(values.card)) return invalid;
-  if (values.tag && !movementUuid.test(values.tag)) return invalid;
+  const tagIds = [
+    ...(values.tag ? [values.tag] : []),
+    ...(Array.isArray(input.tags)
+      ? input.tags
+      : (input.tags?.split(",") ?? [])),
+  ];
+  if (tagIds.length > 20 || tagIds.some((id) => !movementUuid.test(id)))
+    return invalid;
+  const selectedTags = [...new Set(tagIds.map((id) => id.toLowerCase()))];
   const kind = values.kind;
   if (kind !== undefined && kind !== "income" && kind !== "expense")
     return invalid;
@@ -395,7 +405,8 @@ export function parseStatisticsParams(
     ...(values.currency ? { currency: values.currency as Currency } : {}),
     ...(display ? { display: display as StatisticsFilters["display"] } : {}),
     ...(values.category ? { category: values.category.toLowerCase() } : {}),
-    ...(values.tag ? { tag: values.tag.toLowerCase() } : {}),
+    ...(selectedTags.length === 1 ? { tag: selectedTags[0] } : {}),
+    ...(selectedTags.length > 1 ? { tags: selectedTags.join(",") } : {}),
     ...(kind ? { kind } : {}),
     ...(values.card ? { card: values.card } : {}),
     ...(values.detailPage ? { detailPage: values.detailPage } : {}),

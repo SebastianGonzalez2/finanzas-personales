@@ -10,8 +10,8 @@ En Historial se pueden seleccionar hasta 20 ingresos, gastos o compras con tarje
 
 ## Migraciones
 
-- [0024_F5-04_filtros_guardados.sql](../../src/db/migrations/0024_F5-04_filtros_guardados.sql) crea el catálogo de filtros y su historial de comandos con RLS por titular. SHA-256 `d1a08a7cf7bc98803f94fefe33fd7738afe62f9e4aff9a633e433b4efb7870e2`.
-- [0029_F5-04_bulk_classification.sql](../../src/db/migrations/0029_F5-04_bulk_classification.sql) agrega el recibo inmutable de lote con RLS, el tipo de auditoría y el permiso acotado para reemplazar criterios guardados. Requiere la migración 0028 de F5-02. SHA-256 `ea95712911c5290492d5b245b964c711499a0201716a67fed10374fa8a8f1abe`.
+- [0030_F5-04_filtros_guardados.sql](../../src/db/migrations/0030_F5-04_filtros_guardados.sql) crea el catálogo de filtros y su historial de comandos con RLS por titular. SHA-256 `4d97ee1b4a42d72f2b862c945ee5626f67955616b068424e2451303959d601c1`.
+- [0031_F5-04_bulk_classification.sql](../../src/db/migrations/0031_F5-04_bulk_classification.sql) agrega el recibo inmutable de lote con RLS, el tipo de auditoría y el permiso acotado para reemplazar criterios guardados. Requiere la migración 0028 de F5-02. SHA-256 `ea95712911c5290492d5b245b964c711499a0201716a67fed10374fa8a8f1abe`.
 
 El destino previsto para validar fuera del clúster local es Neon development. La aplicación allí queda pendiente de aprobación específica según ADR 0004.
 

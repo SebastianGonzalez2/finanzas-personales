@@ -88,6 +88,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0031_F5-04_bulk_classification.sql",
       "0032_F5-05_statistics_favorites.sql",
       "0033_F5-06_reference_exchange_rates.sql",
+      "0034_F5-07_account_backup.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -142,6 +143,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       bulkClassification,
       statistics,
       exchangeRates,
+      backup,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -460,7 +462,15 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [dueNotices.version, dueNotices.sha256],
     );
-    for (const migration of [categoryArchive, classification, nameCatalog, savedFilters, bulkClassification, statistics]) {
+    for (const migration of [
+      categoryArchive,
+      classification,
+      nameCatalog,
+      savedFilters,
+      bulkClassification,
+      statistics,
+      exchangeRates,
+    ]) {
       await assert.rejects(migrateInTransaction(client, migration.sha256));
       await client.query(migration.sql);
       await client.query(
@@ -468,10 +478,10 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
         [migration.version, migration.sha256],
       );
     }
-    assert.deepEqual(await migrateInTransaction(client, exchangeRates.sha256), [
-      exchangeRates.version,
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), [
+      backup.version,
     ]);
-    assert.deepEqual(await migrateInTransaction(client, exchangeRates.sha256), []);
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), []);
     assert.equal(
       (
         await client.query(
@@ -483,6 +493,11 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
     assert.equal(await nameCatalogReady(client), true);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
+    assert.equal(
+      await findEventMerchant(client, "legacy-fixture", purchase.id),
+      null,
+    );
+    assert.equal(await findLoanPerson(client, "legacy-fixture", loan.id), null);
     assert.equal(await recurrenceTrackingReady(client), true);
     assert.equal(await recurringSharesReady(client), true);
     assert.equal(await cardPushReady(client), true);

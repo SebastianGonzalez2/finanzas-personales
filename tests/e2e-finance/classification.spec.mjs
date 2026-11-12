@@ -123,14 +123,27 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
       page.getByText("Transporte sintético · 375,0001 UYU"),
     ).toBeVisible();
 
-    await page.goto("/estadisticas");
+    await page.goto("/estadisticas?display=original");
     await page.getByText("Filtrar por etiquetas", { exact: true }).click();
     await page.getByRole("checkbox", { name: "Italia" }).check();
     await page.getByRole("checkbox", { name: "Vacaciones" }).check();
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
-    await expect(page.getByText("500,00 UYU", { exact: true })).toHaveCount(1);
-    await expect(page.getByText("350,00 UYU", { exact: true })).toBeVisible();
-    await expect(page.getByText("150,00 UYU", { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/tags=/);
+    const totals = page.getByRole("row").filter({
+      has: page.getByRole("rowheader", { name: "Gastos", exact: true }),
+    });
+    await expect(
+      totals.getByRole("cell", { name: "500,00 UYU", exact: true }),
+    ).toBeVisible();
+    const categories = page.getByRole("table", {
+      name: "Comparación por categoría en UYU",
+    });
+    await expect(
+      categories.getByRole("cell", { name: "350,00 UYU", exact: true }),
+    ).toBeVisible();
+    await expect(
+      categories.getByRole("cell", { name: "150,00 UYU", exact: true }),
+    ).toBeVisible();
     expect(
       await page.evaluate(
         () => globalThis.document.documentElement.scrollWidth,

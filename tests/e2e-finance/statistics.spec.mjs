@@ -163,9 +163,10 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     await expect(entry).toBeVisible();
     const unknownTag = randomUUID();
     await page.goto(`/estadisticas?tag=${unknownTag}&card=${cardId}`);
-    await expect(page.getByRole("combobox", { name: "Etiqueta" })).toHaveValue(
-      unknownTag,
-    );
+    await page.getByText(/Filtrar por etiquetas/).click();
+    await expect(
+      page.getByRole("checkbox", { name: "Etiqueta no disponible" }),
+    ).toBeChecked();
     await expect(entry).toHaveCount(0);
     await page.getByRole("link", { name: "Limpiar filtros" }).click();
     await expect(page).not.toHaveURL(/tag=/);

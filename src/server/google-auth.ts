@@ -48,8 +48,12 @@ export async function freshGoogleSession(request: Request) {
 }
 export async function withGoogleOwner<T>(
   request: Request,
-  work: (client: pg.PoolClient, ownerId: string) => Promise<T>,
-  options?: { repeatableRead?: boolean },
+  work: (
+    client: pg.PoolClient,
+    ownerId: string,
+    sessionToken: string,
+  ) => Promise<T>,
+  options?: { repeatableRead?: boolean; exclusive?: boolean },
 ) {
   const session = await freshGoogleSession(request);
   if (!session) throw new Error("Acceso denegado");
@@ -75,7 +79,7 @@ export async function withGoogleOwner<T>(
         [session.session.token],
       );
       if (authorized?.owner_id !== ownerId) throw new Error("Acceso denegado");
-      return work(client, ownerId);
+      return work(client, ownerId, session.session.token);
     },
     options,
   );
