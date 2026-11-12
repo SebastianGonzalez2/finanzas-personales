@@ -12,6 +12,7 @@ const paths = {
   income: "M12 4v12m-4-4 4 4 4-4M4 17v3h16v-3",
   expense: "M12 16V4m-4 4 4-4 4 4M4 17v3h16v-3",
   calendar: "M4 7h16v13H4V7Zm0 4h16M8 4v5m8-5v5",
+  chart: "M4 20V10m5 10V4m5 16v-7m5 7V7",
   savings: "M4 7h16v13H4V7Zm-1 0h18V4H3v3Zm6 5h6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0",
 } as const;

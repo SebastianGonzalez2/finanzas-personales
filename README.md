@@ -72,6 +72,8 @@ Las versiones se cambian deliberadamente junto con `package-lock.json`, revisand
 
 ## Alcance y trazabilidad
 
+Las equivalencias UYU/USD/EUR usan series del BCU distribuidas por datosUruguay bajo `CC-BY-4.0`, con Frankfurter v2 como respaldo. [Licencia de datosUruguay](https://datosuruguay.com/licencia-de-datos) · [Contrato y verificación de F5-06](docs/planning/50-cotizaciones-f5-06.md).
+
 F0-03 implementó el stack aprobado en [producto §12.1, decisión 4A](docs/product/decisiones-producto.md). F1-01 incorpora el Resumen fijo y la navegación a Mi cuenta con estados vacíos, para RF-052 y CA-066 en esta fase. Los saldos por moneda empiezan en F1-02. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Captura de escritorio](docs/evidence/f1-01/escritorio-1484.png) · [Captura móvil](docs/evidence/f1-01/movil-390.png).
 
 El titular aprobó el cierre técnico de F0 para integrar sus fundamentos en `main`. La prueba de acceso entre dispositivos en HTTPS y la comprobación del consumo del despliegue quedan como condiciones de publicación. [Plan de implementación](docs/planning/05-plan-de-implementacion.md) · [Convenciones de trabajo](AGENTS.md).

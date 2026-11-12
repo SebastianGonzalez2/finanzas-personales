@@ -11,6 +11,11 @@ const destinations = {
     icon: "summary",
   },
   historial: { href: "/historial", label: "Historial", icon: "calendar" },
+  estadisticas: {
+    href: "/estadisticas",
+    label: "Estadísticas",
+    icon: "chart",
+  },
   recurrentes: { href: "/recurrentes", label: "Recurrentes", icon: "calendar" },
   presupuestos: {
     href: "/presupuestos",

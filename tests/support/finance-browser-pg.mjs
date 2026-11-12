@@ -7,6 +7,16 @@ import { testDatabaseConfig } from "./test-database.mjs";
 const local = new URL(testDatabaseConfig().connectionString);
 const Pool = pg.Pool;
 
+// Finance browser tests seed public observations in the disposable database.
+// Provider availability and response parsing are tested with explicit fixtures.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = new URL(input instanceof globalThis.Request ? input.url : input);
+  if (["datosuruguay.com", "api.frankfurter.dev"].includes(url.hostname))
+    return Promise.resolve(new globalThis.Response(null, { status: 503 }));
+  return realFetch(input, init);
+};
+
 // This preload only runs in the test server. Preserve the two LOGIN roles and
 // runtime checks, replacing the network target with the guarded fixture DB.
 pg.Pool = class extends Pool {
