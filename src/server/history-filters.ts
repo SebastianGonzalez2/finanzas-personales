@@ -134,6 +134,24 @@ export async function saveSavedFilterCommand(
     return { status: "saved", id: command.entryId } as const;
   }
 
+  if (command.action === "update-criteria") {
+    const version = current.version + 1;
+    await client.query(
+      `UPDATE finance.saved_history_filters SET criteria = $3::jsonb, version = $4
+        WHERE owner_id = $1 AND id = $2`,
+      [ownerId, command.entryId, JSON.stringify(command.criteria), version],
+    );
+    await recordSavedFilterChange(
+      client,
+      ownerId,
+      command,
+      command.entryId,
+      hash,
+      version,
+    );
+    return { status: "saved", id: command.entryId } as const;
+  }
+
   await client.query(
     "DELETE FROM finance.saved_history_filters WHERE owner_id = $1 AND id = $2",
     [ownerId, command.entryId],

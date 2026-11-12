@@ -1,20 +1,14 @@
+import { parseBulkClassification } from "@/domain/history-bulk";
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
+import {
+  bulkClassificationReady,
+  saveBulkClassification,
+} from "@/server/history-bulk";
 
 export const runtime = "nodejs";
 
-// F5-04 (parte OpenCode): la selección múltiple del historial envía aquí la
-// categorización masiva. El cambio masivo seguro (verificación de propietario
-// por movimiento, transacción atómica, protección de gastos divididos que
-// requieren revisión, banco/deuda intactos, libro de auditoría y pruebas de
-// concurrencia A/B) es la parte asignada a Codex en la matriz del ticket.
-//
-// Contrato acordado para la implementación (CA-057):
-//   POST /  body: { entries: [{ id: uuid, kind }], categoryId: uuid,
-//                   idempotencyKey: uuid }
-//   Respuestas: 200 { updated: n } · 403 sin sesión u origen · 409 conflicto
-//   · 503 reintento. Nunca modifica bank_effects ni checkpoints.
 function reply(body: Record<string, unknown>, status: number) {
   return Response.json(body, { status, headers: googlePrivateHeaders });
 }
@@ -38,19 +32,31 @@ export async function POST(request: Request) {
   if (rejected) return rejected;
   if (new URL(request.url).search)
     return reply({ error: "Solicitud inválida." }, 400);
-  if (!(await limitedJson(request).catch(() => null)))
-    return reply({ error: "Solicitud inválida." }, 400);
+  const command = parseBulkClassification(
+    await limitedJson(request).catch(() => null),
+  );
+  if ("error" in command) return reply(command, 400);
   try {
-    return await withGoogleOwner(request, async () =>
-      reply(
-        {
-          error:
-            "La edición masiva de categorías todavía no está habilitada. Podés categorizar cada gasto desde su detalle.",
-        },
-        501,
-      ),
-    );
-  } catch {
+    return await withGoogleOwner(request, async (client, ownerId) => {
+      if (!(await bulkClassificationReady(client)))
+        return reply(
+          {
+            error:
+              "La edición masiva estará disponible cuando se actualice la base de datos.",
+          },
+          409,
+        );
+      const result = await saveBulkClassification(client, ownerId, command);
+      return "error" in result
+        ? reply({ error: result.error }, result.status)
+        : reply(result, 200);
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Acceso denegado")
+      return reply(
+        { error: "Volvé a entrar para editar tus movimientos." },
+        403,
+      );
     return reply(
       { error: "No pudimos procesar la edición masiva. Volvé a intentarlo." },
       503,

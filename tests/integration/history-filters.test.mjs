@@ -28,12 +28,14 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
   const b = "f5-04-fixture-b";
   const categoryId = randomUUID();
 
+  let installed = false;
   try {
     const admin = await pool.connect();
     try {
       await admin.query("BEGIN");
       await migrateInTransaction(admin);
       await admin.query("COMMIT");
+      installed = true;
     } finally {
       await admin.query("ROLLBACK");
       admin.release();
@@ -148,6 +150,18 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
     assert.equal(entry.name, "Ropa del mes");
     assert.equal(entry.version, 2);
 
+    const replaced = await save(a, {
+      action: "update-criteria",
+      entryId: created.id,
+      version: entry.version,
+      criteria: { period: "mes-anterior", category: categoryId },
+      idempotencyKey: randomUUID(),
+    });
+    assert.equal(replaced.status, "saved");
+    [entry] = await list(a);
+    assert.equal(entry.version, 3);
+    assert.equal(entry.criteria.period, "mes-anterior");
+
     // Borrado con versión vigente; el libro de comandos se conserva.
     const removed = await save(a, {
       action: "delete",
@@ -206,10 +220,11 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
       previousResults.entries.map((row) => row.concept),
       ["Campera anterior"],
     );
-
+  } finally {
+    if (installed)
+      await pool.query(
+        "DROP SCHEMA finance,finance_meta CASCADE; DROP ROLE finanzas_app",
+      );
     await pool.end();
-  } catch (error) {
-    await pool.end();
-    throw error;
   }
 });

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatBankReference } from "@/domain/bank-balances";
+import { isBulkHistoryKind } from "@/domain/history-bulk";
 import {
   historyKinds,
   historySearch,
@@ -21,50 +22,57 @@ const secondary =
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
 
-// Solo movimientos con categoría asignable admiten la edición masiva: los
-// saldos confirmados, cambios de moneda, deudas y devoluciones no se tocan.
-const selectableKinds = new Set(["income", "expense", "card_purchase"]);
-const selectableStatuses = new Set(["confirmed", "pending"]);
-
-function selectable(entry: HistoryEntry) {
-  return (
-    selectableKinds.has(entry.kind) && selectableStatuses.has(entry.status)
-  );
+function selectable(
+  entry: HistoryEntry,
+): entry is HistoryEntry & { classificationVersion: number } {
+  return isBulkHistoryKind(entry.kind) && entry.classificationVersion != null;
 }
 
-// Selección múltiple del historial (CA-057). La edición masiva segura
-// (permisos, atomicidad y protección de gastos divididos) es la parte de
-// Codex: mientras tanto el servidor rechaza la operación con un aviso claro.
 export function HistorySelection({
   entries,
   filters,
   cursor,
   categories,
+  tags,
+  enabled,
 }: {
   entries: HistoryEntry[];
   filters: FilterValues;
   cursor?: HistoryCursor;
   categories: { id: string; name: string; kind: "income" | "expense" }[];
+  tags: { id: string; name: string }[];
+  enabled: boolean;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [categoryId, setCategoryId] = useState("");
+  const [selected, setSelected] = useState<Map<string, number>>(new Map());
+  const [choice, setChoice] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const attempt = useRef("");
+  const [notice, setNotice] = useState("");
+  const attempt = useRef<{ body: string; key: string } | null>(null);
 
-  const rows = entries.filter(selectable);
+  const rows = enabled ? entries.filter(selectable) : [];
   const selectedRows = rows.filter((entry) =>
     selected.has(`${entry.kind}-${entry.id}`),
   );
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const compatibleCategories = categories.filter(({ kind }) =>
+    selectedRows.every(
+      (row) => kind === (row.kind === "income" ? "income" : "expense"),
+    ),
+  );
+  const [type, id] = choice.split(":");
+  const validChoice = (type === "category" ? compatibleCategories : tags).some(
+    (entry) => entry.id === id,
+  );
 
   function toggle(entry: HistoryEntry) {
     const key = `${entry.kind}-${entry.id}`;
     setSelected((previous) => {
-      const next = new Set(previous);
+      const next = new Map(previous);
       if (next.has(key)) next.delete(key);
-      else next.add(key);
+      else if (entry.classificationVersion != null)
+        next.set(key, entry.classificationVersion);
       return next;
     });
   }
@@ -72,37 +80,59 @@ export function HistorySelection({
   function toggleAll() {
     setSelected(
       allSelected
-        ? new Set()
-        : new Set(rows.map((entry) => `${entry.kind}-${entry.id}`)),
+        ? new Map()
+        : new Map(
+            rows.map((entry) => [
+              `${entry.kind}-${entry.id}`,
+              entry.classificationVersion,
+            ]),
+          ),
     );
   }
 
   async function apply(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!categoryId || selectedRows.length === 0) return;
+    if (pending || !validChoice || selectedRows.length === 0) return;
     setPending(true);
     setError("");
+    setNotice("");
+    const payload = {
+      entries: selectedRows.map(({ id, kind }) => ({
+        id,
+        kind,
+        version: selected.get(`${kind}-${id}`),
+      })),
+      ...(type === "category" ? { categoryId: id } : { tagId: id }),
+    };
+    const body = JSON.stringify(payload);
+    if (attempt.current?.body !== body)
+      attempt.current = { body, key: crypto.randomUUID() };
     try {
       const response = await fetch("/api/history/bulk-category", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          entries: selectedRows.map(({ id, kind }) => ({ id, kind })),
-          categoryId,
-          idempotencyKey: (attempt.current ||= crypto.randomUUID()),
+          ...payload,
+          idempotencyKey: attempt.current.key,
         }),
       });
       const data: { error?: string; updated?: number } = await response.json();
       if (!response.ok) {
-        if (response.status < 500) attempt.current = "";
-        setError(data.error ?? "No pudimos aplicar la categoría.");
+        if (response.status < 500) attempt.current = null;
+        setError(data.error ?? "No pudimos actualizar la clasificación.");
         return;
       }
-      attempt.current = "";
-      setSelected(new Set());
+      attempt.current = null;
+      setSelected(new Map());
+      setChoice("");
+      setNotice(
+        data.updated === 1
+          ? "1 registro actualizado."
+          : `${data.updated} registros actualizados.`,
+      );
       router.refresh();
     } catch {
-      setError("No pudimos aplicar la categoría. Reintentá el mismo envío.");
+      setError("No pudimos confirmar la edición. Reintentá el mismo envío.");
     } finally {
       setPending(false);
     }
@@ -123,6 +153,7 @@ export function HistorySelection({
               }}
               type="checkbox"
               checked={allSelected}
+              disabled={pending}
               onChange={toggleAll}
               aria-label="Seleccionar todo en esta página"
               className="size-4"
@@ -146,32 +177,50 @@ export function HistorySelection({
           </p>
           <div className="flex flex-wrap gap-2">
             <label className="grid gap-1 text-sm font-medium">
-              <span className="sr-only">Categoría a aplicar</span>
+              <span className="sr-only">Categoría o etiqueta</span>
               <select
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
+                value={validChoice ? choice : ""}
+                onChange={(event) => setChoice(event.target.value)}
+                disabled={pending}
                 className={control}
               >
-                <option value="">Elegí una categoría</option>
-                {categories.map(({ id, name, kind }) => (
-                  <option key={id} value={id}>
-                    {name} ({historyKinds[kind].toLowerCase()})
-                  </option>
-                ))}
+                <option value="">Elegí una categoría o etiqueta</option>
+                {compatibleCategories.length > 0 && (
+                  <optgroup label="Categorías">
+                    {compatibleCategories.map(({ id, name }) => (
+                      <option key={id} value={`category:${id}`}>
+                        {name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {tags.length > 0 && (
+                  <optgroup label="Etiquetas">
+                    {tags.map(({ id, name }) => (
+                      <option key={id} value={`tag:${id}`}>
+                        {name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             <button
               type="submit"
-              disabled={pending || !categoryId}
+              disabled={pending || !validChoice}
               className={primary}
             >
-              {pending ? "Aplicando…" : "Aplicar categoría"}
+              {pending
+                ? "Aplicando…"
+                : type === "tag"
+                  ? "Agregar etiqueta"
+                  : "Aplicar categoría"}
             </button>
             <button
               type="button"
               className={secondary}
               disabled={pending}
-              onClick={() => setSelected(new Set())}
+              onClick={() => setSelected(new Map())}
             >
               Quitar selección
             </button>
@@ -181,6 +230,11 @@ export function HistorySelection({
       {error && (
         <p role="alert" className="text-sm">
           {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="text-sm">
+          {notice}
         </p>
       )}
       {entries.length === 0 ? (
@@ -194,11 +248,12 @@ export function HistorySelection({
               key={`${entry.kind}-${entry.id}`}
               className="flex items-start gap-2 px-2 py-1"
             >
-              {selectable(entry) && (
+              {enabled && selectable(entry) && (
                 <input
                   type="checkbox"
                   checked={selected.has(`${entry.kind}-${entry.id}`)}
                   onChange={() => toggle(entry)}
+                  disabled={pending}
                   aria-label={`Seleccionar ${entry.concept}`}
                   className="mt-3 size-4 shrink-0"
                 />

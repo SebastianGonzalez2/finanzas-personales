@@ -37,7 +37,7 @@ export function HistoryFilters({
         {tags.length > 0 && (
           <TagFields tags={tags} initial={values.tags?.split(",")} filter />
         )}
-        <HistoryField label="Concepto o nota">
+        <HistoryField label="Buscar texto">
           <input
             name="q"
             type="search"

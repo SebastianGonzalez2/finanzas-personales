@@ -35,6 +35,12 @@ export type SavedFilter = {
 export type SavedFilterCommand = { idempotencyKey: string } & (
   | { action: "create"; name: string; criteria: HistoryFilters }
   | { action: "rename"; entryId: string; version: number; name: string }
+  | {
+      action: "update-criteria";
+      entryId: string;
+      version: number;
+      criteria: HistoryFilters;
+    }
   | { action: "delete"; entryId: string; version: number }
 );
 
@@ -55,12 +61,14 @@ function parseCriteria(input: unknown): HistoryFilters | null {
   if (!Object.values(criteria).some(Boolean)) return null;
   const parsed = parseHistoryParams(criteria);
   if ("error" in parsed) return null;
-  return criteria;
+  const valid = savedFilterCriteria(parsed.filters);
+  return Object.keys(valid).length > 0 ? valid : null;
 }
 
 const keys = {
   create: ["name", "criteria"],
   rename: ["entryId", "version", "name"],
+  "update-criteria": ["entryId", "version", "criteria"],
   delete: ["entryId", "version"],
 } as const;
 
@@ -79,7 +87,12 @@ export function parseSavedFilterCommand(
   if (!input || typeof input !== "object" || Array.isArray(input))
     return invalid;
   const { action, idempotencyKey } = input as Record<string, unknown>;
-  if (action !== "create" && action !== "rename" && action !== "delete")
+  if (
+    action !== "create" &&
+    action !== "rename" &&
+    action !== "update-criteria" &&
+    action !== "delete"
+  )
     return invalid;
   if (
     Object.keys(input).some(
@@ -112,6 +125,18 @@ export function parseSavedFilterCommand(
 
   const { entryId, version } = input as Record<string, unknown>;
   if (!isId(entryId) || !isVersion(version)) return invalid;
+  if (action === "update-criteria") {
+    const criteria = parseCriteria((input as Record<string, unknown>).criteria);
+    return criteria
+      ? {
+          action,
+          entryId: entryId.toLowerCase(),
+          version,
+          criteria,
+          idempotencyKey: commandKey,
+        }
+      : invalid;
+  }
   if (action === "delete")
     return {
       action,
@@ -135,11 +160,15 @@ export function parseSavedFilterCommand(
 export function savedFilterNeedsReview(
   criteria: HistoryFilters,
   categories: { id: string }[],
+  tags: { id: string }[] = [],
 ) {
   return Boolean(
     (criteria.category &&
       criteria.category !== "none" &&
-      !categories.some(({ id }) => id === criteria.category)) ||
+      !categories.some(({ id }) => id === criteria.category?.toLowerCase())) ||
+    criteria.tags
+      ?.split(",")
+      .some((id) => !tags.some((tag) => tag.id === id)) ||
     (criteria.kind && !Object.hasOwn(historyKinds, criteria.kind)) ||
     (criteria.currency &&
       !bankCurrencies.some((code) => code === criteria.currency)) ||

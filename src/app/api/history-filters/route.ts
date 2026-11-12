@@ -7,6 +7,7 @@ import {
 import { withGoogleOwner } from "@/server/google-auth";
 import { googlePrivateHeaders } from "@/server/google-http";
 import { authOrigin, limitedJson } from "@/server/google-policy";
+import { bulkClassificationReady } from "@/server/history-bulk";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,11 @@ export async function POST(request: Request) {
   try {
     return await withGoogleOwner(request, async (client, ownerId) => {
       if (!(await savedFiltersReady(client))) return unavailable();
+      if (
+        command.action === "update-criteria" &&
+        !(await bulkClassificationReady(client))
+      )
+        return unavailable();
       const result = await saveSavedFilterCommand(client, ownerId, command);
       switch (result.status) {
         case "conflict":

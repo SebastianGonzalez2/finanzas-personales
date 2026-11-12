@@ -18,6 +18,7 @@ import { classificationReady, listTags } from "@/server/classification";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listHistory, listHistoryCategories } from "@/server/history";
 import { listSavedFilters, savedFiltersReady } from "@/server/history-filters";
+import { bulkClassificationReady } from "@/server/history-bulk";
 import { historyReady } from "@/server/movements";
 
 export const metadata = { title: "Historial | Finanzas personales" };
@@ -51,7 +52,8 @@ export default async function HistoryPage({
         categories: await listHistoryCategories(client, ownerId),
         savedFilters: (await savedFiltersReady(client))
           ? await listSavedFilters(client, ownerId)
-          : [],
+          : null,
+        bulkReady: await bulkClassificationReady(client),
         tags: (await classificationReady(client))
           ? await listTags(client, ownerId)
           : [],
@@ -97,18 +99,22 @@ export default async function HistoryPage({
               categories={data.categories}
               tags={data.tags}
             />
-            {"savedFilters" in data && (
+            {data.savedFilters && (
               <SavedHistoryFilters
                 values={query.filters}
                 saved={data.savedFilters}
                 categories={data.categories}
+                tags={data.tags}
+                canUpdateCriteria={data.bulkReady}
               />
             )}
             <HistorySelection
               entries={entries}
               filters={query.filters}
               cursor={query.cursor}
-              categories={data.categories}
+              categories={data.categories.filter(({ archived }) => !archived)}
+              tags={data.tags.filter(({ archived }) => !archived)}
+              enabled={data.bulkReady}
             />
             {(query.cursor || data.hasNextPage) && (
               <nav

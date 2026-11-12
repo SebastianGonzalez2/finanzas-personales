@@ -29,10 +29,14 @@ export function SavedHistoryFilters({
   values,
   saved,
   categories,
+  tags,
+  canUpdateCriteria,
 }: {
   values: FilterValues;
   saved: SavedFilter[];
-  categories: { id: string }[];
+  categories: { id: string; archived: boolean }[];
+  tags: { id: string; archived: boolean }[];
+  canUpdateCriteria: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -40,6 +44,7 @@ export function SavedHistoryFilters({
   const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [editing, setEditing] = useState("");
+  const [replacing, setReplacing] = useState("");
   const [editedName, setEditedName] = useState("");
   const attempt = useRef<{ body: string; key: string } | null>(null);
 
@@ -124,6 +129,23 @@ export function SavedHistoryFilters({
       setNotice("Filtro eliminado.");
   }
 
+  async function replaceCriteria(entry: SavedFilter) {
+    if (
+      await send(
+        {
+          action: "update-criteria",
+          entryId: entry.id,
+          version: entry.version,
+          criteria,
+        },
+        "No pudimos actualizar el filtro. Reintentá el mismo envío.",
+      )
+    ) {
+      setReplacing("");
+      setNotice("Criterios actualizados.");
+    }
+  }
+
   return (
     <Card className="gap-3 p-4 sm:p-5">
       <h2 className="font-semibold">Filtros guardados</h2>
@@ -192,13 +214,32 @@ export function SavedHistoryFilters({
                     >
                       {entry.name}
                     </a>
-                    {savedFilterNeedsReview(entry.criteria, categories) && (
+                    {savedFilterNeedsReview(
+                      entry.criteria,
+                      categories,
+                      tags,
+                    ) && (
                       <span className="text-xs text-muted-foreground">
                         Un criterio cambió y requiere revisión.
                       </span>
                     )}
+                    {(categories.some(
+                      ({ id, archived }) =>
+                        archived &&
+                        id === entry.criteria.category?.toLowerCase(),
+                    ) ||
+                      tags.some(
+                        ({ id, archived }) =>
+                          archived &&
+                          entry.criteria.tags?.split(",").includes(id),
+                      )) && (
+                      <span className="text-xs text-muted-foreground">
+                        Incluye un criterio archivado. El filtro sigue
+                        disponible.
+                      </span>
+                    )}
                   </span>
-                  <span className="flex gap-2">
+                  <span className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       className={secondary}
@@ -210,6 +251,16 @@ export function SavedHistoryFilters({
                     >
                       Renombrar
                     </button>
+                    {canUpdateCriteria && canSave && (
+                      <button
+                        type="button"
+                        className={secondary}
+                        disabled={pending}
+                        onClick={() => setReplacing(entry.id)}
+                      >
+                        Usar búsqueda actual
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={secondary}
@@ -220,6 +271,30 @@ export function SavedHistoryFilters({
                     </button>
                   </span>
                 </>
+              )}
+              {replacing === entry.id && (
+                <div className="flex w-full flex-wrap items-center gap-2">
+                  <p className="text-sm">
+                    ¿Reemplazar los criterios de «{entry.name}» por la búsqueda
+                    actual?
+                  </p>
+                  <button
+                    type="button"
+                    className={primary}
+                    disabled={pending}
+                    onClick={() => replaceCriteria(entry)}
+                  >
+                    Reemplazar criterios
+                  </button>
+                  <button
+                    type="button"
+                    className={secondary}
+                    disabled={pending}
+                    onClick={() => setReplacing("")}
+                  >
+                    Cancelar
+                  </button>
+                </div>
               )}
             </li>
           ))}

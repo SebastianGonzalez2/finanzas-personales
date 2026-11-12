@@ -54,6 +54,7 @@ export type HistoryEntry = {
   categoryId: string | null;
   category: string | null;
   method: MovementDisplayMethod | null;
+  classificationVersion?: number | null;
   cardAmounts?: { currency: Currency; amount: string }[] | null;
 };
 

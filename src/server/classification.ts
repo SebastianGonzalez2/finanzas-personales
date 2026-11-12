@@ -17,6 +17,7 @@ import { hasLinkedRefund } from "./refund-schema.ts";
 type CommandResult = { id: string } | { error: string; status: number };
 type Snapshot = {
   version: number;
+  allocatedTotal: string | null;
   allocations: (CategoryAllocation & { category: string | null })[];
   tagIds: string[];
 };
@@ -28,6 +29,7 @@ type Target = {
 
 export const emptyClassification: Snapshot = {
   version: 0,
+  allocatedTotal: null,
   allocations: [],
   tagIds: [],
 };
@@ -112,7 +114,8 @@ export async function listClassificationVersions(
   limit = 10,
 ) {
   const { rows } = await client.query<Snapshot & { recordedOn: string }>(
-    `SELECT x.version, to_char(x.recorded_at AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD') AS "recordedOn",
+    `SELECT x.version, x.allocated_total::text AS "allocatedTotal",
+       to_char(x.recorded_at AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD') AS "recordedOn",
        coalesce((SELECT jsonb_agg(jsonb_build_object('categoryId',a.category_id,'amount',a.amount::text,'category',c.name) ORDER BY a.position)
           FROM finance.movement_allocations a LEFT JOIN finance.categories c ON (c.owner_id,c.id)=(a.owner_id,a.category_id)
          WHERE (a.owner_id,a.event_id,a.version)=(x.owner_id,x.event_id,x.version)), '[]') AS allocations,
@@ -137,11 +140,12 @@ export async function classificationTarget(
        LEFT JOIN finance.ordinary_movements m ON (m.owner_id,m.event_id)=(f.owner_id,f.id) AND f.kind='income'
        LEFT JOIN finance.bank_effects i ON (i.owner_id,i.event_id,i.id)=(m.owner_id,m.event_id,m.event_id)
        LEFT JOIN LATERAL (
-         SELECT amount FROM finance.budget_expenses_base b
+         SELECT min(amount) AS amount FROM finance.budget_expenses_base b
           WHERE (b.owner_id,b.event_id)=(f.owner_id,f.id)
             AND f.kind IN ('expense','card_purchase')
             AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases x WHERE (x.owner_id,x.event_id)=(f.owner_id,f.id))
             AND NOT EXISTS (SELECT 1 FROM finance.current_installment_plans p WHERE (p.owner_id,p.event_id)=(f.owner_id,f.id))
+         HAVING count(*) = 1
        ) b ON true
       WHERE f.owner_id=$1 AND f.id=$2`,
     [ownerId, eventId],

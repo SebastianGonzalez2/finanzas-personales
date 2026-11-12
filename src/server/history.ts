@@ -7,6 +7,7 @@ import { installmentsReady } from "./installments.ts";
 import { sharedExpensesReady } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
 import type { Currency } from "../domain/money.ts";
+import { normalizeFilterName } from "../domain/history-filters.ts";
 import {
   type HistoryEntry,
   type parseHistoryParams,
@@ -113,7 +114,29 @@ export async function listHistory(
   const shared = loans && (await sharedExpensesReady(client));
   const refunds = await refundsReady(client);
   const categoryMatches = (field: string) =>
-    `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field}::text = lower($7) END`;
+    `CASE WHEN $7 = 'none' THEN ${field} IS NULL ELSE ${field} = nullif($7, 'none')::uuid END`;
+  const normalizedSearch = filters.q && normalizeFilterName(filters.q);
+  const nameCatalog = normalizedSearch
+    ? (
+        await client.query<{ ready: boolean }>(
+          `SELECT to_regclass('finance.canonical_event_merchants') IS NOT NULL
+            AND to_regclass('finance.loan_people') IS NOT NULL AS ready`,
+        )
+      ).rows[0].ready
+    : false;
+  const merchantSearch = nameCatalog
+    ? `OR EXISTS (SELECT 1 FROM finance.canonical_event_merchants ref
+        JOIN finance.merchants merchant ON (merchant.owner_id, merchant.id) = (ref.owner_id, ref.merchant_id)
+        WHERE (ref.owner_id, ref.event_id) = (f.owner_id, f.id)
+          AND strpos(merchant.normalized_name, $17) > 0)`
+    : "";
+  const personSearch = (loan: string) =>
+    nameCatalog
+      ? `OR EXISTS (SELECT 1 FROM finance.loan_people ref
+          JOIN finance.people person ON (person.owner_id, person.id) = (ref.owner_id, ref.person_id)
+          WHERE ref.owner_id = f.owner_id AND ${loan}
+            AND strpos(person.normalized_name, $17) > 0)`
+      : "";
   const classifications = await classificationReady(client);
   const tagFilter = classifications
     ? `($16::uuid[] IS NULL OR EXISTS (SELECT 1 FROM finance.current_event_tags t
@@ -128,12 +151,22 @@ export async function listHistory(
        ELSE ${legacy} END`
       : legacy;
   const { rows } = await client.query<HistoryEntry>(
-    `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+    `SELECT history.*, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+       ${
+         classifications
+           ? `CASE WHEN history.kind IN ('income', 'expense', 'card_purchase')
+         AND history.status = 'confirmed' THEN coalesce((
+           SELECT max(c.version) FROM finance.classification_changes c
+            WHERE (c.owner_id, c.event_id) = ($1, history.id)
+         ), 0) END`
+           : "NULL::integer"
+       } AS "classificationVersion"
        FROM (
        (SELECT ${eventFields} ${eventSource}
          WHERE f.owner_id = $1 AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')
            ${shared ? excludeShared : ""}
-           AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(m.note), lower($2)) > 0)
+           AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0
+             OR strpos(lower(m.note), lower($2)) > 0 ${merchantSearch})
            AND ($3::date IS NULL OR f.effective_on >= $3) AND ($4::date IS NULL OR f.effective_on <= $4)
            AND ($5::text IS NULL OR f.kind = $5) AND ($6::text IS NULL OR f.status = $6)
            AND ${tagFilter}
@@ -162,7 +195,10 @@ export async function listHistory(
            ? `UNION ALL
        (SELECT ${sharedFields} ${sharedSource}
          WHERE f.owner_id = $1
-           AND ($2 IS NULL OR strpos(lower(s.concept), lower($2)) > 0 OR strpos(lower(s.note), lower($2)) > 0)
+           AND ($2 IS NULL OR strpos(lower(s.concept), lower($2)) > 0
+             OR strpos(lower(s.note), lower($2)) > 0 ${merchantSearch}
+             ${personSearch(`EXISTS (SELECT 1 FROM finance.loans l
+               WHERE (l.owner_id, l.id) = (ref.owner_id, ref.loan_id) AND l.source_expense_id = f.id)`)})
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
            AND ${tagFilter}
@@ -180,7 +216,8 @@ export async function listHistory(
        (SELECT ${loanFields} ${loanSource}
          WHERE f.owner_id = $1 AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
            AND $7 IS NULL AND $8 IS NULL AND ${tagFilter}
-           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0 OR strpos(lower(o.note), lower($2)) > 0)
+           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
+             OR strpos(lower(o.note), lower($2)) > 0 ${personSearch("ref.loan_id = o.loan_id")})
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ((($9 IS NULL OR o.currency = $9) AND ($10 IS NULL OR o.amount >= $10)
              AND ($11 IS NULL OR o.amount <= $11)) OR
@@ -198,7 +235,7 @@ export async function listHistory(
          WHERE f.owner_id = $1 AND f.kind IN ('card_purchase', 'card_payment', 'card_opening', 'card_adjustment')
            ${shared ? excludeShared : ""}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
-             OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
+             OR strpos(lower(o.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0 ${merchantSearch})
            AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
            AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
            AND ${tagFilter}
@@ -265,6 +302,7 @@ export async function listHistory(
       cursor?.kind ?? null,
       pageSize + 1,
       filters.tags ? filters.tags.split(",") : null,
+      ...(nameCatalog ? [normalizedSearch] : []),
     ],
   );
   return {
@@ -374,8 +412,12 @@ export async function listHistoryCategories(
     id: string;
     name: string;
     kind: "income" | "expense";
+    archived: boolean;
   }>(
-    `SELECT id, name, kind FROM finance.categories WHERE owner_id = $1 ORDER BY kind, name, id`,
+    `SELECT c.id, c.name, c.kind, (c.archived_at IS NOT NULL OR p.archived_at IS NOT NULL) AS archived
+      FROM finance.categories c
+      LEFT JOIN finance.categories p ON (p.owner_id, p.id) = (c.owner_id, c.parent_id)
+      WHERE c.owner_id = $1 ORDER BY c.kind, c.name, c.id`,
     [ownerId],
   );
   return rows;
