@@ -1,14 +1,23 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
+import { AccountDeletion } from "@/components/account-deletion";
 import { AccountBackup } from "@/components/account-backup";
 import { GoogleAccess } from "@/components/google-access";
 import { Card } from "@/components/ui/card";
-import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
+import { accountDeletionProof } from "@/server/account-deletion";
+import { withGoogleOwner } from "@/server/google-auth";
 
 export const metadata = { title: "Mi cuenta | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
 export default async function Account() {
-  await requireGoogleOwnerPage();
+  const proof = await withGoogleOwner(
+    new Request("https://internal.invalid", { headers: await headers() }),
+    async (_client, _ownerId, sessionToken) =>
+      accountDeletionProof(sessionToken),
+  ).catch(() => null);
+  if (!proof) redirect("/auth/sign-in");
 
   return (
     <FinanceShell current="account">
@@ -29,6 +38,7 @@ export default async function Account() {
         </div>
       </Card>
       <AccountBackup />
+      <AccountDeletion proof={proof} />
     </FinanceShell>
   );
 }

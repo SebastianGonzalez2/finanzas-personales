@@ -29,9 +29,8 @@ export async function GET(request: Request) {
         const claims = await withCronOwner(ownerId, (client, owner) =>
           claimCardPush(client, owner, today),
         );
-        for (const claim of claims) {
+        for (const claim of claims ?? []) {
           try {
-            if (!(await listCronOwners(ownerId)).length) break;
             await withCronOwner(ownerId, (client, owner) =>
               deliverCardPush(client, owner, today, claim, (subscription) =>
                 sendCardPush(subscription, config),

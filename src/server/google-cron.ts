@@ -14,16 +14,15 @@ export function authorizedCron(request: Request) {
   );
 }
 
-export async function listCronOwners(ownerId: string | null = null) {
+export async function listCronOwners() {
   if (!googleAuthEnabled()) throw new Error("Acceso en preparación");
   const client = await googlePool("auth").connect();
   try {
     await assertGoogleRuntime(client, "auth");
     const { rows } = await client.query<{ user_id: string }>(
       `SELECT user_id FROM app_access.allowlist
-        WHERE enabled AND user_id IS NOT NULL AND ($1::text IS NULL OR user_id = $1)
+        WHERE enabled AND user_id IS NOT NULL
         ORDER BY user_id`,
-      [ownerId],
     );
     return rows.map(({ user_id }) => user_id);
   } finally {
@@ -49,6 +48,14 @@ export function withCronOwner<T>(
       },
     },
     async () => ({ ownerId }),
-    work,
+    async (client, holder) => {
+      const {
+        rows: [row],
+      } = await client.query<{ active: boolean }>(
+        "SELECT finance.cron_owner_is_active() AS active",
+      );
+      if (!row.active) return;
+      return work(client, holder);
+    },
   );
 }
