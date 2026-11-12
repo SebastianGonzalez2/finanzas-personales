@@ -8,11 +8,14 @@ const paths = {
   chevron: "m9 6 6 6-6 6",
   wallet: "M19 8V5H6a3 3 0 0 0 0 6h15v9H6a3 3 0 0 1-3-3V8m18 6h-5v3h5",
   card: "M3 5h18v14H3V5Zm0 5h18M7 15h3",
+  store: "M4 9 5.5 4h13L20 9M4 9v11h16V9M10 20v-5h4v5",
   income: "M12 4v12m-4-4 4 4 4-4M4 17v3h16v-3",
   expense: "M12 16V4m-4 4 4-4 4 4M4 17v3h16v-3",
   calendar: "M4 7h16v13H4V7Zm0 4h16M8 4v5m8-5v5",
+  chart: "M4 20V10m5 10V4m5 16v-7m5 7V7",
   savings: "M4 7h16v13H4V7Zm-1 0h18V4H3v3Zm6 5h6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0",
+  report: "M6 3h12v18H6V3Zm3 5h6m-6 4h6m-6 4h4",
 } as const;
 
 export function FinanceIcon({

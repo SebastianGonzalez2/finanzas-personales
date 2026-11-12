@@ -8,13 +8,12 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import type { CategoryAllocation } from "@/domain/classification";
+import { AllocationFields, formClassification } from "./classification-fields";
 import { type HistoryEntry } from "@/domain/history";
-import {
-  conceptLimit,
-  movementMethods,
-  noteLimit,
-  type MovementCategory,
-} from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
+import { conceptLimit, movementMethods, noteLimit } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import { useFinancialCommand } from "./financial-command";
 import {
@@ -60,6 +59,7 @@ function CurrencyField({
 
 export function HistoryEditor({
   entry,
+  classification,
   categories,
   currencies,
   today,
@@ -67,7 +67,11 @@ export function HistoryEditor({
   fundPortions,
 }: {
   entry: HistoryEntry;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
+  classification: {
+    version: number;
+    allocations: (CategoryAllocation & { category: string | null })[];
+  } | null;
   currencies: Currency[];
   today: string;
   fundSources: FundSource[] | null;
@@ -106,15 +110,27 @@ export function HistoryEditor({
     const form = new FormData(event.currentTarget);
     const portions = formFundPortions(form, expenseFundsField);
     form.delete(expenseFundsField);
+    const fields = formClassification(form);
+    const allocations =
+      fields.allocations ??
+      (classification?.allocations.length ? [] : undefined);
     const movement = {
       kind: entry.kind,
       ...Object.fromEntries(form),
       ...(portions && { fundPortions: portions }),
+      ...(allocations && { allocations }),
     };
     if (
       await send(
         action === "edit"
-          ? { action, eventId: entry.id, movement }
+          ? {
+              action,
+              eventId: entry.id,
+              movement,
+              ...(allocations && {
+                classificationVersion: classification?.version,
+              }),
+            }
           : { action, eventId: entry.id },
       )
     ) {
@@ -259,28 +275,28 @@ export function HistoryEditor({
                       className={historyControl}
                     />
                   </HistoryField>
-                  <HistoryField label="Categoría">
-                    <select
-                      name="categoryId"
+                  <AllocationFields
+                    categories={categories}
+                    available={!!classification}
+                    initial={classification?.allocations}
+                  >
+                    <CategorySelect
+                      kind={entry.kind === "income" ? "income" : "expense"}
+                      categories={categories}
+                      labelClassName="grid min-w-0 gap-1 text-sm font-medium"
+                      labelText="Categoría"
+                      controlClassName={historyControl}
                       defaultValue={entry.categoryId ?? ""}
-                      className={historyControl}
-                    >
-                      <option value="">Sin categorizar</option>
-                      {entry.categoryId &&
-                        !categories.some(
-                          ({ id }) => id === entry.categoryId,
-                        ) && (
-                          <option value={entry.categoryId}>
-                            {entry.category}
-                          </option>
-                        )}
-                      {categories.map(({ id, name }) => (
-                        <option key={id} value={id}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </HistoryField>
+                      unlisted={
+                        entry.categoryId
+                          ? {
+                              value: entry.categoryId,
+                              label: `${entry.category ?? "Categoría"} (archivada)`,
+                            }
+                          : null
+                      }
+                    />
+                  </AllocationFields>
                   <HistoryField label="Nota">
                     <textarea
                       name="note"

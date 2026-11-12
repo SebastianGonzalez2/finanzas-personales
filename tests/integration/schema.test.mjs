@@ -18,6 +18,11 @@ import {
   savingsFundsReady,
 } from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import {
+  findEventMerchant,
+  findLoanPerson,
+  nameCatalogReady,
+} from "../../src/server/catalog.ts";
 import { installmentsReady } from "../../src/server/installments.ts";
 import { cardCyclesReady } from "../../src/server/card-cycles.ts";
 import { mixedPurchasesReady } from "../../src/server/mixed-purchases.ts";
@@ -26,6 +31,9 @@ import { saveLoanOperation, findLoan } from "../../src/server/loans.ts";
 import { loansReady } from "../../src/server/movements.ts";
 import { refundsReady } from "../../src/server/refund-schema.ts";
 import { budgetsReady, listBudgetNotices } from "../../src/server/budgets.ts";
+import { cardPushReady } from "../../src/server/card-push.ts";
+import { recurrenceTrackingReady } from "../../src/server/recurrence-links.ts";
+import { recurringSharesReady } from "../../src/server/recurring-shares.ts";
 import { recurrencesReady } from "../../src/server/recurrences.ts";
 import {
   fundLifecycleReady,
@@ -69,6 +77,18 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0020_F3-06_monthly_budgets.sql",
       "0021_F3-07_budget_notices.sql",
       "0022_F4-01_recurring_series.sql",
+      "0023_F4-02_recurring_periods.sql",
+      "0024_F4-03_series_pause.sql",
+      "0025_F4-04_recurring_shared_expenses.sql",
+      "0026_F4-05_due_notice_preferences.sql",
+      "0027_F5-01_category_archive.sql",
+      "0028_F5-02_movement_classification.sql",
+      "0029_F5-03_catalogo_nombres.sql",
+      "0030_F5-04_filtros_guardados.sql",
+      "0031_F5-04_bulk_classification.sql",
+      "0032_F5-05_statistics_favorites.sql",
+      "0033_F5-06_reference_exchange_rates.sql",
+      "0034_F5-07_account_backup.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -84,7 +104,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -112,6 +132,18 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
       budgets,
       notices,
       recurrences,
+      settlements,
+      pause,
+      sharing,
+      dueNotices,
+      categoryArchive,
+      classification,
+      nameCatalog,
+      savedFilters,
+      bulkClassification,
+      statistics,
+      exchangeRates,
+      backup,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -378,17 +410,107 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await recurrencesReady(client), false);
     await assert.rejects(migrateInTransaction(client, notices.sha256));
-    assert.deepEqual(await migrateInTransaction(client, recurrences.sha256), [
-      recurrences.version,
-    ]);
-    assert.deepEqual(
-      await migrateInTransaction(client, recurrences.sha256),
-      [],
+    await assert.rejects(migrateInTransaction(client, settlements.sha256));
+    await client.query(recurrences.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [recurrences.version, recurrences.sha256],
     );
+    assert.equal(
+      (
+        await client.query(
+          "SELECT has_column_privilege('finanzas_app', 'finance.categories', 'archived_at', 'UPDATE') AS allowed",
+        )
+      ).rows[0].allowed,
+      false,
+    );
+    await setOwnerContext(client, "legacy-fixture");
+    assert.equal(await recurrenceTrackingReady(client), false);
+    const seriesId = randomUUID();
+    await client.query(
+      `INSERT INTO finance.recurring_series
+        (owner_id,id,command_hash,kind,concept,currency,frequency,first_period,date_mode)
+       VALUES ('legacy-fixture',$1,repeat('b',64),'income','Ingreso previo','UYU','monthly','2026-11-01','none')`,
+      [seriesId],
+    );
+    await client.query("RESET ROLE");
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    await assert.rejects(migrateInTransaction(client, settlements.sha256));
+    await client.query(settlements.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [settlements.version, settlements.sha256],
+    );
+    await assert.rejects(migrateInTransaction(client, settlements.sha256));
+    assert.equal(await recurringSharesReady(client), false);
+    await assert.rejects(migrateInTransaction(client, pause.sha256));
+    await client.query(pause.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [pause.version, pause.sha256],
+    );
+    await assert.rejects(migrateInTransaction(client, sharing.sha256));
+    await client.query(sharing.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [sharing.version, sharing.sha256],
+    );
+    assert.equal(await cardPushReady(client), false);
+    await assert.rejects(migrateInTransaction(client, dueNotices.sha256));
+    await client.query(dueNotices.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [dueNotices.version, dueNotices.sha256],
+    );
+    for (const migration of [
+      categoryArchive,
+      classification,
+      nameCatalog,
+      savedFilters,
+      bulkClassification,
+      statistics,
+      exchangeRates,
+    ]) {
+      await assert.rejects(migrateInTransaction(client, migration.sha256));
+      await client.query(migration.sql);
+      await client.query(
+        "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+        [migration.version, migration.sha256],
+      );
+    }
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), [
+      backup.version,
+    ]);
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), []);
+    assert.equal(
+      (
+        await client.query(
+          "SELECT has_column_privilege('finanzas_app', 'finance.categories', 'archived_at', 'UPDATE') AS allowed",
+        )
+      ).rows[0].allowed,
+      true,
+    );
+    assert.equal(await nameCatalogReady(client), true);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
     assert.equal(
-      (await client.query("SELECT 1 FROM finance.recurring_series")).rowCount,
+      await findEventMerchant(client, "legacy-fixture", purchase.id),
+      null,
+    );
+    assert.equal(await findLoanPerson(client, "legacy-fixture", loan.id), null);
+    assert.equal(await recurrenceTrackingReady(client), true);
+    assert.equal(await recurringSharesReady(client), true);
+    assert.equal(await cardPushReady(client), true);
+    assert.equal(
+      (await findLoan(client, "legacy-fixture", loan.id)).noticeLeadDays,
+      3,
+    );
+    assert.deepEqual(
+      (await client.query("SELECT id FROM finance.recurring_series")).rows,
+      [{ id: seriesId }],
+    );
+    assert.equal(
+      (await client.query("SELECT 1 FROM finance.recurring_periods")).rowCount,
       0,
     );
     assert.equal(

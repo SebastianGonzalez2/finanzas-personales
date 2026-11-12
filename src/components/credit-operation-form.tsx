@@ -7,6 +7,8 @@ import {
   type BankAvailability,
 } from "@/domain/bank-balances";
 import type { CatalogCard } from "@/domain/cards";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
 import {
   maxPurchaseCategories,
   type CreditAction,
@@ -29,12 +31,9 @@ import {
   type InstallmentVersion,
 } from "@/domain/installments";
 import { InstallmentFields } from "./installment-fields";
-import {
-  conceptLimit,
-  noteLimit,
-  type MovementCategory,
-} from "@/domain/movements";
+import { conceptLimit, noteLimit } from "@/domain/movements";
 import { useFinancialCommand } from "./financial-command";
+import { NameAutocomplete } from "./name-autocomplete";
 import {
   AmountInput,
   HistoryField,
@@ -42,6 +41,13 @@ import {
   historyControl,
   historyPrimary,
 } from "./history-fields";
+
+import type { MovementTag } from "@/domain/classification";
+import {
+  AllocationFields,
+  TagFields,
+  formClassification,
+} from "./classification-fields";
 
 export const creditActionLabels = {
   purchase: "Registrar compra",
@@ -62,7 +68,8 @@ type Props = {
   banks: Currency[];
   bankAvailability?: BankAvailability[];
   fundSources?: FundSource[] | null;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   purchases?: CreditPurchaseOption[];
   installmentsReady: boolean;
   debitCards?: CatalogCard[];
@@ -77,7 +84,8 @@ type Props = {
     concept: string;
     note: string | null;
     categoryId: string | null;
-    categories: PurchaseCategory[];
+    category?: string | null;
+    categories: (PurchaseCategory & { category?: string | null })[];
     covered: boolean;
     plan?: InstallmentVersion;
     fundCommitment?: FundPortion;
@@ -99,6 +107,7 @@ export function CreditOperationForm({
   bankAvailability,
   fundSources,
   categories,
+  tags,
   purchases = [],
   installmentsReady,
   debitCards,
@@ -211,7 +220,9 @@ export function CreditOperationForm({
         action === "purchase"
           ? {
               ...entry,
+              ...formClassification(form),
               concept: form.get("concept"),
+              ...(!correction && { merchantName: form.get("merchantName") }),
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
@@ -564,6 +575,14 @@ export function CreditOperationForm({
                 defaultValue={correction?.concept}
               />
             </HistoryField>
+            {!correction && (
+              <NameAutocomplete
+                kind="merchant"
+                name="merchantName"
+                label="Comercio (opcional)"
+                className={historyControl}
+              />
+            )}
             {mixed && (
               <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
                 <input
@@ -602,15 +621,17 @@ export function CreditOperationForm({
                         <option value="credit">Crédito</option>
                       </select>
                     </HistoryField>
-                    <HistoryField label="Categoría de la porción">
-                      <CategorySelect
-                        name={`category-${key}`}
-                        categories={expenseCategories}
-                        initial={
-                          "categoryId" in initial ? initial.categoryId : null
-                        }
-                      />
-                    </HistoryField>
+                    <PurchaseCategorySelect
+                      name={`category-${key}`}
+                      label="Categoría de la porción"
+                      categories={expenseCategories}
+                      initial={
+                        "categoryId" in initial ? initial.categoryId : null
+                      }
+                      initialName={
+                        "category" in initial ? initial.category : null
+                      }
+                    />
                     <HistoryField label="Importe de la porción">
                       <AmountInput
                         name={`share-${key}`}
@@ -650,14 +671,21 @@ export function CreditOperationForm({
                 )}
               </fieldset>
             ) : (
-              <HistoryField label="Categoría (opcional)">
-                <CategorySelect
+              <AllocationFields
+                key={financed ? "installments" : "immediate"}
+                available={!!tags && !financed && !mixed}
+                categories={expenseCategories}
+              >
+                <PurchaseCategorySelect
                   name="categoryId"
+                  label="Categoría (opcional)"
                   categories={expenseCategories}
                   initial={correction?.categoryId}
+                  initialName={correction?.category}
                 />
-              </HistoryField>
+              </AllocationFields>
             )}
+            {tags && !correction && <TagFields tags={tags} />}
             <HistoryField label="Nota (opcional)">
               <input
                 className={historyControl}
@@ -708,27 +736,37 @@ export function CreditOperationForm({
   );
 }
 
-function CategorySelect({
+function PurchaseCategorySelect({
   name,
+  label,
   categories,
   initial,
+  initialName,
 }: {
   name: string;
-  categories: MovementCategory[];
+  label: string;
+  categories: CatalogCategory[];
   initial?: string | null;
+  initialName?: string | null;
 }) {
   return (
-    <select name={name} defaultValue={initial ?? ""} className={historyControl}>
-      <option value="">Sin categorizar</option>
-      {initial && !categories.some(({ id }) => id === initial) && (
-        <option value={initial}>Categoría archivada</option>
-      )}
-      {categories.map(({ id, name }) => (
-        <option key={id} value={id}>
-          {name}
-        </option>
-      ))}
-    </select>
+    <CategorySelect
+      kind="expense"
+      name={name}
+      labelText={label}
+      labelClassName="grid min-w-0 gap-1 text-sm font-medium"
+      controlClassName={historyControl}
+      categories={categories}
+      defaultValue={initial ?? ""}
+      unlisted={
+        initial
+          ? {
+              value: initial,
+              label: `${initialName ?? "Categoría"} (archivada)`,
+            }
+          : null
+      }
+    />
   );
 }
 

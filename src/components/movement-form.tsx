@@ -11,19 +11,28 @@ import {
   conceptLimit,
   movementMethods,
   noteLimit,
-  type MovementCategory,
   type MovementKind,
 } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
+import type { CatalogCategory } from "@/domain/categories";
+import { CategorySelect } from "./category-select";
+import { catalogNameLimit } from "@/domain/catalog";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
+import type { MovementTag } from "@/domain/classification";
+import {
+  AllocationFields,
+  TagFields,
+  formClassification,
+} from "./classification-fields";
 import type { FundSource } from "@/domain/fund-coverage";
 import {
   expenseFundsField,
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import { NameAutocomplete } from "./name-autocomplete";
 import { Card } from "./ui/card";
 
 const control =
@@ -36,6 +45,7 @@ export function MovementForm({
   balances,
   fundSources,
   categories,
+  tags,
   bankTransfersReady,
   creditCards,
   debitCards,
@@ -45,7 +55,8 @@ export function MovementForm({
   today: string;
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
@@ -116,7 +127,11 @@ export function MovementForm({
       sentBody.current = null;
     }
     setOpen(true);
-    requestAnimationFrame(() => heading.current?.focus());
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active === trigger.current || active === document.body)
+        heading.current?.focus();
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -131,8 +146,10 @@ export function MovementForm({
         const form = new FormData(event.currentTarget);
         const fundPortions = formFundPortions(form, expenseFundsField);
         form.delete(expenseFundsField);
+        const classification = formClassification(form);
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
+          ...classification,
           ...(fundPortions?.length && { fundPortions }),
           idempotencyKey: requestKey.current,
         });
@@ -411,6 +428,7 @@ export function MovementForm({
                 cards={creditCards}
                 banks={configured}
                 categories={categories}
+                tags={tags}
                 fundSources={fundSources}
                 bankAvailability={balances}
                 debitCards={debitCards}
@@ -569,23 +587,21 @@ export function MovementForm({
                   )}
                   {!transfer && (
                     <>
-                      <label className="space-y-1 text-sm">
-                        <span>Categoría (opcional)</span>
-                        <select
-                          name="categoryId"
+                      <AllocationFields
+                        key={kind}
+                        categories={categories.filter(
+                          (category) => category.kind === kind,
+                        )}
+                        available={!!tags}
+                      >
+                        <CategorySelect
                           key={kind}
-                          className={control}
-                        >
-                          <option value="">Sin categorizar</option>
-                          {categories
-                            .filter((category) => category.kind === kind)
-                            .map(({ id, name }) => (
-                              <option key={id} value={id}>
-                                {name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
+                          kind={kind}
+                          categories={categories}
+                          controlClassName={control}
+                        />
+                      </AllocationFields>
+                      {tags && <TagFields tags={tags} />}
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>
                           {income ? "Concepto (opcional)" : "Concepto"}
@@ -597,6 +613,15 @@ export function MovementForm({
                           className={control}
                         />
                       </label>
+                      {!income && (
+                        <NameAutocomplete
+                          kind="merchant"
+                          name="merchantName"
+                          label="Comercio (opcional)"
+                          maxLength={catalogNameLimit}
+                          className={control}
+                        />
+                      )}
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>Nota (opcional)</span>
                         <textarea

@@ -15,7 +15,7 @@ import type {
 } from "@/domain/credit-operations";
 import { formatInstallmentPeriod } from "@/domain/installments";
 import type { Currency } from "@/domain/money";
-import type { MovementCategory } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
 import type { loadCardCycle } from "@/server/card-cycles";
 import { CreditOperationForm } from "./credit-operation-form";
 import { useFinancialCommand } from "./financial-command";
@@ -49,7 +49,7 @@ export function CardCycleDetail({
   banks: Currency[];
   bankAvailability: BankAvailability[];
   fundSources: FundSource[] | null;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
   purchases: CreditPurchaseOption[];
   openPayment: boolean;
 }) {

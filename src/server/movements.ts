@@ -1,15 +1,30 @@
 import "server-only";
+import { validRecurringRevision } from "./recurrence-links.ts";
+import {
+  classificationHashFields,
+  allocationSumMatches,
+} from "../domain/classification.ts";
+import {
+  classificationReady,
+  readClassification,
+  prepareClassification,
+  insertClassification,
+} from "./classification.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import {
   isSharedExpense,
   sharedExpensesReady,
 } from "./shared-expense-schema.ts";
 import { mixedPurchasesReady } from "./mixed-purchases.ts";
+import {
+  copyEventMerchant,
+  nameCatalogReady,
+  recordEventMerchant,
+} from "./catalog.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
   BankTransfer,
-  MovementCategory,
   MovementInput,
   MovementKind,
   MovementRevision,
@@ -17,6 +32,11 @@ import type {
   RecentBankTransfer,
   RecentMovement,
 } from "../domain/movements.ts";
+import { resolveMovementCategory } from "./categories.ts";
+export {
+  listCatalogCategories as listMovementCategories,
+  resolveMovementCategory,
+} from "./categories.ts";
 import type { Currency } from "../domain/money.ts";
 import {
   coverageDecimal,
@@ -37,48 +57,6 @@ import {
   lockBankWrites,
 } from "./bank-balances.ts";
 
-const defaultNames = {
-  income: [
-    "Sueldo",
-    "Negocios",
-    "Alquileres cobrados",
-    "Intereses y dividendos",
-    "Ventas",
-    "Reembolsos",
-    "Otros ingresos",
-  ],
-  expense: [
-    "Alimentación",
-    "Vivienda",
-    "Servicios",
-    "Transporte",
-    "Auto",
-    "Salud",
-    "Educación",
-    "Ropa",
-    "Entretenimiento",
-    "Viajes",
-    "Seguros",
-    "Impuestos",
-    "Otros gastos",
-  ],
-} satisfies Record<MovementKind, string[]>;
-
-// Stable suggestions from v6.3. They become private catalog rows on first use.
-const defaultCategories = (
-  Object.entries(defaultNames) as [MovementKind, string[]][]
-).flatMap(([kind, names]) =>
-  names.map((name): MovementCategory => {
-    const hash = createHash("sha256")
-      .update(`finanzas:v6.3:${kind}:${name}`)
-      .digest("hex");
-    const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-    return { id, kind, name };
-  }),
-);
-
-type CatalogRow = MovementCategory & { archived: boolean };
-
 export async function movementAvailability(client: pg.PoolClient) {
   const {
     rows: [state],
@@ -94,38 +72,19 @@ export async function movementAvailability(client: pg.PoolClient) {
   return state;
 }
 
-export async function listMovementCategories(
-  client: pg.PoolClient,
-  ownerId: string,
-) {
-  const { rows } = await client.query<CatalogRow>(
-    `SELECT id, kind, name, archived_at IS NOT NULL AS archived
-       FROM finance.categories WHERE owner_id = $1`,
-    [ownerId],
-  );
-  const suggestions = defaultCategories.filter(
-    (suggestion) =>
-      !rows.some(
-        (row) =>
-          row.id === suggestion.id ||
-          (row.kind === suggestion.kind && row.name === suggestion.name),
-      ),
-  );
-  return [
-    ...rows
-      .filter((row) => !row.archived)
-      .map(({ id, kind, name }) => ({ id, kind, name })),
-    ...suggestions,
-  ].sort((a, b) => a.name.localeCompare(b.name, "es"));
-}
-
 type Replay = { status: "replayed"; id: string } | { status: "conflict" };
 type Shortfall = {
   status: "insufficient-funds";
   shortfall: string;
   currency: Currency;
 };
+type ClassificationError = {
+  status: "invalid-classification";
+  message: string;
+};
 type SaveResult =
+  | ClassificationError
+  | { status: "catalog-unavailable" }
   | Replay
   | Omit<Shortfall, "currency">
   | { status: "created"; id: string }
@@ -337,15 +296,19 @@ export async function saveMovement(
       concept,
       note,
       categoryId,
+      ...classificationHashFields(movement),
       ...(movement.fundPortions?.length
         ? [JSON.stringify(movement.fundPortions)]
         : []),
+      ...(movement.merchantName ? ["merchant", movement.merchantName] : []),
     ]);
 
   await lockBankWrites(client, ownerId);
   const replay = await findReplay(client, ownerId, idempotencyKey, hash);
   if (replay) return replay;
 
+  if (movement.merchantName && !(await nameCatalogReady(client)))
+    return { status: "catalog-unavailable" };
   const [balance] = await listBankAvailability(client, ownerId, [currency]);
   if (!balance) return { status: "unconfigured" };
   const portions = movement.fundPortions ?? [];
@@ -381,6 +344,18 @@ export async function saveMovement(
     }
   }
 
+  const wantsClassification = classificationHashFields(movement).length > 0;
+  if (wantsClassification && !(await classificationReady(client)))
+    return {
+      status: "invalid-classification",
+      message: "Actualizá la base de datos para clasificar el movimiento.",
+    };
+  const prepared = wantsClassification
+    ? await prepareClassification(client, ownerId, movement, amount, kind)
+    : null;
+  if (prepared && "error" in prepared)
+    return { status: "invalid-classification", message: prepared.error };
+
   const selectedCategoryId = await resolveMovementCategory(
     client,
     ownerId,
@@ -394,47 +369,20 @@ export async function saveMovement(
     { ...movement, categoryId: selectedCategoryId },
     hash,
   );
+  if (prepared)
+    await insertClassification(
+      client,
+      ownerId,
+      id,
+      1,
+      idempotencyKey,
+      hash,
+      prepared,
+    );
+  if (movement.merchantName)
+    await recordEventMerchant(client, ownerId, id, movement.merchantName);
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return { status: "created", id };
-}
-
-export async function resolveMovementCategory(
-  client: pg.PoolClient,
-  ownerId: string,
-  kind: MovementKind,
-  categoryId: string | null,
-) {
-  const suggestion = defaultCategories.find(
-    (category) => category.id === categoryId && category.kind === kind,
-  );
-  let selectedCategoryId = categoryId;
-  if (categoryId) {
-    const {
-      rows: [existing],
-    } = await client.query<CatalogRow>(
-      `SELECT id, kind, archived_at IS NOT NULL AS archived
-         FROM finance.categories
-        WHERE owner_id = $1 AND (id = $2 OR (kind = $3 AND name = $4))
-        ORDER BY (id = $2) DESC, archived_at NULLS FIRST, id
-        LIMIT 1`,
-      [ownerId, categoryId, kind, suggestion?.name ?? null],
-    );
-    if (existing) {
-      if (existing.archived || existing.kind !== kind) return undefined;
-      selectedCategoryId = existing.id;
-    } else if (!suggestion) {
-      return undefined;
-    }
-  }
-
-  if (suggestion && selectedCategoryId === suggestion.id) {
-    await client.query(
-      `INSERT INTO finance.categories (owner_id, id, kind, name)
-       VALUES ($1, $2, $3, $4) ON CONFLICT (owner_id, id) DO NOTHING`,
-      [ownerId, suggestion.id, kind, suggestion.name],
-    );
-  }
-  return selectedCategoryId;
 }
 
 async function insertMovement(
@@ -495,6 +443,9 @@ async function insertMovement(
 }
 
 type RevisionResult =
+  | { status: "recurrence-conflict" }
+  | ClassificationError
+  | { status: "catalog-unavailable" }
   | Replay
   | { status: "invalid-coverage"; message: string }
   | Shortfall
@@ -567,7 +518,26 @@ export async function reviseMovement(
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
+  const classification =
+    amount !== null && (await classificationReady(client))
+      ? await readClassification(client, ownerId, eventId)
+      : null;
+  if (
+    amount !== null &&
+    classification?.allocations.length &&
+    !allocationSumMatches(classification.allocations, amount)
+  )
+    return {
+      status: "invalid-classification",
+      message: "Usá Editar para ajustar el desglose al nuevo importe.",
+    };
+
   const { currency, kind, effectiveOn } = original;
+  if (
+    amount !== null &&
+    !(await validRecurringRevision(client, ownerId, eventId, amount, currency))
+  )
+    return { status: "recurrence-conflict" };
   const [balance] = await listBankAvailability(
     client,
     ownerId,
@@ -629,6 +599,25 @@ export async function reviseMovement(
           { ...original, amount, idempotencyKey, fundPortions: portions },
           hash,
         );
+  if (
+    replacement &&
+    classification &&
+    (classification.tagIds.length || classification.allocations.length)
+  )
+    await insertClassification(
+      client,
+      ownerId,
+      replacement,
+      1,
+      idempotencyKey,
+      hash,
+      {
+        ...classification,
+        allocatedTotal: classification.allocations.length ? amount : null,
+      },
+    );
+  if (replacement && kind === "expense")
+    await copyEventMerchant(client, ownerId, eventId, replacement);
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
 }
@@ -663,8 +652,14 @@ async function editMovement(
         movement.concept,
         movement.note,
         movement.categoryId,
+        ...classificationHashFields(movement),
+        ...(movement.allocations?.length === 0 ? ["clear-allocations"] : []),
+        ...(movement.tagIds?.length === 0 ? ["clear-tags"] : []),
         ...(movement.fundPortions !== undefined
           ? [JSON.stringify(movement.fundPortions)]
+          : []),
+        ...(movement.merchantName !== undefined
+          ? ["merchant", movement.merchantName]
           : []),
       ];
   const hash = commandHash([
@@ -673,6 +668,9 @@ async function editMovement(
     movement.kind,
     movement.effectiveOn,
     ...fields,
+    ...(command.classificationVersion !== undefined
+      ? ["classification-version", String(command.classificationVersion)]
+      : []),
   ]);
   await lockBankWrites(client, ownerId);
   if (!(await historyReady(client))) return { status: "unavailable" };
@@ -703,6 +701,19 @@ async function editMovement(
   if (!original) return { status: "not-found" };
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.kind !== movement.kind) return { status: "invalid-kind" };
+  if (
+    !transfer &&
+    !(await validRecurringRevision(
+      client,
+      ownerId,
+      eventId,
+      movement.amount,
+      movement.currency,
+    ))
+  )
+    return { status: "recurrence-conflict" };
+  if (!transfer && movement.merchantName && !(await nameCatalogReady(client)))
+    return { status: "catalog-unavailable" };
 
   const newEffects: { currency: Currency; signed: string }[] = transfer
     ? [
@@ -817,6 +828,51 @@ async function editMovement(
       hash,
     );
   } else {
+    const ready = await classificationReady(client);
+    if (
+      !ready &&
+      (movement.allocations !== undefined || movement.tagIds !== undefined)
+    )
+      return {
+        status: "invalid-classification",
+        message: "Actualizá la base de datos para clasificar el movimiento.",
+      };
+    const priorClassification = ready
+      ? await readClassification(client, ownerId, eventId)
+      : undefined;
+    if (
+      command.classificationVersion !== undefined &&
+      command.classificationVersion !== priorClassification?.version
+    )
+      return {
+        status: "invalid-classification",
+        message: "La clasificación cambió. Actualizá la página.",
+      };
+    const prepared =
+      ready &&
+      (priorClassification?.version ||
+        movement.allocations?.length ||
+        movement.tagIds?.length)
+        ? await prepareClassification(
+            client,
+            ownerId,
+            movement,
+            movement.amount,
+            movement.kind,
+            priorClassification,
+          )
+        : null;
+    if (prepared && "error" in prepared)
+      return { status: "invalid-classification", message: prepared.error };
+    if (
+      prepared?.allocations.length &&
+      movement.allocations === undefined &&
+      movement.categoryId !== original.categoryId
+    )
+      return {
+        status: "invalid-classification",
+        message: "Revisá el desglose al cambiar la categoría del movimiento.",
+      };
     const categoryId =
       movement.categoryId === original.categoryId
         ? original.categoryId
@@ -833,6 +889,25 @@ async function editMovement(
       { ...movement, idempotencyKey, categoryId, fundPortions: portions },
       hash,
     );
+    if (prepared && (prepared.allocations.length || prepared.tagIds.length))
+      await insertClassification(
+        client,
+        ownerId,
+        replacement,
+        1,
+        idempotencyKey,
+        hash,
+        prepared,
+      );
+    if (movement.merchantName)
+      await recordEventMerchant(
+        client,
+        ownerId,
+        replacement,
+        movement.merchantName,
+      );
+    else if (movement.kind === "expense" && movement.merchantName === undefined)
+      await copyEventMerchant(client, ownerId, eventId, replacement);
   }
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
@@ -940,13 +1015,35 @@ export async function listMovementTotals(
   ownerId: string,
   monthStart: string,
 ) {
+  return movementTotals<MovementTotal>(client, ownerId, monthStart, false);
+}
+
+export async function listMerchantTotals(
+  client: pg.PoolClient,
+  ownerId: string,
+  monthStart: string,
+) {
+  return movementTotals<MovementTotal & { merchantId: string }>(
+    client,
+    ownerId,
+    monthStart,
+    true,
+  );
+}
+
+async function movementTotals<T extends MovementTotal>(
+  client: pg.PoolClient,
+  ownerId: string,
+  monthStart: string,
+  byMerchant: boolean,
+) {
   const credit = await creditOperationsReady(client);
   const mixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
-  const { rows } = await client.query<MovementTotal>(
-    `SELECT kind, currency, sum(amount)::text AS amount FROM (
-       SELECT f.kind, e.currency, abs(e.amount_signed) AS amount
+  const { rows } = await client.query<T>(
+    `SELECT kind, currency, sum(amount)::text AS amount ${byMerchant ? ', ref.merchant_id AS "merchantId"' : ""} FROM (
+       SELECT f.id, f.kind, e.currency, abs(e.amount_signed) AS amount
        FROM finance.financial_events f
        JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
        JOIN finance.bank_effects e
@@ -957,7 +1054,7 @@ export async function listMovementTotals(
         shared
           ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
         UNION ALL
-        SELECT 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
+        SELECT f.id, 'expense', s.currency, s.own_amount FROM finance.current_shared_expenses s
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
         WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
@@ -966,7 +1063,7 @@ export async function listMovementTotals(
       ${
         credit
           ? `UNION ALL
-        SELECT 'expense', x.currency, x.amount FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
+        SELECT x.id, 'expense', x.currency, x.amount FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
          WHERE x.owner_id = $1 ${shared ? "AND x.amount > 0" : ""} AND x.effective_on >= $2::date
            AND x.effective_on < $2::date + interval '1 month'
            ${
@@ -974,7 +1071,7 @@ export async function listMovementTotals(
                ? `AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases m
              WHERE (m.owner_id, m.event_id) = (x.owner_id, x.id))
            UNION ALL
-           SELECT 'expense', currency, amount FROM finance.mixed_purchase_expenses
+           SELECT id, 'expense', currency, amount FROM finance.mixed_purchase_expenses
             WHERE owner_id = $1 AND effective_on >= $2::date AND effective_on < $2::date + interval '1 month'`
                : ""
            }`
@@ -983,13 +1080,21 @@ export async function listMovementTotals(
       ${
         loans
           ? `UNION ALL
-        SELECT 'expense', o.currency, o.expense FROM finance.loan_operations o
+        SELECT f.id, 'expense', o.currency, o.expense FROM finance.loan_operations o
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
         WHERE o.owner_id = $1 AND o.expense > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
           : ""
       }
-      ) amounts GROUP BY kind, currency`,
+      ) amounts
+      ${
+        byMerchant
+          ? `JOIN finance.canonical_event_merchants ref
+        ON ref.owner_id = $1 AND ref.event_id = amounts.id
+        WHERE amounts.kind = 'expense'`
+          : ""
+      }
+      GROUP BY kind, currency ${byMerchant ? " , ref.merchant_id ORDER BY ref.merchant_id, currency" : ""}`,
     [ownerId, monthStart],
   );
   return rows;
@@ -1004,9 +1109,19 @@ export async function listRecentMovements(
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const mixed = credit && (await mixedPurchasesReady(client));
   const shared = kind === "expense" && (await sharedExpensesReady(client));
+  const classified = await classificationReady(client);
+  const category = classified
+    ? `CASE WHEN EXISTS (SELECT 1 FROM finance.current_movement_allocations a
+        WHERE a.owner_id = $1 AND a.event_id = recent.id)
+      THEN (SELECT CASE WHEN count(*) > 1 THEN 'Categorías repartidas' ELSE max(c.name) END
+        FROM finance.current_movement_allocations a
+        LEFT JOIN finance.categories c ON (c.owner_id,c.id)=(a.owner_id,a.category_id)
+        WHERE a.owner_id = $1 AND a.event_id = recent.id)
+      ELSE recent.category END AS category`
+    : "category";
   const { rows } = await client.query<RecentMovement>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
-            currency, amount, method, note, category
+            currency, amount, method, note, ${category}
             ${shared ? ", EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE s.owner_id = $1 AND s.event_id = recent.id) AS shared" : ""} FROM (
       SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,
             e.currency, abs(e.amount_signed)::text AS amount, m.method, m.note, c.name AS category

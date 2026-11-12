@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { conceptLimit, movementUuid, noteLimit } from "./movements.ts";
+import { parseOptionalCatalogName } from "./catalog-names.ts";
 import {
   installmentCount,
   installmentPeriodAt,
@@ -35,6 +36,13 @@ export type CreditPaymentLine = DebtAmount & {
   allocations: PaymentAllocation[];
   fundPortions?: FundPortion[];
 };
+import {
+  allocationError,
+  allocationSumMatches,
+  parseClassification,
+  type ClassificationInput,
+} from "./classification.ts";
+
 export type CreditAction = "purchase" | "payment" | "adjustment";
 export const maxPurchaseCategories = 10;
 export type PurchaseCategory = {
@@ -58,6 +66,7 @@ export type CreditCommand = {
   | ({
       action: "purchase";
       concept: string;
+      merchantName?: string;
       note: string | null;
       categoryId: string | null;
       covered: boolean;
@@ -65,7 +74,8 @@ export type CreditCommand = {
       fundCommitment?: FundPortion | null;
       plan?: InstallmentTerms;
       mixed?: MixedPurchase;
-    } & DebtAmount)
+    } & DebtAmount &
+      ClassificationInput)
   | ({ action: "adjustment"; expectedDebt: string } & DebtAmount)
   | { action: "payment"; lines: CreditPaymentLine[] }
 );
@@ -259,7 +269,7 @@ function paymentLine(input: unknown): CreditPaymentLine {
 
 const common = ["action", "cardId", "effectiveOn", "idempotencyKey"];
 
-function installmentTerms(input: unknown): InstallmentTerms {
+export function installmentTerms(input: unknown): InstallmentTerms {
   const plan = record(input, ["installmentAmount", "count", "firstPeriod"]);
   const { count, firstPeriod } = plan;
   if (
@@ -420,6 +430,7 @@ export function parseCreditCommand(
             "currency",
             "amount",
             "concept",
+            "merchantName",
             "note",
             "categoryId",
             "covered",
@@ -427,6 +438,8 @@ export function parseCreditCommand(
             "fundCommitment",
             "plan",
             "mixed",
+            "allocations",
+            "tagIds",
           ]
         : action === "payment"
           ? ["lines"]
@@ -455,6 +468,7 @@ export function parseCreditCommand(
     if (action !== "purchase" || typeof data.covered !== "boolean")
       return error;
     const concept = optionalText(data.concept, conceptLimit);
+    const merchantName = parseOptionalCatalogName(data.merchantName);
     if (!concept) return { error: "Ingresá un concepto para la compra." };
     const plan =
       data.plan === undefined ? undefined : installmentTerms(data.plan);
@@ -500,13 +514,28 @@ export function parseCreditCommand(
         error:
           "El compromiso no puede superar el cargo pendiente de pago de la compra.",
       };
+    const classification = parseClassification({
+      allocations: data.allocations,
+      tagIds: data.tagIds,
+    });
+    if ("error" in classification) return classification;
+    if (
+      classification.allocations?.length &&
+      (plan ||
+        mixed ||
+        data.categoryId ||
+        !allocationSumMatches(classification.allocations, charge))
+    )
+      return { error: allocationError };
     return {
       ...target,
+      ...classification,
       action,
       currency: code,
       amount: charge,
       ...(fundCommitment !== undefined && { fundCommitment }),
       concept,
+      ...(merchantName && { merchantName }),
       note: optionalText(data.note, noteLimit),
       categoryId: mixed?.categories.length ? null : categoryId(data.categoryId),
       covered: data.covered,

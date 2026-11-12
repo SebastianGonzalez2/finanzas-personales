@@ -8,7 +8,16 @@ import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
+import { RecurringSplitCorrection } from "@/components/recurring-split-correction";
 import { SharedExpenseForm } from "@/components/shared-expense-form";
+import { MovementClassification } from "@/components/movement-classification";
+import {
+  classificationReady,
+  classificationTarget,
+  listTags,
+  emptyClassification,
+  listClassificationVersions,
+} from "@/server/classification";
 import { HistoryEditor } from "@/components/history-editor";
 import { LoanOperationDetail } from "@/components/loan-operation-detail";
 import { InstallmentEditor } from "@/components/installment-editor";
@@ -29,7 +38,9 @@ import {
 } from "@/domain/history";
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { installmentTotal } from "@/domain/installments";
+import { recurrenceEventPeriods } from "@/server/recurrence-links";
 import { withGoogleOwner } from "@/server/google-auth";
+import { findEventMerchant } from "@/server/catalog";
 import {
   installmentsReady,
   listInstallmentVersions,
@@ -40,7 +51,8 @@ import {
   historyRevisions,
   listHistoryCurrencies,
 } from "@/server/history";
-import { historyReady, listMovementCategories } from "@/server/movements";
+import { historyReady } from "@/server/movements";
+import { listCatalogCategories } from "@/server/categories";
 import { listCards } from "@/server/cards";
 import { mixedPurchaseDetail } from "@/server/mixed-purchases";
 import { sharedExpenseDetail } from "@/server/shared-expenses";
@@ -70,6 +82,9 @@ export default async function HistoryDetail({
         return null;
       const entry = await findHistoryEntry(client, ownerId, id, checkpoint);
       if (!entry) return null;
+      const recurrence = checkpoint
+        ? []
+        : await recurrenceEventPeriods(client, ownerId, id);
       const revisions = checkpoint
         ? []
         : await historyRevisions(client, ownerId, id);
@@ -92,7 +107,12 @@ export default async function HistoryDetail({
       const shared =
         sharingReady &&
         (entry.kind === "expense" || entry.kind === "card_purchase")
-          ? await sharedExpenseDetail(client, ownerId, id)
+          ? await sharedExpenseDetail(
+              client,
+              ownerId,
+              id,
+              recurrence.length > 0,
+            )
           : undefined;
       const refund =
         entry.kind === "purchase_refund" || entry.kind === "card_credit_return"
@@ -108,8 +128,23 @@ export default async function HistoryDetail({
       const refundLinked = purchaseRefunds?.entries.some(
         ({ status }) => status !== "voided",
       );
+      const versions =
+        !checkpoint && (await classificationReady(client))
+          ? await listClassificationVersions(client, ownerId, id)
+          : null;
+      const classification = versions
+        ? (versions[0] ?? emptyClassification)
+        : null;
+      const tags = classification ? await listTags(client, ownerId) : [];
+      const classificationTargetData =
+        classification && entry.status === "confirmed"
+          ? await classificationTarget(client, ownerId, id)
+          : null;
+      const canAllocate = !!classificationTargetData?.amount && !refundLinked;
       const canSplit =
         sharingReady &&
+        !recurrence.length &&
+        !classification?.allocations.length &&
         !refundLinked &&
         !shared &&
         !mixed &&
@@ -139,10 +174,13 @@ export default async function HistoryDetail({
         !shared &&
         entry.status === "confirmed";
       const categories =
-        (editable && entry.kind !== "bank_transfer") || mixedEditable || shared
-          ? (await listMovementCategories(client, ownerId)).filter(
+        (editable && entry.kind !== "bank_transfer") ||
+        mixedEditable ||
+        shared ||
+        canAllocate
+          ? (await listCatalogCategories(client, ownerId)).filter(
               ({ kind }) =>
-                kind === (mixedEditable || shared ? "expense" : entry.kind),
+                kind === (entry.kind === "income" ? "income" : "expense"),
             )
           : [];
       const currencies =
@@ -158,6 +196,15 @@ export default async function HistoryDetail({
           : null;
       return {
         entry,
+        recurrence,
+        classification,
+        previousClassifications: versions?.slice(1) ?? [],
+        tags,
+        canAllocate,
+        merchant:
+          entry.kind === "expense" || entry.kind === "card_purchase"
+            ? await findEventMerchant(client, ownerId, id)
+            : null,
         fundUses,
         fundSources,
         revisions,
@@ -200,6 +247,12 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    recurrence,
+    classification,
+    previousClassifications,
+    tags,
+    canAllocate,
+    merchant,
     fundUses,
     fundSources,
     revisions,
@@ -239,6 +292,19 @@ export default async function HistoryDetail({
             </h1>
           </header>
           <dl className="grid gap-3 sm:grid-cols-2">
+            {merchant && (
+              <div>
+                <dt className="text-sm text-muted-foreground">Comercio</dt>
+                <dd>
+                  <Link
+                    className="underline"
+                    href={`/historial?merchant=${merchant.id}`}
+                  >
+                    {merchant.name}
+                  </Link>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-sm text-muted-foreground">Fecha</dt>
               <dd>{formatBankReference(entry.effectiveOn)}</dd>
@@ -263,15 +329,37 @@ export default async function HistoryDetail({
                   <dt className="text-sm text-muted-foreground">Medio</dt>
                   <dd>{movementDisplayMethods[entry.method]}</dd>
                 </div>
-                {entry.kind !== "card_payment" && !mixed?.categories.length && (
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Categoría</dt>
-                    <dd className="wrap-anywhere">
-                      {entry.category ?? "Sin categorizar"}
-                    </dd>
-                  </div>
-                )}
+                {entry.kind !== "card_payment" &&
+                  !mixed?.categories.length &&
+                  !classification?.allocations.length && (
+                    <div>
+                      <dt className="text-sm text-muted-foreground">
+                        Categoría
+                      </dt>
+                      <dd className="wrap-anywhere">
+                        {entry.category ?? "Sin categorizar"}
+                      </dd>
+                    </div>
+                  )}
               </>
+            )}
+            {recurrence.length > 0 && (
+              <div>
+                <dt className="text-sm text-muted-foreground">
+                  Período al que corresponde
+                </dt>
+                <dd className="flex flex-wrap gap-2">
+                  {recurrence.map(({ seriesId, key, index }) => (
+                    <Link
+                      className="underline"
+                      key={key}
+                      href={`/recurrentes?serie=${seriesId}&hasta=${index}#periodo-${seriesId}-${index}`}
+                    >
+                      {key}
+                    </Link>
+                  ))}
+                </dd>
+              </div>
             )}
             {entry.note && (
               <div className="sm:col-span-2">
@@ -282,6 +370,62 @@ export default async function HistoryDetail({
               </div>
             )}
           </dl>
+          {classification && (
+            <MovementClassification
+              key={entry.id}
+              eventId={entry.id}
+              {...classification}
+              tags={tags}
+              categories={categories}
+              currency={entry.currency}
+              editable={entry.status === "confirmed"}
+              allocatable={canAllocate}
+            />
+          )}
+          {previousClassifications.length > 0 && (
+            <details className="border-t pt-3 text-sm">
+              <summary className="cursor-pointer font-medium">
+                Últimas clasificaciones anteriores
+              </summary>
+              <ul className="mt-2 grid gap-2">
+                {previousClassifications.map((previous) => (
+                  <li
+                    key={previous.version}
+                    className="grid gap-1 rounded-md border p-3"
+                  >
+                    <p className="font-medium">
+                      Versión {previous.version} ·{" "}
+                      {formatBankReference(previous.recordedOn)}
+                    </p>
+                    {previous.allocations.map(
+                      ({ categoryId, category, amount }) => (
+                        <p key={categoryId ?? "none"}>
+                          {category ?? "Sin categorizar"} ·{" "}
+                          {formatBankAmount({
+                            currency: entry.currency,
+                            amount,
+                          })}
+                        </p>
+                      ),
+                    )}
+                    {previous.tagIds.length > 0 && (
+                      <p>
+                        Etiquetas ·{" "}
+                        {tags
+                          .filter(({ id }) => previous.tagIds.includes(id))
+                          .map(({ name }) => name)
+                          .join(", ")}
+                      </p>
+                    )}
+                    {!previous.allocations.length &&
+                      !previous.tagIds.length && (
+                        <p>Sin desglose ni etiquetas.</p>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {fundUses.length > 0 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -510,6 +654,7 @@ export default async function HistoryDetail({
                 covered: mixed.covered && !credit.creditApplied,
                 effectiveOn: entry.effectiveOn,
                 categoryId: entry.categoryId,
+                category: entry.category,
                 concept: entry.concept,
                 note: entry.note,
                 plan,
@@ -545,6 +690,21 @@ export default async function HistoryDetail({
               </div>
             </details>
           )}
+          {shared && shared.portions.length > 0 && (
+            <details className="border-t pt-4">
+              <summary className="cursor-pointer font-semibold">
+                Corregir reparto del pago
+              </summary>
+              <RecurringSplitCorrection
+                key={shared.version}
+                eventId={entry.id}
+                version={shared.version}
+                currency={shared.currency}
+                ownAmount={shared.ownAmount}
+                parties={shared.portions}
+              />
+            </details>
+          )}
           {shared && shared.revisions.length > 1 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -553,7 +713,14 @@ export default async function HistoryDetail({
               <h2 className="font-semibold">Versiones de los datos</h2>
               <ul className="grid gap-2 text-sm wrap-anywhere">
                 {shared.revisions.map(
-                  ({ version, concept, category, note, recordedOn }) => (
+                  ({
+                    version,
+                    concept,
+                    category,
+                    note,
+                    recordedOn,
+                    correctedOwn,
+                  }) => (
                     <li key={version}>
                       <p>
                         Versión {version} · {recordedOn}
@@ -561,6 +728,15 @@ export default async function HistoryDetail({
                       <p>
                         {concept} · {category ?? "Sin categorizar"}
                       </p>
+                      {correctedOwn !== null && (
+                        <p>
+                          Reparto corregido · Gasto propio{" "}
+                          {formatBankAmount({
+                            currency: shared.currency,
+                            amount: correctedOwn,
+                          })}
+                        </p>
+                      )}
                       {note && <p className="whitespace-pre-wrap">{note}</p>}
                     </li>
                   ),
@@ -584,6 +760,7 @@ export default async function HistoryDetail({
           )}
           {editable && (
             <HistoryEditor
+              classification={classification}
               entry={entry}
               fundSources={fundSources}
               fundPortions={fundUses}

@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { conceptLimit, movementUuid, noteLimit } from "./movements.ts";
+import { parseOptionalCatalogName, personNameLimit } from "./catalog-names.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const loanDirections = {
@@ -11,6 +12,9 @@ export const loanDirections = {
   receivable: "Dinero por cobrar",
 } as const;
 export type LoanDirection = keyof typeof loanDirections;
+
+/** Antelación predeterminada del aviso de vencimiento (3 días, v9.44). */
+export const defaultLoanNoticeLeadDays = 3;
 
 export const loanFrequencies = {
   weekly: "Semanal",
@@ -24,12 +28,15 @@ export type LoanTerms = {
   installmentAmount: string | null;
   frequency: keyof typeof loanFrequencies | null;
   dueOn: string | null;
+  /** Antelación del aviso interno para la fecha cierta (v9.44); 3 por defecto. */
+  noticeLeadDays: number;
 };
 
 type LoanOpening = LoanTerms & {
   action: "existing" | "lend" | "borrow";
   direction: LoanDirection;
   concept: string;
+  personName?: string;
   currency: Currency;
   agreedTotal: string | null;
 };
@@ -162,15 +169,21 @@ export function parseLoanCommand(
       fields(data, [
         "direction",
         "concept",
+        "personName",
         "currency",
         "installmentLoan",
         "installmentAmount",
         "frequency",
         "dueOn",
+        "noticeLeadDays",
         "agreedTotal",
       ]);
       const { direction, installmentLoan } = data;
       const concept = text(data.concept, conceptLimit);
+      const personName = parseOptionalCatalogName(
+        data.personName,
+        personNameLimit,
+      );
       const currency = bankCurrencies.find((code) => code === data.currency);
       if (
         !concept ||
@@ -183,6 +196,20 @@ export function parseLoanCommand(
         throw new Error();
       const dueOn = data.dueOn === "" ? null : (data.dueOn ?? null);
       if (dueOn !== null && !isBankReferenceDate(dueOn, "9999-12-31"))
+        throw new Error();
+      const lead = data.noticeLeadDays;
+      const noticeLeadDays =
+        lead == null || lead === ""
+          ? defaultLoanNoticeLeadDays
+          : typeof lead === "string" && /^\d{1,3}$/.test(lead)
+            ? Number(lead)
+            : lead;
+      if (
+        typeof noticeLeadDays !== "number" ||
+        !Number.isInteger(noticeLeadDays) ||
+        noticeLeadDays < 0 ||
+        noticeLeadDays > 365
+      )
         throw new Error();
       const installmentAmount = optionalAmount(data.installmentAmount);
       const frequency = Object.keys(loanFrequencies).find(
@@ -210,11 +237,13 @@ export function parseLoanCommand(
         action,
         direction,
         concept,
+        ...(personName && { personName }),
         currency,
         installmentLoan,
         installmentAmount,
         frequency: frequency ?? null,
         dueOn,
+        noticeLeadDays,
         agreedTotal,
       };
     }

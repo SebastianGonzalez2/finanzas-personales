@@ -61,7 +61,7 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `payment_allocations` | payment_event_id, statement_id?, purchase_id?, fund_id?, currency, amount | Asignaciones de pagos y fuentes deben sumar el pago total; evitar dos débitos reales. |
 | `loans` | id, owner_id, person_id?, direction, currency, principal_reference?, amount_outstanding, due_at?, state | `direction`: pagar/cobrar. Los derechos por cobrar no equivalen a efectivo bancario. |
 | `loan_effects` | event_id, loan_id, delta_original_currency, actual_bank_currency?, actual_bank_amount? | Pago/cobro cambia deuda y banco solo según hechos. Cobro/pago en otra moneda requiere dos importes reales. |
-| `people` | id, owner_id, canonical_name, archived_at, normalized_name | Catálogo privado; no leer contactos del teléfono. |
+| `people` | id, owner_id, name, archived_at, normalized_name | Catálogo privado; no leer contactos del teléfono. |
 | `merchants` | id, owner_id, canonical_name, archived_at, normalized_name | Autocompletado, alias y unificación manual reversible/auditable sin eliminar compras. |
 | `categories` | id, owner_id, kind, parent_id?, name, icon?, color?, archived_at | Categorías de ingreso/gasto separadas; subcategorías opcionales; preservar referencias históricas. |
 | `stat_allocations` | event_id, category_id?, currency, amount, recognition_period, allocation_kind | Un solo total real, división por categoría; `allocation_kind` distingue gasto, ingreso, y ajuste descriptivo. |
@@ -72,19 +72,23 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `fund_schedules` | fund_id, monthly_day, amount, enabled, pause_reason, starts_at | Primer aporte desde siguiente mes, insuficiencia deja pendiente, meta alcanzada pausa automático. |
 | `fund_contribution_periods` | fund_id, period, planned_amount, state, actual_event_id? | Idempotencia por fondo y período; estados pendiente/omitido/completado/descartado. |
 | `recurring_series` | owner_id, id, kind, concept, category_id?, currency, note?, reference_amount?, frequency, first_period, date_mode, due_day?, end_date?, paused, version | F4-01 guarda la definición inicial y usa `(owner_id, id)` como recibo de alta idempotente. `date_mode` distingue exacto, aproximado y sin fecha. La finalización se deriva después del día final inclusive. |
-| `recurring_periods` | series_id, period_key, expected_amount?, actual_amount?, state, omission_reason? | Único estado por serie/período; múltiples depósitos o pagos vinculables. |
+| `recurring_share_participants` | owner_id, series_id, person_id, percentage | Acuerdo de una serie de gasto con contactos privados. El porcentaje propio es el complemento. El acuerdo propone importes y puede adaptarse para cada pago. |
+| `recurring_periods` | owner_id, series_id, period_index, period_key, due_on?, reference_amount?, confirmed_total?, finalized_amount?, omitted, version | Una fila por período gestionado. El estado y los importes recibidos, pagados y restantes se derivan de las asignaciones vigentes y del total confirmado. |
+| `recurring_commands` y `recurring_allocations` | owner_id, series_id, id, event_id?, released_by?, command_hash, details; period_index, settlement_id, amount? | Recibos idempotentes y asignación de un movimiento a uno o varios períodos de la misma serie. Las correcciones conservan el vínculo por la cadena de auditoría. En F4-03, los cambios de programación guardan el primer índice afectado y la versión de la serie. La pausa excluye períodos nuevos hasta la reanudación. Los cambios del día habitual se aplican desde el mes siguiente y conservan las fechas de los períodos anteriores, incluidos los pendientes. |
 | `recurring_shares` | period_id/series_id, person_id, amount_or_ratio | Reparto expreso entre titulares ajenos; solo materializar por cobrar al pagar gasto real. |
 | `monthly_budgets` | owner_id, category_id, currency, habitual_limit, effective_from | Versionado de límites por período; padre incluye subcategorías sin doble contabilizar. |
 | `budget_overrides` | budget_id, month, override_limit | Límite de un mes excepcional; siguiente mes vuelve al habitual. |
 | `fx_reference_rates` | base_currency, quote_currency, observed_at, source, rate, imported_at | No sobreescribir tasa usada por un hecho histórico; fecha/tasa/fuente reproducibles. |
 | `fx_valuations` | event_id, target_currency, rate_id?, manual_rate?, quoted_amount | Conversión **solo de consulta**; no mover dinero. |
 | `notifications` | owner_id, type, object_id, period_key, threshold?, state, due_at | Un aviso por evento/umbral; email financiero excluido; push tarjeta opcional. |
+| `card_push_subscriptions` | owner_id, id, endpoint, p256dh, auth, expires_at, enabled | Opt-in por dispositivo. Endpoint único entre titulares y protegido por RLS. |
+| `card_push_attempts` | owner_id, subscription_id, card_id, period, currency, claimed_at | Un intento por suscripción, tarjeta, ciclo y moneda. Claves foráneas por titular y RLS. |
 | `audit_changes` | actor_owner_id, event_id?, entity, entity_id, change_type, before_after, created_at | Traza de correcciones, reembolsos, conciliación, edición masiva, restauración. |
 | `backup_schema_versions` | version, migration_policy | Contrato de formato, no guardar contraseña de copia ni secretos. |
 
 **Reglas técnicas:** claves foráneas y unicidad por titular; `NOT NULL` donde haya dato obligatorio; `CHECK` para importes y tipos; índices `(owner_id, effective_at DESC)`, `(owner_id, category_id)`, recurrencias `(series_id, period_key)`, notificaciones `(owner_id, type, object_id, period_key, threshold)`. Las cotizaciones pueden ser compartidas entre usuarios, pero **no** datos financieros.
 
-F4-01 calcula los períodos previstos desde la definición guardada. Antes de `first_period` se muestra la configuración sin un período pendiente. Un vencimiento aproximado o desconocido carece de fecha exacta, incluido el primer período. F4-02 incorpora el seguimiento persistente por período y sus vínculos con pagos y cobros reales.
+El calendario muestra los períodos previstos desde `first_period`. El primer cambio explícito guarda la referencia y el vencimiento del período. Cada confirmación real usa el movimiento bancario o cargo de tarjeta existente y la fecha efectiva para estadísticas. Vincular o desvincular un movimiento registrado conserva sus efectos originales. Un importe de referencia solo es informativo. El restante se calcula cuando hay un total confirmado. Un cierre por el importe efectivamente registrado vuelve a revisión si cambia la suma por una corrección. Una anulación retira el movimiento de los importes recibidos o pagados y conserva la traza histórica.
 
 ## 4. Tipos monetarios y redondeo
 
@@ -111,6 +115,8 @@ F4-01 calcula los períodos previstos desde la definición guardada. Antes de `f
 **I-07 Ingreso dividido:** un depósito de $55.000 con asignaciones $50.000 Sueldo y $5.000 Bonificación produce **un crédito en Bancos por $55.000** y un ingreso total de $55.000, no $110.000.
 
 **I-08 Refund entre meses (v9.42):** compra Ropa enero $2.000; devolución real febrero $500 → **enero: compra $2.000; febrero: compras Ropa no cambian por esa devolución; devolución figura separada $500; presupuesto febrero no cambia**. Banco/tarjeta acredita $500 solo al ocurrir. Los indicadores netos opcionales han de etiquetarse como tales.
+
+En F4-04, una confirmación compartida de un período enlaza el pago total con el gasto propio y las cuentas por cobrar individuales. Se puede vincular un movimiento ya registrado con su reparto, o repartirlo en la misma transacción. Los cobros posteriores conservan su fecha real. Una corrección del reparto añade una versión y ajusta los saldos pendientes de las obligaciones vinculadas, conservando el pago total, los cobros confirmados y el acuerdo habitual. La parte corregida debe cubrir lo ya cobrado.
 
 **I-09 Recurrencias:** crear/avanzar período **no mueve banco**; solo confirmar pago/cobro real produce efecto. Los períodos no se duplican. Sueldos parciales vinculados se cuentan según depósitos reales, no referencia.
 

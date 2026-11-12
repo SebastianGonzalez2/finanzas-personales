@@ -73,6 +73,7 @@ async function readCycles(
   client: pg.PoolClient,
   ownerId: string,
   cardId?: string,
+  asOf?: string,
 ) {
   const refunds = await refundsReady(client);
   const {
@@ -97,12 +98,14 @@ async function readCycles(
         JOIN finance.credit_expenses x ON (x.owner_id, x.id) = (o.owner_id, o.event_id)
         WHERE o.owner_id = $1 AND ($2::uuid IS NULL OR o.card_id = $2)
           AND f.kind = 'card_purchase'
+          AND ($3::date IS NULL OR (f.effective_on <= $3 AND x.effective_on <= $3))
         ORDER BY f.effective_on, x.id, x.installment_ordinal) AS expenses,
       ARRAY(SELECT jsonb_build_object('cardId', l.card_id, 'period', to_char(l.statement_period, 'YYYY-MM'),
         'currency', l.currency, 'amount', sum(l.amount)::text)
         FROM finance.credit_lines l
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (l.owner_id, l.event_id)
         WHERE l.owner_id = $1 AND ($2::uuid IS NULL OR l.card_id = $2)
+          AND ($3::date IS NULL OR f.effective_on <= $3)
           AND l.statement_period IS NOT NULL AND f.status = 'confirmed' AND f.kind = 'card_payment'
         GROUP BY l.card_id, l.statement_period, l.currency) AS payments,
       ${
@@ -114,10 +117,11 @@ async function readCycles(
         JOIN finance.credit_lines l ON (l.owner_id, l.event_id, l.currency) = (x.owner_id, x.event_id, x.currency)
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.event_id)
         WHERE x.owner_id = $1 AND ($2::uuid IS NULL OR x.card_id = $2) AND f.status = 'confirmed'
+          AND ($3::date IS NULL OR f.effective_on <= $3)
           AND ((f.kind = 'purchase_refund' AND l.debt_delta < 0) OR (f.kind = 'card_purchase' AND x.delta < 0)))`
           : "ARRAY[]::jsonb[]"
       } AS credits`,
-    [ownerId, cardId ?? null],
+    [ownerId, cardId ?? null, asOf ?? null],
   );
   return row;
 }
@@ -233,6 +237,15 @@ export async function loadCardCycle(
     await readCycles(client, ownerId, card.id),
     card.id,
   );
+  return cycleForPeriod(data, card, period, today);
+}
+
+function cycleForPeriod(
+  data: CardCycleData,
+  card: CatalogCard,
+  period: string,
+  today: string,
+) {
   const assigned = data.purchases.filter(
     (purchase) => purchase.period === period,
   );
@@ -255,6 +268,25 @@ export async function loadCardCycle(
     ),
     purchases: [...assigned, ...unassigned],
   };
+}
+
+export async function reportCardCycles(
+  client: pg.PoolClient,
+  ownerId: string,
+  cards: CatalogCard[],
+  months: string[],
+  to: string,
+) {
+  if (!cards.length) return [];
+  const data = await readCycles(client, ownerId, undefined, to);
+  return cards.flatMap((card) => {
+    const cardData = cardCycleData(data, card.id);
+    return months.map((month) => ({
+      card,
+      month,
+      ...cycleForPeriod(cardData, card, month, to),
+    }));
+  });
 }
 
 export async function listCardCycleAlerts(

@@ -1,3 +1,4 @@
+import { createECDH } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 import baseModule from "./playwright.config.ts";
 import { developmentTarget } from "./src/server/neon-development-config.ts";
@@ -14,6 +15,8 @@ const base = baseModule.default ?? baseModule;
 const host = developmentTarget.endpointHost.replace(".", "-pooler.");
 const url = (role) =>
   `postgresql://finanzas_google_${role}:${runtimePassword}@${host}/${developmentTarget.database}`;
+const pushKey = createECDH("prime256v1");
+const pushPublicKey = pushKey.generateKeys("base64url");
 
 export default defineConfig({
   ...base,
@@ -29,6 +32,7 @@ export default defineConfig({
       GOOGLE_AUTH_READY: "true",
       GOOGLE_AUTH_ORIGIN: financeTestOrigin,
       GOOGLE_AUTH_SECRET: financeTestSecret,
+      FINANCE_BACKUP_SIGNING_KEY: "01".repeat(32),
       GOOGLE_CLIENT_ID: "finance-fixture-client",
       GOOGLE_CLIENT_SECRET: "finance-fixture-secret",
       GOOGLE_AUTH_DATABASE_URL: url("auth"),
@@ -37,6 +41,9 @@ export default defineConfig({
       NEON_PROJECT_ID: developmentTarget.projectId,
       NEXT_TELEMETRY_DISABLED: "1",
       CRON_SECRET: "synthetic-finance-cron-secret",
+      CARD_PUSH_VAPID_SUBJECT: "mailto:fixture@example.invalid",
+      CARD_PUSH_PUBLIC_KEY: pushPublicKey,
+      CARD_PUSH_PRIVATE_KEY: pushKey.getPrivateKey("base64url"),
     },
   },
 });

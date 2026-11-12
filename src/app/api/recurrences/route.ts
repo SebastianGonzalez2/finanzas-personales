@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   }
   if (new URL(request.url).search)
     return reply({ error: "Solicitud inválida." }, 400);
-  const command = parseRecurrence(await limitedJson(request).catch(() => null));
+  const command = parseRecurrence(
+    await limitedJson(request, 16384).catch(() => null),
+  );
   if ("error" in command) return reply(command, 400);
 
   try {
@@ -37,6 +39,19 @@ export async function POST(request: Request) {
           409,
         );
       const result = await createRecurrence(client, ownerId, command);
+      if (result.status === "invalid-people")
+        return reply(
+          { error: "Elegí personas distintas y contactos disponibles." },
+          409,
+        );
+      if (result.status === "sharing-unavailable")
+        return reply(
+          {
+            error:
+              "El reparto estará disponible cuando se actualice la base de datos.",
+          },
+          409,
+        );
       if (result.status === "not-found")
         return reply({ error: "La categoría no está disponible." }, 404);
       if (result.status === "conflict")

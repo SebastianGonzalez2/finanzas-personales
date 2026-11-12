@@ -7,11 +7,11 @@ import {
 } from "@/domain/bank-balances";
 import {
   movementDisplayMethods,
-  type MovementCategory,
   type MovementTotal,
   type RecentBankTransfer,
   type RecentMovement,
 } from "@/domain/movements";
+import type { CatalogCategory } from "@/domain/categories";
 import type { FundSource } from "@/domain/fund-coverage";
 import type { CatalogCard } from "@/domain/cards";
 import {
@@ -24,6 +24,7 @@ import { BalanceAdjustmentForm } from "./balance-adjustment-form";
 import { FinanceIcon } from "./finance-icon";
 import { MovementForm } from "./movement-form";
 import { RecentAmountCorrection } from "./recent-amount-correction";
+import type { MovementTag } from "@/domain/classification";
 import { HistoryField, historyButton, historyControl } from "./history-fields";
 import { Card } from "./ui/card";
 
@@ -64,6 +65,7 @@ export function FinanceSummary({
   today,
   period,
   categories,
+  tags,
   creditCards,
   debitCards,
   installmentsReady,
@@ -76,6 +78,7 @@ export function FinanceSummary({
   bankTransfers,
   bankTransfersReady,
   movementRegistrationReady,
+  currencySummary,
 }: {
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
@@ -83,7 +86,8 @@ export function FinanceSummary({
   reconciliationReady: boolean;
   today: string;
   period: string;
-  categories: MovementCategory[];
+  categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;
@@ -96,6 +100,7 @@ export function FinanceSummary({
   bankTransfers: RecentBankTransfer[];
   bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
+  currencySummary: React.ReactNode;
 }) {
   const recent = { expenses, incomes };
 
@@ -111,6 +116,7 @@ export function FinanceSummary({
       <p className="mt-1 text-muted-foreground first-letter:uppercase">
         {formatInstallmentPeriod(period)}
       </p>
+      {currencySummary}
       {movementRegistrationReady ? (
         <MovementForm
           bankTransfersReady={bankTransfersReady}
@@ -118,6 +124,7 @@ export function FinanceSummary({
           balances={balances}
           fundSources={fundSources}
           categories={categories}
+          tags={tags}
           creditCards={creditCards}
           debitCards={debitCards}
           installmentsReady={installmentsReady}

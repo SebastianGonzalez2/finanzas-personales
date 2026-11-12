@@ -98,6 +98,13 @@ export async function handleMovement(
           "El registro de cambios de moneda aún no está disponible.",
           409,
         );
+      case "invalid-classification":
+        return failure(result.message, 400);
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-coverage":
         return failure(result.message, 409);
       case "invalid-category":
@@ -165,6 +172,18 @@ export async function handleMovementRevision(
         );
       case "unavailable":
         return failure("La edición del historial aún no está disponible.", 409);
+      case "recurrence-conflict":
+        return failure(
+          "El movimiento está vinculado a un período recurrente. Revisá el total confirmado en Recurrentes. Para cambiar la moneda o el importe de un pago distribuido, anulá el registro incorrecto y volvé a cargarlo.",
+          409,
+        );
+      case "invalid-classification":
+        return failure(result.message, 400);
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-kind":
         return failure(
           "Elegí los campos que corresponden al tipo de movimiento.",

@@ -72,6 +72,19 @@ test("F2-02: compra y pago parcial y total de crédito sin duplicar gasto", asyn
     await page
       .getByLabel("Concepto", { exact: true })
       .fill("Compra sintética F2-02");
+    const category = page.getByLabel("Categoría (opcional)");
+    await category.selectOption("__create__");
+    await page
+      .getByLabel("Nombre de la categoría nueva")
+      .fill("Compras de prueba");
+    await open("Crear categoría");
+    await expect(category.locator("option:checked")).toHaveText(
+      "Compras de prueba",
+    );
+    await expect(page.getByLabel("Importe", { exact: true })).toHaveValue(
+      "3000",
+    );
+    await expect(money("Gastos del mes")).toHaveCount(0);
     await open("Registrar compra");
     await expect(money("Gastos del mes")).toHaveText("3.000,00 UYU");
     await balance("10.000,00 UYU");

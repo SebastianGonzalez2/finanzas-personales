@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import { parseOptionalCatalogName } from "./catalog-names.ts";
 
 import {
   coverageSum,
@@ -31,7 +32,14 @@ export type MovementKind = "income" | "expense";
 export type MovementMethod = keyof typeof movementMethods;
 export type MovementCategory = { id: string; kind: MovementKind; name: string };
 
-export type MovementInput = {
+import {
+  allocationError,
+  allocationSumMatches,
+  parseClassification,
+  type ClassificationInput,
+} from "./classification.ts";
+
+export type MovementInput = ClassificationInput & {
   kind: MovementKind;
   currency: Currency;
   amount: string;
@@ -42,6 +50,7 @@ export type MovementInput = {
   categoryId: string | null;
   idempotencyKey: string;
   fundPortions?: FundPortion[];
+  merchantName?: string | null;
 };
 
 type RevisionTarget = { eventId: string; idempotencyKey: string };
@@ -49,7 +58,11 @@ export type MovementRevision = RevisionTarget &
   (
     | { action: "void" }
     | { action: "correct"; amount: string }
-    | { action: "edit"; movement: MovementInput | BankTransfer }
+    | {
+        action: "edit";
+        movement: MovementInput | BankTransfer;
+        classificationVersion?: number;
+      }
   );
 
 export type RecentMovement = Pick<
@@ -96,6 +109,9 @@ const inputKeys = [
   "categoryId",
   "idempotencyKey",
   "fundPortions",
+  "allocations",
+  "tagIds",
+  "merchantName",
 ];
 
 function positiveAmount(amount: unknown) {
@@ -165,10 +181,14 @@ export function parseMovementRevision(
 ): MovementRevision | { error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input))
     return { error: "Solicitud inválida." };
-  const { action, eventId, idempotencyKey, amount, movement } = input as Record<
-    string,
-    unknown
-  >;
+  const {
+    action,
+    eventId,
+    idempotencyKey,
+    amount,
+    movement,
+    classificationVersion,
+  } = input as Record<string, unknown>;
   if (
     (action !== "void" && action !== "correct" && action !== "edit") ||
     typeof eventId !== "string" ||
@@ -179,7 +199,10 @@ export function parseMovementRevision(
       (key) =>
         !["action", "eventId", "idempotencyKey"].includes(key) &&
         !(key === "amount" && action === "correct") &&
-        !(key === "movement" && action === "edit"),
+        !(
+          (key === "movement" || key === "classificationVersion") &&
+          action === "edit"
+        ),
     )
   )
     return { error: "Solicitud inválida." };
@@ -202,7 +225,23 @@ export function parseMovementRevision(
       "kind" in movement && movement.kind === "bank_transfer"
         ? parseBankTransfer(replacement, today)
         : parseMovement(replacement, today);
-    return "error" in parsed ? parsed : { action, ...target, movement: parsed };
+    if (
+      classificationVersion !== undefined &&
+      (typeof classificationVersion !== "number" ||
+        !Number.isInteger(classificationVersion) ||
+        classificationVersion < 0 ||
+        classificationVersion >= 2147483647 ||
+        !("allocations" in parsed))
+    )
+      return { error: "Solicitud de clasificación inválida." };
+    return "error" in parsed
+      ? parsed
+      : {
+          action,
+          ...target,
+          movement: parsed,
+          ...(classificationVersion !== undefined && { classificationVersion }),
+        };
   }
   try {
     return { action, ...target, amount: positiveAmount(amount) };
@@ -234,6 +273,9 @@ export function parseMovement(
     categoryId,
     idempotencyKey,
     fundPortions,
+    allocations,
+    tagIds,
+    merchantName: rawMerchant,
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
@@ -278,6 +320,14 @@ export function parseMovement(
     };
   if (kind === "expense" && !label.trim())
     return { error: "Ingresá el concepto del gasto." };
+  let merchantName: string | null | undefined;
+  try {
+    merchantName = parseOptionalCatalogName(rawMerchant);
+    if (kind !== "expense" && merchantName !== undefined)
+      return { error: "El comercio solo se puede indicar en un gasto." };
+  } catch {
+    return { error: "Revisá el nombre del comercio." };
+  }
   const details = note ?? "";
   if (
     typeof details !== "string" ||
@@ -292,7 +342,16 @@ export function parseMovement(
   )
     return { error: "Elegí una categoría válida." };
 
+  const classification = parseClassification({ allocations, tagIds });
+  if ("error" in classification) return classification;
+  if (
+    classification.allocations?.length &&
+    (category || !allocationSumMatches(classification.allocations, decimal))
+  )
+    return { error: allocationError };
+
   return {
+    ...classification,
     kind,
     currency,
     amount: decimal,
@@ -302,6 +361,7 @@ export function parseMovement(
     note: details.trim() || null,
     categoryId: category.toLowerCase() || null,
     ...(portions !== undefined && { fundPortions: portions }),
+    ...(merchantName !== undefined && { merchantName }),
     idempotencyKey: idempotencyKey.toLowerCase(),
   };
 }
