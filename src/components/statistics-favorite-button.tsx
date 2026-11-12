@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   favoriteLabel,
   statisticsChartIds,
@@ -16,12 +16,13 @@ export function StatisticsFavoriteButton({
   favorite: boolean;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [refreshing, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const label = favoriteLabel(chart, favorite);
 
   async function toggle() {
-    setPending(true);
+    setSending(true);
     setError(null);
     try {
       const response = await fetch("/api/statistics-favorites", {
@@ -30,11 +31,11 @@ export function StatisticsFavoriteButton({
         body: JSON.stringify({ chartId: chart, favorite: !favorite }),
       });
       if (!response.ok) throw new Error();
-      router.refresh();
+      startTransition(() => router.refresh());
     } catch {
       setError("No pudimos guardar el favorito. Reintentá.");
     } finally {
-      setPending(false);
+      setSending(false);
     }
   }
 
@@ -46,7 +47,7 @@ export function StatisticsFavoriteButton({
         aria-label={label}
         aria-pressed={favorite}
         title={label}
-        disabled={pending}
+        disabled={sending || refreshing}
         onClick={toggle}
       >
         <span aria-hidden="true">{favorite ? "★" : "☆"}</span>

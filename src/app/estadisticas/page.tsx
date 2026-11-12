@@ -7,19 +7,17 @@ import { StatisticsFiltersForm } from "@/components/statistics-filters";
 import { Card } from "@/components/ui/card";
 import { historyButton } from "@/components/history-fields";
 import { bankReferenceToday } from "@/domain/bank-balances";
-import { parseHistoryParams, type HistoryEntry } from "@/domain/history";
 import {
   parseStatisticsParams,
   statisticsHistoryRange,
   statisticsSearch,
 } from "@/domain/statistics";
 import { withGoogleOwner } from "@/server/google-auth";
-import { listHistory, listHistoryCategories } from "@/server/history";
-import { historyReady } from "@/server/movements";
+import { listHistoryCategories } from "@/server/history";
 import {
   listStatisticsFavorites,
   loadStatistics,
-  statisticsFavoritesReady,
+  listStatisticsCards,
   statisticsReady,
 } from "@/server/statistics";
 
@@ -56,11 +54,12 @@ export default async function StatisticsPage({
     async (client, ownerId) => {
       const ready = await statisticsReady(client);
       if (!ready.ready) return { ready: false as const };
-      const favoritesReady = await statisticsFavoritesReady(client);
+      const favoritesReady = ready.favorites;
       const favorites = favoritesReady
         ? await listStatisticsFavorites(client, ownerId)
         : [];
       const categories = await listHistoryCategories(client, ownerId);
+      const cards = await listStatisticsCards(client, ownerId);
       const snapshot = await loadStatistics(
         client,
         ownerId,
@@ -68,35 +67,18 @@ export default async function StatisticsPage({
         parsed.previous,
         historyRange,
         parsed.filters,
+        ready,
       );
-      let entries: HistoryEntry[] = [];
-      let hasNextPage = false;
-      if (parsed.filters.category && (await historyReady(client))) {
-        const drillQuery = parseHistoryParams({
-          from: parsed.range.from,
-          to: parsed.range.to,
-          ...(parsed.filters.currency
-            ? { currency: parsed.filters.currency }
-            : {}),
-          category: parsed.filters.category,
-          ...(parsed.filters.method ? { method: parsed.filters.method } : {}),
-        });
-        if (!("error" in drillQuery)) {
-          const page = await listHistory(client, ownerId, drillQuery);
-          entries = page.entries;
-          hasNextPage = page.hasNextPage;
-        }
-      }
       return {
         ready: true as const,
         favorites,
         favoritesReady,
         categories,
+        cards,
         snapshot,
-        entries,
-        hasNextPage,
       };
     },
+    { repeatableRead: true },
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
       redirect("/auth/sign-in");
@@ -148,11 +130,6 @@ export default async function StatisticsPage({
           >
             Estadísticas
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Análisis de los movimientos que registraste, con comparaciones,
-            desgloses y detalle hasta cada movimiento. El dashboard principal
-            mantiene su diseño fijo.
-          </p>
         </header>
         <nav
           aria-label="Vistas de estadísticas"
@@ -173,7 +150,12 @@ export default async function StatisticsPage({
             Todas las estadísticas
           </Link>
         </nav>
-        <StatisticsFiltersForm filters={filters} categories={data.categories} />
+        <StatisticsFiltersForm
+          key={statisticsSearch(filters)}
+          filters={filters}
+          categories={data.categories}
+          cards={data.cards}
+        />
         {!data.favoritesReady && (
           <p role="status" className="text-sm text-muted-foreground">
             Los favoritos estarán disponibles cuando se actualice la base de
@@ -185,8 +167,7 @@ export default async function StatisticsPage({
             <h2 className="font-semibold">Mis favoritos</h2>
             <p className="text-sm text-muted-foreground">
               Todavía no elegiste estadísticas favoritas. Marcá una tarjeta con
-              la estrella para verla acá; la preferencia es personal y no cambia
-              el dashboard ni los movimientos.
+              la estrella para verla acá.
             </p>
             <Link href={`/estadisticas${allSearch}`} className={historyButton}>
               Explorar estadísticas
@@ -197,9 +178,11 @@ export default async function StatisticsPage({
             snapshot={data.snapshot}
             filters={filters}
             favorites={data.favorites}
+            favoritesReady={data.favoritesReady}
             view={view}
-            entries={data.entries}
-            hasNextPage={data.hasNextPage}
+            categoryName={
+              data.categories.find(({ id }) => id === filters.category)?.name
+            }
           />
         )}
       </div>

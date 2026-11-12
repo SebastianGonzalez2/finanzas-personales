@@ -7,6 +7,7 @@ import {
   favoriteLabel,
   parseStatisticsParams,
   percentageChange,
+  sumAmounts,
   statisticsComparisonRange,
   statisticsHistoryRange,
   statisticsSearch,
@@ -98,12 +99,36 @@ test("F5-05: el rango de comparación es calendario o de igual duración", () =>
       today,
     ),
     {
-      from: "2025-12-01",
+      from: "2026-11-01",
       to: today,
-      label: "01/12/2025 – 11/11/2026",
+      label: "01/11/2026 – 11/11/2026",
       complete: false,
     },
   );
+});
+
+test("F5-05: compara años distintos y valida el límite del calendario", () => {
+  const params = {
+    from: "2026-10-01",
+    to: "2026-10-31",
+    compareFrom: "2025-10-01",
+    compareTo: "2025-10-31",
+    card: uuid,
+    kind: "expense",
+  };
+  const parsed = parseStatisticsParams(params, today);
+  assert.equal(parsed.previous.from, params.compareFrom);
+  assert.equal(parsed.previous.to, params.compareTo);
+  assert.equal(parsed.filters.card, uuid);
+  assert.equal(parsed.filters.kind, "expense");
+  assert.ok(
+    "error" in parseStatisticsParams({ ...params, compareTo: "" }, today),
+  );
+  const earliest = parseStatisticsParams(
+    { from: "0001-01-01", to: "0001-01-31" },
+    today,
+  );
+  assert.equal(earliest.previous, null);
 });
 
 test("F5-05: búsqueda de estadísticas conserva y elimina filtros", () => {
@@ -129,6 +154,12 @@ test("F5-05: comparaciones sin base cero ni porcentaje infinito, CA-059/064", ()
   assert.equal(percentageChange("120.0000", "100.0000"), "+20,0 %");
   assert.equal(percentageChange("80.0000", "100.0000"), "−20,0 %");
   assert.equal(percentageChange("100.0000", "0.0000"), null);
+  assert.equal(percentageChange("799.5", "1000"), "−20,1 %");
+  assert.equal(percentageChange("-80", "-100"), "+20,0 %");
+  assert.equal(
+    sumAmounts(["9999999999999999.9999", "0.0001"]),
+    "10000000000000000.0000",
+  );
 
   const zero = comparison("50.0000", "0.0000", 10, "octubre de 2026");
   assert.equal(zero.status, "zero-base");

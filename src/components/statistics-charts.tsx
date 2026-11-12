@@ -5,6 +5,7 @@ import {
   amountUnits,
   chartScale,
   formatStatisticsAmount,
+  statisticsMonthComplete,
   unitsDecimal,
   type StatisticsCategoryTotal,
   type StatisticsChartId,
@@ -47,7 +48,9 @@ function monthPeriods(from: string, to: string) {
   let year = fromYear;
   let month = fromMonth;
   while (year < toYear || (year === toYear && month <= toMonth)) {
-    periods.push(`${year}-${String(month).padStart(2, "0")}`);
+    periods.push(
+      `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`,
+    );
     month += 1;
     if (month > 12) {
       month = 1;
@@ -67,7 +70,6 @@ function completeMonths(
       .filter((month) => month.currency === currency)
       .map((month) => [month.period, month]),
   );
-  const current = range.to.slice(0, 7);
   return monthPeriods(range.from, range.to).map(
     (period): StatisticsMonthTotal =>
       saved.get(period) ?? {
@@ -77,7 +79,8 @@ function completeMonths(
         income: "0.0000",
         expense: "0.0000",
         refunds: "0.0000",
-        complete: period < current,
+        recurring: null,
+        complete: statisticsMonthComplete(period, range),
         missing: true,
       },
   );
@@ -91,19 +94,21 @@ export function StatisticsChartCard({
   children,
 }: {
   chart: StatisticsChartId;
-  favorite: boolean;
+  favorite: boolean | undefined;
   title: string;
   description: string;
   children: ReactNode;
 }) {
   return (
-    <Card className="gap-4 p-4 sm:p-5">
+    <Card id={`estadisticas-${chart}`} className="min-w-0 gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-semibold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
-        <StatisticsFavoriteButton chart={chart} favorite={favorite} />
+        {favorite !== undefined && (
+          <StatisticsFavoriteButton chart={chart} favorite={favorite} />
+        )}
       </div>
       {children}
     </Card>
@@ -554,24 +559,28 @@ export function StatisticsCategoryBars({
   kind,
   currency,
   search,
+  selected,
 }: {
   categories: StatisticsCategoryTotal[];
   kind: "income" | "expense";
   currency: Currency;
   search: (category: string) => string;
+  selected?: string;
 }) {
   const rows = categories
     .filter(
-      (category) => category.kind === kind && category.currency === currency,
+      (category) =>
+        category.kind === kind &&
+        category.currency === currency &&
+        (!category.parentId || category.categoryId === selected),
     )
-    .slice(0, 12)
     .map((category) => ({
       key: `${kind}-${category.categoryId ?? "none"}`,
       label: category.category,
       amount: category.amount,
       currency,
       href: search(category.categoryId ?? "none"),
-      detail: `${category.count} ${category.count === 1 ? "movimiento" : "movimientos"} · Ver detalle`,
+      detail: "Ver detalle",
     }));
   return (
     <StatisticsBarList
@@ -586,6 +595,7 @@ export function StatisticsMethodBars({
   methods,
   kind,
   currency,
+  search,
 }: {
   methods: {
     method: MovementDisplayMethod;
@@ -596,6 +606,7 @@ export function StatisticsMethodBars({
   }[];
   kind: "income" | "expense";
   currency: Currency;
+  search: (method: MovementDisplayMethod) => string;
 }) {
   const rows = methods
     .filter((row) => row.kind === kind && row.currency === currency)
@@ -604,6 +615,7 @@ export function StatisticsMethodBars({
       label: movementDisplayMethods[row.method],
       amount: row.amount,
       currency,
+      href: search(row.method),
       detail: `${row.count} ${row.count === 1 ? "movimiento" : "movimientos"}`,
     }));
   return (

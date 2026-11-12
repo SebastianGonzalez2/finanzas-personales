@@ -3,7 +3,7 @@ import {
   formatBankAmount,
   isBankReferenceDate,
 } from "./bank-balances.ts";
-import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import type { Currency } from "./money.ts";
 import {
   movementDisplayMethods,
   movementUuid,
@@ -25,9 +25,14 @@ export type StatisticsFilters = {
   period: StatisticsPeriod | "personalizado";
   from?: string;
   to?: string;
+  compareFrom?: string;
+  compareTo?: string;
   currency?: Currency;
   category?: string;
+  kind?: "income" | "expense";
   method?: MovementDisplayMethod;
+  card?: string;
+  detailPage?: string;
   view?: StatisticsView;
 };
 
@@ -78,6 +83,7 @@ export type StatisticsMonthTotal = {
   income: string;
   expense: string;
   refunds: string;
+  recurring: string | null;
   complete: boolean;
   missing?: boolean;
 };
@@ -87,6 +93,7 @@ export type StatisticsTotal = {
   income: string;
   expense: string;
   refunds: string;
+  recurring: string | null;
   movements: number;
 };
 
@@ -97,9 +104,39 @@ export type StatisticsSnapshot = {
   totals: StatisticsTotal[];
   previousTotals: StatisticsTotal[];
   categories: StatisticsCategoryTotal[];
+  previousCategories: StatisticsCategoryTotal[];
   methods: StatisticsMethodTotal[];
+  previousMethods: StatisticsMethodTotal[];
+  recurrencesReady: boolean;
   months: StatisticsMonthTotal[];
+  positions: StatisticsPosition[];
+  entries: StatisticsEntry[];
+  hasNextPage: boolean;
   movementCount: number;
+};
+
+export type StatisticsEntry = {
+  id: string;
+  kind: "income" | "expense" | "refund";
+  currency: Currency;
+  date: string;
+  concept: string;
+  amount: string;
+};
+
+export type StatisticsPosition = {
+  date: string;
+  currency: Currency;
+  bank: string | null;
+  bankStatus: "confirmed" | "calculated" | "unknown";
+  adjustment: boolean;
+  reserved: string;
+  available: string | null;
+  cardDebt: string;
+  loanDebt: string;
+  receivables: string;
+  cardCredit: string;
+  netWorth: string | null;
 };
 
 export type Comparison = {
@@ -118,11 +155,17 @@ const filterKeys = [
   "period",
   "from",
   "to",
+  "compareFrom",
+  "compareTo",
   "currency",
   "category",
+  "kind",
   "method",
+  "card",
+  "detailPage",
   "view",
 ] as const;
+// A qualitative comparison requires five registered movements in each sample.
 const minimumSample = 5;
 const scale = BigInt(10000);
 
@@ -133,12 +176,11 @@ function pad(value: number) {
 function shiftMonth(period: string, delta: number) {
   const [year, month] = period.split("-").map(Number);
   const total = year * 12 + (month - 1) + delta;
-  return `${Math.floor(total / 12)}-${pad((total % 12) + 1)}`;
+  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${pad((((total % 12) + 12) % 12) + 1)}`;
 }
 
 function lastDay(period: string) {
-  const [year, month] = period.split("-").map(Number);
-  return pad(new Date(Date.UTC(year, month, 0)).getUTCDate());
+  return addDays(`${shiftMonth(period, 1)}-01`, -1).slice(-2);
 }
 
 function addDays(date: string, delta: number) {
@@ -147,7 +189,7 @@ function addDays(date: string, delta: number) {
   return value.toISOString().slice(0, 10);
 }
 
-function daysBetween(from: string, to: string) {
+export function statisticsDaysBetween(from: string, to: string) {
   return (
     Math.round(
       (Date.parse(`${to}T00:00:00.000Z`) -
@@ -213,7 +255,7 @@ export function statisticsComparisonRange(from: string, to: string) {
     const previous = shiftMonth(period, -1);
     return { from: `${previous}-01`, to: `${previous}-${lastDay(previous)}` };
   }
-  const length = daysBetween(from, to);
+  const length = statisticsDaysBetween(from, to);
   const previousTo = addDays(from, -1);
   return { from: addDays(previousTo, -(length - 1)), to: previousTo };
 }
@@ -223,8 +265,19 @@ export function statisticsHistoryRange(
   today: string,
 ): StatisticsRange {
   const start = `${shiftMonth(selected.to.slice(0, 7), -11)}-01`;
-  const from = start < selected.from ? start : selected.from;
-  return range(from, selected.to, today);
+  const from = selected.from < "0001-01-01" ? "0001-01-01" : selected.from;
+  return range(from > start ? from : start, selected.to, today);
+}
+
+export function statisticsMonthComplete(
+  period: string,
+  range: StatisticsRange,
+) {
+  return (
+    range.from <= `${period}-01` &&
+    (range.to > `${period}-${lastDay(period)}` ||
+      (range.complete && range.to === `${period}-${lastDay(period)}`))
+  );
 }
 
 function range(from: string, to: string, today: string): StatisticsRange {
@@ -243,7 +296,7 @@ export function parseStatisticsParams(
   | {
       filters: StatisticsFilters;
       range: StatisticsRange;
-      previous: StatisticsRange;
+      previous: StatisticsRange | null;
     }
   | { error: string } {
   const invalid = {
@@ -298,15 +351,37 @@ export function parseStatisticsParams(
     return invalid;
   if (values.method && !Object.hasOwn(movementDisplayMethods, values.method))
     return invalid;
+  if (values.card && !movementUuid.test(values.card)) return invalid;
+  const kind = values.kind;
+  if (kind !== undefined && kind !== "income" && kind !== "expense")
+    return invalid;
+  if (values.detailPage && !/^[1-9]\d{0,5}$/.test(values.detailPage))
+    return invalid;
   if (values.view && values.view !== "favoritos" && values.view !== "todas")
     return invalid;
 
-  const previousRange = statisticsComparisonRange(from, to);
+  const compareFrom = values.compareFrom;
+  const compareTo = values.compareTo;
+  if (
+    (compareFrom || compareTo) &&
+    (!isBankReferenceDate(compareFrom, today) ||
+      !isBankReferenceDate(compareTo, today) ||
+      compareFrom > compareTo)
+  )
+    return invalid;
+  const previousRange =
+    compareFrom && compareTo
+      ? { from: compareFrom, to: compareTo }
+      : statisticsComparisonRange(from, to);
   const filters: StatisticsFilters = {
     period,
     ...(period === "personalizado" ? { from, to } : {}),
+    ...(compareFrom && compareTo ? { compareFrom, compareTo } : {}),
     ...(values.currency ? { currency: values.currency as Currency } : {}),
-    ...(values.category ? { category: values.category } : {}),
+    ...(values.category ? { category: values.category.toLowerCase() } : {}),
+    ...(kind ? { kind } : {}),
+    ...(values.card ? { card: values.card } : {}),
+    ...(values.detailPage ? { detailPage: values.detailPage } : {}),
     ...(values.method
       ? { method: values.method as MovementDisplayMethod }
       : {}),
@@ -315,7 +390,10 @@ export function parseStatisticsParams(
   return {
     filters,
     range: range(from, to, today),
-    previous: range(previousRange.from, previousRange.to, today),
+    previous:
+      previousRange.from >= "0001-01-01" && previousRange.to >= "0001-01-01"
+        ? range(previousRange.from, previousRange.to, today)
+        : null,
   };
 }
 
@@ -337,7 +415,11 @@ export function statisticsSearch(
 }
 
 export function amountUnits(amount: string) {
-  return BigInt(normalizeDecimalAmount(amount).replace(".", ""));
+  // Aggregated NUMERIC values can exceed the precision of one ledger entry.
+  const [whole, fraction = ""] = amount.split(".");
+  if (/[1-9]/.test(fraction.slice(4)))
+    throw new Error("Importe con más de cuatro decimales");
+  return BigInt(`${whole}${fraction.slice(0, 4).padEnd(4, "0")}`);
 }
 
 export function unitsDecimal(units: bigint) {
@@ -362,7 +444,8 @@ function formatPercentage(tenths: bigint) {
   return `${negative ? "−" : ""}${absolute / BigInt(10)},${absolute % BigInt(10)} %`;
 }
 
-function divideRounded(numerator: bigint, denominator: bigint) {
+function divideRounded(numerator: bigint, denominator: bigint): bigint {
+  if (numerator < BigInt(0)) return -divideRounded(-numerator, denominator);
   const quotient = numerator / denominator;
   const remainder = numerator % denominator;
   return remainder * BigInt(2) >= denominator ? quotient + BigInt(1) : quotient;
@@ -373,9 +456,16 @@ export function percentageChange(current: string, previous: string) {
   if (base === BigInt(0)) return null;
   const tenths = divideRounded(
     (amountUnits(current) - base) * BigInt(1000),
-    base,
+    base < BigInt(0) ? -base : base,
   );
   return `${tenths > BigInt(0) ? "+" : ""}${formatPercentage(tenths)}`;
+}
+
+export function statisticsShare(part: string, whole: string) {
+  const base = amountUnits(whole);
+  return base > BigInt(0)
+    ? formatPercentage(divideRounded(amountUnits(part) * BigInt(1000), base))
+    : null;
 }
 
 export function comparison(
@@ -482,11 +572,17 @@ export function statisticsSummary(input: {
         "Sin ingresos registrados para calcular la relación gastos/ingresos.",
       );
     }
-    if (input.previous && previous) {
+    if (
+      input.previous?.complete &&
+      input.range.complete &&
+      previous &&
+      statisticsDaysBetween(input.range.from, input.range.to) ===
+        statisticsDaysBetween(input.previous.from, input.previous.to)
+    ) {
       const change = comparison(
         total.expense,
         previous.expense,
-        total.movements,
+        Math.min(total.movements, previous.movements),
         input.previous.label,
       );
       paragraphs.push(`Gastos: ${change.label}`);

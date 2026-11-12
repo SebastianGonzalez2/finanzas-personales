@@ -25,6 +25,7 @@ export async function withOwnerTransaction<T>(
   pool: { connect: () => Promise<pg.PoolClient> },
   resolveOwner: ResolveAuthorizedOwner,
   work: (client: pg.PoolClient, ownerId: string) => Promise<T>,
+  options?: { repeatableRead?: boolean },
 ): Promise<T> {
   let identity;
   try {
@@ -41,7 +42,11 @@ export async function withOwnerTransaction<T>(
   }
   let discard = false;
   try {
-    await client.query("BEGIN");
+    await client.query(
+      options?.repeatableRead
+        ? "BEGIN ISOLATION LEVEL REPEATABLE READ"
+        : "BEGIN",
+    );
     await setOwnerContext(client, identity.ownerId);
     const result = await work(client, identity.ownerId);
     // PostgreSQL answers COMMIT with ROLLBACK when work swallowed a SQL error.
