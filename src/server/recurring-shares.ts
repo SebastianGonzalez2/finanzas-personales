@@ -1,5 +1,6 @@
 import "server-only";
 import type pg from "pg";
+import { normalizeName } from "../domain/catalog.ts";
 import type { Person, ShareInput } from "../domain/recurring-shares.ts";
 
 export async function recurringSharesReady(client: pg.PoolClient) {
@@ -11,7 +12,7 @@ export async function recurringSharesReady(client: pg.PoolClient) {
 
 export async function listPeople(client: pg.PoolClient, ownerId: string) {
   const { rows } = await client.query<Person>(
-    `SELECT id, canonical_name AS name FROM finance.people
+    `SELECT id, name FROM finance.people
      WHERE owner_id = $1 AND archived_at IS NULL ORDER BY normalized_name, id`,
     [ownerId],
   );
@@ -35,7 +36,7 @@ export async function resolveUsualShares(
       ownerId,
       shares.flatMap((share) => ("personId" in share ? [share.personId] : [])),
       shares.flatMap((share) =>
-        "name" in share ? [share.name.toLocaleLowerCase("es")] : [],
+        "name" in share ? [normalizeName(share.name)] : [],
       ),
     ],
   );
@@ -48,10 +49,10 @@ export async function resolveUsualShares(
     const selected =
       "personId" in share
         ? byId.get(share.personId)
-        : byName.get(share.name.toLocaleLowerCase("es"));
+        : byName.get(normalizeName(share.name));
     if (selected?.archived || (!selected && name === null)) return null;
     const normalized =
-      selected?.normalized_name ?? name!.toLocaleLowerCase("es");
+      selected?.normalized_name ?? normalizeName(name!);
     if (seen.has(normalized)) return null;
     seen.add(normalized);
     resolved.push({
@@ -75,7 +76,7 @@ export async function saveUsualShares(
        SELECT * FROM jsonb_to_recordset($3::jsonb)
          AS s(id uuid, name text, normalized text, percentage numeric)
      ), added AS (
-       INSERT INTO finance.people (owner_id, canonical_name, normalized_name)
+       INSERT INTO finance.people (owner_id, name, normalized_name)
          SELECT $1, name, normalized FROM shares WHERE id IS NULL
          RETURNING id, normalized_name
      )

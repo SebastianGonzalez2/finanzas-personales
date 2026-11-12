@@ -5,6 +5,11 @@ import {
   prepareClassification,
   readClassification,
 } from "./classification.ts";
+import {
+  copyEventMerchant,
+  nameCatalogReady,
+  recordEventMerchant,
+} from "./catalog.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type {
@@ -576,6 +581,14 @@ export async function saveCreditOperation(
       ? replay
       : conflict("Este envío ya se usó con otros datos.");
 
+  if (
+    command.action === "purchase" &&
+    command.merchantName &&
+    !(await nameCatalogReady(client))
+  )
+    return conflict(
+      "El catálogo estará disponible cuando se actualice la base de datos.",
+    );
   if (command.action !== "purchase" || !command.mixed)
     return applyCreditOperation(client, ownerId, command, hash);
 
@@ -1242,6 +1255,10 @@ async function applyCreditOperation(
       hash,
       prepared,
     );
+  if (command.merchantName)
+    await recordEventMerchant(client, ownerId, id, command.merchantName);
+  else if (correction)
+    await copyEventMerchant(client, ownerId, correction.eventId, id);
   await recordEventFundUses(client, ownerId, id, currency, direct, "expense");
   await applyFundDeltas(client, ownerId, fundPlan.deltas);
   if (fundCommitment)

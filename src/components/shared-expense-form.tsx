@@ -11,6 +11,7 @@ import { conceptLimit, noteLimit } from "@/domain/movements";
 import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
 import { maxFriends } from "@/domain/shared-expenses";
+import { NameAutocomplete } from "./name-autocomplete";
 import { useFinancialCommand } from "./financial-command";
 import {
   HistoryField as Field,
@@ -108,6 +109,7 @@ export function SharedExpenseForm({
           method,
           currency: data.get("currency"),
           amount: data.get("amount"),
+          merchantName: data.get("merchantName"),
           effectiveOn: data.get("effectiveOn"),
           ...(payable
             ? {
@@ -219,6 +221,14 @@ export function SharedExpenseForm({
                 required
               />
             </Field>
+            {!target && (
+              <NameAutocomplete
+                kind="merchant"
+                name="merchantName"
+                label="Comercio (opcional)"
+                className={historyControl}
+              />
+            )}
             <Field label="Categoría (opcional)">
               <CategorySelect
                 kind="expense"
@@ -358,14 +368,14 @@ export function SharedExpenseForm({
         )}
         {payable && (
           <>
-            <Field label="Persona o entidad a la que le debés">
-              <input
-                name="creditor"
-                className={historyControl}
-                maxLength={conceptLimit}
-                required
-              />
-            </Field>
+            <NameAutocomplete
+              kind="person"
+              name="creditor"
+              label="Persona o entidad a la que le debés"
+              required
+              maxLength={conceptLimit}
+              className={historyControl}
+            />
             <Field label="Fecha prevista de devolución (opcional)">
               <input name="dueOn" className={historyControl} type="date" />
             </Field>
@@ -399,14 +409,14 @@ export function SharedExpenseForm({
                 <legend className="px-1 text-sm font-semibold">
                   Persona {index + 1}
                 </legend>
-                <Field label={`Nombre de la persona ${index + 1}`}>
-                  <input
-                    name={`name-${key}`}
-                    className={historyControl}
-                    maxLength={conceptLimit}
-                    required
-                  />
-                </Field>
+                <NameAutocomplete
+                  kind="person"
+                  name={`name-${key}`}
+                  label={`Nombre de la persona ${index + 1}`}
+                  required
+                  maxLength={conceptLimit}
+                  className={historyControl}
+                />
                 <Field label={`Importe de la persona ${index + 1}`}>
                   <input
                     name={`amount-${key}`}

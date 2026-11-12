@@ -2,8 +2,10 @@
 CREATE TABLE finance.people (
   owner_id text NOT NULL,
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  canonical_name text NOT NULL CHECK (length(btrim(canonical_name)) BETWEEN 1 AND 200),
+  name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 200),
   normalized_name text NOT NULL CHECK (length(normalized_name) BETWEEN 1 AND 400),
+  version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   archived_at timestamptz,
   PRIMARY KEY (owner_id, id),
   UNIQUE (owner_id, normalized_name)
@@ -33,7 +35,7 @@ BEGIN
   END LOOP;
 END
 $policies$;
-GRANT INSERT (owner_id, canonical_name, normalized_name) ON finance.people TO finanzas_app;
+GRANT INSERT (owner_id, id, name, normalized_name) ON finance.people TO finanzas_app;
 GRANT INSERT ON finance.recurring_share_participants TO finanzas_app;
 
 -- Financial corrections append a revision, keeping the source payment immutable.

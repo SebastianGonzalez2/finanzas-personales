@@ -17,6 +17,7 @@ import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
 import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
+import { catalogNameLimit } from "@/domain/catalog";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
 import type { MovementTag } from "@/domain/classification";
@@ -31,6 +32,7 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import { NameAutocomplete } from "./name-autocomplete";
 import { Card } from "./ui/card";
 
 const control =
@@ -125,7 +127,11 @@ export function MovementForm({
       sentBody.current = null;
     }
     setOpen(true);
-    requestAnimationFrame(() => heading.current?.focus());
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active === trigger.current || active === document.body)
+        heading.current?.focus();
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -607,6 +613,15 @@ export function MovementForm({
                           className={control}
                         />
                       </label>
+                      {!income && (
+                        <NameAutocomplete
+                          kind="merchant"
+                          name="merchantName"
+                          label="Comercio (opcional)"
+                          maxLength={catalogNameLimit}
+                          className={control}
+                        />
+                      )}
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>Nota (opcional)</span>
                         <textarea

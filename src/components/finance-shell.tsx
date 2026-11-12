@@ -23,6 +23,11 @@ const destinations = {
     icon: "savings",
   },
   tarjetas: { href: "/tarjetas", label: "Tarjetas", icon: "card" },
+  catalogo: {
+    href: "/catalogo",
+    label: "Comercios y contactos",
+    icon: "store",
+  },
   fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   avisos: { href: "/avisos", label: "Avisos", icon: "bell" },
   deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },

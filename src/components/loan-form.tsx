@@ -6,6 +6,8 @@ import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
 import { loanFrequencies, type Loan, type LoanDirection } from "@/domain/loans";
 import { type Currency } from "@/domain/money";
 import { useFinancialCommand } from "./financial-command";
+import { NameAutocomplete } from "./name-autocomplete";
+import { personNameLimit } from "@/domain/catalog";
 import { HistoryField, historyControl, historyPrimary } from "./history-fields";
 
 function AmountField({
@@ -182,14 +184,23 @@ export function LoanForm({
           </HistoryField>
         )}
         {!loan && (
-          <HistoryField label="Persona, entidad o descripción">
-            <input
+          <>
+            <HistoryField label="Persona, entidad o descripción">
+              <input
+                className={historyControl}
+                name="concept"
+                maxLength={200}
+                required
+              />
+            </HistoryField>
+            <NameAutocomplete
+              kind="person"
+              name="personName"
+              label="Contacto (opcional)"
+              maxLength={personNameLimit}
               className={historyControl}
-              name="concept"
-              maxLength={200}
-              required
             />
-          </HistoryField>
+          </>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {!loan && (

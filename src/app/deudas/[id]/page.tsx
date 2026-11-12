@@ -15,6 +15,7 @@ import { loanDirections, loanFrequencies } from "@/domain/loans";
 import { movementUuid } from "@/domain/movements";
 import { listBankBalances } from "@/server/bank-balances";
 import { withGoogleOwner } from "@/server/google-auth";
+import { findLoanPerson } from "@/server/catalog";
 import { findLoan, listLoanOperations } from "@/server/loans";
 import { sourceExpenseId } from "@/server/shared-expenses";
 import { loansReady } from "@/server/movements";
@@ -35,6 +36,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       if (!loan) return null;
       return {
         loan,
+        person: await findLoanPerson(client, ownerId, id),
         expenseId: await sourceExpenseId(client, ownerId, id),
         operations: await listLoanOperations(client, ownerId, { loanId: id }),
         currencies:
@@ -64,7 +66,7 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
       </FinanceShell>
     );
 
-  const { loan, operations, currencies, expenseId } = result;
+  const { loan, operations, currencies, expenseId, person } = result;
   const { currency, outstanding, needsReconciliation } = loan;
   return (
     <FinanceShell current="deudas">
@@ -93,6 +95,19 @@ export default async function LoanPage({ params }: PageProps<"/deudas/[id]">) {
             </Link>
           )}
           <dl className="grid gap-3 sm:grid-cols-2">
+            {person && (
+              <div>
+                <dt className="text-sm text-muted-foreground">Contacto</dt>
+                <dd>
+                  <Link
+                    className="underline"
+                    href={`/catalogo?contact=${person.id}#contacto-${person.id}`}
+                  >
+                    {person.name}
+                  </Link>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-sm text-muted-foreground">
                 Importe pendiente

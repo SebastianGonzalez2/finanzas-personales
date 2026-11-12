@@ -141,7 +141,7 @@ async function readSeries(
            AND r.details ? 'effectiveIndex'), '[]')`
     : "'[]'::jsonb";
   const usualShares = sharing
-    ? `coalesce((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.canonical_name,
+    ? `coalesce((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name,
          'percentage', a.percentage::text) ORDER BY p.normalized_name, p.id)
          FROM finance.recurring_share_participants a
          JOIN finance.people p ON (p.owner_id, p.id) = (a.owner_id, a.person_id)

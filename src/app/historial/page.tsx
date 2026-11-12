@@ -16,6 +16,7 @@ import {
 } from "@/domain/history";
 import { classificationReady, listTags } from "@/server/classification";
 import { withGoogleOwner } from "@/server/google-auth";
+import { listNameCatalog, nameCatalogReady } from "@/server/catalog";
 import { listHistory, listHistoryCategories } from "@/server/history";
 import { listSavedFilters, savedFiltersReady } from "@/server/history-filters";
 import { bulkClassificationReady } from "@/server/history-bulk";
@@ -56,6 +57,11 @@ export default async function HistoryPage({
         bulkReady: await bulkClassificationReady(client),
         tags: (await classificationReady(client))
           ? await listTags(client, ownerId)
+          : [],
+        merchants: (await nameCatalogReady(client))
+          ? (await listNameCatalog(client, ownerId)).filter(
+              ({ kind }) => kind === "merchant",
+            )
           : [],
       };
     },
@@ -99,6 +105,7 @@ export default async function HistoryPage({
               values={query.filters}
               categories={data.categories}
               tags={data.tags}
+              merchants={data.merchants}
             />
             {data.savedFilters && (
               <SavedHistoryFilters

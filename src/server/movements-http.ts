@@ -100,6 +100,11 @@ export async function handleMovement(
         );
       case "invalid-classification":
         return failure(result.message, 400);
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-coverage":
         return failure(result.message, 409);
       case "invalid-category":
@@ -174,6 +179,11 @@ export async function handleMovementRevision(
         );
       case "invalid-classification":
         return failure(result.message, 400);
+      case "catalog-unavailable":
+        return failure(
+          "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
       case "invalid-kind":
         return failure(
           "Elegí los campos que corresponden al tipo de movimiento.",

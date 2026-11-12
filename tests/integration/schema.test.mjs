@@ -18,6 +18,11 @@ import {
   savingsFundsReady,
 } from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import {
+  findEventMerchant,
+  findLoanPerson,
+  nameCatalogReady,
+} from "../../src/server/catalog.ts";
 import { installmentsReady } from "../../src/server/installments.ts";
 import { cardCyclesReady } from "../../src/server/card-cycles.ts";
 import { mixedPurchasesReady } from "../../src/server/mixed-purchases.ts";
@@ -78,6 +83,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0026_F4-05_due_notice_preferences.sql",
       "0027_F5-01_category_archive.sql",
       "0028_F5-02_movement_classification.sql",
+      "0029_F5-03_catalogo_nombres.sql",
       "0030_F5-04_filtros_guardados.sql",
       "0031_F5-04_bulk_classification.sql",
     ]);
@@ -129,6 +135,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       dueNotices,
       categoryArchive,
       classification,
+      nameCatalog,
       savedFilters,
       bulkClassification,
     ] = await readMigrations();
@@ -449,7 +456,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [dueNotices.version, dueNotices.sha256],
     );
-    for (const migration of [categoryArchive, classification, savedFilters]) {
+    for (const migration of [categoryArchive, classification, nameCatalog, savedFilters]) {
       await assert.rejects(migrateInTransaction(client, migration.sha256));
       await client.query(migration.sql);
       await client.query(
@@ -469,6 +476,12 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       ).rows[0].allowed,
       true,
     );
+    assert.equal(await nameCatalogReady(client), false);
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    assert.deepEqual(await migrateInTransaction(client, catalog.sha256), [
+      catalog.version,
+    ]);
+    assert.deepEqual(await migrateInTransaction(client, catalog.sha256), []);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
     assert.equal(await recurrenceTrackingReady(client), true);

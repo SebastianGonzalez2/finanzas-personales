@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
+import { parseOptionalCatalogName } from "./catalog-names.ts";
 
 import {
   coverageSum,
@@ -49,6 +50,7 @@ export type MovementInput = ClassificationInput & {
   categoryId: string | null;
   idempotencyKey: string;
   fundPortions?: FundPortion[];
+  merchantName?: string | null;
 };
 
 type RevisionTarget = { eventId: string; idempotencyKey: string };
@@ -109,6 +111,7 @@ const inputKeys = [
   "fundPortions",
   "allocations",
   "tagIds",
+  "merchantName",
 ];
 
 function positiveAmount(amount: unknown) {
@@ -272,6 +275,7 @@ export function parseMovement(
     fundPortions,
     allocations,
     tagIds,
+    merchantName: rawMerchant,
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
@@ -316,6 +320,14 @@ export function parseMovement(
     };
   if (kind === "expense" && !label.trim())
     return { error: "Ingresá el concepto del gasto." };
+  let merchantName: string | null | undefined;
+  try {
+    merchantName = parseOptionalCatalogName(rawMerchant);
+    if (kind !== "expense" && merchantName !== undefined)
+      return { error: "El comercio solo se puede indicar en un gasto." };
+  } catch {
+    return { error: "Revisá el nombre del comercio." };
+  }
   const details = note ?? "";
   if (
     typeof details !== "string" ||
@@ -349,6 +361,7 @@ export function parseMovement(
     note: details.trim() || null,
     categoryId: category.toLowerCase() || null,
     ...(portions !== undefined && { fundPortions: portions }),
+    ...(merchantName !== undefined && { merchantName }),
     idempotencyKey: idempotencyKey.toLowerCase(),
   };
 }

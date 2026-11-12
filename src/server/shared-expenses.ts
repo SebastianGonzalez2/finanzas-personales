@@ -4,6 +4,11 @@ import { coverageDecimal, coverageUnits } from "../domain/fund-coverage.ts";
 import { recurringSharesReady } from "./recurring-shares.ts";
 import { recurrenceEventPeriods } from "./recurrence-links.ts";
 import { classificationReady, readClassification } from "./classification.ts";
+import {
+  nameCatalogReady,
+  recordEventMerchant,
+  recordLoanPerson,
+} from "./catalog.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -175,6 +180,12 @@ async function openObligations(
   parties: { name: string; amount: string; dueOn: string | null }[],
 ) {
   const direction = expense.method === "third_party" ? "payable" : "receivable";
+  const people = parties.map(({ name, amount, dueOn }) => ({
+    id: randomUUID(),
+    name,
+    amount,
+    due_on: dueOn,
+  }));
   // Child events have no cash flow. The parent command controls the whole write
   // and the existing loan service handles all subsequent payments and collections.
   await client.query(
@@ -203,18 +214,15 @@ async function openObligations(
       eventId,
       expense.currency,
       expense.effectiveOn,
-      JSON.stringify(
-        parties.map(({ name, amount, dueOn }) => ({
-          id: randomUUID(),
-          name,
-          amount,
-          due_on: dueOn,
-        })),
-      ),
+      JSON.stringify(people),
       commandHash(["shared-expense-obligations", eventId]),
       direction,
     ],
   );
+  if (await nameCatalogReady(client)) {
+    for (const { id, name } of people)
+      await recordLoanPerson(client, ownerId, id, name);
+  }
 }
 
 async function recordedPortions(
@@ -428,6 +436,10 @@ export async function saveSharedExpense(
     ({ ownAmount, parties } = command);
   } else {
     expense = command;
+    if (command.merchantName && !(await nameCatalogReady(client)))
+      return conflict(
+        "El catálogo estará disponible cuando se actualice la base de datos.",
+      );
     if (command.method === "third_party") {
       const categoryId = await resolveMovementCategory(
         client,
@@ -454,6 +466,8 @@ export async function saveSharedExpense(
           hash,
         ],
       );
+      if (command.merchantName)
+        await recordEventMerchant(client, ownerId, id, command.merchantName);
       await audit(client, ownerId, id, "created");
     } else {
       ({ ownAmount, parties } = command);

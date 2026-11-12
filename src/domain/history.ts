@@ -66,6 +66,7 @@ const filterKeys = [
   "currency",
   "kind",
   "category",
+  "merchant",
   "method",
   "min",
   "max",
@@ -104,6 +105,7 @@ export function parseHistoryParams(
     currency,
     kind,
     category,
+    merchant,
     method,
     min,
     max,
@@ -131,6 +133,7 @@ export function parseHistoryParams(
     tagIds.length > 20 ||
     tagIds.some((id) => !movementUuid.test(id)) ||
     (category && category !== "none" && !movementUuid.test(category)) ||
+    (merchant && !movementUuid.test(merchant)) ||
     (method && !Object.hasOwn(movementDisplayMethods, method)) ||
     (status && !Object.hasOwn(historyStates, status))
   )

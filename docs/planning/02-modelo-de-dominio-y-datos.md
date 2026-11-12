@@ -61,7 +61,7 @@ Las entidades son propuestas para claridad; separar una operación en tablas o e
 | `payment_allocations` | payment_event_id, statement_id?, purchase_id?, fund_id?, currency, amount | Asignaciones de pagos y fuentes deben sumar el pago total; evitar dos débitos reales. |
 | `loans` | id, owner_id, person_id?, direction, currency, principal_reference?, amount_outstanding, due_at?, state | `direction`: pagar/cobrar. Los derechos por cobrar no equivalen a efectivo bancario. |
 | `loan_effects` | event_id, loan_id, delta_original_currency, actual_bank_currency?, actual_bank_amount? | Pago/cobro cambia deuda y banco solo según hechos. Cobro/pago en otra moneda requiere dos importes reales. |
-| `people` | id, owner_id, canonical_name, archived_at, normalized_name | Catálogo privado; no leer contactos del teléfono. |
+| `people` | id, owner_id, name, archived_at, normalized_name | Catálogo privado; no leer contactos del teléfono. |
 | `merchants` | id, owner_id, canonical_name, archived_at, normalized_name | Autocompletado, alias y unificación manual reversible/auditable sin eliminar compras. |
 | `categories` | id, owner_id, kind, parent_id?, name, icon?, color?, archived_at | Categorías de ingreso/gasto separadas; subcategorías opcionales; preservar referencias históricas. |
 | `stat_allocations` | event_id, category_id?, currency, amount, recognition_period, allocation_kind | Un solo total real, división por categoría; `allocation_kind` distingue gasto, ingreso, y ajuste descriptivo. |
