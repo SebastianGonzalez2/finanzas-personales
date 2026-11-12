@@ -24,6 +24,7 @@ import { BalanceAdjustmentForm } from "./balance-adjustment-form";
 import { FinanceIcon } from "./finance-icon";
 import { MovementForm } from "./movement-form";
 import { RecentAmountCorrection } from "./recent-amount-correction";
+import type { MovementTag } from "@/domain/classification";
 import { HistoryField, historyButton, historyControl } from "./history-fields";
 import { Card } from "./ui/card";
 
@@ -64,6 +65,7 @@ export function FinanceSummary({
   today,
   period,
   categories,
+  tags,
   creditCards,
   debitCards,
   installmentsReady,
@@ -84,6 +86,7 @@ export function FinanceSummary({
   today: string;
   period: string;
   categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;
@@ -118,6 +121,7 @@ export function FinanceSummary({
           balances={balances}
           fundSources={fundSources}
           categories={categories}
+          tags={tags}
           creditCards={creditCards}
           debitCards={debitCards}
           installmentsReady={installmentsReady}

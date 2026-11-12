@@ -35,6 +35,13 @@ export type CreditPaymentLine = DebtAmount & {
   allocations: PaymentAllocation[];
   fundPortions?: FundPortion[];
 };
+import {
+  allocationError,
+  allocationSumMatches,
+  parseClassification,
+  type ClassificationInput,
+} from "./classification.ts";
+
 export type CreditAction = "purchase" | "payment" | "adjustment";
 export const maxPurchaseCategories = 10;
 export type PurchaseCategory = {
@@ -65,7 +72,8 @@ export type CreditCommand = {
       fundCommitment?: FundPortion | null;
       plan?: InstallmentTerms;
       mixed?: MixedPurchase;
-    } & DebtAmount)
+    } & DebtAmount &
+      ClassificationInput)
   | ({ action: "adjustment"; expectedDebt: string } & DebtAmount)
   | { action: "payment"; lines: CreditPaymentLine[] }
 );
@@ -427,6 +435,8 @@ export function parseCreditCommand(
             "fundCommitment",
             "plan",
             "mixed",
+            "allocations",
+            "tagIds",
           ]
         : action === "payment"
           ? ["lines"]
@@ -500,8 +510,22 @@ export function parseCreditCommand(
         error:
           "El compromiso no puede superar el cargo pendiente de pago de la compra.",
       };
+    const classification = parseClassification({
+      allocations: data.allocations,
+      tagIds: data.tagIds,
+    });
+    if ("error" in classification) return classification;
+    if (
+      classification.allocations?.length &&
+      (plan ||
+        mixed ||
+        data.categoryId ||
+        !allocationSumMatches(classification.allocations, charge))
+    )
+      return { error: allocationError };
     return {
       ...target,
+      ...classification,
       action,
       currency: code,
       amount: charge,

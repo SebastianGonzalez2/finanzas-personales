@@ -19,6 +19,12 @@ import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
 import { SharedExpenseForm } from "./shared-expense-form";
 import { CreditOperationForm } from "./credit-operation-form";
+import type { MovementTag } from "@/domain/classification";
+import {
+  AllocationFields,
+  TagFields,
+  formClassification,
+} from "./classification-fields";
 import type { FundSource } from "@/domain/fund-coverage";
 import {
   expenseFundsField,
@@ -37,6 +43,7 @@ export function MovementForm({
   balances,
   fundSources,
   categories,
+  tags,
   bankTransfersReady,
   creditCards,
   debitCards,
@@ -47,6 +54,7 @@ export function MovementForm({
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
   categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   bankTransfersReady: boolean;
   creditCards: CatalogCard[];
   debitCards?: CatalogCard[];
@@ -132,8 +140,10 @@ export function MovementForm({
         const form = new FormData(event.currentTarget);
         const fundPortions = formFundPortions(form, expenseFundsField);
         form.delete(expenseFundsField);
+        const classification = formClassification(form);
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
+          ...classification,
           ...(fundPortions?.length && { fundPortions }),
           idempotencyKey: requestKey.current,
         });
@@ -412,6 +422,7 @@ export function MovementForm({
                 cards={creditCards}
                 banks={configured}
                 categories={categories}
+                tags={tags}
                 fundSources={fundSources}
                 bankAvailability={balances}
                 debitCards={debitCards}
@@ -570,12 +581,21 @@ export function MovementForm({
                   )}
                   {!transfer && (
                     <>
-                      <CategorySelect
+                      <AllocationFields
                         key={kind}
-                        kind={kind}
-                        categories={categories}
-                        controlClassName={control}
-                      />
+                        categories={categories.filter(
+                          (category) => category.kind === kind,
+                        )}
+                        available={!!tags}
+                      >
+                        <CategorySelect
+                          key={kind}
+                          kind={kind}
+                          categories={categories}
+                          controlClassName={control}
+                        />
+                      </AllocationFields>
+                      {tags && <TagFields tags={tags} />}
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span>
                           {income ? "Concepto (opcional)" : "Concepto"}

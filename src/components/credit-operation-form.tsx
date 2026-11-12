@@ -41,6 +41,13 @@ import {
   historyPrimary,
 } from "./history-fields";
 
+import type { MovementTag } from "@/domain/classification";
+import {
+  AllocationFields,
+  TagFields,
+  formClassification,
+} from "./classification-fields";
+
 export const creditActionLabels = {
   purchase: "Registrar compra",
   payment: "Registrar pago",
@@ -61,6 +68,7 @@ type Props = {
   bankAvailability?: BankAvailability[];
   fundSources?: FundSource[] | null;
   categories: CatalogCategory[];
+  tags?: MovementTag[] | null;
   purchases?: CreditPurchaseOption[];
   installmentsReady: boolean;
   debitCards?: CatalogCard[];
@@ -98,6 +106,7 @@ export function CreditOperationForm({
   bankAvailability,
   fundSources,
   categories,
+  tags,
   purchases = [],
   installmentsReady,
   debitCards,
@@ -210,6 +219,7 @@ export function CreditOperationForm({
         action === "purchase"
           ? {
               ...entry,
+              ...formClassification(form),
               concept: form.get("concept"),
               note: form.get("note"),
               categoryId: form.get("categoryId"),
@@ -651,14 +661,21 @@ export function CreditOperationForm({
                 )}
               </fieldset>
             ) : (
-              <PurchaseCategorySelect
-                name="categoryId"
-                label="Categoría (opcional)"
+              <AllocationFields
+                key={financed ? "installments" : "immediate"}
+                available={!!tags && !financed && !mixed}
                 categories={expenseCategories}
-                initial={correction?.categoryId}
-                initialName={correction?.category}
-              />
+              >
+                <HistoryField label="Categoría (opcional)">
+                  <CategorySelect
+                    name="categoryId"
+                    categories={expenseCategories}
+                    initial={correction?.categoryId}
+                  />
+                </HistoryField>
+              </AllocationFields>
             )}
+            {tags && !correction && <TagFields tags={tags} />}
             <HistoryField label="Nota (opcional)">
               <input
                 className={historyControl}

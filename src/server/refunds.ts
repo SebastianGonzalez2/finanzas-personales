@@ -1,4 +1,5 @@
 import "server-only";
+import { classificationReady } from "./classification.ts";
 import { commitmentsFit } from "./fund-coverage.ts";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -104,10 +105,21 @@ async function findPurchase(
     cancelled,
     ...details
   } = purchase;
+  const withAllocations =
+    !details.mixed &&
+    firstPeriod === null &&
+    (await classificationReady(client));
   const { rows: parts } = await client.query<RefundPartStatus>(
     `WITH original AS (
       SELECT method, category_id, amount FROM finance.mixed_purchase_categories
        WHERE owner_id = $1 AND event_id = $2
+       ${
+         withAllocations
+           ? `UNION ALL
+       SELECT CASE WHEN $4::numeric > 0 THEN 'debit' ELSE 'credit' END, category_id, amount
+       FROM finance.current_movement_allocations WHERE owner_id = $1 AND event_id = $2`
+           : ""
+       }
     ), purchased AS (
       SELECT * FROM original
       UNION ALL

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
 import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
+import { classificationReady, listTags } from "@/server/classification";
 import { listRefundTotals } from "@/server/refund-totals";
 import { isInstallmentPeriod } from "@/domain/installments";
 import {
@@ -83,6 +84,10 @@ export default async function SummaryPage({
         bankTransfers: transfers
           ? await listRecentBankTransfers(client, ownerId)
           : [],
+        tags:
+          writable && (await classificationReady(client))
+            ? await listTags(client, ownerId)
+            : null,
         fundSources: writable ? await listFundSources(client, ownerId) : null,
         categories: writable
           ? await listCatalogCategories(client, ownerId)

@@ -27,6 +27,17 @@ export const historyStates = {
   voided: "Anulado",
 } as const;
 
+// Rangos relativos: el filtro guardado consulta siempre el período vigente y
+// no congela las fechas del día en que se creó (v9.47 / CA-058).
+export const historyPeriods = {
+  "mes-actual": "Mes actual",
+  "mes-anterior": "Mes anterior",
+  "ultimos-3-meses": "Últimos 3 meses",
+  "anio-actual": "Año actual",
+} as const;
+
+export type HistoryPeriod = keyof typeof historyPeriods;
+
 export type HistoryKind = keyof typeof historyKinds;
 
 export type HistoryEntry = {
@@ -43,11 +54,13 @@ export type HistoryEntry = {
   categoryId: string | null;
   category: string | null;
   method: MovementDisplayMethod | null;
+  classificationVersion?: number | null;
   cardAmounts?: { currency: Currency; amount: string }[] | null;
 };
 
 const filterKeys = [
   "q",
+  "period",
   "from",
   "to",
   "currency",
@@ -57,6 +70,7 @@ const filterKeys = [
   "min",
   "max",
   "status",
+  "tags",
 ] as const;
 export type HistoryFilters = Partial<
   Record<(typeof filterKeys)[number], string>
@@ -82,25 +96,48 @@ export function parseHistoryParams(
     const value = input[key];
     if (typeof value === "string") filters[key] = value.trim();
   }
-  const { q, from, to, currency, kind, category, method, min, max, status } =
-    filters;
+  const {
+    q,
+    period,
+    from,
+    to,
+    currency,
+    kind,
+    category,
+    method,
+    min,
+    max,
+    status,
+  } = filters;
+  const rawTags = Array.isArray(input.tags)
+    ? input.tags.join(",")
+    : filters.tags;
+  const tagIds = rawTags ? rawTags.split(",") : [];
   const invalid = {
     error:
       "Revisá los filtros. Usá fechas válidas, rangos en orden e importes con hasta cuatro decimales.",
   } as const;
   if (
-    Object.values(input).some(Array.isArray) ||
+    Object.entries(input).some(
+      ([key, value]) => key !== "tags" && Array.isArray(value),
+    ) ||
     (q && (q.length > 200 || q.includes("\0"))) ||
+    (period && (!Object.hasOwn(historyPeriods, period) || from || to)) ||
     (from && !isBankReferenceDate(from, "9999-12-31")) ||
     (to && !isBankReferenceDate(to, "9999-12-31")) ||
     (from && to && from > to) ||
     (currency && !bankCurrencies.some((code) => code === currency)) ||
     (kind && !Object.hasOwn(historyKinds, kind)) ||
+    tagIds.length > 20 ||
+    tagIds.some((id) => !movementUuid.test(id)) ||
     (category && category !== "none" && !movementUuid.test(category)) ||
     (method && !Object.hasOwn(movementDisplayMethods, method)) ||
     (status && !Object.hasOwn(historyStates, status))
   )
     return invalid;
+
+  if (tagIds.length)
+    filters.tags = [...new Set(tagIds.map((id) => id.toLowerCase()))].join(",");
 
   let minimum: string | null;
   let maximum: string | null;
@@ -133,4 +170,56 @@ export function parseHistoryParams(
     cursor = { date, id, kind: rowKind as HistoryKind };
   }
   return { filters, minimum, maximum, cursor };
+}
+
+// Fecha de referencia para los rangos relativos, en la zona horaria del
+// producto (Uruguay). Devuelve YYYY-MM-DD.
+export function historyToday(timeZone = "America/Montevideo") {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
+}
+
+// parseHistoryParams ya validó el valor; el guard solo afina el tipo.
+export function historyPeriodFilter(
+  period: string | undefined,
+): HistoryPeriod | null {
+  return period && Object.hasOwn(historyPeriods, period)
+    ? (period as HistoryPeriod)
+    : null;
+}
+
+export function historyPeriodRange(
+  period: HistoryPeriod,
+  today: string,
+): { from: string; to: string } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today);
+  if (!match) throw new Error("Fecha de referencia inválida.");
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) throw new Error("Fecha de referencia inválida.");
+  const lastDay = (y: number, m: number) =>
+    new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const format = (y: number, m: number, d: number) =>
+    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  switch (period) {
+    case "mes-actual":
+      return {
+        from: format(year, month, 1),
+        to: format(year, month, lastDay(year, month)),
+      };
+    case "mes-anterior": {
+      const [y, m] = month === 1 ? [year - 1, 12] : [year, month - 1];
+      return { from: format(y, m, 1), to: format(y, m, lastDay(y, m)) };
+    }
+    case "ultimos-3-meses": {
+      const index = year * 12 + (month - 1) - 2;
+      const y = Math.floor(index / 12);
+      const m = (index % 12) + 1;
+      return {
+        from: format(y, m, 1),
+        to: format(year, month, lastDay(year, month)),
+      };
+    }
+    case "anio-actual":
+      return { from: format(year, 1, 1), to: format(year, 12, 31) };
+  }
 }

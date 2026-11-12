@@ -1,5 +1,15 @@
 import "server-only";
 import { validRecurringRevision } from "./recurrence-links.ts";
+import {
+  classificationHashFields,
+  allocationSumMatches,
+} from "../domain/classification.ts";
+import {
+  classificationReady,
+  readClassification,
+  prepareClassification,
+  insertClassification,
+} from "./classification.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import {
   isSharedExpense,
@@ -63,7 +73,12 @@ type Shortfall = {
   shortfall: string;
   currency: Currency;
 };
+type ClassificationError = {
+  status: "invalid-classification";
+  message: string;
+};
 type SaveResult =
+  | ClassificationError
   | Replay
   | Omit<Shortfall, "currency">
   | { status: "created"; id: string }
@@ -275,6 +290,7 @@ export async function saveMovement(
       concept,
       note,
       categoryId,
+      ...classificationHashFields(movement),
       ...(movement.fundPortions?.length
         ? [JSON.stringify(movement.fundPortions)]
         : []),
@@ -319,6 +335,18 @@ export async function saveMovement(
     }
   }
 
+  const wantsClassification = classificationHashFields(movement).length > 0;
+  if (wantsClassification && !(await classificationReady(client)))
+    return {
+      status: "invalid-classification",
+      message: "Actualizá la base de datos para clasificar el movimiento.",
+    };
+  const prepared = wantsClassification
+    ? await prepareClassification(client, ownerId, movement, amount, kind)
+    : null;
+  if (prepared && "error" in prepared)
+    return { status: "invalid-classification", message: prepared.error };
+
   const selectedCategoryId = await resolveMovementCategory(
     client,
     ownerId,
@@ -332,6 +360,16 @@ export async function saveMovement(
     { ...movement, categoryId: selectedCategoryId },
     hash,
   );
+  if (prepared)
+    await insertClassification(
+      client,
+      ownerId,
+      id,
+      1,
+      idempotencyKey,
+      hash,
+      prepared,
+    );
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return { status: "created", id };
 }
@@ -395,6 +433,7 @@ async function insertMovement(
 
 type RevisionResult =
   | { status: "recurrence-conflict" }
+  | ClassificationError
   | Replay
   | { status: "invalid-coverage"; message: string }
   | Shortfall
@@ -467,6 +506,20 @@ export async function reviseMovement(
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
+  const classification =
+    amount !== null && (await classificationReady(client))
+      ? await readClassification(client, ownerId, eventId)
+      : null;
+  if (
+    amount !== null &&
+    classification?.allocations.length &&
+    !allocationSumMatches(classification.allocations, amount)
+  )
+    return {
+      status: "invalid-classification",
+      message: "Usá Editar para ajustar el desglose al nuevo importe.",
+    };
+
   const { currency, kind, effectiveOn } = original;
   if (
     amount !== null &&
@@ -534,6 +587,23 @@ export async function reviseMovement(
           { ...original, amount, idempotencyKey, fundPortions: portions },
           hash,
         );
+  if (
+    replacement &&
+    classification &&
+    (classification.tagIds.length || classification.allocations.length)
+  )
+    await insertClassification(
+      client,
+      ownerId,
+      replacement,
+      1,
+      idempotencyKey,
+      hash,
+      {
+        ...classification,
+        allocatedTotal: classification.allocations.length ? amount : null,
+      },
+    );
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
 }
@@ -568,6 +638,9 @@ async function editMovement(
         movement.concept,
         movement.note,
         movement.categoryId,
+        ...classificationHashFields(movement),
+        ...(movement.allocations?.length === 0 ? ["clear-allocations"] : []),
+        ...(movement.tagIds?.length === 0 ? ["clear-tags"] : []),
         ...(movement.fundPortions !== undefined
           ? [JSON.stringify(movement.fundPortions)]
           : []),
@@ -578,6 +651,9 @@ async function editMovement(
     movement.kind,
     movement.effectiveOn,
     ...fields,
+    ...(command.classificationVersion !== undefined
+      ? ["classification-version", String(command.classificationVersion)]
+      : []),
   ]);
   await lockBankWrites(client, ownerId);
   if (!(await historyReady(client))) return { status: "unavailable" };
@@ -733,6 +809,51 @@ async function editMovement(
       hash,
     );
   } else {
+    const ready = await classificationReady(client);
+    if (
+      !ready &&
+      (movement.allocations !== undefined || movement.tagIds !== undefined)
+    )
+      return {
+        status: "invalid-classification",
+        message: "Actualizá la base de datos para clasificar el movimiento.",
+      };
+    const priorClassification = ready
+      ? await readClassification(client, ownerId, eventId)
+      : undefined;
+    if (
+      command.classificationVersion !== undefined &&
+      command.classificationVersion !== priorClassification?.version
+    )
+      return {
+        status: "invalid-classification",
+        message: "La clasificación cambió. Actualizá la página.",
+      };
+    const prepared =
+      ready &&
+      (priorClassification?.version ||
+        movement.allocations?.length ||
+        movement.tagIds?.length)
+        ? await prepareClassification(
+            client,
+            ownerId,
+            movement,
+            movement.amount,
+            movement.kind,
+            priorClassification,
+          )
+        : null;
+    if (prepared && "error" in prepared)
+      return { status: "invalid-classification", message: prepared.error };
+    if (
+      prepared?.allocations.length &&
+      movement.allocations === undefined &&
+      movement.categoryId !== original.categoryId
+    )
+      return {
+        status: "invalid-classification",
+        message: "Revisá el desglose al cambiar la categoría del movimiento.",
+      };
     const categoryId =
       movement.categoryId === original.categoryId
         ? original.categoryId
@@ -749,6 +870,16 @@ async function editMovement(
       { ...movement, idempotencyKey, categoryId, fundPortions: portions },
       hash,
     );
+    if (prepared && (prepared.allocations.length || prepared.tagIds.length))
+      await insertClassification(
+        client,
+        ownerId,
+        replacement,
+        1,
+        idempotencyKey,
+        hash,
+        prepared,
+      );
   }
   await applyFundDeltas(client, ownerId, coverage.deltas);
   return recordRevision(client, ownerId, command, hash, replacement);
@@ -920,9 +1051,19 @@ export async function listRecentMovements(
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const mixed = credit && (await mixedPurchasesReady(client));
   const shared = kind === "expense" && (await sharedExpensesReady(client));
+  const classified = await classificationReady(client);
+  const category = classified
+    ? `CASE WHEN EXISTS (SELECT 1 FROM finance.current_movement_allocations a
+        WHERE a.owner_id = $1 AND a.event_id = recent.id)
+      THEN (SELECT CASE WHEN count(*) > 1 THEN 'Categorías repartidas' ELSE max(c.name) END
+        FROM finance.current_movement_allocations a
+        LEFT JOIN finance.categories c ON (c.owner_id,c.id)=(a.owner_id,a.category_id)
+        WHERE a.owner_id = $1 AND a.event_id = recent.id)
+      ELSE recent.category END AS category`
+    : "category";
   const { rows } = await client.query<RecentMovement>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
-            currency, amount, method, note, category
+            currency, amount, method, note, ${category}
             ${shared ? ", EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE s.owner_id = $1 AND s.event_id = recent.id) AS shared" : ""} FROM (
       SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,
             e.currency, abs(e.amount_signed)::text AS amount, m.method, m.note, c.name AS category

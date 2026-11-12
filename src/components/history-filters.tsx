@@ -1,11 +1,17 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { bankCurrencies } from "@/domain/bank-balances";
 import {
   historyKinds,
+  historyPeriods,
   historyStates,
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
 import { movementDisplayMethods } from "@/domain/movements";
+import { TagFields } from "./classification-fields";
+import type { MovementTag } from "@/domain/classification";
 import type { listHistoryCategories } from "@/server/history";
 import {
   historyButton,
@@ -18,10 +24,13 @@ import { Card } from "./ui/card";
 export function HistoryFilters({
   values,
   categories,
+  tags,
 }: {
   values: FilterValues;
   categories: Awaited<ReturnType<typeof listHistoryCategories>>;
+  tags: MovementTag[];
 }) {
+  const [period, setPeriod] = useState(values.period ?? "");
   const active = Object.values(values).filter(Boolean).length;
   return (
     <Card className="gap-3 p-4 sm:p-5">
@@ -29,7 +38,10 @@ export function HistoryFilters({
         Buscar y filtrar{active > 0 && ` (${active})`}
       </h2>
       <form action="/historial" method="get" className="grid gap-3">
-        <HistoryField label="Concepto o nota">
+        {tags.length > 0 && (
+          <TagFields tags={tags} initial={values.tags?.split(",")} filter />
+        )}
+        <HistoryField label="Buscar texto">
           <input
             name="q"
             type="search"
@@ -39,12 +51,13 @@ export function HistoryFilters({
             className={historyControl}
           />
         </HistoryField>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <HistoryField label="Desde">
             <input
               name="from"
               type="date"
               defaultValue={values.from}
+              disabled={Boolean(period)}
               className={historyControl}
             />
           </HistoryField>
@@ -53,8 +66,24 @@ export function HistoryFilters({
               name="to"
               type="date"
               defaultValue={values.to}
+              disabled={Boolean(period)}
               className={historyControl}
             />
+          </HistoryField>
+          <HistoryField label="Período">
+            <select
+              name="period"
+              value={period}
+              onChange={(event) => setPeriod(event.target.value)}
+              className={historyControl}
+            >
+              <option value="">Sin período fijo</option>
+              {Object.entries(historyPeriods).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </HistoryField>
           <HistoryField label="Tipo">
             <select
@@ -159,6 +188,9 @@ export function HistoryFilters({
             </HistoryField>
           </div>
         </details>
+        <p className="text-xs text-muted-foreground">
+          Los períodos relativos siguen el calendario vigente en cada consulta.
+        </p>
         <div className="flex flex-wrap gap-2">
           <button className={historyPrimary} type="submit">
             Aplicar filtros

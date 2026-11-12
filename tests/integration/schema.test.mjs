@@ -77,6 +77,9 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0025_F4-04_recurring_shared_expenses.sql",
       "0026_F4-05_due_notice_preferences.sql",
       "0027_F5-01_category_archive.sql",
+      "0028_F5-02_movement_classification.sql",
+      "0030_F5-04_filtros_guardados.sql",
+      "0031_F5-04_bulk_classification.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -125,6 +128,9 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       sharing,
       dueNotices,
       categoryArchive,
+      classification,
+      savedFilters,
+      bulkClassification,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -443,10 +449,18 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [dueNotices.version, dueNotices.sha256],
     );
-    assert.deepEqual(await migrateInTransaction(client, categoryArchive.sha256), [
-      categoryArchive.version,
+    for (const migration of [categoryArchive, classification, savedFilters]) {
+      await assert.rejects(migrateInTransaction(client, migration.sha256));
+      await client.query(migration.sql);
+      await client.query(
+        "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+        [migration.version, migration.sha256],
+      );
+    }
+    assert.deepEqual(await migrateInTransaction(client, bulkClassification.sha256), [
+      bulkClassification.version,
     ]);
-    assert.deepEqual(await migrateInTransaction(client, categoryArchive.sha256), []);
+    assert.deepEqual(await migrateInTransaction(client, bulkClassification.sha256), []);
     assert.equal(
       (
         await client.query(
