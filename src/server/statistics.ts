@@ -123,6 +123,12 @@ scoped AS (
      AND ($6::text IS NULL OR ($6 = 'mixed' AND x.mixed) OR x.method = $6)
      AND ($7::uuid IS NULL OR x.card_id = $7)
      AND ($8::text IS NULL OR x.kind = $8)
+     AND ($9::uuid IS NULL${
+       schema.tags
+         ? ` OR EXISTS (SELECT 1 FROM finance.current_event_tags t
+        WHERE (t.owner_id, t.event_id, t.tag_id) = ($1, x.event_id, $9))`
+         : ""
+     })
 )`;
 }
 
@@ -140,6 +146,7 @@ function parameters(
     filters.method ?? null,
     filters.card ?? null,
     filters.kind ?? null,
+    filters.tag ?? null,
   ];
 }
 
@@ -154,6 +161,7 @@ export async function statisticsReady(client: pg.PoolClient) {
     refunds: boolean;
     favorites: boolean;
     allocations: boolean;
+    tags: boolean;
     recurrences: boolean;
   }>(
     `SELECT to_regclass('finance.current_shared_expenses') IS NOT NULL AS shared,
@@ -163,6 +171,8 @@ export async function statisticsReady(client: pg.PoolClient) {
             to_regclass('finance.purchase_refunds') IS NOT NULL AS refunds,
             to_regclass('finance.statistics_favorites') IS NOT NULL AS favorites,
             to_regclass('finance.current_movement_allocations') IS NOT NULL AS allocations,
+            (to_regclass('finance.tags') IS NOT NULL AND
+             to_regclass('finance.current_event_tags') IS NOT NULL) AS tags,
             to_regclass('finance.recurring_event_lineage') IS NOT NULL AS recurrences`,
   );
   return {
@@ -174,6 +184,7 @@ export async function statisticsReady(client: pg.PoolClient) {
       state.refunds,
     favorites: state.favorites,
     allocations: state.allocations,
+    tags: state.tags,
     recurrences: state.recurrences,
   };
 }
@@ -308,7 +319,7 @@ async function entries(
        LEFT JOIN finance.current_shared_expenses s ON (s.owner_id, s.event_id) = ($1, x.event_id)
        GROUP BY f.id, f.kind, f.concept, s.concept, x.kind, x.currency, x.effective_on
        ORDER BY x.effective_on DESC, f.id DESC, x.kind, x.currency
-       LIMIT $9 OFFSET $10`,
+       LIMIT $10 OFFSET $11`,
     [...params, detailPageSize + 1, (page - 1) * detailPageSize],
   );
   return {
@@ -354,7 +365,11 @@ export async function loadStatistics(
     schema.recurrences,
   );
   const { entries: entryRows, hasNextPage } =
-    filters.category || filters.kind || filters.method || filters.card
+    filters.category ||
+    filters.kind ||
+    filters.method ||
+    filters.card ||
+    filters.tag
       ? await entries(
           client,
           cte,
@@ -409,6 +424,22 @@ export async function listStatisticsCards(
 ) {
   const { rows } = await client.query<{ id: string; name: string }>(
     `SELECT id, name FROM finance.cards WHERE owner_id = $1 ORDER BY name, id`,
+    [ownerId],
+  );
+  return rows;
+}
+
+export async function listStatisticsTags(
+  client: pg.PoolClient,
+  ownerId: string,
+) {
+  const { rows } = await client.query<{
+    id: string;
+    name: string;
+    archived: boolean;
+  }>(
+    `SELECT id, name, archived_at IS NOT NULL AS archived
+       FROM finance.tags WHERE owner_id = $1 ORDER BY archived, name, id`,
     [ownerId],
   );
   return rows;

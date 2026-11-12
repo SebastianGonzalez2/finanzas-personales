@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { URLSearchParams } from "node:url";
 import {
   categoryChildren,
   chartScale,
@@ -58,6 +59,7 @@ test("F5-05: filtros de moneda, categoría, medio y vista", () => {
       period: "ultimos-3-meses",
       currency: "UYU",
       category: uuid,
+      tag: uuid.toUpperCase(),
       method: "credit",
       view: "favoritos",
     },
@@ -66,6 +68,11 @@ test("F5-05: filtros de moneda, categoría, medio y vista", () => {
   assert.ok(!("error" in parsed));
   assert.equal(parsed.filters.currency, "UYU");
   assert.equal(parsed.filters.category, uuid);
+  assert.equal(parsed.filters.tag, uuid);
+  assert.equal(
+    new URLSearchParams(statisticsSearch(parsed.filters)).get("tag"),
+    uuid,
+  );
   assert.equal(parsed.filters.method, "credit");
   assert.equal(parsed.filters.view, "favoritos");
   assert.equal(parsed.range.from, "2026-09-01");
@@ -75,6 +82,7 @@ test("F5-05: filtros de moneda, categoría, medio y vista", () => {
     "error" in parseStatisticsParams({ category: "no-es-uuid" }, today),
   );
   assert.ok("error" in parseStatisticsParams({ method: "cheque" }, today));
+  assert.ok("error" in parseStatisticsParams({ tag: "no-es-uuid" }, today));
   assert.ok("error" in parseStatisticsParams({ view: "otra" }, today));
   assert.ok(!("error" in parseStatisticsParams({ category: "none" }, today)));
 });

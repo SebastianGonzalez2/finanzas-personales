@@ -116,6 +116,7 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
       metrics.getByRole("row", { name: /^Devoluciones/ }),
     ).toContainText("15,00 UYU");
     await expect(page.getByText(/Muestra insuficiente/)).toBeVisible();
+    await expect(page.getByText(/Marcá con una estrella/)).toBeVisible();
     const positions = page.getByRole("table", {
       name: "Saldos y patrimonio por fecha",
     });
@@ -160,6 +161,14 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(page).toHaveURL(new RegExp(`card=${cardId}`));
     await expect(entry).toBeVisible();
+    const unknownTag = randomUUID();
+    await page.goto(`/estadisticas?tag=${unknownTag}&card=${cardId}`);
+    await expect(page.getByRole("combobox", { name: "Etiqueta" })).toHaveValue(
+      unknownTag,
+    );
+    await expect(entry).toHaveCount(0);
+    await page.getByRole("link", { name: "Limpiar filtros" }).click();
+    await expect(page).not.toHaveURL(/tag=/);
 
     expect(
       (await post(request, "statistics-favorites", favorite)).status(),

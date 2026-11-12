@@ -18,6 +18,7 @@ export function StatisticsFiltersForm({
   filters,
   categories,
   cards,
+  tags,
 }: {
   filters: StatisticsFilters;
   categories: {
@@ -26,28 +27,14 @@ export function StatisticsFiltersForm({
     kind: "income" | "expense";
   }[];
   cards: { id: string; name: string }[];
+  tags: { id: string; name: string; archived: boolean }[];
 }) {
-  const active = [
-    filters.currency,
-    filters.category,
-    filters.method,
-    filters.kind,
-    filters.card,
-    filters.compareFrom,
-    filters.from,
-    filters.to,
-  ].filter(Boolean).length;
   const custom = filters.period === "personalizado";
   return (
     <Card className="gap-3 p-4 sm:p-5">
-      <h2 className="font-semibold">
-        Filtros de estadísticas{active > 0 && ` (${active})`}
-      </h2>
+      <h2 className="font-semibold">Filtros de estadísticas</h2>
       <form action="/estadisticas" method="get" className="grid gap-3">
         <input type="hidden" name="view" value={filters.view ?? "todas"} />
-        {filters.kind && (
-          <input type="hidden" name="kind" value={filters.kind} />
-        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <HistoryField label="Período">
             <select
@@ -73,6 +60,17 @@ export function StatisticsFiltersForm({
               {bankCurrencies.map((currency) => (
                 <option key={currency}>{currency}</option>
               ))}
+            </select>
+          </HistoryField>
+          <HistoryField label="Tipo de movimiento">
+            <select
+              name="kind"
+              defaultValue={filters.kind}
+              className={historyControl}
+            >
+              <option value="">Todos</option>
+              <option value="income">Ingresos</option>
+              <option value="expense">Gastos</option>
             </select>
           </HistoryField>
           <HistoryField label="Categoría">
@@ -115,6 +113,26 @@ export function StatisticsFiltersForm({
                 {cards.map(({ id, name }) => (
                   <option key={id} value={id}>
                     {name}
+                  </option>
+                ))}
+              </select>
+            </HistoryField>
+          )}
+          {(tags.length > 0 || filters.tag) && (
+            <HistoryField label="Etiqueta">
+              <select
+                name="tag"
+                defaultValue={filters.tag}
+                className={historyControl}
+              >
+                <option value="">Todas</option>
+                {filters.tag && !tags.some(({ id }) => id === filters.tag) && (
+                  <option value={filters.tag}>Etiqueta no disponible</option>
+                )}
+                {tags.map(({ id, name, archived }) => (
+                  <option key={id} value={id}>
+                    {name}
+                    {archived ? " (archivada)" : ""}
                   </option>
                 ))}
               </select>
@@ -178,6 +196,7 @@ export function StatisticsFiltersForm({
             href={`/estadisticas${statisticsSearch(filters, {
               currency: undefined,
               category: undefined,
+              tag: undefined,
               method: undefined,
               kind: undefined,
               card: undefined,

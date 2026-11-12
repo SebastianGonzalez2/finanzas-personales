@@ -29,6 +29,7 @@ export type StatisticsFilters = {
   compareTo?: string;
   currency?: Currency;
   category?: string;
+  tag?: string;
   kind?: "income" | "expense";
   method?: MovementDisplayMethod;
   card?: string;
@@ -159,6 +160,7 @@ const filterKeys = [
   "compareTo",
   "currency",
   "category",
+  "tag",
   "kind",
   "method",
   "card",
@@ -352,6 +354,7 @@ export function parseStatisticsParams(
   if (values.method && !Object.hasOwn(movementDisplayMethods, values.method))
     return invalid;
   if (values.card && !movementUuid.test(values.card)) return invalid;
+  if (values.tag && !movementUuid.test(values.tag)) return invalid;
   const kind = values.kind;
   if (kind !== undefined && kind !== "income" && kind !== "expense")
     return invalid;
@@ -379,6 +382,7 @@ export function parseStatisticsParams(
     ...(compareFrom && compareTo ? { compareFrom, compareTo } : {}),
     ...(values.currency ? { currency: values.currency as Currency } : {}),
     ...(values.category ? { category: values.category.toLowerCase() } : {}),
+    ...(values.tag ? { tag: values.tag.toLowerCase() } : {}),
     ...(kind ? { kind } : {}),
     ...(values.card ? { card: values.card } : {}),
     ...(values.detailPage ? { detailPage: values.detailPage } : {}),

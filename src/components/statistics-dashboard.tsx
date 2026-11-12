@@ -243,7 +243,7 @@ function StatisticsDrilldown({
               : ""}
         </h2>
         <Link
-          href={`/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, detailPage: undefined })}`}
+          href={`/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, tag: undefined, detailPage: undefined })}`}
           className={historyButton}
         >
           Quitar filtros de detalle
@@ -569,7 +569,11 @@ export function StatisticsDashboard({
   const visible = view === "favoritos" ? favorites : statisticsChartIdList;
   return (
     <div className="grid gap-4">
-      {(filters.category || filters.method || filters.kind || filters.card) && (
+      {(filters.category ||
+        filters.method ||
+        filters.kind ||
+        filters.card ||
+        filters.tag) && (
         <StatisticsDrilldown
           snapshot={snapshot}
           filters={filters}

@@ -18,6 +18,7 @@ import {
   listStatisticsFavorites,
   loadStatistics,
   listStatisticsCards,
+  listStatisticsTags,
   statisticsReady,
 } from "@/server/statistics";
 
@@ -60,6 +61,7 @@ export default async function StatisticsPage({
         : [];
       const categories = await listHistoryCategories(client, ownerId);
       const cards = await listStatisticsCards(client, ownerId);
+      const tags = ready.tags ? await listStatisticsTags(client, ownerId) : [];
       const snapshot = await loadStatistics(
         client,
         ownerId,
@@ -75,6 +77,7 @@ export default async function StatisticsPage({
         favoritesReady,
         categories,
         cards,
+        tags,
         snapshot,
       };
     },
@@ -155,6 +158,7 @@ export default async function StatisticsPage({
           filters={filters}
           categories={data.categories}
           cards={data.cards}
+          tags={data.tags}
         />
         {!data.favoritesReady && (
           <p role="status" className="text-sm text-muted-foreground">
@@ -162,6 +166,13 @@ export default async function StatisticsPage({
             datos. Mientras tanto podés explorar todas las estadísticas.
           </p>
         )}
+        {view === "todas" &&
+          data.favoritesReady &&
+          data.favorites.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Marcá con una estrella las estadísticas que querés ver al entrar.
+            </p>
+          )}
         {view === "favoritos" && data.favorites.length === 0 ? (
           <Card className="items-start gap-3 p-4">
             <h2 className="font-semibold">Mis favoritos</h2>

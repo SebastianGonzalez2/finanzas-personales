@@ -400,6 +400,12 @@ export function StatisticsRecurringExpenses({
             >
               {monthly.map((row) => {
                 const amount = row.recurring ?? "0";
+                const share = statisticsShare(amount, row.expense);
+                const width =
+                  Number(
+                    (amountUnits(amount) * BigInt(1000)) /
+                      amountUnits(row.expense),
+                  ) / 10;
                 return (
                   <tr key={`${row.period}-${row.currency}`}>
                     <th scope="row">{row.label}</th>
@@ -413,7 +419,18 @@ export function StatisticsRecurringExpenses({
                         row.currency,
                       )}
                     </td>
-                    <td>{statisticsShare(amount, row.expense)}</td>
+                    <td>
+                      <span>{share}</span>
+                      <span
+                        aria-hidden="true"
+                        className="mt-1 block h-2 min-w-16 rounded-full bg-muted"
+                      >
+                        <span
+                          className="block h-full rounded-full bg-primary"
+                          style={{ width: `${width}%` }}
+                        />
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
