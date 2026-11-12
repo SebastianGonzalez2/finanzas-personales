@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { bankCurrencies } from "@/domain/bank-balances";
+import type { Currency } from "@/domain/money";
 import {
   statisticsPeriods,
   statisticsSearch,
@@ -16,11 +17,13 @@ import { Card } from "./ui/card";
 
 export function StatisticsFiltersForm({
   filters,
+  display,
   categories,
   cards,
   tags,
 }: {
   filters: StatisticsFilters;
+  display: Currency | "original";
   categories: {
     id: string;
     name: string;
@@ -48,6 +51,18 @@ export function StatisticsFiltersForm({
                 </option>
               ))}
               {custom && <option value="personalizado">Personalizado</option>}
+            </select>
+          </HistoryField>
+          <HistoryField label="Moneda de visualización">
+            <select
+              name="display"
+              defaultValue={display}
+              className={historyControl}
+            >
+              <option value="original">Por moneda original</option>
+              {bankCurrencies.map((currency) => (
+                <option key={currency}>{currency}</option>
+              ))}
             </select>
           </HistoryField>
           <HistoryField label="Moneda original">

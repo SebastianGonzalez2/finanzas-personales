@@ -1,6 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import type { Currency } from "../domain/money.ts";
+import { fxKey, type FxKey, type FxQuote } from "../domain/exchange-rates.ts";
 import {
   statisticsChartIdList,
   statisticsMonthComplete,
@@ -16,6 +17,8 @@ import {
   type StatisticsTotal,
 } from "../domain/statistics.ts";
 import { listStatisticsPositions } from "./statistics-positions.ts";
+import { pinnedQuotes, prepareHistoricalQuotes } from "./exchange-rates.ts";
+import { consolidatePositions, positionKeys } from "./statistics-fx.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
 
@@ -108,7 +111,7 @@ category_scope AS (
   SELECT id FROM finance.categories
    WHERE owner_id = $1 AND (id::text = $5 OR parent_id::text = $5)
 ),
-scoped AS (
+scoped_source AS (
   SELECT x.*, ${
     schema.recurrences
       ? `EXISTS (SELECT 1 FROM finance.recurring_event_lineage r
@@ -132,10 +135,28 @@ scoped AS (
 )`;
 }
 
+function displayCte(cte: string, target?: Currency) {
+  if (!target) return `${cte}, scoped AS (SELECT * FROM scoped_source)`;
+  return `${cte}, scoped AS (
+    SELECT x.kind, x.event_id, $10::finance.currency AS currency, x.category_id,
+           x.effective_on, x.method, x.card_id, x.mixed, x.recurring,
+           x.amount * CASE WHEN x.currency = $10 THEN 1
+                        ELSE coalesce(v.manual_rate, r.rate) END AS amount
+      FROM scoped_source x
+      LEFT JOIN finance.fx_valuations v
+        ON (v.owner_id, v.effective_on, v.base_currency, v.quote_currency) =
+           ($1, x.effective_on, x.currency, $10)
+      LEFT JOIN finance.fx_reference_rates r
+        ON (r.base_currency, r.quote_currency, r.observed_on, r.source) =
+           (v.base_currency, v.quote_currency, v.observed_on, v.reference_source)
+  )`;
+}
+
 function parameters(
   ownerId: string,
   range: StatisticsRange,
   filters: StatisticsFilters,
+  target?: Currency,
 ) {
   return [
     ownerId,
@@ -147,7 +168,111 @@ function parameters(
     filters.card ?? null,
     filters.kind ?? null,
     filters.tag ?? null,
+    ...(target ? [target] : []),
   ];
+}
+
+async function flowKeys(
+  client: pg.PoolClient,
+  ownerId: string,
+  cte: string,
+  history: StatisticsRange,
+  previous: StatisticsRange | null,
+  filters: StatisticsFilters,
+  target: Currency,
+) {
+  const enclosing = {
+    ...history,
+    from:
+      previous && previous.from < history.from ? previous.from : history.from,
+    to: previous && previous.to > history.to ? previous.to : history.to,
+  };
+  const { rows } = await client.query<FxKey>(
+    `${cte} SELECT DISTINCT to_char(effective_on, 'YYYY-MM-DD') AS date, currency AS base
+      FROM scoped_source WHERE currency <> $10 AND
+       (effective_on BETWEEN $11 AND $12 OR effective_on BETWEEN $13 AND $14)
+      ORDER BY date DESC, base`,
+    [
+      ...parameters(ownerId, enclosing, filters, target),
+      history.from,
+      history.to,
+      previous?.from ?? null,
+      previous?.to ?? null,
+    ],
+  );
+  return rows;
+}
+
+export async function prepareStatisticsFx(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  previous: StatisticsRange | null,
+  history: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target: Currency,
+  today: string,
+) {
+  const flows = await flowKeys(
+    client,
+    ownerId,
+    statisticsCte(schema),
+    history,
+    previous,
+    filters,
+    target,
+  );
+  const positions = await listStatisticsPositions(
+    client,
+    ownerId,
+    history,
+    previous,
+    range,
+    filters.currency,
+  );
+  await prepareHistoricalQuotes(
+    client,
+    ownerId,
+    [...flows, ...positionKeys(positions)],
+    target,
+    today,
+  );
+}
+
+export async function summaryFlowFx(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  target: Currency,
+  today: string,
+) {
+  const schema = await statisticsReady(client);
+  if (!schema.ready) return null;
+  const source = statisticsCte(schema);
+  const filters = { period: "mes-actual" } as const;
+  const inputs = await flowKeys(
+    client,
+    ownerId,
+    source,
+    range,
+    null,
+    filters,
+    target,
+  );
+  await prepareHistoricalQuotes(client, ownerId, inputs, target, today);
+  const quotes = await pinnedQuotes(client, ownerId, inputs, target);
+  const missing = inputs.filter((key) => !quotes.has(fxKey(key)));
+  const { rows } = await client.query<{
+    kind: "income" | "expense" | "refund";
+    amount: string | null;
+  }>(
+    `${displayCte(source, target)}
+     SELECT kind, CASE WHEN count(amount) = count(*) THEN round(sum(amount), 4)::text END AS amount
+       FROM scoped GROUP BY kind`,
+    parameters(ownerId, range, filters, target),
+  );
+  return { rows, quotes: [...quotes.values()], missing };
 }
 
 export async function statisticsReady(client: pg.PoolClient) {
@@ -207,9 +332,9 @@ async function totals(
   recurringReady: boolean,
 ) {
   const { rows } = await client.query<FlowRow>(
-    `${cte} SELECT kind, currency, sum(amount)::text AS amount,
+    `${cte} SELECT kind, currency, round(sum(amount), 4)::text AS amount,
        count(DISTINCT event_id)::int AS count,
-       coalesce(sum(amount) FILTER (WHERE recurring), 0)::text AS recurring
+       round(coalesce(sum(amount) FILTER (WHERE recurring), 0), 4)::text AS recurring
        FROM scoped GROUP BY kind, currency ORDER BY currency, kind`,
     params,
   );
@@ -243,7 +368,7 @@ async function categories(
   const { rows } = await client.query<StatisticsCategoryTotal>(
     `${cte} SELECT x.kind, x.currency, group_category.id AS "categoryId",
             c.parent_id AS "parentId", coalesce(c.name, 'Sin categorizar') AS category,
-            sum(x.amount)::text AS amount, count(DISTINCT x.event_id)::int AS count
+            round(sum(x.amount), 4)::text AS amount, count(DISTINCT x.event_id)::int AS count
        FROM scoped x
        LEFT JOIN finance.categories source ON (source.owner_id, source.id) = ($1, x.category_id)
        CROSS JOIN LATERAL (
@@ -262,7 +387,7 @@ async function categories(
 
 async function methods(client: pg.PoolClient, cte: string, params: unknown[]) {
   const { rows } = await client.query<StatisticsMethodTotal>(
-    `${cte} SELECT kind, currency, method, sum(amount)::text AS amount,
+    `${cte} SELECT kind, currency, method, round(sum(amount), 4)::text AS amount,
             count(DISTINCT event_id)::int AS count
        FROM scoped WHERE kind <> 'refund'
       GROUP BY kind, currency, method
@@ -288,10 +413,10 @@ async function months(
     recurring: string;
   }>(
     `${cte} SELECT to_char(effective_on, 'YYYY-MM') AS period, currency,
-            coalesce(sum(amount) FILTER (WHERE kind = 'income'), 0)::text AS income,
-            coalesce(sum(amount) FILTER (WHERE kind = 'expense'), 0)::text AS expense,
-            coalesce(sum(amount) FILTER (WHERE kind = 'refund'), 0)::text AS refunds,
-            coalesce(sum(amount) FILTER (WHERE kind = 'expense' AND recurring), 0)::text AS recurring
+            round(coalesce(sum(amount) FILTER (WHERE kind = 'income'), 0), 4)::text AS income,
+            round(coalesce(sum(amount) FILTER (WHERE kind = 'expense'), 0), 4)::text AS expense,
+            round(coalesce(sum(amount) FILTER (WHERE kind = 'refund'), 0), 4)::text AS refunds,
+            round(coalesce(sum(amount) FILTER (WHERE kind = 'expense' AND recurring), 0), 4)::text AS recurring
        FROM scoped GROUP BY period, currency ORDER BY period, currency`,
     params,
   );
@@ -314,7 +439,7 @@ async function entries(
        CASE WHEN f.kind = 'card_payment' THEN 'Comisión bancaria'
             ELSE coalesce(s.concept, f.concept) END AS concept,
        sum(x.amount)::text AS amount
-       FROM scoped x
+       FROM scoped_source x
        JOIN finance.financial_events f ON (f.owner_id, f.id) = ($1, x.event_id)
        LEFT JOIN finance.current_shared_expenses s ON (s.owner_id, s.event_id) = ($1, x.event_id)
        GROUP BY f.id, f.kind, f.concept, s.concept, x.kind, x.currency, x.effective_on
@@ -336,10 +461,48 @@ export async function loadStatistics(
   historyRange: StatisticsRange,
   filters: StatisticsFilters,
   schema: StatisticsSchema,
+  target?: Currency,
 ): Promise<StatisticsSnapshot> {
-  const cte = statisticsCte(schema);
-  const currentParams = parameters(ownerId, range, filters);
-  const previousParams = previous && parameters(ownerId, previous, filters);
+  const source = statisticsCte(schema);
+  const positions = await listStatisticsPositions(
+    client,
+    ownerId,
+    historyRange,
+    previous,
+    range,
+    filters.currency,
+  );
+  const flowInputs = target
+    ? await flowKeys(
+        client,
+        ownerId,
+        source,
+        historyRange,
+        previous,
+        filters,
+        target,
+      )
+    : [];
+  const positionInputs = target
+    ? positionKeys(positions).filter(({ base }) => base !== target)
+    : [];
+  const quotes = target
+    ? await pinnedQuotes(
+        client,
+        ownerId,
+        [...flowInputs, ...positionInputs],
+        target,
+      )
+    : new Map<string, FxQuote>();
+  const missingFlows = flowInputs.filter((key) => !quotes.has(fxKey(key)));
+  const missingPositions = positionInputs.filter(
+    (key) => !quotes.has(fxKey(key)),
+  );
+  const flowCurrency = missingFlows.length ? undefined : target;
+  const cte = displayCte(source, flowCurrency);
+  const currentParams = parameters(ownerId, range, filters, flowCurrency);
+  const previousParams =
+    previous && parameters(ownerId, previous, filters, flowCurrency);
   const currentTotals = await totals(
     client,
     cte,
@@ -360,7 +523,7 @@ export async function loadStatistics(
   const monthRows = await months(
     client,
     cte,
-    parameters(ownerId, historyRange, filters),
+    parameters(ownerId, historyRange, filters, flowCurrency),
     historyRange,
     schema.recurrences,
   );
@@ -372,19 +535,11 @@ export async function loadStatistics(
     filters.tag
       ? await entries(
           client,
-          cte,
-          currentParams,
+          source,
+          parameters(ownerId, range, filters),
           Number(filters.detailPage ?? 1),
         )
       : { entries: [], hasNextPage: false };
-  const positions = await listStatisticsPositions(
-    client,
-    ownerId,
-    historyRange,
-    previous,
-    range,
-    filters.currency,
-  );
   const {
     rows: [sample],
   } = await client.query<{ count: number }>(
@@ -402,8 +557,22 @@ export async function loadStatistics(
     methods: methodRows,
     previousMethods,
     months: monthRows,
-    positions,
-    entries: entryRows,
+    positions:
+      target && !missingPositions.length
+        ? consolidatePositions(positions, quotes, target)
+        : positions,
+    entries: entryRows.map((entry) => ({
+      ...entry,
+      quote: quotes.get(fxKey({ date: entry.date, base: entry.currency })),
+    })),
+    fx: target
+      ? {
+          target,
+          quotes: [...quotes.values()],
+          missingFlows,
+          missingPositions,
+        }
+      : undefined,
     hasNextPage,
     recurrencesReady: schema.recurrences,
     movementCount: sample.count,

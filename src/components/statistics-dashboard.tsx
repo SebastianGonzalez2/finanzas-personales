@@ -16,6 +16,7 @@ import {
 } from "@/domain/statistics";
 import { formatBankReference } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
+import { fxSourceName, sumFx } from "@/domain/exchange-rates";
 import { movementDisplayMethods } from "@/domain/movements";
 import { historyButton } from "./history-fields";
 import {
@@ -295,6 +296,19 @@ function StatisticsDrilldown({
                   </div>
                   <span className="tabular-nums">
                     {formatStatisticsAmount(entry.amount, entry.currency)}
+                    {entry.quote && (
+                      <small className="block text-muted-foreground">
+                        {formatStatisticsAmount(
+                          sumFx([
+                            { amount: entry.amount, rate: entry.quote.rate },
+                          ])!,
+                          entry.quote.target,
+                        )}
+                        {" · "}
+                        {formatBankReference(entry.quote.observed)} ·{" "}
+                        {fxSourceName(entry.quote.source)}
+                      </small>
+                    )}
                   </span>
                 </Link>
               </li>
@@ -352,12 +366,16 @@ export function StatisticsDashboard({
     ...snapshot.methods,
     ...snapshot.previousMethods,
   ]);
+  const originalCurrency = (currency: Currency) =>
+    snapshot.fx && !snapshot.fx.missingFlows.length
+      ? filters.currency
+      : currency;
   const methodsSearch = (
     currency: Currency,
     kind: "income" | "expense",
     method: StatisticsFilters["method"],
   ) =>
-    `/estadisticas${statisticsSearch(filters, { currency, kind, method, detailPage: undefined })}`;
+    `/estadisticas${statisticsSearch(filters, { currency: originalCurrency(currency), kind, method, detailPage: undefined })}`;
   const cards: Record<StatisticsChartId, ReactNode> = {
     metrics: (
       <StatisticsMetrics
@@ -412,7 +430,7 @@ export function StatisticsDashboard({
                 currency={currency}
                 selected={filters.category}
                 search={(category) =>
-                  `/estadisticas${statisticsSearch(filters, { category, currency, kind: "expense", detailPage: undefined })}`
+                  `/estadisticas${statisticsSearch(filters, { category, currency: originalCurrency(currency), kind: "expense", detailPage: undefined })}`
                 }
               />
               <CategoryComparison
@@ -448,7 +466,7 @@ export function StatisticsDashboard({
                 currency={currency}
                 selected={filters.category}
                 search={(category) =>
-                  `/estadisticas${statisticsSearch(filters, { category, currency, kind: "income", detailPage: undefined })}`
+                  `/estadisticas${statisticsSearch(filters, { category, currency: originalCurrency(currency), kind: "income", detailPage: undefined })}`
                 }
               />
               <CategoryComparison

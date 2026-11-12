@@ -76,6 +76,7 @@ export function FinanceSummary({
   bankTransfers,
   bankTransfersReady,
   movementRegistrationReady,
+  currencySummary,
 }: {
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
@@ -96,6 +97,7 @@ export function FinanceSummary({
   bankTransfers: RecentBankTransfer[];
   bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
+  currencySummary: React.ReactNode;
 }) {
   const recent = { expenses, incomes };
 
@@ -111,6 +113,7 @@ export function FinanceSummary({
       <p className="mt-1 text-muted-foreground first-letter:uppercase">
         {formatInstallmentPeriod(period)}
       </p>
+      {currencySummary}
       {movementRegistrationReady ? (
         <MovementForm
           bankTransfersReady={bankTransfersReady}

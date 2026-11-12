@@ -103,7 +103,7 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     });
 
     await page.goto(
-      `/estadisticas?compareFrom=${previous}-01&compareTo=${previous}-02`,
+      `/estadisticas?display=original&compareFrom=${previous}-01&compareTo=${previous}-02`,
     );
     const metrics = page.getByRole("table", { name: "Indicadores en UYU" });
     await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(

@@ -4,6 +4,7 @@ import {
   isBankReferenceDate,
 } from "./bank-balances.ts";
 import type { Currency } from "./money.ts";
+import { isCurrency, type FxKey, type FxQuote } from "./exchange-rates.ts";
 import {
   movementDisplayMethods,
   movementUuid,
@@ -28,6 +29,7 @@ export type StatisticsFilters = {
   compareFrom?: string;
   compareTo?: string;
   currency?: Currency;
+  display?: Currency | "original";
   category?: string;
   tag?: string;
   kind?: "income" | "expense";
@@ -114,6 +116,12 @@ export type StatisticsSnapshot = {
   entries: StatisticsEntry[];
   hasNextPage: boolean;
   movementCount: number;
+  fx?: {
+    target: Currency;
+    quotes: FxQuote[];
+    missingFlows: FxKey[];
+    missingPositions: FxKey[];
+  };
 };
 
 export type StatisticsEntry = {
@@ -123,6 +131,7 @@ export type StatisticsEntry = {
   date: string;
   concept: string;
   amount: string;
+  quote?: FxQuote;
 };
 
 export type StatisticsPosition = {
@@ -159,6 +168,7 @@ const filterKeys = [
   "compareFrom",
   "compareTo",
   "currency",
+  "display",
   "category",
   "tag",
   "kind",
@@ -345,6 +355,8 @@ export function parseStatisticsParams(
     !bankCurrencies.some((currency) => currency === values.currency)
   )
     return invalid;
+  const display = values.display;
+  if (display && display !== "original" && !isCurrency(display)) return invalid;
   if (
     values.category &&
     values.category !== "none" &&
@@ -381,6 +393,7 @@ export function parseStatisticsParams(
     ...(period === "personalizado" ? { from, to } : {}),
     ...(compareFrom && compareTo ? { compareFrom, compareTo } : {}),
     ...(values.currency ? { currency: values.currency as Currency } : {}),
+    ...(display ? { display: display as StatisticsFilters["display"] } : {}),
     ...(values.category ? { category: values.category.toLowerCase() } : {}),
     ...(values.tag ? { tag: values.tag.toLowerCase() } : {}),
     ...(kind ? { kind } : {}),
