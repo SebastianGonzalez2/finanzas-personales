@@ -25,6 +25,7 @@ export async function withOwnerTransaction<T>(
   pool: { connect: () => Promise<pg.PoolClient> },
   resolveOwner: ResolveAuthorizedOwner,
   work: (client: pg.PoolClient, ownerId: string) => Promise<T>,
+  exclusive = false,
 ): Promise<T> {
   let identity;
   try {
@@ -43,6 +44,14 @@ export async function withOwnerTransaction<T>(
   try {
     await client.query("BEGIN");
     await setOwnerContext(client, identity.ownerId);
+    // Restores take the exclusive form. Ordinary requests still use their
+    // existing domain locks and may proceed concurrently for this owner.
+    await client.query(
+      exclusive
+        ? "SELECT pg_advisory_xact_lock(hashtextextended('finanzas:account:' || $1, 0))"
+        : "SELECT pg_advisory_xact_lock_shared(hashtextextended('finanzas:account:' || $1, 0))",
+      [identity.ownerId],
+    );
     const result = await work(client, identity.ownerId);
     // PostgreSQL answers COMMIT with ROLLBACK when work swallowed a SQL error.
     // A resolved query alone does not prove that the operation was persisted.

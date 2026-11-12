@@ -1,4 +1,5 @@
 import { FinanceShell } from "@/components/finance-shell";
+import { AccountBackup } from "@/components/account-backup";
 import { GoogleAccess } from "@/components/google-access";
 import { Card } from "@/components/ui/card";
 import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
@@ -27,6 +28,7 @@ export default async function Account() {
           <GoogleAccess signOut />
         </div>
       </Card>
+      <AccountBackup />
     </FinanceShell>
   );
 }

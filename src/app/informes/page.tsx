@@ -1,10 +1,12 @@
 import { FinanceShell } from "@/components/finance-shell";
 import { InformesPanel } from "@/components/informes-panel";
 import { currentReportPeriod } from "@/lib/export/report-format";
+import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 
 export const metadata = { title: "Informes | Finanzas personales" };
 
-export default function InformesPage() {
+export default async function InformesPage() {
+  await requireGoogleOwnerPage();
   return (
     <FinanceShell current="informes">
       <div className="grid gap-4">
@@ -17,8 +19,7 @@ export default function InformesPage() {
             Informes
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Exportá el informe del período en CSV, Excel o PDF. La descarga
-            segura se activa al completar la parte crítica del ticket F5-07.
+            Descargá tus estadísticas en CSV, Excel o PDF.
           </p>
         </header>
         <InformesPanel initialPeriod={currentReportPeriod()} />

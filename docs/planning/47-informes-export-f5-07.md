@@ -1,45 +1,24 @@
-# 47 — Informes PDF/Excel/CSV y exportación (F5-07, ruta MIX)
+# F5-07 · Informes y copias de seguridad
 
-## Reparto MIX (matriz `10-modelos-por-ticket.md`)
+RF-048/049 · CA-061…063 · Ruta MIX. Se conservan las secciones y el flujo de descarga preparados por OpenCode.
 
-| Tramo | Responsable | Alcance |
-| --- | --- | --- |
-| Diseño de informe, formatos y UI de exportación | OpenCode (este ticket) | `src/lib/export/report-format.ts`, `src/app/informes/`, `src/components/informes-panel.tsx`, entrada de navegación, contrato del endpoint |
-| Exportación privada, cifrado, backup y restore seguros | Codex (misma rama/commits) | Generación server-side de archivos, cifrado opcional, restauración completa, pruebas de seguridad (RF-048/049, CA-061…063) |
+## Informes
 
-## Diseño del informe del período
+- En **Informes**, se eligen dos fechas inclusivas (hasta 366 días). Los tres formatos comparten resumen por moneda y categoría, movimientos confirmados, saldo confirmado y proyección bancaria al cierre, ciclos de tarjeta, presupuestos y fondos. El gráfico PDF compara dos tramos del rango elegido. Los saldos al cierre pueden tener un checkpoint anterior al inicio.
+- Los importes viajan como decimales exactos. Los ingresos/gastos excluyen transferencias, capital de préstamos y pagos de tarjeta. Para el gasto se reutiliza el consumo propio y el calendario de cuotas de Presupuestos. Las devoluciones acreditadas aparecen por separado en su fecha real. Los presupuestos muestran el límite mensual y el consumo dentro del rango, con referencias históricas cuando se usaron cotizaciones.
+- CSV UTF-8 con BOM y separador punto y coma. Los valores textuales con prefijo de fórmula se neutralizan. XLSX guarda importes y datos textuales como celdas de texto. PDF incluye barras por moneda y páginas por sección.
+- `POST /api/export` valida origen propio, sesión Google y autorización vigente antes de consultar datos con RLS. Las descargas son privadas y sin caché. El servidor rechaza una sección con más de 4.000 filas y solicita acortar el rango.
 
-Definido como datos puros en `src/lib/export/report-format.ts` (reutilizable por la UI y por el generador de Codex). Secciones:
+## Copia y restauración
 
-1. **Resumen del período** — totales por moneda y concepto. Las transferencias internas entre cuentas propias no se cuentan como ingreso ni gasto.
-2. **Movimientos** — movimientos confirmados del rango, con fecha, tipo, categoría, banco, tarjeta, cuotas, moneda, importe, estado de confirmación e identificador trazable.
-3. **Saldos por banco** — saldo confirmado (checkpoint) al cierre; la proyección se reporta aparte y nunca reemplaza el checkpoint.
-4. **Tarjetas** — por ciclo: compras, pagos y saldo pendiente. Pagar una tarjeta reduce deuda y banco sin duplicar el gasto.
-5. **Presupuestos** — asignado, gastado y restante por categoría y mes; los reembolsos acreditados en otro mes no reducen el presupuesto (v9.42).
-6. **Fondos de ahorro** — aportado, objetivo y disponible al cierre.
+- En **Mi cuenta → Copias de seguridad**, la descarga incluye una instantánea versionada de las tablas financieras del titular, con registros históricos, auditoría financiera y relaciones. Los esquemas de autenticación y los recibos operativos de restauración quedan fuera del archivo.
+- La copia v1 contiene JSON comprimido con gzip y firmado con HMAC-SHA-256. La firma autentica el titular, la fecha y el contenido. La opción con contraseña cifra el contenido firmado con AES-256-GCM, sal y nonce aleatorios y scrypt (`N=131072, r=8, p=1`). El archivo admite hasta 4.200.000 bytes y la instantánea descomprimida hasta 24 MiB. [Parámetros de scrypt de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#scrypt).
+- Verificar el archivo comprueba contraseña, firma, titular y versión del esquema. La confirmación caduca a los 15 minutos y se vincula a la sesión, el archivo y la revisión actual. La pantalla muestra la fecha y la pérdida de cambios posteriores y ofrece descargar primero el estado actual.
+- La restauración revalida la sesión y adquiere el bloqueo exclusivo del titular. Si la revisión cambió, solicita verificar otra vez. El reemplazo se hace en una transacción, con claves foráneas y restricciones activas y un recibo idempotente en `finance_meta`. Se conserva la identidad Google y el acceso. La tarea programada y las solicitudes financieras ordinarias comparten el mismo bloqueo por titular.
 
-Reglas transversales: importes como **texto decimal exacto** (sin floats), fechas `YYYY-MM-DD`, moneda en columna separada, solo datos del titular de la sesión (RLS), sin credenciales, cookies ni datos de otras cuentas (CA-061).
+## Operación
 
-## Formatos
-
-| Formato | Extensión | MIME | Especificación |
-| --- | --- | --- | --- |
-| CSV | `.csv` | `text/csv` | UTF-8 con BOM, separador `;` (Excel es-UY), comillas RFC 4180, secciones apiladas con encabezado repetido. |
-| Excel | `.xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Una hoja por sección; importes como texto con escala exacta (evita IEEE-754). |
-| PDF | `.pdf` | `application/pdf` | Paginado, una sección por capítulo, total por moneda al cierre de cada capítulo. |
-
-Nombre de archivo: `finanzas-<desde>_<hasta>.<ext>` (p. ej. `finanzas-2026-02-01_2026-02-28.csv`). Período máximo: 366 días (`parseReportPeriod` valida calendario, orden y tope; el valor por defecto es el mes en curso de `America/Montevideo`, igual que `bankReferenceToday`).
-
-## Contrato del endpoint (`POST /api/export`)
-
-- Solicitud: JSON `{ from, to, format }` con `format ∈ csv | excel | pdf`; origen propio y sesión Google del titular obligatorios (andamiaje ya implementado con `freshGoogleSession`, cabeceras `googlePrivateHeaders`).
-- Respuesta exitosa (Codex): archivo binario con `Content-Disposition: attachment; filename="..."` y cabeceras privadas; streaming para archivos grandes.
-- Errores: `400` período/formato inválido, `401` sin sesión, `403` origen cruzado, `503` acceso no configurado, `501` mientras no exista la generación segura (estado actual).
-- La UI (`/informes`) ya descarga y guarda el archivo cuando la respuesta es exitosa y muestra `501` como estado informativo honesto hasta completar la parte crítica.
-
-## Pendiente de Codex (parte crítica, misma rama)
-
-1. Generación server-side de CSV/XLSX/PDF a partir de los datos del titular, con consultas owner-scoped y sin exponer datos de otros usuarios; elegir dependencias libres (xlsx/pdf) revisando licencia y compatibilidad antes de agregarlas.
-2. Cifrado opcional con contraseña (KDF + AES-256-GCM o equivalente) y verificación de integridad (SHA-256); con clave incorrecta **no se reemplaza ninguna fila** (CA-062).
-3. Restauración/copia completa de cuenta: advierte pérdida de cambios posteriores, ofrece backup del estado actual y **reemplaza** (no fusiona) solo el dominio financiero del titular (CA-063, RF-049).
-4. Pruebas: unitarias de formatos y validación, integración con DB desechable (owner A/B, concurrencia), E2E de CA-061 y regresión. No desactivar tests ni atribuir resultados no observados.
+- `0032_F5-07_account_backup.sql` agrega el inventario, los permisos acotados y las funciones de copia y restauración. El runtime conserva sus permisos ordinarios sobre tablas. Aplicar únicamente con autorización específica de ADR 0004 sobre el SQL y su SHA-256.
+- Configurar `FINANCE_BACKUP_SIGNING_KEY` con 32 bytes aleatorios en hexadecimal y conservar la misma clave en recuperaciones del entorno. Si se pierde la clave, las copias que firmó no se pueden restaurar. Esta clave se administra fuera del archivo y es independiente de la contraseña de cada copia.
+- El inventario cubre el esquema de la base de esta rama, hasta F4-01. Al integrar otros tickets con tablas o cambios de esquema, actualizar el inventario, el orden de referencias y la compatibilidad de versiones antes de activar copias sobre ese esquema. Un esquema diferente se rechaza en lugar de omitir datos.
+- PDFKit y write-excel-file se ejecutan localmente en el servidor de la app. Ambas bibliotecas tienen licencia MIT. [PDFKit](https://github.com/foliojs/pdfkit) · [write-excel-file](https://gitlab.com/catamphetamine/write-excel-file).

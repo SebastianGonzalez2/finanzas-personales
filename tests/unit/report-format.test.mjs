@@ -10,10 +10,13 @@ import {
 } from "../../src/lib/export/report-format.ts";
 
 test("F5-07: acepta períodos válidos dentro del tope de días", () => {
-  assert.deepEqual(parseReportPeriod({ from: "2026-01-01", to: "2026-01-31" }), {
-    from: "2026-01-01",
-    to: "2026-01-31",
-  });
+  assert.deepEqual(
+    parseReportPeriod({ from: "2026-01-01", to: "2026-01-31" }),
+    {
+      from: "2026-01-01",
+      to: "2026-01-31",
+    },
+  );
   assert.equal(
     "from" in parseReportPeriod({ from: "2025-01-01", to: "2025-12-31" }),
     true,
@@ -33,6 +36,17 @@ test("F5-07: rechaza períodos incompletos, inválidos o excedidos", () => {
   ]) {
     assert.ok("error" in parseReportPeriod(input), JSON.stringify(input));
   }
+});
+
+test("F5-07: el tope cuenta ambos días y admite un año bisiesto completo", () => {
+  assert.equal(
+    "error" in parseReportPeriod({ from: "2024-01-01", to: "2024-12-31" }),
+    false,
+  );
+  assert.equal(
+    "error" in parseReportPeriod({ from: "2024-01-01", to: "2025-01-01" }),
+    true,
+  );
 });
 
 test("F5-07: el período por defecto es el mes en curso de Montevideo", () => {
@@ -84,10 +98,16 @@ test("F5-07: secciones y columnas del informe sin colisiones", () => {
 
 test("F5-07: nombres de archivo por período y formato", () => {
   const period = { from: "2026-02-01", to: "2026-02-28" };
-  assert.equal(reportFileName(period, "csv"), "finanzas-2026-02-01_2026-02-28.csv");
+  assert.equal(
+    reportFileName(period, "csv"),
+    "finanzas-2026-02-01_2026-02-28.csv",
+  );
   assert.equal(
     reportFileName(period, "excel"),
     "finanzas-2026-02-01_2026-02-28.xlsx",
   );
-  assert.equal(reportFileName(period, "pdf"), "finanzas-2026-02-01_2026-02-28.pdf");
+  assert.equal(
+    reportFileName(period, "pdf"),
+    "finanzas-2026-02-01_2026-02-28.pdf",
+  );
 });

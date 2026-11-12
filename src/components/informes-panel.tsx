@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { HistoryField, historyControl, historyPrimary } from "./history-fields";
 import { Card } from "./ui/card";
+import { saveDownload } from "@/lib/export/download";
 import {
   EXPORT_FORMATS,
   REPORT_SECTIONS,
@@ -13,37 +14,25 @@ import {
   type ReportPeriod,
 } from "@/lib/export/report-format";
 
-function monthBounds(month: string): { first: string; last: string } {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return {
-    first: `${month}-${pad(1)}`,
-    last: `${month}-${pad(lastDay)}`,
-  };
-}
-
-function periodBounds(from: string, to: string): ReportPeriod {
-  return { from: monthBounds(from).first, to: monthBounds(to).last };
-}
-
 type ExportState =
   | { kind: "idle" }
   | { kind: "pending" }
-  | { kind: "info"; message: string }
   | { kind: "error"; message: string }
   | { kind: "done"; message: string };
 
-export function InformesPanel({ initialPeriod }: { initialPeriod: ReportPeriod }) {
-  const [from, setFrom] = useState(initialPeriod.from.slice(0, 7));
-  const [to, setTo] = useState(initialPeriod.to.slice(0, 7));
+export function InformesPanel({
+  initialPeriod,
+}: {
+  initialPeriod: ReportPeriod;
+}) {
+  const [from, setFrom] = useState(initialPeriod.from);
+  const [to, setTo] = useState(initialPeriod.to);
   const [format, setFormat] = useState<ExportFormatId>("csv");
   const [state, setState] = useState<ExportState>({ kind: "idle" });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const period = periodBounds(from, to);
-    const parsed = parseReportPeriod(period);
+    const parsed = parseReportPeriod({ from, to });
     if ("error" in parsed) {
       setState({ kind: "error", message: parsed.error });
       return;
@@ -57,26 +46,17 @@ export function InformesPanel({ initialPeriod }: { initialPeriod: ReportPeriod }
         body: JSON.stringify({ ...parsed, format }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         setState({
-          kind: response.status === 501 ? "info" : "error",
+          kind: "error",
           message:
             body?.error ?? "No se pudo generar el informe. Volvé a intentarlo.",
         });
         return;
       }
-      const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") ?? "";
-      const match = /filename="([^"]+)"/.exec(disposition);
-      const name = match?.[1] ?? reportFileName(parsed, format);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = name;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      const name = await saveDownload(response, reportFileName(parsed, format));
       setState({ kind: "done", message: `Informe ${name} descargado.` });
     } catch {
       setState({
@@ -92,24 +72,23 @@ export function InformesPanel({ initialPeriod }: { initialPeriod: ReportPeriod }
       <Card className="items-start gap-4 p-4 sm:p-5">
         <h2 className="font-semibold">Exportar informe del período</h2>
         <p className="text-sm text-muted-foreground">
-          Elegí el período en meses y el formato. El informe incluye solo los
-          datos del titular de la sesión, sin credenciales ni datos de otras
-          cuentas.
+          Elegí las fechas y el formato. El resumen compara dos tramos dentro
+          del período seleccionado.
         </p>
         <form onSubmit={submit} className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <HistoryField label="Desde el mes">
+            <HistoryField label="Desde">
               <input
-                type="month"
+                type="date"
                 value={from}
                 onChange={(event) => setFrom(event.target.value)}
                 className={historyControl}
                 required
               />
             </HistoryField>
-            <HistoryField label="Hasta el mes">
+            <HistoryField label="Hasta">
               <input
-                type="month"
+                type="date"
                 value={to}
                 onChange={(event) => setTo(event.target.value)}
                 className={historyControl}
@@ -148,12 +127,12 @@ export function InformesPanel({ initialPeriod }: { initialPeriod: ReportPeriod }
             className={historyPrimary}
             disabled={pending || !from || !to}
           >
-            {pending ? "Generando informe…" : `Exportar ${exportFormat(format)?.label}`}
+            {pending
+              ? "Generando informe…"
+              : `Exportar ${exportFormat(format)?.label}`}
           </button>
         </form>
-        {state.kind === "info" ||
-        state.kind === "error" ||
-        state.kind === "done" ? (
+        {state.kind === "error" || state.kind === "done" ? (
           <p
             role={state.kind === "error" ? "alert" : "status"}
             className={
@@ -175,7 +154,10 @@ export function InformesPanel({ initialPeriod }: { initialPeriod: ReportPeriod }
         </p>
         <ul className="grid w-full gap-3">
           {REPORT_SECTIONS.map((section) => (
-            <li key={section.id} className="border-t pt-3 first:border-0 first:pt-0">
+            <li
+              key={section.id}
+              className="border-t pt-3 first:border-0 first:pt-0"
+            >
               <p className="font-medium">{section.title}</p>
               <p className="text-sm text-muted-foreground">
                 {section.description}

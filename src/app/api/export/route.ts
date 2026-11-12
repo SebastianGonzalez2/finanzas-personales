@@ -1,45 +1,54 @@
-import { freshGoogleSession } from "@/server/google-auth";
-import { googlePrivateHeaders } from "@/server/google-http";
-import { authOrigin } from "@/server/google-policy";
+import { withGoogleOwner } from "@/server/google-auth";
+import { limitedJson } from "@/server/google-policy";
+import { loadPeriodReport } from "@/server/period-report";
+import { generateReport } from "@/server/report-files";
+import {
+  exportFailure,
+  exportOperationError,
+  exportOriginError,
+  privateDownload,
+} from "@/server/private-download";
+import {
+  exportFormat,
+  parseReportPeriod,
+  reportFileName,
+} from "@/lib/export/report-format";
 
 export const runtime = "nodejs";
 
-// F5-07 (MIX): andamiaje del endpoint de exportación con la verificación de
-// sesión ya resuelta. La generación segura del archivo (datos solo del
-// titular, cifrado opcional, backups y restore) es la parte crítica del
-// ticket a cargo de Codex; hasta entonces el endpoint responde 501 y no
-// expone ningún dato (CA-061).
 export async function POST(request: Request) {
-  let origin: string;
+  const originError = exportOriginError(request);
+  if (originError) return originError;
+  const input: unknown = await limitedJson(request).catch(() => null);
+  const period = parseReportPeriod(input);
+  if ("error" in period) return exportFailure(period.error, 400);
+  const format =
+    input &&
+    typeof input === "object" &&
+    "format" in input &&
+    typeof input.format === "string"
+      ? exportFormat(input.format)
+      : undefined;
+  if (!format) return exportFailure("Formato de informe inválido.", 400);
+
   try {
-    origin = authOrigin(process.env.GOOGLE_AUTH_ORIGIN);
-  } catch {
-    return Response.json(
-      { error: "Acceso en preparación." },
-      { status: 503, headers: googlePrivateHeaders },
+    const report = await withGoogleOwner(
+      request,
+      (client, ownerId) => loadPeriodReport(client, ownerId, period),
+      true,
     );
+    if (!report)
+      return exportFailure(
+        "El informe supera el tamaño admitido. Elegí un período más corto.",
+        413,
+      );
+    const file = await generateReport(format.id, period, report);
+    return privateDownload(
+      file,
+      reportFileName(period, format.id),
+      format.mimeType,
+    );
+  } catch (error) {
+    return exportOperationError(error);
   }
-  if (
-    request.headers.get("origin") !== origin ||
-    request.headers.get("sec-fetch-site") === "cross-site"
-  )
-    return Response.json(
-      { error: "Solicitud no autorizada." },
-      { status: 403, headers: googlePrivateHeaders },
-    );
-
-  const session = await freshGoogleSession(request).catch(() => null);
-  if (!session)
-    return Response.json(
-      { error: "Sesión requerida." },
-      { status: 401, headers: googlePrivateHeaders },
-    );
-
-  return Response.json(
-    {
-      error:
-        "La exportación del informe se activa al completar la parte crítica de F5-07 (cifrado y restore seguros).",
-    },
-    { status: 501, headers: googlePrivateHeaders },
-  );
 }

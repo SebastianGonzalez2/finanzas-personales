@@ -52,7 +52,7 @@ function sumBankEffects(ready: boolean, lower: string, upper?: string) {
              ${upper ? `AND ${bankEventPosition(ready)} <= ${upper}` : ""}`;
 }
 
-function bankBalanceQuery(ready: boolean) {
+function bankBalanceQuery(ready: boolean, dated = false) {
   return `SELECT b.currency, b.confirmed_amount::text AS amount,
             to_char(b.as_of_date, 'YYYY-MM-DD') AS "asOfDate",
             (b.confirmed_amount + effects.delta)::text AS "calculatedAmount"
@@ -61,11 +61,16 @@ function bankBalanceQuery(ready: boolean) {
          SELECT currency, confirmed_amount, as_of_date, created_at
            FROM finance.balance_checkpoints
           WHERE owner_id = $1 AND currency = c.currency
+            ${dated ? "AND as_of_date <= $3::date" : ""}
           ORDER BY as_of_date DESC, created_at DESC, id DESC
           LIMIT 1
        ) b
        CROSS JOIN LATERAL (
-         ${sumBankEffects(ready, "(b.as_of_date, b.created_at)")}
+         ${sumBankEffects(
+           ready,
+           "(b.as_of_date, b.created_at)",
+           dated ? "($3::date, 'infinity'::timestamptz)" : undefined,
+         )}
        ) effects
       ORDER BY c.position`;
 }
@@ -75,12 +80,13 @@ export async function listBankBalances(
   ownerId: string,
   currencies: readonly Currency[] = bankCurrencies,
   reconciliationReady?: boolean,
+  asOf?: string,
 ): Promise<BankBalance[]> {
   const ready = reconciliationReady ?? (await bankReconciliationReady(client));
-  const { rows } = await client.query<BankBalance>(bankBalanceQuery(ready), [
-    ownerId,
-    currencies,
-  ]);
+  const { rows } = await client.query<BankBalance>(
+    bankBalanceQuery(ready, asOf !== undefined),
+    [ownerId, currencies, ...(asOf === undefined ? [] : [asOf])],
+  );
   return rows.map(({ calculatedAmount, ...balance }) =>
     calculatedAmount == null ? balance : { ...balance, calculatedAmount },
   );

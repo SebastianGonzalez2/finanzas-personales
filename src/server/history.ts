@@ -31,7 +31,6 @@ type HistoryQuery = Exclude<
   ReturnType<typeof parseHistoryParams>,
   { error: string }
 >;
-const pageSize = 20;
 
 const eventFields = `f.id, f.kind, f.status, f.effective_on, f.concept, m.note,
   e.currency, abs(e.amount_signed)::text AS amount,
@@ -103,6 +102,7 @@ export async function listHistory(
   client: pg.PoolClient,
   ownerId: string,
   query: HistoryQuery,
+  pageSize = 20,
 ) {
   const { filters, minimum, maximum, cursor } = query;
   const credit = await creditOperationsReady(client);

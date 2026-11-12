@@ -69,6 +69,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0020_F3-06_monthly_budgets.sql",
       "0021_F3-07_budget_notices.sql",
       "0022_F4-01_recurring_series.sql",
+      "0032_F5-07_account_backup.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -84,7 +85,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
   }
 });
 
-test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", async () => {
+test("F4-01/F5-07: aplica solo el SQL autorizado y conserva el historial previo", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   try {
@@ -112,6 +113,7 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
       budgets,
       notices,
       recurrences,
+      backup,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -378,13 +380,17 @@ test("F4-01: aplica solo el SQL autorizado y conserva el historial previo", asyn
     );
     assert.equal(await recurrencesReady(client), false);
     await assert.rejects(migrateInTransaction(client, notices.sha256));
-    assert.deepEqual(await migrateInTransaction(client, recurrences.sha256), [
-      recurrences.version,
-    ]);
-    assert.deepEqual(
-      await migrateInTransaction(client, recurrences.sha256),
-      [],
+    await assert.rejects(migrateInTransaction(client, recurrences.sha256));
+    await assert.rejects(migrateInTransaction(client, backup.sha256));
+    await client.query(recurrences.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [recurrences.version, recurrences.sha256],
     );
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), [
+      backup.version,
+    ]);
+    assert.deepEqual(await migrateInTransaction(client, backup.sha256), []);
     await setOwnerContext(client, "legacy-fixture");
     assert.equal(await recurrencesReady(client), true);
     assert.equal(

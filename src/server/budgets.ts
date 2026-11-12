@@ -192,6 +192,18 @@ export async function listBudgets(
     ON CONFLICT DO NOTHING`,
     [ownerId, `${month}-01`],
   );
+  return readBudgets(client, ownerId, month);
+}
+
+// Export reads only previously captured rates. Listing budgets can also
+// capture missing rates, so that path is deliberately kept above.
+export async function readBudgets(
+  client: pg.PoolClient,
+  ownerId: string,
+  month: string,
+  from?: string,
+  to?: string,
+): Promise<Budget[]> {
   const { rows } = await client.query<Budget>(
     `
     WITH RECURSIVE tree AS (
@@ -215,9 +227,10 @@ export async function listBudgets(
           LEFT JOIN finance.budget_rates r ON (r.owner_id,r.event_id,r.from_currency,r.to_currency)=(x.owner_id,x.event_id,x.currency,l.currency)
           LEFT JOIN finance.budget_quotes q ON (q.owner_id,q.id)=(r.owner_id,r.quote_id)
          WHERE x.owner_id=$1 AND x.effective_on>=$2::date AND x.effective_on<$2::date+interval '1 month'
+           AND ($4::date IS NULL OR x.effective_on >= $4) AND ($5::date IS NULL OR x.effective_on <= $5)
       ) cons ON true
      WHERE b.owner_id=$1 AND l.action<>'remove' ORDER BY c.name,b.id`,
-    [ownerId, `${month}-01`, month],
+    [ownerId, `${month}-01`, month, from ?? null, to ?? null],
   );
   return rows;
 }

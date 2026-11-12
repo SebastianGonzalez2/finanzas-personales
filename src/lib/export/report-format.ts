@@ -1,6 +1,5 @@
 // F5-07 (MIX): diseño del informe del período y formatos de exportación.
-// Módulo puro compartido por la UI de exportación y, más adelante, por la
-// generación segura de archivos a cargo de la parte crítica del ticket (Codex).
+// Contrato compartido entre la pantalla y los generadores de archivos.
 
 export type ExportFormatId = "csv" | "excel" | "pdf";
 
@@ -26,13 +25,14 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     extension: "csv",
     mimeType: "text/csv",
     description:
-      "Texto plano UTF-8 con BOM y separador \";\", apto para Excel y hojas de cálculo.",
+      'Texto plano UTF-8 con BOM y separador ";", apto para Excel y hojas de cálculo.',
   },
   {
     id: "excel",
     label: "Excel",
     extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     description: "Libro .xlsx con una hoja por sección del informe.",
   },
   {
@@ -64,7 +64,11 @@ export type ReportSection = {
   columns: readonly ReportColumn[];
 };
 
-const moneyColumn = (id: string, label: string, note?: string): ReportColumn => ({
+const moneyColumn = (
+  id: string,
+  label: string,
+  note?: string,
+): ReportColumn => ({
   id,
   label,
   kind: "money",
@@ -86,6 +90,8 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       { id: "concepto", label: "Concepto", kind: "text" },
       { id: "moneda", label: "Moneda", kind: "text" },
       moneyColumn("total", "Total del período"),
+      moneyColumn("inicio", "Primer tramo"),
+      moneyColumn("fin", "Segundo tramo"),
     ],
   },
   {
@@ -128,7 +134,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
     id: "tarjetas",
     title: "Tarjetas",
     description:
-      "Resumen de ciclos de tarjeta dentro del período. Pagar una tarjeta reduce deuda y banco sin duplicar el gasto.",
+      "Ciclos de los meses seleccionados con importes calculados hasta el fin del período. Pagar una tarjeta reduce deuda y banco sin duplicar el gasto.",
     columns: [
       { id: "tarjeta", label: "Tarjeta", kind: "text" },
       { id: "ciclo", label: "Ciclo", kind: "month" },
@@ -142,7 +148,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
     id: "presupuestos",
     title: "Presupuestos",
     description:
-      "Asignación y consumo por categoría y mes del período. Los reembolsos de otros meses no reducen el presupuesto.",
+      "Límite mensual por categoría y consumo dentro de las fechas seleccionadas. Los reembolsos de otros meses no reducen el presupuesto.",
     columns: [
       { id: "mes", label: "Mes", kind: "month" },
       { id: "categoria", label: "Categoría", kind: "text" },
@@ -150,6 +156,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       moneyColumn("asignado", "Asignado"),
       moneyColumn("gastado", "Gastado"),
       moneyColumn("restante", "Restante"),
+      { id: "referencias", label: "Cotizaciones utilizadas", kind: "text" },
     ],
   },
   {
@@ -187,9 +194,7 @@ function isCalendarDate(value: string): boolean {
 }
 
 function daysBetween(from: string, to: string): number {
-  const start = Date.UTC(...(from.split("-").map(Number) as [number, number, number]));
-  const end = Date.UTC(...(to.split("-").map(Number) as [number, number, number]));
-  return Math.round((end - start) / 86_400_000);
+  return (Date.parse(to) - Date.parse(from)) / 86_400_000;
 }
 
 // Valida el período solicitado por la UI. Acepta fechas inclusive en formato
@@ -212,7 +217,7 @@ export function parseReportPeriod(
   if (!isCalendarDate(from) || !isCalendarDate(to))
     return { error: "Las fechas deben ser días de calendario válidos." };
   if (from > to) return { error: "El inicio del período debe ser anterior." };
-  if (daysBetween(from, to) > REPORT_MAX_DAYS)
+  if (daysBetween(from, to) + 1 > REPORT_MAX_DAYS)
     return { error: "El período no puede superar 366 días." };
   return { from, to };
 }
@@ -231,7 +236,8 @@ function montevideoIsoDate(now: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(now);
-  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value;
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
