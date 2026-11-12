@@ -2,6 +2,7 @@ import Link from "next/link";
 import { bankCurrencies } from "@/domain/bank-balances";
 import {
   historyKinds,
+  historyPeriods,
   historyStates,
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
@@ -39,7 +40,7 @@ export function HistoryFilters({
             className={historyControl}
           />
         </HistoryField>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <HistoryField label="Desde">
             <input
               name="from"
@@ -55,6 +56,20 @@ export function HistoryFilters({
               defaultValue={values.to}
               className={historyControl}
             />
+          </HistoryField>
+          <HistoryField label="Período">
+            <select
+              name="period"
+              defaultValue={values.period}
+              className={historyControl}
+            >
+              <option value="">Fechas específicas</option>
+              {Object.entries(historyPeriods).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </HistoryField>
           <HistoryField label="Tipo">
             <select
@@ -159,6 +174,10 @@ export function HistoryFilters({
             </HistoryField>
           </div>
         </details>
+        <p className="text-xs text-muted-foreground">
+          Si elegís un período relativo, «Desde» y «Hasta» se ignoran y la
+          búsqueda sigue el calendario vigente en cada consulta.
+        </p>
         <div className="flex flex-wrap gap-2">
           <button className={historyPrimary} type="submit">
             Aplicar filtros
