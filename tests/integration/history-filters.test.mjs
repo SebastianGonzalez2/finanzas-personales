@@ -117,6 +117,7 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
     assert.equal(entry.name, "Ropa mes actual");
     assert.equal(entry.version, 1);
     assert.deepEqual(entry.criteria, command.criteria);
+    const savedCriteria = entry.criteria;
 
     // Aislamiento por titular: B no ve ni puede tocar los filtros de A.
     assert.deepEqual(await list(b), []);
@@ -181,40 +182,27 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
 
     // CA-058: el filtro «mes actual» consulta el mes vigente en cada
     // consulta; el rango se resuelve al aplicar, no al crear.
-    const parsed = parseHistoryParams({
-      period: "mes-actual",
-      category: categoryId,
-    });
+    const parsed = parseHistoryParams(savedCriteria);
     assert.ok(!("error" in parsed));
-    const applyPeriod = (base, period, reference) => ({
-      ...base,
+    const resolveSavedPeriod = (reference) => ({
+      ...parsed,
       filters: {
-        ...base.filters,
+        ...parsed.filters,
         ...historyPeriodRange(
-          historyPeriodFilter(base.filters.period),
+          historyPeriodFilter(parsed.filters.period),
           reference,
         ),
-        period,
       },
     });
     const currentResults = await as(a, (client, owner) =>
-      listHistory(client, owner, applyPeriod(parsed, "mes-actual", today)),
+      listHistory(client, owner, resolveSavedPeriod(today)),
     );
     assert.deepEqual(
       currentResults.entries.map((row) => row.concept),
       ["Campera"],
     );
-    const previousQuery = parseHistoryParams({
-      period: "mes-anterior",
-      category: categoryId,
-    });
-    assert.ok(!("error" in previousQuery));
     const previousResults = await as(a, (client, owner) =>
-      listHistory(
-        client,
-        owner,
-        applyPeriod(previousQuery, "mes-anterior", today),
-      ),
+      listHistory(client, owner, resolveSavedPeriod(previous)),
     );
     assert.deepEqual(
       previousResults.entries.map((row) => row.concept),

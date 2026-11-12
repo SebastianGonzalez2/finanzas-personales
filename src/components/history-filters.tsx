@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { bankCurrencies } from "@/domain/bank-balances";
 import {
@@ -27,6 +30,7 @@ export function HistoryFilters({
   categories: Awaited<ReturnType<typeof listHistoryCategories>>;
   tags: MovementTag[];
 }) {
+  const [period, setPeriod] = useState(values.period ?? "");
   const active = Object.values(values).filter(Boolean).length;
   return (
     <Card className="gap-3 p-4 sm:p-5">
@@ -53,6 +57,7 @@ export function HistoryFilters({
               name="from"
               type="date"
               defaultValue={values.from}
+              disabled={Boolean(period)}
               className={historyControl}
             />
           </HistoryField>
@@ -61,16 +66,18 @@ export function HistoryFilters({
               name="to"
               type="date"
               defaultValue={values.to}
+              disabled={Boolean(period)}
               className={historyControl}
             />
           </HistoryField>
           <HistoryField label="Período">
             <select
               name="period"
-              defaultValue={values.period}
+              value={period}
+              onChange={(event) => setPeriod(event.target.value)}
               className={historyControl}
             >
-              <option value="">Fechas específicas</option>
+              <option value="">Sin período fijo</option>
               {Object.entries(historyPeriods).map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
@@ -182,8 +189,7 @@ export function HistoryFilters({
           </div>
         </details>
         <p className="text-xs text-muted-foreground">
-          Si elegís un período relativo, «Desde» y «Hasta» se ignoran y la
-          búsqueda sigue el calendario vigente en cada consulta.
+          Los períodos relativos siguen el calendario vigente en cada consulta.
         </p>
         <div className="flex flex-wrap gap-2">
           <button className={historyPrimary} type="submit">

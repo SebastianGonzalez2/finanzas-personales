@@ -95,6 +95,7 @@ export default async function HistoryPage({
         ) : (
           <>
             <HistoryFilters
+              key={historySearch(query.filters)}
               values={query.filters}
               categories={data.categories}
               tags={data.tags}
