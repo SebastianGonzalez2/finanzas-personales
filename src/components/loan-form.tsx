@@ -258,14 +258,26 @@ export function LoanForm({
             />
           </HistoryField>
           {!loan && (
-            <HistoryField label="Vencimiento conocido (opcional)">
-              <input
-                className={historyControl}
-                type="date"
-                name="dueOn"
-                max="9999-12-31"
-              />
-            </HistoryField>
+            <>
+              <HistoryField label="Vencimiento conocido (opcional)">
+                <input
+                  className={historyControl}
+                  type="date"
+                  name="dueOn"
+                  max="9999-12-31"
+                />
+              </HistoryField>
+              <HistoryField label="Avisar con esta antelación (días)">
+                <input
+                  className={historyControl}
+                  type="number"
+                  name="noticeLeadDays"
+                  min={0}
+                  max={365}
+                  defaultValue={3}
+                />
+              </HistoryField>
+            </>
           )}
         </div>
         {!loan && (

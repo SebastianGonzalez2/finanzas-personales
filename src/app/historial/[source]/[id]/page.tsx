@@ -8,6 +8,7 @@ import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
 import { CreditVoidForm } from "@/components/credit-void-form";
 import { MixedPurchaseEditor } from "@/components/mixed-purchase-editor";
+import { RecurringSplitCorrection } from "@/components/recurring-split-correction";
 import { SharedExpenseForm } from "@/components/shared-expense-form";
 import { HistoryEditor } from "@/components/history-editor";
 import { LoanOperationDetail } from "@/components/loan-operation-detail";
@@ -29,6 +30,7 @@ import {
 } from "@/domain/history";
 import { movementDisplayMethods, movementUuid } from "@/domain/movements";
 import { installmentTotal } from "@/domain/installments";
+import { recurrenceEventPeriods } from "@/server/recurrence-links";
 import { withGoogleOwner } from "@/server/google-auth";
 import {
   installmentsReady,
@@ -70,6 +72,9 @@ export default async function HistoryDetail({
         return null;
       const entry = await findHistoryEntry(client, ownerId, id, checkpoint);
       if (!entry) return null;
+      const recurrence = checkpoint
+        ? []
+        : await recurrenceEventPeriods(client, ownerId, id);
       const revisions = checkpoint
         ? []
         : await historyRevisions(client, ownerId, id);
@@ -92,7 +97,12 @@ export default async function HistoryDetail({
       const shared =
         sharingReady &&
         (entry.kind === "expense" || entry.kind === "card_purchase")
-          ? await sharedExpenseDetail(client, ownerId, id)
+          ? await sharedExpenseDetail(
+              client,
+              ownerId,
+              id,
+              recurrence.length > 0,
+            )
           : undefined;
       const refund =
         entry.kind === "purchase_refund" || entry.kind === "card_credit_return"
@@ -110,6 +120,7 @@ export default async function HistoryDetail({
       );
       const canSplit =
         sharingReady &&
+        !recurrence.length &&
         !refundLinked &&
         !shared &&
         !mixed &&
@@ -158,6 +169,7 @@ export default async function HistoryDetail({
           : null;
       return {
         entry,
+        recurrence,
         fundUses,
         fundSources,
         revisions,
@@ -200,6 +212,7 @@ export default async function HistoryDetail({
 
   const {
     entry,
+    recurrence,
     fundUses,
     fundSources,
     revisions,
@@ -272,6 +285,24 @@ export default async function HistoryDetail({
                   </div>
                 )}
               </>
+            )}
+            {recurrence.length > 0 && (
+              <div>
+                <dt className="text-sm text-muted-foreground">
+                  Período al que corresponde
+                </dt>
+                <dd className="flex flex-wrap gap-2">
+                  {recurrence.map(({ seriesId, key, index }) => (
+                    <Link
+                      className="underline"
+                      key={key}
+                      href={`/recurrentes?serie=${seriesId}&hasta=${index}#periodo-${seriesId}-${index}`}
+                    >
+                      {key}
+                    </Link>
+                  ))}
+                </dd>
+              </div>
             )}
             {entry.note && (
               <div className="sm:col-span-2">
@@ -545,6 +576,21 @@ export default async function HistoryDetail({
               </div>
             </details>
           )}
+          {shared && shared.portions.length > 0 && (
+            <details className="border-t pt-4">
+              <summary className="cursor-pointer font-semibold">
+                Corregir reparto del pago
+              </summary>
+              <RecurringSplitCorrection
+                key={shared.version}
+                eventId={entry.id}
+                version={shared.version}
+                currency={shared.currency}
+                ownAmount={shared.ownAmount}
+                parties={shared.portions}
+              />
+            </details>
+          )}
           {shared && shared.revisions.length > 1 && (
             <section
               className="grid gap-2 border-t pt-4"
@@ -553,7 +599,14 @@ export default async function HistoryDetail({
               <h2 className="font-semibold">Versiones de los datos</h2>
               <ul className="grid gap-2 text-sm wrap-anywhere">
                 {shared.revisions.map(
-                  ({ version, concept, category, note, recordedOn }) => (
+                  ({
+                    version,
+                    concept,
+                    category,
+                    note,
+                    recordedOn,
+                    correctedOwn,
+                  }) => (
                     <li key={version}>
                       <p>
                         Versión {version} · {recordedOn}
@@ -561,6 +614,15 @@ export default async function HistoryDetail({
                       <p>
                         {concept} · {category ?? "Sin categorizar"}
                       </p>
+                      {correctedOwn !== null && (
+                        <p>
+                          Reparto corregido · Gasto propio{" "}
+                          {formatBankAmount({
+                            currency: shared.currency,
+                            amount: correctedOwn,
+                          })}
+                        </p>
+                      )}
                       {note && <p className="whitespace-pre-wrap">{note}</p>}
                     </li>
                   ),

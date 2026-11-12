@@ -12,6 +12,9 @@ export const loanDirections = {
 } as const;
 export type LoanDirection = keyof typeof loanDirections;
 
+/** Antelación predeterminada del aviso de vencimiento (3 días, v9.44). */
+export const defaultLoanNoticeLeadDays = 3;
+
 export const loanFrequencies = {
   weekly: "Semanal",
   monthly: "Mensual",
@@ -24,6 +27,8 @@ export type LoanTerms = {
   installmentAmount: string | null;
   frequency: keyof typeof loanFrequencies | null;
   dueOn: string | null;
+  /** Antelación del aviso interno para la fecha cierta (v9.44); 3 por defecto. */
+  noticeLeadDays: number;
 };
 
 type LoanOpening = LoanTerms & {
@@ -167,6 +172,7 @@ export function parseLoanCommand(
         "installmentAmount",
         "frequency",
         "dueOn",
+        "noticeLeadDays",
         "agreedTotal",
       ]);
       const { direction, installmentLoan } = data;
@@ -183,6 +189,20 @@ export function parseLoanCommand(
         throw new Error();
       const dueOn = data.dueOn === "" ? null : (data.dueOn ?? null);
       if (dueOn !== null && !isBankReferenceDate(dueOn, "9999-12-31"))
+        throw new Error();
+      const lead = data.noticeLeadDays;
+      const noticeLeadDays =
+        lead == null || lead === ""
+          ? defaultLoanNoticeLeadDays
+          : typeof lead === "string" && /^\d{1,3}$/.test(lead)
+            ? Number(lead)
+            : lead;
+      if (
+        typeof noticeLeadDays !== "number" ||
+        !Number.isInteger(noticeLeadDays) ||
+        noticeLeadDays < 0 ||
+        noticeLeadDays > 365
+      )
         throw new Error();
       const installmentAmount = optionalAmount(data.installmentAmount);
       const frequency = Object.keys(loanFrequencies).find(
@@ -215,6 +235,7 @@ export function parseLoanCommand(
         installmentAmount,
         frequency: frequency ?? null,
         dueOn,
+        noticeLeadDays,
         agreedTotal,
       };
     }

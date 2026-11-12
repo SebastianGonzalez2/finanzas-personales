@@ -1,4 +1,5 @@
 import "server-only";
+import { validRecurringRevision } from "./recurrence-links.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
 import {
   isSharedExpense,
@@ -495,6 +496,7 @@ async function insertMovement(
 }
 
 type RevisionResult =
+  | { status: "recurrence-conflict" }
   | Replay
   | { status: "invalid-coverage"; message: string }
   | Shortfall
@@ -568,6 +570,11 @@ export async function reviseMovement(
   if (original.covered && !reconciliationReady) return { status: "checkpoint" };
 
   const { currency, kind, effectiveOn } = original;
+  if (
+    amount !== null &&
+    !(await validRecurringRevision(client, ownerId, eventId, amount, currency))
+  )
+    return { status: "recurrence-conflict" };
   const [balance] = await listBankAvailability(
     client,
     ownerId,
@@ -703,6 +710,17 @@ async function editMovement(
   if (!original) return { status: "not-found" };
   if (original.status !== "confirmed") return { status: "inactive" };
   if (original.kind !== movement.kind) return { status: "invalid-kind" };
+  if (
+    !transfer &&
+    !(await validRecurringRevision(
+      client,
+      ownerId,
+      eventId,
+      movement.amount,
+      movement.currency,
+    ))
+  )
+    return { status: "recurrence-conflict" };
 
   const newEffects: { currency: Currency; signed: string }[] = transfer
     ? [
@@ -957,7 +975,7 @@ export async function listMovementTotals(
         shared
           ? `AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
         UNION ALL
-        SELECT 'expense', s.currency, s.own_amount FROM finance.shared_expenses s
+        SELECT 'expense', s.currency, s.own_amount FROM finance.current_shared_expenses s
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
         WHERE s.owner_id = $1 AND s.method <> 'credit' AND s.own_amount > 0 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
