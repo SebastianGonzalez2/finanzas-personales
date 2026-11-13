@@ -9,7 +9,7 @@ export function testDatabaseConfig(env = process.env) {
   }
   if (
     env.TEST_DATABASE_URL !==
-    "postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test"
+    "postgresql://f0_test:f0_test@127.0.0.1:55432/neondb"
   ) {
     throw new Error(
       "TEST_DATABASE_URL debe apuntar exclusivamente al servicio local de pruebas documentado",

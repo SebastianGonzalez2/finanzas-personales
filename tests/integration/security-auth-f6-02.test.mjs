@@ -22,7 +22,7 @@ const cookieName = "finanzas-google.session_token";
 const authPoolConfig = {
   host: "127.0.0.1",
   port: 55432,
-  database: "finanzas_test",
+  database: "neondb",
   user: "finanzas_google_auth",
   password: runtimePassword,
   max: 3,

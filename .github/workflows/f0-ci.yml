@@ -38,13 +38,13 @@ jobs:
         env:
           POSTGRES_USER: f0_test
           POSTGRES_PASSWORD: f0_test
-          POSTGRES_DB: finanzas_test
+          POSTGRES_DB: neondb
         ports: [55432:5432]
         options: >-
-          --health-cmd "pg_isready -U f0_test -d finanzas_test"
+          --health-cmd "pg_isready -U f0_test -d neondb"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      TEST_DATABASE_URL: postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test
+      TEST_DATABASE_URL: postgresql://f0_test:f0_test@127.0.0.1:55432/neondb
       TEST_DATABASE_CONFIRM: isolated-local-test
       NEXT_TELEMETRY_DISABLED: "1"
     steps:

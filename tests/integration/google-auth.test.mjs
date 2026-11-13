@@ -45,7 +45,7 @@ test(
       const local = {
         host: "127.0.0.1",
         port: 55432,
-        database: "finanzas_test",
+        database: "neondb",
         password: "isolated-fixture-only",
         max: 4,
       };
