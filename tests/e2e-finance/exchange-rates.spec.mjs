@@ -8,7 +8,7 @@ import {
 } from "../support/finance-browser.mjs";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F5-06: domingo, tasa fija, cambio de fecha y preferencia privada", async ({
+test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", async ({
   page,
   context,
   browser,

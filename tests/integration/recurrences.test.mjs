@@ -13,7 +13,7 @@ import {
 } from "../../src/server/recurrences.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F4-01: alta concurrente, permisos A/B y calendario sin efectos en PostgreSQL", async () => {
+test("F4-01 CA-019/044: alta concurrente, permisos A/B y calendario sin efectos en PostgreSQL", async () => {
   const pool = new pg.Pool(testDatabaseConfig());
   const owner = randomUUID();
   const other = randomUUID();

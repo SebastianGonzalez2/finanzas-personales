@@ -6,7 +6,7 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
-test("F2-02: compra y pago parcial y total de crédito sin duplicar gasto", async ({
+test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar gasto", async ({
   page,
   context,
   browser,

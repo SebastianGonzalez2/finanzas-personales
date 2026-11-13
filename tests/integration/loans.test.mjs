@@ -20,7 +20,7 @@ import {
 import { listMovementTotals } from "../../src/server/movements.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F2-06/07: capital, cuotas, intereses y conciliación con idempotencia y aislamiento reales", async (t) => {
+test("F2-06/07 CA-030/031/032: capital, cuotas, intereses y conciliación con idempotencia y aislamiento reales", async (t) => {
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 2 });
   const as = (ownerId, work) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);

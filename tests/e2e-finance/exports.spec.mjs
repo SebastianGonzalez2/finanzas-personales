@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { BACKUP_MAX_BYTES } from "../../src/lib/export/backup-format.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -190,6 +191,15 @@ test("F5-07 CA-062/063: contraseña, reemplazo explícito, cambios concurrentes 
         await post(context, backup, {
           ...preview,
           backup: { ...archive, tag: "AAAAAAAAAAAAAAAAAAAAAA" },
+        })
+      ).status(),
+    ).toBe(400);
+
+    expect(
+      (
+        await post(context, backup, {
+          ...preview,
+          backup: { ...archive, padding: "x".repeat(BACKUP_MAX_BYTES + 4097) },
         })
       ).status(),
     ).toBe(400);

@@ -100,6 +100,18 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
     const other = await snapshot(owners.b);
     await insertCheckpoint(owners.a, "500", "2025-04-01");
     const current = await snapshot(owners.a);
+    const oldSchema = { ...JSON.parse(payload), schema: "0".repeat(64) };
+    assert.notEqual(oldSchema.schema, JSON.parse(payload).schema);
+    assert.equal(
+      await runRestore(
+        owners.a,
+        JSON.stringify(oldSchema),
+        current.revision,
+        randomUUID(),
+      ),
+      "incompatible",
+    );
+    assert.deepEqual(await snapshot(owners.a), current);
     assert.equal(
       await runRestore(owners.a, payload, saved.revision, randomUUID()),
       "changed",

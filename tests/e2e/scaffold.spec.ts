@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("entrada sin sesión en español, sin desborde y con salto por teclado", async ({
+test("CA-066 (parcial): entrada sin sesión en español, sin desborde y con salto por teclado", async ({
   page,
 }) => {
   const errors: string[] = [];

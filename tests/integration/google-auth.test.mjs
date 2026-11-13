@@ -185,7 +185,7 @@ test(
           query: { disableCookieCache: true },
         });
       await t.test(
-        "OAuth directo no autorizado y email no verificado no crean usuarios",
+        "CA-002: OAuth directo no autorizado y email no verificado no crean usuarios",
         async () => {
           const unauthorized = await callback(
             await begin(),
@@ -213,7 +213,7 @@ test(
       );
       let a, b;
       await t.test(
-        "dos OAuth autorizados crean dueños separados; retorno conserva identidad",
+        "CA-003: dos OAuth autorizados crean dueños separados; retorno conserva identidad",
         async () => {
           const ar = await callback(
             await begin(),
@@ -396,7 +396,7 @@ test(
         },
       );
       await t.test(
-        "revocar B invalida cookie existente, nuevos OAuth y sesiones sin afectar A",
+        "CA-003/005: revocar B invalida cookie existente, nuevos OAuth y sesiones sin afectar A",
         async () => {
           await admin.query(
             "UPDATE app_access.allowlist SET enabled=false WHERE email='b@example.invalid'",
@@ -459,7 +459,7 @@ test(
         },
       );
       await t.test(
-        "state alterado/reutilizado y sesión expirada son rechazados; logout invalida token",
+        "CA-004/005: state alterado/reutilizado y sesión expirada son rechazados; logout invalida token",
         async () => {
           const start = await begin();
           const changed = await callback(
@@ -520,7 +520,7 @@ test(
         },
       );
       await t.test(
-        "JWT inválido, fallo de red y error DB no crean sesiones ni filtran diagnóstico",
+        "CA-004: JWT inválido, fallo de red y error DB no crean sesiones ni filtran diagnóstico",
         async () => {
           const sessionsBefore = (
             await admin.query("SELECT count(*) FROM app_auth.session")

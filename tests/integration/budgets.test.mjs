@@ -27,7 +27,7 @@ import { saveSharedExpense } from "../../src/server/shared-expenses.ts";
 import { parseRefundCommand } from "../../src/domain/refunds.ts";
 import { saveRefund } from "../../src/server/refunds.ts";
 
-test("F3-06: historial, jerarquía, cuotas fijas, RLS, reintentos y concurrencia real", async () => {
+test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concurrencia real", async () => {
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 5 });
   const a = `budget-a-${randomUUID()}`,
     b = `budget-b-${randomUUID()}`;
