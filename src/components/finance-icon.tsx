@@ -16,6 +16,7 @@ const paths = {
   savings: "M4 7h16v13H4V7Zm-1 0h18V4H3v3Zm6 5h6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0",
   report: "M6 3h12v18H6V3Zm3 5h6m-6 4h6m-6 4h4",
+  help: "M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm-2.91-12a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01",
 } as const;
 
 export function FinanceIcon({

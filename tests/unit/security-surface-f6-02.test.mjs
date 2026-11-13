@@ -218,9 +218,16 @@ test("F6-02: sin caché compartida ni acciones de servidor que eludan el inventa
     [/localStorage|sessionStorage|indexedDB/, "almacenamiento del navegador"],
     [/NEXT_PUBLIC_/, "variables públicas"],
   ];
+  // F6-06: única excepción, una preferencia de interfaz del tutorial (sin datos
+  // financieros ni red); su contenido se valida en tests/unit/tutorial.test.mjs.
+  const uiPreference = new Set([
+    "components/intro-tour.tsx",
+    "domain/tutorial.ts",
+  ]);
   for (const { file, text } of sources) {
     for (const [pattern, label] of forbidden)
-      assert.doesNotMatch(text, pattern, `${file}: ${label}`);
+      if (label !== "almacenamiento del navegador" || !uiPreference.has(file))
+        assert.doesNotMatch(text, pattern, `${file}: ${label}`);
   }
 });
 
