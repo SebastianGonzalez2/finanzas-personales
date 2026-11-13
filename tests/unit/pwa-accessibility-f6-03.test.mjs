@@ -63,7 +63,7 @@ test("F6-03: los mensajes de fallo de red nunca anuncian éxito", async () => {
       configurable: true,
     });
   try {
-    const { connectionAwareMessage, offlineSaveMessage, refreshIfOnline } =
+    const { connectionAwareMessage, offlineSaveMessage } =
       await import("../../src/components/connection.ts");
     setOnline(false);
     assert.equal(connectionAwareMessage("base"), offlineSaveMessage);
@@ -74,13 +74,8 @@ test("F6-03: los mensajes de fallo de red nunca anuncian éxito", async () => {
       offlineSaveMessage,
       /registrad|guardad[oa] correctamente/i,
     );
-    let refreshed = 0;
-    refreshIfOnline(() => (refreshed += 1));
-    assert.equal(refreshed, 0, "Sin red no se recarga el formulario");
     setOnline(true);
     assert.equal(connectionAwareMessage("base"), "base");
-    refreshIfOnline(() => (refreshed += 1));
-    assert.equal(refreshed, 1);
   } finally {
     if (original) Object.defineProperty(globalThis, "navigator", original);
   }

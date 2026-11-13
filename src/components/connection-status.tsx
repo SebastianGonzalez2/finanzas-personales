@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 // F6-03 (RF-051/052, CA-065): aviso de conexión para lectores de pantalla y
 // pantalla. Es solo informativo: no persiste datos ni reintenta por su cuenta.
-// Usa aria-live sin el rol «status» para no duplicar los estados de cada página.
 
 function subscribe(onChange: () => void) {
   window.addEventListener("online", onChange);
@@ -39,9 +38,9 @@ export function ConnectionStatus() {
   }, [connected]);
 
   const message = !connected
-    ? "Sin conexión. Los cambios no se guardan hasta que vuelva la conexión; lo que escribiste sigue en pantalla."
+    ? "Sin conexión. Los cambios no se guardan sin conexión al servidor."
     : restored
-      ? "Conexión restablecida. Si un guardado quedó sin confirmar, reintentá el mismo envío."
+      ? "Conexión restablecida."
       : "";
 
   return (
@@ -51,7 +50,7 @@ export function ConnectionStatus() {
       data-connection={connected ? "online" : "offline"}
       className={
         message
-          ? "fixed inset-x-0 bottom-0 z-40 border-t border-amber-400 bg-(--finance-well) px-4 py-3 text-center text-sm text-amber-200"
+          ? "border-b border-amber-400 bg-(--finance-well) px-4 py-3 text-center text-sm text-amber-200"
           : "sr-only"
       }
     >

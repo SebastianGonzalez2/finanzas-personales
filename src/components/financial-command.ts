@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { connectionAwareMessage } from "./connection";
+import { useWarnOnUnconfirmedCommand } from "./unconfirmed-command";
 
 // After an uncertain response, only the same payload may be retried. A new key
 // could create a second confirmation if the first one was already committed.
@@ -11,6 +12,7 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState("");
+  useWarnOnUnconfirmedCommand(pending || uncertain);
 
   async function send(fields: Record<string, unknown>) {
     if (lock.current) return false;
@@ -55,14 +57,6 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
     }
     return false;
   }
-
-  // Con un envío sin confirmar, recargar descartaría el formulario en memoria.
-  useEffect(() => {
-    if (!uncertain) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [uncertain]);
 
   return { send, pending, uncertain, error, clearError: () => setError("") };
 }

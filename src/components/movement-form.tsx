@@ -32,7 +32,8 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
-import { connectionAwareMessage, refreshIfOnline } from "./connection";
+import { connectionAwareMessage } from "./connection";
+import { useWarnOnUnconfirmedCommand } from "./unconfirmed-command";
 import { NameAutocomplete } from "./name-autocomplete";
 import { Card } from "./ui/card";
 
@@ -91,6 +92,7 @@ export function MovementForm({
   const correctionInput = useRef<HTMLInputElement>(null);
   const correctionTrigger = useRef<HTMLButtonElement>(null);
   const retryRevision = useRef<HTMLButtonElement>(null);
+  const save = useRef<HTMLButtonElement>(null);
   const configured = bankCurrencies.filter((code) =>
     balances.some((balance) => balance.currency === code),
   );
@@ -102,9 +104,16 @@ export function MovementForm({
   const transfer = kind === "bank_transfer";
   const needsBalances = transfer && configured.length < 2;
 
+  useWarnOnUnconfirmedCommand(pending || uncertain || revisionUncertain);
+
   useEffect(() => {
     if (revisionUncertain && !pending) retryRevision.current?.focus();
   }, [pending, revisionUncertain]);
+
+  useEffect(() => {
+    if (uncertain && !pending && document.activeElement === document.body)
+      save.current?.focus();
+  }, [pending, uncertain]);
 
   function toggle() {
     if (creditOpen || sharedOpen || submitLock.current || revisionUncertain)
@@ -190,10 +199,9 @@ export function MovementForm({
       setUncertain(sentBody.current !== null);
       setError(
         connectionAwareMessage(
-          "No pudimos confirmar el guardado. Reintentá con los mismos datos.",
+          "No pudimos confirmar el guardado. Reintentá el mismo envío.",
         ),
       );
-      refreshIfOnline(router.refresh);
     } finally {
       submitLock.current = false;
       setPending(false);
@@ -645,6 +653,7 @@ export function MovementForm({
                 <div className="mt-4 flex flex-wrap gap-2">
                   {!needsBalances && (
                     <button
+                      ref={save}
                       type="submit"
                       disabled={pending}
                       className={primary}

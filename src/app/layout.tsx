@@ -28,8 +28,8 @@ export default function RootLayout({
         >
           Saltar al contenido
         </a>
-        {children}
         <ConnectionStatus />
+        {children}
         <FormValidation />
       </body>
     </html>

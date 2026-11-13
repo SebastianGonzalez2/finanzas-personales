@@ -1,4 +1,4 @@
-/* global document, window */
+/* global document, navigator, window */
 import { randomUUID } from "node:crypto";
 import { expect, test as base } from "@playwright/test";
 import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
@@ -89,6 +89,42 @@ test("CA-066: menú móvil por teclado, Escape, clic en el fondo y foco devuelto
       .getByRole("navigation", { name: "Navegación principal" })
       .getByRole("link", { name: "Resumen" }),
   ).toBeVisible();
+});
+
+test("CA-066: navegación de escritorio con nombre, foco visible y salto al título", async ({
+  page,
+  fixtures,
+}) => {
+  void fixtures;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/resumen");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Saltar al contenido" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("main")).toBeFocused();
+  const nav = page.getByRole("navigation", { name: "Navegación principal" });
+  await expect(nav).toMatchAriaSnapshot(`
+    - navigation "Navegación principal":
+      - link "Resumen"
+      - link "Historial"
+  `);
+  await expect(nav.getByRole("link", { name: "Resumen" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("link", { name: "Mi cuenta" })).toBeFocused();
+  const history = nav.getByRole("link", { name: "Historial", exact: true });
+  await history.focus();
+  expect(
+    await history.evaluate(
+      (link) => window.getComputedStyle(link).outlineStyle,
+    ),
+  ).toBe("solid");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Historial" })).toBeFocused();
 });
 
 for (const width of [360, 768, 1440]) {
@@ -190,6 +226,31 @@ for (const width of [360, 768, 1440]) {
         problems.push(`${path}: h1=${report.headings}`);
       for (const key of ["unlabeled", "unnamed", "tiny"])
         if (report[key].length) problems.push(`${path}: ${key} ${report[key]}`);
+
+      if (width === 360 && path === "/estadisticas") {
+        const chart = page
+          .getByRole("region", { name: /^Ingresos y gastos por mes en UYU/ })
+          .first();
+        await chart.focus();
+        await expect(chart).toBeFocused();
+        await expect
+          .poll(() =>
+            chart
+              .locator("svg text")
+              .first()
+              .evaluate((label) => {
+                const scale = label.getScreenCTM()?.a ?? 0;
+                return Math.round(
+                  parseFloat(window.getComputedStyle(label).fontSize) * scale,
+                );
+              }),
+          )
+          .toBeGreaterThanOrEqual(12);
+        await page.keyboard.press("ArrowRight");
+        await expect
+          .poll(() => chart.evaluate((region) => region.scrollLeft))
+          .toBeGreaterThan(0);
+      }
     }
     expect(problems).toEqual([]);
   });
@@ -264,4 +325,112 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   expect((await submitted).status()).toBe(201);
   await expect(page.getByText("Gasto registrado.")).toBeVisible();
   await expect(page.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
+});
+
+test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimiento ya confirmado sin duplicarlo", async ({
+  page,
+  fixtures,
+}) => {
+  const context = page.context();
+  const origin = { origin: financeTestOrigin };
+  const today = bankReferenceToday();
+  const concept = "Gasto sintético con respuesta perdida";
+  const movement = "**/api/movements";
+  const history = `/historial?q=${encodeURIComponent(concept)}`;
+  expect(
+    (
+      await page.request.post("/api/bank-balances", {
+        headers: origin,
+        data: { currency: "UYU", amount: "10000", asOfDate: today },
+      })
+    ).status(),
+  ).toBe(201);
+  await page.goto("/resumen");
+  await page.getByRole("button", { name: "+ Nueva transacción" }).click();
+  const form = page.getByRole("form", { name: "Nueva transacción" });
+  const amount = form.getByLabel("Importe");
+  await amount.fill("500");
+  await form.getByLabel("Concepto", { exact: true }).fill(concept);
+
+  // La solicitud llega al servidor real; Chrome pierde la respuesta. Simulamos
+  // también la caída del origen para RSC mientras navigator.onLine sigue true.
+  let refreshes = 0;
+  const dropRefresh = async (route) => {
+    if (route.request().headers().rsc === "1") {
+      refreshes++;
+      await route.abort("connectionreset");
+    } else {
+      await route.continue();
+    }
+  };
+  await page.route("**/resumen*", dropRefresh);
+  let originalBody;
+  let committed;
+  await page.route(
+    movement,
+    async (route) => {
+      originalBody = route.request().postData();
+      const response = await route.fetch();
+      committed = { status: response.status(), body: await response.json() };
+      await route.abort("connectionreset");
+    },
+    { times: 1 },
+  );
+  const failed = page.waitForEvent("requestfailed", (request) =>
+    request.url().endsWith("/api/movements"),
+  );
+  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  expect((await failed).failure()?.errorText).toBe("net::ERR_CONNECTION_RESET");
+  expect(committed?.status).toBe(201);
+  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+  await expect(form.getByRole("alert")).toContainText(
+    "No pudimos confirmar el guardado",
+  );
+  await expect(page.getByText("Gasto registrado.")).toHaveCount(0);
+  await expect(page.getByText("Saldo bancario 10.000,00 UYU")).toBeVisible();
+  await expect(amount).toHaveValue("500");
+  await expect(amount).toBeDisabled();
+  expect(refreshes).toBe(0);
+
+  // Una segunda sesión comprueba el efecto en el servidor antes del reintento.
+  const observer = await context.browser().newContext({
+    baseURL: financeTestOrigin,
+  });
+  try {
+    await observer.addCookies([fixtures.cookies.a2]);
+    const check = await observer.newPage();
+    await check.goto("/resumen");
+    await expect(check.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
+    await check.goto(history);
+    const entries = check.getByRole("link", { name: new RegExp(concept) });
+    await expect(entries).toHaveCount(1);
+
+    const allowsUnload = () =>
+      page.evaluate(() =>
+        window.dispatchEvent(
+          new window.Event("beforeunload", { cancelable: true }),
+        ),
+      );
+    expect(await allowsUnload()).toBe(false);
+    await page.unroute("**/resumen*", dropRefresh);
+    const retry = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/movements") &&
+        response.request().method() === "POST",
+    );
+    await form.getByRole("button", { name: "Reintentar guardado" }).click();
+    const response = await retry;
+    expect(response.status()).toBe(200);
+    expect(response.request().postData()).toBe(originalBody);
+    expect(await response.json()).toEqual(committed.body);
+    await expect(page.getByText("Gasto registrado.")).toBeVisible();
+    await expect(page.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
+    await check.reload();
+    await expect(entries).toHaveCount(1);
+    // Tras la confirmación, la recarga vuelve a funcionar sin advertencia.
+    expect(await allowsUnload()).toBe(true);
+    await page.reload();
+  } finally {
+    await observer.close();
+  }
 });

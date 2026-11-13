@@ -15,12 +15,3 @@ export function isOffline() {
 export function connectionAwareMessage(fallback: string) {
   return isOffline() ? offlineSaveMessage : fallback;
 }
-
-/**
- * Sin conexión, `router.refresh()` puede degradar a una recarga completa y
- * perder el formulario en memoria (hallazgo CA-065 de F6-01). Solo refresca
- * cuando hay red.
- */
-export function refreshIfOnline(refresh: () => void) {
-  if (!isOffline()) refresh();
-}

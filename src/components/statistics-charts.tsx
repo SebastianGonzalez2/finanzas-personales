@@ -189,7 +189,12 @@ function ChartTable({
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
         Ver datos
       </summary>
-      <div className="overflow-x-auto">
+      <div
+        role="region"
+        aria-label={caption}
+        tabIndex={0}
+        className="overflow-x-auto"
+      >
         <table className="w-full min-w-80 text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -221,6 +226,37 @@ function ChartTable({
   );
 }
 
+function ChartPlot({
+  labelledBy,
+  width,
+  height,
+  children,
+}: {
+  labelledBy: string;
+  width: number;
+  height: number;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="region"
+      aria-labelledby={labelledBy}
+      tabIndex={0}
+      className="overflow-x-auto"
+    >
+      <svg
+        role="img"
+        aria-labelledby={labelledBy}
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full overflow-visible"
+        style={{ minWidth: `${width / 20}rem`, maxWidth: `${width / 16}rem` }}
+      >
+        {children}
+      </svg>
+    </div>
+  );
+}
+
 export function StatisticsMonthlyChart({
   months,
   currency,
@@ -242,7 +278,7 @@ export function StatisticsMonthlyChart({
       row.missing ? ["0.0000", "0.0000"] : [row.income, row.expense],
     ),
   );
-  const width = 680;
+  const width = Math.max(384, 60 + rows.length * 72);
   const height = 230;
   const left = 48;
   const bottom = 34;
@@ -276,11 +312,10 @@ export function StatisticsMonthlyChart({
           Gastos
         </span>
       </div>
-      <svg
-        role="img"
-        aria-labelledby={`${titleId} ${descriptionId}`}
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-auto w-full overflow-visible"
+      <ChartPlot
+        labelledBy={`${titleId} ${descriptionId}`}
+        width={width}
+        height={height}
       >
         <title id={titleId}>Ingresos y gastos por mes en {currency}</title>
         <desc id={descriptionId}>
@@ -329,7 +364,7 @@ export function StatisticsMonthlyChart({
                   x={x}
                   y={height - bottom - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-xs"
+                  className="fill-muted-foreground text-[0.9375rem]"
                 >
                   Sin datos
                 </text>
@@ -337,7 +372,7 @@ export function StatisticsMonthlyChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-xs"
+                  className="fill-muted-foreground text-[0.9375rem]"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -373,7 +408,7 @@ export function StatisticsMonthlyChart({
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-xs"
+                className="fill-muted-foreground text-[0.9375rem]"
               >
                 {shortMonthLabel(row.period)}
               </text>
@@ -384,7 +419,7 @@ export function StatisticsMonthlyChart({
                     height - bottom - Math.max(incomeHeight, expenseHeight) - 5
                   }
                   textAnchor="middle"
-                  className="fill-muted-foreground text-xs"
+                  className="fill-muted-foreground text-[0.9375rem]"
                 >
                   Incompleto
                 </text>
@@ -392,7 +427,7 @@ export function StatisticsMonthlyChart({
             </g>
           );
         })}
-      </svg>
+      </ChartPlot>
       <ChartTable
         caption={`Datos de ingresos y gastos por mes en ${currency}`}
         headings={["Período", "Ingresos", "Gastos", "Estado"]}
@@ -431,7 +466,7 @@ export function StatisticsHistoryChart({
     (row) => amountUnits(row.income) - amountUnits(row.expense),
   );
   const maximum = Math.max(...nets.map((value) => Math.abs(Number(value))), 1);
-  const width = 680;
+  const width = Math.max(384, 24 + rows.length * 72);
   const height = 230;
   const left = 12;
   const bottom = 34;
@@ -445,11 +480,10 @@ export function StatisticsHistoryChart({
   const descriptionId = `statistics-history-${currency}-description`;
   return (
     <figure className="grid gap-2">
-      <svg
-        role="img"
-        aria-labelledby={`${titleId} ${descriptionId}`}
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-auto w-full overflow-visible"
+      <ChartPlot
+        labelledBy={`${titleId} ${descriptionId}`}
+        width={width}
+        height={height}
       >
         <title id={titleId}>Histórico por fecha en {currency}</title>
         <desc id={descriptionId}>
@@ -480,7 +514,7 @@ export function StatisticsHistoryChart({
                   x={x}
                   y={middle - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-xs"
+                  className="fill-muted-foreground text-[0.9375rem]"
                 >
                   Sin datos
                 </text>
@@ -488,7 +522,7 @@ export function StatisticsHistoryChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-xs"
+                  className="fill-muted-foreground text-[0.9375rem]"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -518,14 +552,14 @@ export function StatisticsHistoryChart({
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-xs"
+                className="fill-muted-foreground text-[0.9375rem]"
               >
                 {shortMonthLabel(row.period)}
               </text>
             </g>
           );
         })}
-      </svg>
+      </ChartPlot>
       <ChartTable
         caption={`Histórico mensual en ${currency}`}
         headings={["Período", "Ingresos", "Gastos", "Devoluciones", "Balance"]}
