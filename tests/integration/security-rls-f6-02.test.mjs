@@ -57,6 +57,8 @@ const definers = [
   "app_access.guard_user",
   "finance.account_backup_snapshot",
   "finance.account_backup_snapshot",
+  "finance.cron_owner_is_active",
+  "finance.delete_own_account",
   "finance.restore_account",
 ];
 
@@ -112,7 +114,8 @@ test("F6-02: RLS, privilegios y funciones privilegiadas del esquema completo", a
       async () => {
         const { rows } = await admin.query(`
         SELECT n.nspname || '.' || c.relname AS relation, p.polname, p.polpermissive,
-               p.polcmd, pg_get_expr(p.polqual, p.polrelid) AS qual,
+               p.polcmd, pg_get_userbyid(c.relowner) AS owner,
+               pg_get_expr(p.polqual, p.polrelid) AS qual,
                pg_get_expr(p.polwithcheck, p.polrelid) AS check,
                (SELECT array_agg(coalesce(r.rolname, 'PUBLIC')::text ORDER BY r.rolname)
                   FROM unnest(p.polroles) o LEFT JOIN pg_roles r ON r.oid = o) AS roles
@@ -120,16 +123,18 @@ test("F6-02: RLS, privilegios y funciones privilegiadas del esquema completo", a
           JOIN pg_namespace n ON n.oid = c.relnamespace`);
         assert.ok(rows.length >= 120);
         for (const row of rows.filter((r) => r.polpermissive)) {
-          assert.equal(row.polcmd, "*", `${row.relation}.${row.polname}`);
+          const deletionPolicy =
+            row.relation === "finance.card_push_subscriptions" &&
+            row.polname === "account_delete_owner";
+          const label = `${row.relation}.${row.polname}`;
+          assert.equal(row.polcmd, "*", label);
+          if (deletionPolicy) assert.deepEqual(row.roles, [row.owner], label);
+          assert.equal(row.qual, ownerExpression, label);
+          // Esta política del migrador usa USING también como WITH CHECK.
           assert.equal(
-            row.qual,
+            deletionPolicy ? (row.check ?? row.qual) : row.check,
             ownerExpression,
-            `${row.relation}.${row.polname}`,
-          );
-          assert.equal(
-            row.check,
-            ownerExpression,
-            `${row.relation}.${row.polname}`,
+            label,
           );
           assert.ok(
             !row.roles.includes("PUBLIC"),
@@ -312,6 +317,8 @@ test("F6-02: RLS, privilegios y funciones privilegiadas del esquema completo", a
           [
             "app_access.authorize_session",
             "finance.account_backup_snapshot",
+            "finance.cron_owner_is_active",
+            "finance.delete_own_account",
             "finance.restore_account",
           ],
         );
