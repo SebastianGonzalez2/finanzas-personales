@@ -307,11 +307,12 @@ export async function listHistory(
          benefits
            ? `UNION ALL
        (SELECT ${benefitFields} ${benefitSource}
-        WHERE f.owner_id = $1 AND $7 IS NULL AND $16::uuid[] IS NULL AND $17::uuid IS NULL
+        WHERE f.owner_id = $1 AND ($7 IS NULL OR $7 = 'none') AND $17::uuid IS NULL
           AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
             OR strpos(lower(b.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
           AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
           AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+          AND ${tagFilter}
           AND ($8 IS NULL OR $8 = CASE b.destination WHEN 'card' THEN 'credit' ELSE 'deposit' END)
           AND ($9 IS NULL OR b.currency = $9)
           AND ($10 IS NULL OR b.amount >= $10) AND ($11 IS NULL OR b.amount <= $11)

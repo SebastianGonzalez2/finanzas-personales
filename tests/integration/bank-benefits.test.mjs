@@ -3,11 +3,16 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
-import { setOwnerContext } from "../../src/db/owner-context.ts";
+import {
+  setOwnerContext,
+  withOwnerTransaction,
+} from "../../src/db/owner-context.ts";
 import { parseBankBenefitCommand } from "../../src/domain/bank-benefits.ts";
+import { parseBudgetCommand } from "../../src/domain/budgets.ts";
 import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { parseHistoryParams } from "../../src/domain/history.ts";
 import { parseMovement } from "../../src/domain/movements.ts";
+import { parseRefundCommand } from "../../src/domain/refunds.ts";
 import {
   listBankBalances,
   saveOpeningBalance,
@@ -17,9 +22,17 @@ import {
   listBankBenefits,
   saveBankBenefit,
 } from "../../src/server/bank-benefits.ts";
+import { listBudgets, saveBudget } from "../../src/server/budgets.ts";
 import { loadCardCycle, saveCardCycle } from "../../src/server/card-cycles.ts";
 import { listCards, saveCard } from "../../src/server/cards.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import {
+  saveClassification,
+  saveTag,
+} from "../../src/server/classification.ts";
+import {
+  listCreditPurchaseOptions,
+  saveCreditOperation,
+} from "../../src/server/credit-operations.ts";
 import { findHistoryEntry, listHistory } from "../../src/server/history.ts";
 import {
   listMovementTotals,
@@ -28,11 +41,13 @@ import {
 } from "../../src/server/movements.ts";
 import { loadPeriodReport } from "../../src/server/period-report.ts";
 import { listRefundTotals } from "../../src/server/refund-totals.ts";
+import { getRefundEntry, saveRefund } from "../../src/server/refunds.ts";
 import {
   loadStatistics,
   statisticsReady,
 } from "../../src/server/statistics.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
+import prepareFinanceBrowserDatabase from "../support/finance-browser.mjs";
 
 const owner = "benefit-owner";
 const other = "another-owner";
@@ -264,6 +279,45 @@ test("F5-09 CA-067: cashback acreditado en Bancos es un ingreso único que no to
         0,
       );
 
+      const tagId = randomUUID();
+      assert.deepEqual(
+        await saveTag(client, owner, {
+          action: "create",
+          id: tagId,
+          name: "Banco",
+        }),
+        { id: tagId },
+      );
+      assert.deepEqual(
+        await saveClassification(client, owner, {
+          eventId: id,
+          version: 0,
+          idempotencyKey: randomUUID(),
+          tagIds: [tagId],
+        }),
+        { id },
+      );
+      assert.equal(
+        (
+          await saveClassification(client, owner, {
+            eventId: id,
+            version: 1,
+            idempotencyKey: randomUUID(),
+            allocations: [{ categoryId: null, amount: "300.0000" }],
+          })
+        ).status,
+        409,
+      );
+      const tagged = await listHistory(
+        client,
+        owner,
+        parseHistoryParams({ tags: tagId, category: "none" }),
+      );
+      assert.deepEqual(
+        tagged.entries.map((entry) => entry.id),
+        [id],
+      );
+
       // Informe y estadísticas cuentan el beneficio como ingreso, una sola vez.
       const report = await loadPeriodReport(client, owner, {
         from: "2026-02-01",
@@ -467,7 +521,7 @@ test("F5-09: cashback acreditado solo en tarjeta reduce deuda y no crea depósit
     },
   ));
 
-test("F5-09: el abono a tarjeta convive con ciclos y el aislamiento A/B protege el beneficio", () =>
+test("F5-09: el abono figura en la estimación del ciclo y el aislamiento A/B protege el beneficio", () =>
   setup(
     async ({
       client,
@@ -479,7 +533,7 @@ test("F5-09: el abono a tarjeta convive con ciclos y el aislamiento A/B protege 
       buy,
       count,
     }) => {
-      await buy("500");
+      const original = await buy("500", "2026-02-10");
       const id = await created(
         benefit({ destination: "card", cardId, amount: "200" }),
       );
@@ -497,8 +551,35 @@ test("F5-09: el abono a tarjeta convive con ciclos y el aislamiento A/B protege 
         ({ id: current }) => current === cardId,
       );
       const cycle = await loadCardCycle(client, owner, card, "2026-02", today);
-      assert.ok(cycle.summaries.length > 0);
+      const [summary] = cycle.summaries;
+      assert.equal(summary.credited, "200.0000");
+      assert.equal(summary.remaining, "300.0000");
+      assert.equal(summary.paid, "0.0000");
+      assert.equal(cycle.purchases[0].amount, "500.0000");
       assert.equal((await findCard()).debt, "300.0000");
+      const [purchase] = await listCreditPurchaseOptions(client, owner);
+      assert.equal(purchase.id, original);
+      assert.equal(purchase.amount, "500.0000");
+
+      const report = await loadPeriodReport(client, owner, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+      });
+      assert.deepEqual(report.tarjetas, [
+        [
+          card.name,
+          "2026-02",
+          currency,
+          "500.0000",
+          "0.0000",
+          "300.0000",
+          "200.0000",
+        ],
+      ]);
+      assert.equal(
+        report.movimientos.find((row) => row[10] === id)[5],
+        card.name,
+      );
 
       // Otro titular no ve, no anula ni usa la tarjeta ajena.
       await setOwnerContext(client, other);
@@ -526,6 +607,248 @@ test("F5-09: el abono a tarjeta convive con ciclos y el aislamiento A/B protege 
       );
     },
   ));
+
+test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero", () =>
+  setup(
+    async ({
+      client,
+      cardId,
+      bank,
+      findCard,
+      benefit,
+      created,
+      expense,
+      buy,
+    }) => {
+      const categoryId = randomUUID();
+      await client.query(
+        "INSERT INTO finance.categories(owner_id,id,kind,name) VALUES ($1,$2,'expense','Ropa')",
+        [owner, categoryId],
+      );
+      const budget = parseBudgetCommand(
+        {
+          action: "save",
+          idempotencyKey: randomUUID(),
+          categoryId,
+          currency,
+          amount: "5000",
+        },
+        today,
+      );
+      assert.ok(!("error" in budget));
+      assert.equal(
+        (await saveBudget(client, owner, budget, today)).status,
+        "created",
+      );
+      const debitPurchase = await expense({ categoryId });
+      const creditPurchase = await buy("1000");
+      await expense({ categoryId, amount: "3000", effectiveOn: february });
+      const budgetsBefore = await listBudgets(client, owner, "2026-02");
+      assert.equal(budgetsBefore[0].progress.consumed, "3000.0000");
+      assert.equal(await bank(), "5000.0000");
+      const originals = await Promise.all(
+        [debitPurchase, creditPurchase].map((id) =>
+          findHistoryEntry(client, owner, id, false),
+        ),
+      );
+
+      const request = parseRefundCommand(
+        {
+          action: "pending",
+          purchaseId: debitPurchase,
+          amount: "500",
+          effectiveOn: "2026-02-01",
+          idempotencyKey: randomUUID(),
+        },
+        today,
+      );
+      assert.ok(!("error" in request), request.error);
+      const pendingId = await created(saveRefund(client, owner, request));
+
+      const refunds = [];
+      for (const [purchaseId, method, category, amount] of [
+        [debitPurchase, "debit", categoryId, "500"],
+        [creditPurchase, "credit", null, "200"],
+      ]) {
+        const command = parseRefundCommand(
+          {
+            action: "credit",
+            purchaseId,
+            pendingId: method === "debit" ? pendingId : null,
+            parts: [{ method, categoryId: category, amount }],
+            effectiveOn: february,
+            idempotencyKey: randomUUID(),
+          },
+          today,
+        );
+        assert.ok(!("error" in command), command.error);
+        const id = await created(saveRefund(client, owner, command));
+        const entry = await getRefundEntry(client, owner, id);
+        assert.equal(entry.purchaseId, purchaseId);
+        assert.equal(entry.effectiveOn, february);
+        refunds.push(entry);
+      }
+      assert.equal(await bank(), "5500.0000");
+      assert.equal((await findCard()).debt, "800.0000");
+      const benefitId = await created(benefit({ destination: "card", cardId }));
+      assert.equal(await bank(), "5500.0000");
+      assert.equal((await findCard()).debt, "500.0000");
+      assert.deepEqual(
+        await listBudgets(client, owner, "2026-02"),
+        budgetsBefore,
+      );
+      assert.deepEqual(
+        await Promise.all(
+          [debitPurchase, creditPurchase].map((id) =>
+            findHistoryEntry(client, owner, id, false),
+          ),
+        ),
+        originals,
+      );
+      assert.deepEqual(await listMovementTotals(client, owner, "2026-01-01"), [
+        { kind: "expense", currency, amount: "3000.0000" },
+      ]);
+      const movements = await listMovementTotals(client, owner, "2026-02-01");
+      assert.deepEqual(
+        movements.sort((a, b) => a.kind.localeCompare(b.kind)),
+        [
+          { kind: "expense", currency, amount: "3000.0000" },
+          { kind: "income", currency, amount: "300.0000" },
+        ],
+      );
+      assert.deepEqual(await listRefundTotals(client, owner, "2026-01-01"), []);
+      assert.deepEqual(await listRefundTotals(client, owner, "2026-02-01"), [
+        { currency, amount: "700.0000" },
+      ]);
+
+      const period = { from: "2026-02-01", to: "2026-02-28" };
+      const range = { ...period, label: "Febrero", complete: true };
+      const schema = await statisticsReady(client);
+      const statistics = await loadStatistics(
+        client,
+        owner,
+        range,
+        null,
+        range,
+        { period: "personalizado", ...period },
+        schema,
+      );
+      assert.deepEqual(
+        statistics.totals.map(({ income, expense, refunds }) => [
+          income,
+          expense,
+          refunds,
+        ]),
+        [["300.0000", "3000.0000", "700.0000"]],
+      );
+      assert.equal(
+        statistics.categories.find((row) => row.categoryId === categoryId)
+          ?.amount,
+        "3000.0000",
+      );
+      const cardDetail = await loadStatistics(
+        client,
+        owner,
+        range,
+        null,
+        range,
+        { period: "personalizado", ...period, card: cardId },
+        schema,
+      );
+      assert.deepEqual(
+        new Map(cardDetail.entries.map(({ id, kind }) => [id, kind])),
+        new Map([
+          [benefitId, "income"],
+          [refunds[1].id, "refund"],
+        ]),
+      );
+
+      const report = await loadPeriodReport(client, owner, period);
+      assert.equal(
+        (await getRefundEntry(client, owner, pendingId)).status,
+        "confirmed",
+      );
+      assert.ok(!report.movimientos.some((row) => row[10] === pendingId));
+      const totals = Object.fromEntries(
+        report.resumen.map(([concept, , amount]) => [concept, amount]),
+      );
+      assert.equal(totals.Ingreso, "300.0000");
+      assert.equal(totals["Gasto por categoría · Ropa"], "3000.0000");
+      assert.equal(totals["Reembolso acreditado"], "700.0000");
+      assert.deepEqual(report.presupuestos[0].slice(0, 6), [
+        "2026-02",
+        "Ropa",
+        currency,
+        "5000.0000",
+        "3000.0000",
+        "2000.0000",
+      ]);
+      for (const { id, purchaseId, amount, card } of refunds) {
+        const row = report.movimientos.find((entry) => entry[10] === id);
+        assert.deepEqual(
+          [row[0], row[1], row[5], row[8], row[11]],
+          [february, "Devolución recibida", card ?? "", amount, purchaseId],
+        );
+      }
+      const cashback = report.movimientos.find(
+        (entry) => entry[10] === benefitId,
+      );
+      assert.deepEqual([cashback[1], cashback[11]], ["Beneficio bancario", ""]);
+    },
+  ));
+
+test("F5-09: dos conexiones concurrentes registran un solo abono", async () => {
+  const cleanup = await prepareFinanceBrowserDatabase();
+  const pool = new pg.Pool(testDatabaseConfig());
+  const tx = (work) =>
+    withOwnerTransaction(pool, async () => ({ ownerId: owner }), work);
+  try {
+    await tx((client, id) =>
+      saveOpeningBalance(client, id, {
+        currency,
+        amount: "1000",
+        asOfDate: january,
+      }),
+    );
+    const command = parseBankBenefitCommand(
+      {
+        action: "register",
+        destination: "bank",
+        currency,
+        amount: "300",
+        effectiveOn: february,
+        idempotencyKey: randomUUID(),
+        credited: true,
+      },
+      today,
+    );
+    assert.ok(!("error" in command));
+
+    const results = await Promise.all(
+      [1, 2].map(() =>
+        tx((client, id) => saveBankBenefit(client, id, command)),
+      ),
+    );
+    assert.deepEqual(results.map(({ status }) => status).sort(), [
+      "created",
+      "replayed",
+    ]);
+    assert.equal(results[0].id, results[1].id);
+    await tx(async (client, id) => {
+      assert.equal((await listBankBenefits(client, id)).length, 1);
+      assert.equal(
+        (await listBankBalances(client, id))[0].calculatedAmount,
+        "1300.0000",
+      );
+    });
+  } finally {
+    try {
+      await pool.end();
+    } finally {
+      await cleanup();
+    }
+  }
+});
 
 test("F5-09: la migración deja copia de cuenta y diseño verificados con la tabla nueva", async () => {
   const client = new pg.Client(testDatabaseConfig());
