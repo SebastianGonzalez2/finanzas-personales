@@ -143,7 +143,9 @@ export function AccountBackup() {
       </h2>
       <Card className="gap-3 p-5 shadow-none">
         <form onSubmit={download} className="grid gap-3">
-          <h3 className="font-semibold">Descargar copia de seguridad</h3>
+          <h3 id="descargar-copia" className="font-semibold" tabIndex={-1}>
+            Descargar copia de seguridad
+          </h3>
           <p className="text-sm text-muted-foreground">
             El archivo contiene tus datos financieros. Guardalo en un lugar
             privado y seguro.

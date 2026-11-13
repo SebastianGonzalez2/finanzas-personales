@@ -48,7 +48,7 @@ export async function withOwnerTransaction<T>(
         : "BEGIN",
     );
     await setOwnerContext(client, identity.ownerId);
-    // Restores take the exclusive form. Ordinary requests still use their
+    // Restores and deletion take the exclusive form. Other requests use their
     // existing domain locks and may proceed concurrently for this owner.
     await client.query(
       options?.exclusive
