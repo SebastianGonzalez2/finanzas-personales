@@ -30,7 +30,7 @@
     "auth:google:plan:production": "node scripts/prepare-google-auth-production.mjs",
     "auth:google:migrate:production": "node --env-file-if-exists=.env.production.local scripts/prepare-google-auth-production.mjs",
     "auth:google:runtime:production": "node --env-file-if-exists=.env.production.local scripts/provision-google-runtime-production.mjs",
-    "auth:google:verify:production": "node --env-file=.env.production.google.local scripts/verify-google-runtime-production.mjs",
+    "auth:google:verify:production": "node --conditions=react-server --env-file=.env.production.google.local scripts/verify-google-runtime-production.mjs",
     "dev:google": "node scripts/dev-google.mjs",
     "probe:neon": "node --conditions=react-server --env-file-if-exists=.env.local scripts/probe-neon-development.mjs",
     "db:plan": "node scripts/migrate-development.mjs",
