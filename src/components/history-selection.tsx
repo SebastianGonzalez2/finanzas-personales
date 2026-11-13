@@ -12,13 +12,14 @@ import {
   type HistoryEntry,
   type HistoryFilters as FilterValues,
 } from "@/domain/history";
+import { connectionAwareMessage } from "./connection";
 import { HistoryAmount } from "./history-entry";
 import { Card } from "./ui/card";
 
 const primary =
   "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
 const secondary =
-  "inline-flex min-h-9 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
 
@@ -132,7 +133,11 @@ export function HistorySelection({
       );
       router.refresh();
     } catch {
-      setError("No pudimos confirmar la edición. Reintentá el mismo envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos confirmar la edición. Reintentá el mismo envío.",
+        ),
+      );
     } finally {
       setPending(false);
     }

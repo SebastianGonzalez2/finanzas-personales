@@ -7,6 +7,7 @@ import {
   statisticsChartIds,
   type StatisticsChartId,
 } from "@/domain/statistics";
+import { connectionAwareMessage } from "./connection";
 
 export function StatisticsFavoriteButton({
   chart,
@@ -33,7 +34,9 @@ export function StatisticsFavoriteButton({
       if (!response.ok) throw new Error();
       startTransition(() => router.refresh());
     } catch {
-      setError("No pudimos guardar el favorito. Reintentá.");
+      setError(
+        connectionAwareMessage("No pudimos guardar el favorito. Reintentá."),
+      );
     } finally {
       setSending(false);
     }

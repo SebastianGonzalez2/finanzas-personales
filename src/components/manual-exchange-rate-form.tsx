@@ -6,6 +6,7 @@ import { formatBankReference } from "@/domain/bank-balances";
 import { fxKey, type FxKey } from "@/domain/exchange-rates";
 import type { Currency } from "@/domain/money";
 import { HistoryField, historyButton, historyControl } from "./history-fields";
+import { connectionAwareMessage } from "./connection";
 
 export function ManualExchangeRateForm({
   keys,
@@ -42,7 +43,11 @@ export function ManualExchangeRateForm({
       form.reset();
       startTransition(() => router.refresh());
     } catch {
-      setError("No pudimos guardar la tasa. Volvé a intentarlo.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos guardar la tasa. Volvé a intentarlo.",
+        ),
+      );
     } finally {
       setSaving(false);
     }

@@ -32,6 +32,7 @@ import {
   formFundPortions,
   FundPortionFields,
 } from "./fund-portion-fields";
+import { connectionAwareMessage, refreshIfOnline } from "./connection";
 import { NameAutocomplete } from "./name-autocomplete";
 import { Card } from "./ui/card";
 
@@ -188,9 +189,11 @@ export function MovementForm({
     } catch {
       setUncertain(sentBody.current !== null);
       setError(
-        "No pudimos confirmar el guardado. Reintentá con los mismos datos.",
+        connectionAwareMessage(
+          "No pudimos confirmar el guardado. Reintentá con los mismos datos.",
+        ),
       );
-      router.refresh();
+      refreshIfOnline(router.refresh);
     } finally {
       submitLock.current = false;
       setPending(false);
@@ -246,7 +249,9 @@ export function MovementForm({
     } catch {
       setRevisionUncertain(sentRevision.current !== null);
       setRevisionError(
-        "No pudimos confirmar el cambio. Reintentá el mismo envío.",
+        connectionAwareMessage(
+          "No pudimos confirmar el cambio. Reintentá el mismo envío.",
+        ),
       );
     } finally {
       submitLock.current = false;

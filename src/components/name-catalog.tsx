@@ -11,12 +11,13 @@ import {
   type CatalogKind,
   type MerchantMergePreview,
 } from "@/domain/catalog";
+import { connectionAwareMessage } from "./connection";
 import { Card } from "./ui/card";
 
 const primary =
   "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
 const secondary =
-  "inline-flex min-h-9 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
 
@@ -77,7 +78,11 @@ export function NameCatalog({
       router.refresh();
       return true;
     } catch {
-      setError("No pudimos confirmar el guardado. Reintentá el mismo envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos confirmar el guardado. Reintentá el mismo envío.",
+        ),
+      );
       return false;
     } finally {
       setPending(false);

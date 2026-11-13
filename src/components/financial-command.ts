@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { connectionAwareMessage } from "./connection";
 
 // After an uncertain response, only the same payload may be retried. A new key
 // could create a second confirmation if the first one was already committed.
@@ -43,13 +44,25 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
       setError(data.error);
     } catch {
       setUncertain(sent.current !== null);
-      setError("No pudimos confirmar el guardado. Reintentá el mismo envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos confirmar el guardado. Reintentá el mismo envío.",
+        ),
+      );
     } finally {
       lock.current = false;
       setPending(false);
     }
     return false;
   }
+
+  // Con un envío sin confirmar, recargar descartaría el formulario en memoria.
+  useEffect(() => {
+    if (!uncertain) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uncertain]);
 
   return { send, pending, uncertain, error, clearError: () => setError("") };
 }

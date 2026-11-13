@@ -5,6 +5,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { bankCurrencies } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
 import { HistoryField, historyButton, historyControl } from "./history-fields";
+import { connectionAwareMessage } from "./connection";
 
 export function DisplayCurrencySelector({
   currency,
@@ -33,7 +34,11 @@ export function DisplayCurrencySelector({
       if (!response.ok) throw new Error();
       startTransition(() => router.refresh());
     } catch {
-      setError("No pudimos guardar la moneda. Volvé a intentarlo.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos guardar la moneda. Volvé a intentarlo.",
+        ),
+      );
     } finally {
       setSaving(false);
     }

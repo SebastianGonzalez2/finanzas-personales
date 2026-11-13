@@ -9,6 +9,7 @@ import {
 } from "@/domain/categories";
 import type { MovementKind } from "@/domain/movements";
 import { Card } from "./ui/card";
+import { connectionAwareMessage } from "./connection";
 
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
@@ -57,7 +58,11 @@ export function CategoryCatalog({
       );
       router.refresh();
     } catch {
-      setError("No pudimos actualizar la categoría. Reintentá el envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos actualizar la categoría. Reintentá el envío.",
+        ),
+      );
     } finally {
       setPending(false);
     }
@@ -125,7 +130,11 @@ export function CategoryCatalog({
         );
       }
     } catch {
-      setError("No pudimos crear la categoría. Reintentá el envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos crear la categoría. Reintentá el envío.",
+        ),
+      );
     } finally {
       setPending(false);
     }
