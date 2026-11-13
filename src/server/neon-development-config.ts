@@ -1,5 +1,9 @@
 import type { ClientConfig } from "pg";
+import { neonDatabaseConfig, neonTargets } from "./neon-targets.ts";
 
+// Configuración EXCLUSIVA de development para scripts de migración, sondas y
+// pruebas. El runtime de la aplicación selecciona su destino con
+// neon-targets.ts (development/production por entorno de ejecución).
 export type DevelopmentTarget = {
   projectId: string;
   branchId: string;
@@ -17,14 +21,13 @@ export class DevelopmentConfigError extends Error {
   }
 }
 
-// Populate only after resolving the project ID and verifying its development
-// endpoint through Neon. An environment variable must not select a branch.
+// Verificado mediante Neon. Una variable de entorno no debe seleccionar una rama.
 export const developmentTarget: DevelopmentTarget = {
-  projectId: "dry-voice-45959315",
-  branchId: "br-late-feather-b6czfkx0",
+  projectId: neonTargets.development.projectId,
+  branchId: neonTargets.development.branchId,
   branchName: "development",
-  database: "neondb",
-  endpointHost: "ep-falling-queen-b63xbfuk.c-2.sa-east-1.aws.neon.tech",
+  database: neonTargets.development.database,
+  endpointHost: neonTargets.development.endpointHost,
 };
 
 type Environment = Record<string, string | undefined>;
@@ -45,54 +48,13 @@ export function developmentDatabaseConfig(
 ): ClientConfig {
   const approved = requireDevelopmentTarget(target);
   try {
-    if (
-      env.NEON_BRANCH_ID !== approved.branchId ||
-      env.NEON_PROJECT_ID !== approved.projectId
-    ) {
-      throw new DevelopmentConfigError();
-    }
-    const url = new URL(
-      env[mode === "pooled" ? "DATABASE_URL" : "DATABASE_URL_UNPOOLED"] ?? "",
+    return neonDatabaseConfig(
+      env,
+      { ...approved, environment: "development" },
+      mode,
     );
-    const expectedHost =
-      mode === "pooled"
-        ? approved.endpointHost.replace(".", "-pooler.")
-        : approved.endpointHost;
-    if (
-      !["postgres:", "postgresql:"].includes(url.protocol) ||
-      url.hostname !== expectedHost ||
-      (url.port !== "" && url.port !== "5432") ||
-      decodeURIComponent(url.pathname) !== `/${approved.database}` ||
-      !url.username ||
-      !url.password ||
-      url.hash
-    )
-      throw new DevelopmentConfigError();
-    // Parse credentials, never pass the URL to pg: URL SSL/options parameters
-    // must not override certificate verification or inject startup settings.
-    for (const [key, value] of url.searchParams) {
-      if (!(
-        (key === "sslmode" && ["require", "verify-full"].includes(value)) ||
-        (key === "channel_binding" && value === "require")
-      )) {
-        throw new DevelopmentConfigError();
-      }
-    }
-    return {
-      host: expectedHost,
-      port: 5432,
-      database: approved.database,
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      ssl: { rejectUnauthorized: true },
-      enableChannelBinding: true,
-      connectionTimeoutMillis: 10_000,
-      query_timeout: 10_000,
-      statement_timeout: 10_000,
-      application_name: "finanzas-personales-F0-NEON",
-    };
   } catch {
-    // URL parsers/driver errors may contain credentials; do not preserve causes.
+    // Los errores de URL o del driver pueden contener credenciales.
     throw new DevelopmentConfigError();
   }
 }
