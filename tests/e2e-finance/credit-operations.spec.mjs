@@ -68,7 +68,7 @@ test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar g
     await expect(
       page.getByRole("heading", { name: "Registrar compra · Visa F2-02" }),
     ).toBeFocused();
-    await page.getByLabel("Importe", { exact: true }).fill("3000");
+    await page.getByLabel("Importe cargado por el emisor").fill("3000");
     await page
       .getByLabel("Concepto", { exact: true })
       .fill("Compra sintética F2-02");
@@ -81,7 +81,7 @@ test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar g
     await expect(category.locator("option:checked")).toHaveText(
       "Compras de prueba",
     );
-    await expect(page.getByLabel("Importe", { exact: true })).toHaveValue(
+    await expect(page.getByLabel("Importe cargado por el emisor")).toHaveValue(
       "3000",
     );
     await expect(money("Gastos del mes")).toHaveCount(0);
@@ -249,7 +249,7 @@ test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar g
     await open("Actualizar deuda");
     await balance("1.800,0001 UYU");
     await open("Registrar compra");
-    await page.getByLabel("Importe", { exact: true }).fill("50");
+    await page.getByLabel("Importe cargado por el emisor").fill("50");
     await page
       .getByLabel("Concepto", { exact: true })
       .fill("Cargo ya incluido F2-02");

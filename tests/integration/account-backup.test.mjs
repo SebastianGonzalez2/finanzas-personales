@@ -4,8 +4,13 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
+import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { decodeBackup, encodeBackup } from "../../src/server/backup-format.ts";
+import { saveCard } from "../../src/server/cards.ts";
+import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import { creditHistoryDetail } from "../../src/server/history.ts";
 import { loadPeriodReport } from "../../src/server/period-report.ts";
+import { cardCommand, creditPurchase } from "../support/f2-10-fixtures.mjs";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 import prepareDatabase, {
   financeBrowserFixtures,
@@ -81,7 +86,30 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
     assert.deepEqual(report.saldos, [
       ["Saldo bancario", "UYU", "9999999999999999.9999", "2025-01-01", ""],
     ]);
+    const createPurchase = (reference = {}) =>
+      tx(owners.a, async (client, ownerId) => {
+        const { id: cardId } = await saveCard(
+          client,
+          ownerId,
+          cardCommand({ name: randomUUID(), currency: "USD" }),
+        );
+        const command = parseCreditCommand({
+          ...creditPurchase({ cardId, currency: "USD", amount: "58" }),
+          ...reference,
+        });
+        assert.ok(!("error" in command), command.error);
+        const result = await saveCreditOperation(client, ownerId, command);
+        assert.equal(result.status, "created");
+        return result.id;
+      });
+    const ordinary = await createPurchase();
+    const referenced = await createPurchase({
+      originalCurrency: "EUR",
+      originalAmount: "50.0001",
+    });
     const saved = await snapshot(owners.a);
+    assert.match(saved.payload, /"original_amount": 50\.0001/);
+    assert.match(saved.payload, /"original_currency": "EUR"/);
     const key = Buffer.alloc(32, 1);
     const plain = JSON.parse(
       (await encodeBackup(saved.payload, owners.a, key)).file,
@@ -144,6 +172,20 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
     ]);
     assert.deepEqual(outcomes.toSorted(), ["changed", "restored"]);
     assert.equal((await snapshot(owners.a)).payload, saved.payload);
+    await tx(owners.a, async (client, ownerId) => {
+      const [line] = await creditHistoryDetail(client, ownerId, referenced);
+      assert.equal(line.amount, "58.0000");
+      assert.equal(line.debtDelta, "58.0000");
+      assert.deepEqual(line.originalPurchase, {
+        amount: "50.0001",
+        currency: "EUR",
+      });
+      assert.equal(
+        (await creditHistoryDetail(client, ownerId, ordinary))[0]
+          .originalPurchase,
+        null,
+      );
+    });
     assert.deepEqual(await snapshot(owners.b), other);
     assert.equal(
       await runRestore(

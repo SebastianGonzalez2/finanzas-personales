@@ -112,7 +112,7 @@ test("F3-05: autoriza dos fondos, registra un compromiso y paga solo la parte el
   await page
     .getByRole("button", { name: "Registrar compra", exact: true })
     .click();
-  await page.getByLabel("Importe", { exact: true }).fill("500");
+  await page.getByLabel("Importe cargado por el emisor").fill("500");
   await page.getByLabel("Concepto", { exact: true }).fill("Pasaje F3-05");
   await page.getByRole("button", { name: "Comprometer un fondo" }).click();
   await page

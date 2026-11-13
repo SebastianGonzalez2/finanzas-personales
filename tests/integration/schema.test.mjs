@@ -18,6 +18,7 @@ import {
   savingsFundsReady,
 } from "../../src/server/bank-balances.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
+import { creditHistoryDetail } from "../../src/server/history.ts";
 import {
   findEventMerchant,
   findLoanPerson,
@@ -92,6 +93,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0035_F5-09_bank_benefits.sql",
       "0036_F6-02_authorize_account_backup.sql",
       "0037_F5-08_delete_account.sql",
+      "0038_CA-027_purchase_original_amount.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -150,6 +152,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       benefits,
       authorizedBackup,
       deletion,
+      purchaseOriginalAmount,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -242,7 +245,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       "INSERT INTO finance.card_currencies (owner_id,card_id,kind,currency) VALUES ('legacy-fixture',$1,'credit','UYU')",
       [cardId],
     );
-    const purchase = await saveCreditOperation(client, "legacy-fixture", {
+    const purchaseCommand = {
       action: "purchase",
       cardId,
       currency: "UYU",
@@ -253,8 +256,28 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       covered: false,
       effectiveOn: "2026-01-15",
       idempotencyKey: randomUUID(),
-    });
+    };
+    const purchase = await saveCreditOperation(
+      client,
+      "legacy-fixture",
+      purchaseCommand,
+    );
     assert.equal(purchase.status, "created");
+    assert.equal(
+      (await creditHistoryDetail(client, "legacy-fixture", purchase.id))[0]
+        .originalPurchase,
+      null,
+    );
+    assert.equal(
+      (
+        await saveCreditOperation(client, "legacy-fixture", {
+          ...purchaseCommand,
+          idempotencyKey: randomUUID(),
+          originalPurchase: { currency: "EUR", amount: "1.0000" },
+        })
+      ).status,
+      "conflict",
+    );
     await client.query("RESET ROLE");
     await assert.rejects(migrateInTransaction(client, installments.sha256));
     await client.query(installments.sql);
@@ -479,6 +502,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       backup,
       benefits,
       authorizedBackup,
+      deletion,
     ]) {
       await assert.rejects(migrateInTransaction(client, migration.sha256));
       await client.query(migration.sql);
@@ -487,10 +511,14 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
         [migration.version, migration.sha256],
       );
     }
-    assert.deepEqual(await migrateInTransaction(client, deletion.sha256), [
-      deletion.version,
-    ]);
-    assert.deepEqual(await migrateInTransaction(client, deletion.sha256), []);
+    assert.deepEqual(
+      await migrateInTransaction(client, purchaseOriginalAmount.sha256),
+      [purchaseOriginalAmount.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, purchaseOriginalAmount.sha256),
+      [],
+    );
     assert.equal(
       (
         await client.query(
@@ -501,6 +529,20 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
     );
     assert.equal(await nameCatalogReady(client), true);
     await setOwnerContext(client, "legacy-fixture");
+    const [legacyCredit] = await creditHistoryDetail(
+      client,
+      "legacy-fixture",
+      purchase.id,
+    );
+    assert.equal(legacyCredit.originalPurchase, null);
+    assert.equal(legacyCredit.amount, "17.0001");
+    assert.deepEqual(
+      await saveCreditOperation(client, "legacy-fixture", purchaseCommand),
+      {
+        status: "replayed",
+        id: purchase.id,
+      },
+    );
     assert.equal(await recurrencesReady(client), true);
     assert.equal(
       await findEventMerchant(client, "legacy-fixture", purchase.id),

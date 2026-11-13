@@ -14,6 +14,47 @@ const idempotencyKey = "87654321-0000-0000-0000-000000000000";
 const today = "2026-01-15";
 const base = { cardId, idempotencyKey, effectiveOn: today };
 
+test("CA-027: la referencia es optativa, exacta y usa otra moneda", () => {
+  const purchase = {
+    ...base,
+    action: "purchase",
+    currency: "USD",
+    amount: "58",
+    concept: "Compra sintética",
+    covered: false,
+  };
+  const parse = (fields) =>
+    parseCreditCommand({ ...purchase, ...fields }, today);
+  const ordinary = parse({});
+  assert.equal(ordinary.amount, "58.0000");
+  assert.equal("originalPurchase" in ordinary, false);
+  assert.deepEqual(
+    parse({ originalAmount: "", originalCurrency: "" }),
+    ordinary,
+  );
+  const reference = { originalAmount: "50,1234", originalCurrency: "EUR" };
+  assert.deepEqual(parse(reference), {
+    ...ordinary,
+    originalPurchase: { amount: "50.1234", currency: "EUR" },
+  });
+  assert.deepEqual(
+    parse({ ...reference, originalAmount: "50.1234" }),
+    parse(reference),
+  );
+  for (const fields of [
+    { originalAmount: "50" },
+    { originalCurrency: "EUR" },
+    { ...reference, originalCurrency: "USD" },
+    { ...reference, originalCurrency: "XYZ" },
+    ...["", "0", "-50", "1.000,00", "50.12345", "10000000000000000", 50].map(
+      (originalAmount) => ({ ...reference, originalAmount }),
+    ),
+    { ...reference, action: "adjustment", expectedDebt: "0" },
+  ]) {
+    assert.ok("error" in parse(fields), JSON.stringify(fields));
+  }
+});
+
 test("F2-02: pago multimoneda conserva importes reales exactos y normaliza reintentos", () => {
   const local = {
     currency: "UYU",
