@@ -1,4 +1,4 @@
-/* global Buffer, navigator, caches */
+/* global Buffer, navigator, caches, localStorage, sessionStorage, indexedDB */
 import { createHash, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -801,7 +801,9 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
     ]) {
       const response = await getPage(a.request, url, headers);
       const cache = response.headers()["cache-control"] ?? "";
-      expect(cache, `${url} ${JSON.stringify(headers)}`).toContain("no-store");
+      expect(cache, `${url} ${JSON.stringify(headers)}`).toMatch(
+        /\bprivate\b.*\bno-store\b|\bno-store\b.*\bprivate\b/,
+      );
       expect(response.headers()["etag"], url).toBeUndefined();
       expect(response.headers()["x-powered-by"], url).toBeUndefined();
       expect(response.headers()["set-cookie"], url).toBeUndefined();
@@ -812,6 +814,10 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
     "/manifest.webmanifest",
     "/card-push-worker.js",
     "/icon.svg",
+    "/apple-icon",
+    "/pwa-icons/icon-192.png",
+    "/pwa-icons/icon-512.png",
+    "/pwa-icons/icon-maskable-512.png",
   ]) {
     const response = await request.get(url);
     expect(response.status(), url).toBe(200);
@@ -830,7 +836,7 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
     const response = await a.request.get(url, { maxRedirects: 0 });
     const text = await response.text();
     expect(text, url).not.toMatch(
-      /node_modules|C:\\|\/Users\/|at .*\(.*:\d+:\d+\)|postgres|pg_|finanzas_google/i,
+      /node_modules|\b[a-z]:\\+(?=[^\\\s"'<>])|\/Users\/|at .*\(.*:\d+:\d+\)|postgres|pg_|finanzas_google/i,
     );
   }
 });
@@ -854,7 +860,7 @@ test("F6-02-H02: las páginas fijan cabeceras de seguridad (frame, MIME, referre
   }
 });
 
-test("F6-02: con el worker activo, cerrar sesión invalida el acceso y el historial no muestra datos privados", async ({
+test("F6-02/F6-03: con el worker activo, cerrar sesión y cambiar de titular protege el historial en el mismo navegador", async ({
   actors,
 }) => {
   const { a, b, fixtures } = actors;
@@ -868,11 +874,20 @@ test("F6-02: con el worker activo, cerrar sesión invalida el acceso y el histor
       blocked.push(message.text());
   });
   const marker = "Movimiento privado F6-02 caché";
+  const otherMarker = "Movimiento privado del segundo titular";
   expect(
     (await send(a, "POST", "/api/bank-balances", sample.bankBalance)).status(),
   ).toBe(201);
   expect(
     (await send(a, "POST", "/api/movements", sample.expense(marker))).status(),
+  ).toBe(201);
+  expect(
+    (await send(b, "POST", "/api/bank-balances", sample.bankBalance)).status(),
+  ).toBe(201);
+  expect(
+    (
+      await send(b, "POST", "/api/movements", sample.expense(otherMarker))
+    ).status(),
   ).toBe(201);
   await page.goto("/historial");
   await expect(page.getByText(marker, { exact: true })).toBeVisible();
@@ -901,6 +916,26 @@ test("F6-02: con el worker activo, cerrar sesión invalida el acceso y el histor
   await page.goBack();
   await expect(page).toHaveURL(/\/auth\/sign-in$/);
   await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
-  expect(await page.evaluate(() => caches.keys())).toEqual([]);
+  await a.addCookies([fixtures.cookies.b]);
+  await page.goto("/historial");
+  await expect(page.getByText(otherMarker, { exact: true })).toBeVisible();
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  await a.setOffline(true);
+  try {
+    await expect(page.reload()).rejects.toThrow("ERR_INTERNET_DISCONNECTED");
+  } finally {
+    await a.setOffline(false);
+  }
+  await page.goto("/historial");
+  await expect(page.getByText(otherMarker, { exact: true })).toBeVisible();
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  expect(
+    await page.evaluate(async () => ({
+      caches: await caches.keys(),
+      databases: await indexedDB.databases(),
+      local: localStorage.length,
+      session: sessionStorage.length,
+    })),
+  ).toEqual({ caches: [], databases: [], local: 0, session: 0 });
   expect(blocked).toEqual([]);
 });

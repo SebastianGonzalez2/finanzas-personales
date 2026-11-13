@@ -192,7 +192,7 @@ export function TagFields({
         {available.map(({ id, name, archived }) => (
           <label
             key={id}
-            className="flex min-h-9 items-center gap-2 text-sm wrap-anywhere"
+            className="flex min-h-11 items-center gap-2 text-sm wrap-anywhere"
           >
             <input
               className="size-4 shrink-0"

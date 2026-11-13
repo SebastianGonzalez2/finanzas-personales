@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { connectionAwareMessage } from "./connection";
+import { useWarnOnUnconfirmedCommand } from "./unconfirmed-command";
 
 // After an uncertain response, only the same payload may be retried. A new key
 // could create a second confirmation if the first one was already committed.
@@ -10,6 +12,7 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState("");
+  useWarnOnUnconfirmedCommand(pending || uncertain);
 
   async function send(fields: Record<string, unknown>) {
     if (lock.current) return false;
@@ -43,7 +46,11 @@ export function useFinancialCommand(url: string, method: "POST" | "PATCH") {
       setError(data.error);
     } catch {
       setUncertain(sent.current !== null);
-      setError("No pudimos confirmar el guardado. Reintentá el mismo envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos confirmar el guardado. Reintentá el mismo envío.",
+        ),
+      );
     } finally {
       lock.current = false;
       setPending(false);

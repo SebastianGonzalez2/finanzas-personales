@@ -124,15 +124,12 @@ test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión 
     await a1.setOffline(false);
   }
 
-  // La recarga permite comprobar la recuperación incluso si el navegador dejó el formulario.
-  await page.goto("/resumen");
-  await fillExpense();
   const submitted = page.waitForResponse(
     (response) =>
       response.url().endsWith(movementPath) &&
       response.request().method() === "POST",
   );
-  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  await form.getByRole("button", { name: "Reintentar guardado" }).click();
   const response = await submitted;
   const saved = await payload(response, 201);
   expect(

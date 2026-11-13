@@ -1,5 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
+// Opcional: usar un navegador instalado (p. ej. "chrome" o "msedge") cuando
+// el binario de Playwright no está descargado. Sin la variable no cambia nada.
+const channel = process.env.PLAYWRIGHT_CHANNEL || undefined;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   forbidOnly: true,
@@ -15,11 +19,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium-desktop",
-      use: { browserName: "chromium", viewport: { width: 1440, height: 900 } },
+      use: {
+        browserName: "chromium",
+        channel,
+        viewport: { width: 1440, height: 900 },
+      },
     },
     {
       name: "chromium-mobile",
-      use: { browserName: "chromium", viewport: { width: 390, height: 844 } },
+      use: {
+        browserName: "chromium",
+        channel,
+        viewport: { width: 390, height: 844 },
+      },
     },
   ],
   webServer: {

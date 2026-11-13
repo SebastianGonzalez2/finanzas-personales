@@ -9,6 +9,7 @@ import {
   type CatalogCategory,
 } from "@/domain/categories";
 import type { MovementKind } from "@/domain/movements";
+import { connectionAwareMessage } from "./connection";
 
 const createValue = "__create__";
 const createButton =
@@ -125,7 +126,11 @@ export function CategorySelect({
         );
       }
     } catch {
-      setError("No pudimos crear la categoría. Reintentá el envío.");
+      setError(
+        connectionAwareMessage(
+          "No pudimos crear la categoría. Reintentá el envío.",
+        ),
+      );
     } finally {
       setPending(false);
     }

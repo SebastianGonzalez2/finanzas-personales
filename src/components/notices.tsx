@@ -13,8 +13,8 @@ const levelClass = {
 export type NoticeLevel = keyof typeof levelClass;
 
 const noticeText = {
-  warning: "text-sm text-amber-600",
-  danger: "text-sm text-red-600",
+  warning: "text-sm text-amber-400",
+  danger: "text-sm text-red-400",
 } as const;
 
 /** Tarjeta de aviso con borde según gravedad y enlace opcional a su origen. */

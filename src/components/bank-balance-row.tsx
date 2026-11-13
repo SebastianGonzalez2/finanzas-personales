@@ -14,6 +14,7 @@ import {
   type BankAvailability,
   type BankBalance,
 } from "@/domain/bank-balances";
+import { connectionAwareMessage } from "./connection";
 import type { Currency } from "@/domain/money";
 
 const inputClass =
@@ -74,7 +75,9 @@ export function BankBalanceRow({
       }
     } catch {
       setError(
-        "No pudimos confirmar el guardado. Revisá tu conexión e intentá de nuevo.",
+        connectionAwareMessage(
+          "No pudimos confirmar el guardado. Revisá tu conexión e intentá de nuevo.",
+        ),
       );
     } finally {
       setPending(false);

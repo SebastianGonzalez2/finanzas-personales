@@ -1,10 +1,19 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { ConnectionStatus } from "@/components/connection-status";
+import { FormValidation } from "@/components/form-validation";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Finanzas personales",
   description: "Tu espacio personal para organizar tus finanzas.",
   robots: { index: false, follow: false },
+  applicationName: "Finanzas personales",
+  appleWebApp: { capable: true, title: "Finanzas", statusBarStyle: "black" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#131313",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -19,7 +28,9 @@ export default function RootLayout({
         >
           Saltar al contenido
         </a>
+        <ConnectionStatus />
         {children}
+        <FormValidation />
       </body>
     </html>
   );
