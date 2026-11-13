@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { expect, test as base } from "@playwright/test";
+import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import {
+  cardCommand,
+  creditPurchase,
+  loanLend,
+  loanSettle,
+} from "../support/f2-10-fixtures.mjs";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -44,6 +51,242 @@ const movementPath = "/api/movements";
 const detail = (id) => `/historial/movimientos/${id}`;
 const balances = (page) =>
   page.getByRole("list", { name: "Saldos bancarios por moneda" });
+
+test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión y Deshacer", async ({
+  actors,
+  page,
+}) => {
+  const { a1, a2 } = actors;
+  await page.goto("/resumen");
+  await expect(balances(page)).toContainText("Sin configurar");
+  await expect(balances(page)).not.toContainText(/confirmado|verificado/i);
+  await payload(
+    await command(a1, "POST", "/api/bank-balances", {
+      currency: "UYU",
+      amount: "10000",
+      asOfDate: "2025-01-01",
+    }),
+    201,
+  );
+  await page.reload();
+  const uyu = balances(page)
+    .getByRole("listitem")
+    .filter({ hasText: "Saldo bancario 10.000,00 UYU" });
+  await expect(uyu).toContainText("Confirmado al 01/01/2025");
+  const tomorrow = new Date(`${bankReferenceToday()}T00:00:00Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const concept = "Gasto sintético sin conexión";
+  await payload(
+    await command(a1, "POST", movementPath, {
+      kind: "expense",
+      currency: "UYU",
+      method: "debit",
+      amount: "500",
+      effectiveOn: tomorrow.toISOString().slice(0, 10),
+      concept,
+      idempotencyKey: randomUUID(),
+    }),
+    400,
+  );
+  const open = page.getByRole("button", { name: "+ Nueva transacción" });
+  const form = page.getByRole("form", { name: "Nueva transacción" });
+  const fillExpense = async () => {
+    await open.focus();
+    await open.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Nueva transacción" }),
+    ).toBeFocused();
+    await form.getByLabel("Importe").fill("500");
+    await form.getByLabel("Concepto", { exact: true }).fill(concept);
+  };
+  await fillExpense();
+
+  await a1.setOffline(true);
+  try {
+    const failed = page.waitForEvent(
+      "requestfailed",
+      (request) =>
+        request.url().endsWith(movementPath) && request.method() === "POST",
+    );
+    await form.getByRole("button", { name: "Guardar movimiento" }).click();
+    expect((await failed).failure()?.errorText).toBe(
+      "net::ERR_INTERNET_DISCONNECTED",
+    );
+    await expect(page.getByText("Gasto registrado.")).toHaveCount(0);
+    await expect(page.getByText("Saldo bancario 9.500,00 UYU")).toHaveCount(0);
+    const online = await a2.newPage();
+    await online.goto("/resumen");
+    await expect(balances(online)).toContainText(
+      "Saldo bancario 10.000,00 UYU",
+    );
+    await online.close();
+  } finally {
+    await a1.setOffline(false);
+  }
+
+  const submitted = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(movementPath) &&
+      response.request().method() === "POST",
+  );
+  await form.getByRole("button", { name: "Reintentar guardado" }).click();
+  const response = await submitted;
+  const saved = await payload(response, 201);
+  expect(
+    await payload(
+      await command(
+        a2,
+        "POST",
+        movementPath,
+        response.request().postDataJSON(),
+      ),
+      200,
+    ),
+  ).toEqual(saved);
+  await expect(page.getByText("Gasto registrado.")).toBeVisible();
+  await expect(balances(page)).toContainText("Saldo bancario 9.500,00 UYU");
+  await expect(balances(page)).toContainText(
+    "Calculado · 10.000,00 UYU confirmado al 01/01/2025",
+  );
+  await expect(balances(page)).not.toContainText(/saldo real verificado/i);
+  const history = await a2.newPage();
+  await history.goto(`/historial?q=${encodeURIComponent(concept)}`);
+  const entry = history.getByRole("link", { name: new RegExp(concept) });
+  await expect(entry).toHaveCount(1);
+  await entry.click();
+  await expect(history.getByText(/Sin categorizar/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Deshacer", exact: true }).click();
+  await expect(page.getByText("Registro anulado.")).toBeVisible();
+  await expect(balances(page)).toContainText("Saldo bancario 10.000,00 UYU");
+  await history.reload();
+  await expect(
+    history.getByText("Gasto · Anulado", { exact: true }),
+  ).toBeVisible();
+});
+
+test("F6-01 CA-001/016/034: recursos ajenos, reintentos de crédito y cobro superior al saldo", async ({
+  actors,
+}) => {
+  const { a1, a2, b } = actors;
+  const opening = { currency: "UYU", amount: "10000", asOfDate: "2025-01-01" };
+  await payload(await command(a1, "POST", "/api/bank-balances", opening), 201);
+  const { id: cardId } = await payload(
+    await command(a1, "POST", "/api/cards", cardCommand()),
+    201,
+  );
+  const creditPath = "/api/cards/operations";
+  const loanPath = "/api/loans";
+  const today = bankReferenceToday();
+  const purchase = creditPurchase({ cardId, effectiveOn: today });
+  const lending = loanLend({ effectiveOn: today });
+
+  async function assertReplay(path, input) {
+    const responses = await Promise.all([
+      command(a1, "POST", path, input),
+      command(a2, "POST", path, input),
+    ]);
+    responses.sort((a, b) => b.status() - a.status());
+    const saved = await payload(responses[0], 201);
+    expect(await payload(responses[1], 200)).toEqual(saved);
+    expect(await payload(await command(a2, "POST", path, input), 200)).toEqual(
+      saved,
+    );
+    await payload(
+      await command(a2, "POST", path, { ...input, amount: "1500" }),
+      409,
+    );
+    return saved.id;
+  }
+
+  await assertReplay(creditPath, purchase);
+  const loanId = await assertReplay(loanPath, lending);
+  const collection = loanSettle({ loanId, amount: "1001", effectiveOn: today });
+  for (const [path, field, input, id] of [
+    [creditPath, "cardId", purchase, cardId],
+    [loanPath, "loanId", collection, loanId],
+  ]) {
+    const rejected = (target) =>
+      command(b, "POST", path, { ...input, [field]: target });
+    expect(await payload(await rejected(id), 404)).toEqual(
+      await payload(await rejected(randomUUID()), 404),
+    );
+  }
+  await payload(await command(a2, "POST", loanPath, collection), 409);
+
+  for (const [path, existing, missing, privateText] of [
+    ["/deudas", loanId, randomUUID(), lending.concept],
+    [
+      "/tarjetas",
+      `${cardId}/resumen`,
+      `${randomUUID()}/resumen`,
+      "Tarjeta sintética F2-10",
+    ],
+  ]) {
+    const owned = await a1.request.get(`${path}/${existing}`);
+    expect(owned.status()).toBe(200);
+    expect(await owned.text()).toContain(privateText);
+    for (const target of [existing, missing]) {
+      const foreign = await b.request.get(`${path}/${target}`);
+      expect(foreign.status()).toBe(404);
+      expect(foreign.headers()["cache-control"]).toContain("no-store");
+      expect(await foreign.text()).not.toContain(privateText);
+    }
+  }
+
+  const period = { from: today, to: today, format: "csv" };
+  const exportPath = "/api/export";
+  const owned = await command(a1, "POST", exportPath, period);
+  expect(owned.status()).toBe(200);
+  expect(await owned.text()).toContain(purchase.concept);
+  const other = await command(b, "POST", exportPath, period);
+  expect(other.status()).toBe(200);
+  expect(await other.text()).not.toContain(purchase.concept);
+  const summary = await a2.newPage();
+  await summary.goto("/resumen");
+  await expect(balances(summary)).toContainText("Saldo bancario 9.000,00 UYU");
+  await expect(
+    summary.getByRole("list", { name: "Gastos del mes" }),
+  ).toHaveText("1.000,00 UYU");
+});
+
+test("F6-01 CA-027: el cargo del emisor se cuenta una vez y el original no se admite", async ({
+  actors,
+  page,
+}) => {
+  const { a1 } = actors;
+  const today = bankReferenceToday();
+  const { id: cardId } = await payload(
+    await command(a1, "POST", "/api/cards", cardCommand({ currency: "USD" })),
+    201,
+  );
+  const purchase = creditPurchase({
+    cardId,
+    currency: "USD",
+    amount: "58",
+    effectiveOn: today,
+  });
+  await payload(
+    await command(a1, "POST", "/api/cards/operations", {
+      ...purchase,
+      originalCurrency: "EUR",
+      originalAmount: "50",
+    }),
+    400,
+  );
+  await payload(
+    await command(a1, "POST", "/api/cards/operations", purchase),
+    201,
+  );
+  await page.goto("/resumen");
+  await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
+    "58,00 USD",
+  );
+  await page.goto("/tarjetas");
+  await expect(
+    page.getByText("58,00 USD", { exact: true }).first(),
+  ).toBeVisible();
+});
 
 test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y auditoría", async ({
   actors,

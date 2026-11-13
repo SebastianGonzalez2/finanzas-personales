@@ -1,4 +1,7 @@
+import { isIP } from "node:net";
 import { authOrigin, limitedJson } from "./google-policy.ts";
+
+export const googleClientIpHeader = "x-vercel-forwarded-for";
 export const googlePrivateHeaders = {
   "Cache-Control": "private, no-store",
   Pragma: "no-cache",
@@ -14,6 +17,7 @@ export async function handleGoogleHttp(
   dependencies: {
     enabled: boolean;
     origin: string;
+    trustVercelClientIp?: boolean;
     handler: (r: Request) => Promise<Response>;
   },
 ) {
@@ -27,7 +31,13 @@ export async function handleGoogleHttp(
   if (!dependencies.enabled) return failure(503);
   try {
     const origin = authOrigin(dependencies.origin);
-    let forward = request;
+    const clientIp = dependencies.trustVercelClientIp
+      ? request.headers.get(googleClientIpHeader)
+      : null;
+    const headers = new Headers(request.headers);
+    headers.delete(googleClientIpHeader);
+    if (clientIp && isIP(clientIp)) headers.set(googleClientIpHeader, clientIp);
+    let forward: Request;
     if (request.method === "POST") {
       if (
         request.headers.get("origin") !== origin ||
@@ -56,21 +66,29 @@ export async function handleGoogleHttp(
           : {};
       const url = new URL(request.url);
       url.search = "";
+      const postHeaders = new Headers({
+        "content-type": "application/json",
+        origin,
+        cookie: request.headers.get("cookie") ?? "",
+      });
+      const trustedIp = headers.get(googleClientIpHeader);
+      if (trustedIp) postHeaders.set(googleClientIpHeader, trustedIp);
       forward = new Request(url, {
         method: "POST",
-        headers: new Headers({
-          "content-type": "application/json",
-          origin,
-          cookie: request.headers.get("cookie") ?? "",
-        }),
+        headers: postHeaders,
         body: JSON.stringify(body),
       });
+    } else {
+      forward = new Request(request, { headers });
     }
     const response = await dependencies.handler(forward);
-    const headers = new Headers(response.headers);
+    const responseHeaders = new Headers(response.headers);
     for (const [k, v] of Object.entries(googlePrivateHeaders))
-      headers.set(k, v);
-    return new Response(response.body, { status: response.status, headers });
+      responseHeaders.set(k, v);
+    return new Response(response.body, {
+      status: response.status,
+      headers: responseHeaders,
+    });
   } catch {
     return failure(503);
   }

@@ -328,7 +328,7 @@ test("F3-04: meta y fecha objetivo editables sin reactivar la pausa por meta", a
   }
 });
 
-test("F3-01: efectos exactos, sin impacto bancario, con RLS y rollback atómico", async () => {
+test("F3-01 CA-038: efectos exactos, sin impacto bancario, con RLS y rollback atómico", async () => {
   const client = new pg.Client(testDatabaseConfig());
   await client.connect();
   const a = "f3-01-owner-a";

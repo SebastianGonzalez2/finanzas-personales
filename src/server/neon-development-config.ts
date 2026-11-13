@@ -6,7 +6,6 @@ export type DevelopmentTarget = {
   branchName: "development";
   database: string;
   endpointHost: string;
-  authBaseUrl: string | null;
 };
 
 export class DevelopmentConfigError extends Error {
@@ -26,8 +25,6 @@ export const developmentTarget: DevelopmentTarget = {
   branchName: "development",
   database: "neondb",
   endpointHost: "ep-falling-queen-b63xbfuk.c-2.sa-east-1.aws.neon.tech",
-  authBaseUrl:
-    "https://ep-falling-queen-b63xbfuk.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth",
 };
 
 type Environment = Record<string, string | undefined>;
@@ -98,25 +95,4 @@ export function developmentDatabaseConfig(
     // URL parsers/driver errors may contain credentials; do not preserve causes.
     throw new DevelopmentConfigError();
   }
-}
-
-export function developmentAuthConfig(
-  env: Environment,
-  target: DevelopmentTarget | null,
-) {
-  const approved = requireDevelopmentTarget(target);
-  if (
-    !approved.authBaseUrl ||
-    env.NEON_AUTH_BASE_URL !== approved.authBaseUrl ||
-    env.NEON_BRANCH_ID !== approved.branchId ||
-    env.NEON_PROJECT_ID !== approved.projectId ||
-    !env.NEON_AUTH_COOKIE_SECRET ||
-    env.NEON_AUTH_COOKIE_SECRET.length < 32
-  )
-    throw new DevelopmentConfigError();
-  return {
-    baseUrl: approved.authBaseUrl,
-    cookies: { secret: env.NEON_AUTH_COOKIE_SECRET, sameSite: "lax" as const },
-    logLevel: "silent" as const,
-  };
 }

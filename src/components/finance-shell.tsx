@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FinanceIcon } from "./finance-icon";
 
 const destinations = {
@@ -31,6 +31,11 @@ const destinations = {
   fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
   avisos: { href: "/avisos", label: "Avisos", icon: "bell" },
   deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },
+  beneficios: {
+    href: "/beneficios",
+    label: "Beneficios bancarios",
+    icon: "wallet",
+  },
   informes: { href: "/informes", label: "Informes", icon: "report" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
 } as const;
@@ -74,6 +79,7 @@ export function FinanceShell({
 }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const sidebar = useRef<HTMLElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = () => drawer.current?.close();
 
   useEffect(() => {
@@ -115,6 +121,11 @@ export function FinanceShell({
         ref={drawer}
         aria-labelledby="titulo-navegacion"
         className="finance-drawer"
+        onClose={() => setDrawerOpen(false)}
+        // Clic en el fondo (el propio <dialog>): cierra y devuelve el foco al botón.
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeDrawer();
+        }}
       >
         <div className="flex min-h-full flex-col gap-6 p-4">
           <div className="flex items-center justify-between gap-3">
@@ -142,7 +153,11 @@ export function FinanceShell({
               className="finance-icon-button lg:hidden"
               aria-label="Abrir navegación"
               aria-haspopup="dialog"
-              onClick={() => drawer.current?.showModal()}
+              aria-expanded={drawerOpen}
+              onClick={() => {
+                drawer.current?.showModal();
+                setDrawerOpen(true);
+              }}
             >
               <FinanceIcon name="menu" />
             </button>

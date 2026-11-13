@@ -32,7 +32,7 @@ import {
 import { getPurchaseRefunds } from "../../src/server/refunds.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F5-02: asignaciones exactas, un efecto real, presupuestos, etiquetas y aislamiento A/B", async () => {
+test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiquetas y aislamiento A/B", async () => {
   const pool = new pg.Pool(testDatabaseConfig());
   const [
     a,

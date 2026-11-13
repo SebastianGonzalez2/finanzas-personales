@@ -60,6 +60,18 @@ test("F5-08: rollback, exclusión mutua, revocación y purga limitada al titular
         (owner_id, card_id, kind, currency, debt) VALUES ($1, $2, 'credit', 'UYU', '15.0001')`,
       ],
       [
+        "finance.financial_events",
+        `INSERT INTO finance.financial_events
+        (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash)
+        VALUES ($1, $2, 'bank_benefit', 'Beneficio de prueba', '2025-01-01', gen_random_uuid(), repeat('a', 64))`,
+      ],
+      [
+        "finance.bank_benefits",
+        `INSERT INTO finance.bank_benefits
+        (owner_id, event_id, destination, currency, amount)
+        VALUES ($1, $2, 'bank', 'UYU', '5.0001')`,
+      ],
+      [
         "finance.card_push_subscriptions",
         `INSERT INTO finance.card_push_subscriptions
         (owner_id, id, endpoint, p256dh, auth) VALUES ($1, $2, 'https://push.example.invalid/' || $1, 'p', 'a')`,

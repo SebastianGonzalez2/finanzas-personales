@@ -308,7 +308,7 @@ export function CardCycleDetail({
                   </section>
                 )}
                 <details className="rounded-lg border p-3">
-                  <summary className="min-h-8 cursor-pointer text-sm font-semibold">
+                  <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold">
                     Editar resumen oficial
                   </summary>
                   <CycleForm
@@ -350,7 +350,7 @@ export function CardCycleDetail({
       </p>
       <Card className="gap-3 p-4 sm:p-5">
         <details>
-          <summary className="min-h-8 cursor-pointer font-semibold">
+          <summary className="min-h-11 cursor-pointer py-2.5 font-semibold">
             Fechas excepcionales del ciclo
           </summary>
           <p className="text-sm text-muted-foreground">
@@ -381,7 +381,7 @@ export function CardCycleDetail({
           </CycleForm>
         </details>
         <details>
-          <summary className="min-h-8 cursor-pointer font-semibold">
+          <summary className="min-h-11 cursor-pointer py-2.5 font-semibold">
             Calendario habitual de la tarjeta
           </summary>
           <p className="text-sm text-muted-foreground">
@@ -531,7 +531,7 @@ function PurchaseAssignment({
           : "Sin ciclo estimado"}
       </p>
       <details className="mt-2">
-        <summary className="min-h-8 cursor-pointer font-medium">
+        <summary className="min-h-11 cursor-pointer py-2.5 font-medium">
           Cambiar resumen
         </summary>
         <p className="text-muted-foreground">

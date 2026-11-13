@@ -15,6 +15,7 @@ import {
 } from "../domain/history.ts";
 
 import { refundsReady } from "./refund-schema.ts";
+import { bankBenefitsReady } from "./bank-benefit-schema.ts";
 import {
   refundHistorySource,
   refundHistoryStatus,
@@ -29,6 +30,15 @@ const refundFields = `f.id, f.kind, ${refundHistoryStatus} AS status, f.effectiv
   ${refundHistoryCurrency} AS currency, ${refundHistoryAmount}::text AS amount,
   NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
   NULL::uuid AS "categoryId", NULL::text AS category, NULL::text AS method, NULL::jsonb AS "cardAmounts"`;
+
+// F5-09: beneficio bancario sin compra asociada (cashback). Ingreso propio.
+const benefitFields = `f.id, f.kind, f.status, f.effective_on, f.concept, b.note,
+  b.currency, b.amount::text AS amount, NULL::text AS "otherCurrency", NULL::text AS "otherAmount",
+  NULL::uuid AS "categoryId", NULL::text AS category,
+  CASE b.destination WHEN 'card' THEN 'credit' ELSE 'deposit' END AS method, NULL::jsonb AS "cardAmounts"`;
+const benefitSource = `FROM finance.bank_benefits b
+  JOIN finance.financial_events f ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
+  LEFT JOIN finance.cards card ON (card.owner_id, card.id) = (b.owner_id, b.card_id)`;
 
 type HistoryQuery = Exclude<
   ReturnType<typeof parseHistoryParams>,
@@ -114,6 +124,7 @@ export async function listHistory(
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
   const refunds = await refundsReady(client);
+  const benefits = await bankBenefitsReady(client);
   const merchantMatches =
     filters.merchant && (await nameCatalogReady(client))
       ? `AND EXISTS (
@@ -292,6 +303,24 @@ export async function listHistory(
         ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
            : ""
        }
+       ${
+         benefits
+           ? `UNION ALL
+       (SELECT ${benefitFields} ${benefitSource}
+        WHERE f.owner_id = $1 AND ($7 IS NULL OR $7 = 'none') AND $17::uuid IS NULL
+          AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0
+            OR strpos(lower(b.note), lower($2)) > 0 OR strpos(lower(card.name), lower($2)) > 0)
+          AND ($3 IS NULL OR f.effective_on >= $3) AND ($4 IS NULL OR f.effective_on <= $4)
+          AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
+          AND ${tagFilter}
+          AND ($8 IS NULL OR $8 = CASE b.destination WHEN 'card' THEN 'credit' ELSE 'deposit' END)
+          AND ($9 IS NULL OR b.currency = $9)
+          AND ($10 IS NULL OR b.amount >= $10) AND ($11 IS NULL OR b.amount <= $11)
+          AND ($12 IS NULL OR ((f.effective_on, f.id) <= ($12, $13)
+            AND (f.effective_on, f.id, f.kind) < ($12, $13, $14)))
+        ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)`
+           : ""
+       }
        ) history ORDER BY effective_on DESC, id DESC, kind DESC LIMIT $15`,
     [
       ownerId,
@@ -358,6 +387,16 @@ export async function findHistoryEntry(
       [ownerId, id],
     );
     if (refund) return refund;
+  }
+  if (await bankBenefitsReady(client)) {
+    const {
+      rows: [benefit],
+    } = await client.query<HistoryEntry>(
+      `SELECT ${benefitFields}, to_char(f.effective_on, 'YYYY-MM-DD') AS "effectiveOn"
+        ${benefitSource} WHERE f.owner_id = $1 AND f.id = $2`,
+      [ownerId, id],
+    );
+    if (benefit) return benefit;
   }
   if (await loansReady(client)) {
     const {

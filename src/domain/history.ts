@@ -18,6 +18,7 @@ export const historyKinds = {
   loan_operation: "Deudas y préstamos",
   purchase_refund: "Devolución",
   card_credit_return: "Reintegro de saldo a favor",
+  bank_benefit: "Beneficio bancario",
 } as const;
 
 export const historyStates = {

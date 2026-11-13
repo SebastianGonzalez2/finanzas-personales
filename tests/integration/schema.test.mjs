@@ -89,7 +89,9 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0032_F5-05_statistics_favorites.sql",
       "0033_F5-06_reference_exchange_rates.sql",
       "0034_F5-07_account_backup.sql",
-      "0035_F5-08_delete_account.sql",
+      "0035_F5-09_bank_benefits.sql",
+      "0036_F6-02_authorize_account_backup.sql",
+      "0037_F5-08_delete_account.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -145,6 +147,8 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       statistics,
       exchangeRates,
       backup,
+      benefits,
+      authorizedBackup,
       deletion,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
@@ -473,6 +477,8 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       statistics,
       exchangeRates,
       backup,
+      benefits,
+      authorizedBackup,
     ]) {
       await assert.rejects(migrateInTransaction(client, migration.sha256));
       await client.query(migration.sql);

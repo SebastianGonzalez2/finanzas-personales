@@ -142,7 +142,7 @@ export function NameAutocomplete({
               <button
                 type="button"
                 tabIndex={-1}
-                className={`block w-full min-h-9 px-3 text-left text-sm hover:bg-accent ${
+                className={`block w-full min-h-11 px-3 text-left text-sm hover:bg-accent ${
                   index === active ? "bg-accent" : ""
                 }`}
                 onMouseDown={(event) => event.preventDefault()}

@@ -9,6 +9,9 @@ async function handle(
 ) {
   return handleGoogleHttp(request, (await context.params).path, {
     enabled: googleAuthEnabled(),
+    // Trust only the header written by Vercel's edge in a hosted runtime.
+    trustVercelClientIp:
+      process.env.VERCEL === "1" && Boolean(process.env.VERCEL_DEPLOYMENT_ID),
     origin: process.env.GOOGLE_AUTH_ORIGIN ?? "",
     handler: async (r) => {
       const client = await googlePool("auth").connect();

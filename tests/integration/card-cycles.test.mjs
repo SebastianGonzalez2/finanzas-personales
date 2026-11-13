@@ -23,7 +23,7 @@ import {
 import { listMovementTotals } from "../../src/server/movements.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F2-04: CA-023, ciclos auditados, alertas y pagos sin duplicar gastos", async () => {
+test("F2-04: CA-023/024, ciclos auditados, alertas y pagos sin duplicar gastos", async () => {
   const client = new pg.Client(testDatabaseConfig());
   const today = "2026-02-07";
   const owner = "cycle-owner-a";

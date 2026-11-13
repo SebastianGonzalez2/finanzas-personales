@@ -3,6 +3,8 @@ import { listEventFundUses, listFundSources } from "@/server/fund-coverage";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { PurchaseRefundPanel, RefundRecord } from "@/components/refund-form";
+import { BankBenefitRecord } from "@/components/bank-benefit-form";
+import { getBankBenefit } from "@/server/bank-benefits";
 import { getPurchaseRefunds, getRefundEntry } from "@/server/refunds";
 import { FinanceShell } from "@/components/finance-shell";
 import { CreditHistoryDetail } from "@/components/credit-history-detail";
@@ -118,6 +120,10 @@ export default async function HistoryDetail({
         entry.kind === "purchase_refund" || entry.kind === "card_credit_return"
           ? await getRefundEntry(client, ownerId, id)
           : undefined;
+      const benefit =
+        entry.kind === "bank_benefit"
+          ? await getBankBenefit(client, ownerId, id)
+          : undefined;
       const purchaseRefunds =
         !shared &&
         entry.status === "confirmed" &&
@@ -169,6 +175,7 @@ export default async function HistoryDetail({
         !checkpoint &&
         !entry.cardAmounts &&
         !refund &&
+        !benefit &&
         !refundLinked &&
         !loan &&
         !shared &&
@@ -219,6 +226,7 @@ export default async function HistoryDetail({
         shared,
         canSplit,
         refund,
+        benefit,
         purchaseRefunds,
         refundLinked,
       };
@@ -267,6 +275,7 @@ export default async function HistoryDetail({
     shared,
     canSplit,
     refund,
+    benefit,
     purchaseRefunds,
     refundLinked,
   } = data;
@@ -462,6 +471,7 @@ export default async function HistoryDetail({
             </section>
           )}
           {refund && <RefundRecord entry={refund} linkPurchase />}
+          {benefit && <BankBenefitRecord entry={benefit} />}
           {purchaseRefunds && (
             <PurchaseRefundPanel purchase={purchaseRefunds} today={today} />
           )}

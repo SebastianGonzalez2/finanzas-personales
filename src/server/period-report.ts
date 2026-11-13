@@ -12,6 +12,7 @@ import { readBudgets } from "./budgets.ts";
 import { reportCardCycles } from "./card-cycles.ts";
 import { listCards } from "./cards.ts";
 import { listHistory } from "./history.ts";
+import { bankBenefitsReady } from "./bank-benefit-schema.ts";
 import type { ReportPeriod } from "../lib/export/report-format.ts";
 
 export const reportRowLimit = 4000;
@@ -43,6 +44,7 @@ async function reportTotals(
   owner: string,
   period: ReportPeriod,
 ) {
+  const benefits = await bankBenefitsReady(client);
   const { rows } = await client.query<{
     concept: string;
     currency: string;
@@ -57,6 +59,15 @@ async function reportTotals(
         JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
         JOIN finance.bank_effects e ON (e.owner_id, e.event_id, e.id) = (f.owner_id, f.id, f.id)
        WHERE f.owner_id = $1 AND f.kind = 'income' AND f.status = 'confirmed'
+      ${
+        benefits
+          ? `UNION ALL
+      SELECT 'Ingreso', b.currency, b.amount, f.effective_on, NULL::uuid
+        FROM finance.bank_benefits b
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
+       WHERE b.owner_id = $1 AND f.status = 'confirmed'`
+          : ""
+      }
       UNION ALL
       SELECT 'Gasto', x.currency, x.amount, x.effective_on, x.category_id
         FROM finance.budget_expenses x WHERE x.owner_id = $1
@@ -118,16 +129,24 @@ async function reportMovements(
     bank: string | null;
     installments: number | null;
     category: string | null;
+    purchaseId: string | null;
+    refundRequest: boolean;
   }>(
     `
     SELECT f.id, credit.name AS card, debit.name AS bank, p.installment_count AS installments,
-      split.names AS category
+      split.names AS category, r.purchase_id AS "purchaseId",
+      (r.action = 'pending') IS TRUE AS "refundRequest"
       FROM finance.financial_events f
       LEFT JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (f.owner_id, f.id)
       LEFT JOIN finance.purchase_refunds r ON (r.owner_id, r.event_id) = (f.owner_id, f.id)
-      LEFT JOIN finance.credit_operations original ON (original.owner_id, original.event_id) = (r.owner_id, r.purchase_id)
-      LEFT JOIN finance.cards credit ON (credit.owner_id, credit.id) = (f.owner_id, coalesce(o.card_id, original.card_id))
-      LEFT JOIN finance.mixed_purchases m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
+      LEFT JOIN finance.credit_operations cancelled ON (cancelled.owner_id, cancelled.event_id) = (r.owner_id, r.purchase_id)
+        AND r.action = 'cancel_installments'
+      LEFT JOIN finance.cards credit ON (credit.owner_id, credit.id) = (f.owner_id, coalesce(o.card_id, cancelled.card_id))
+      LEFT JOIN finance.mixed_purchases m ON (m.owner_id, m.event_id) = (f.owner_id, coalesce(r.purchase_id, f.id))
+        AND (r.event_id IS NULL OR EXISTS (
+          SELECT 1 FROM finance.refund_parts part
+          WHERE (part.owner_id, part.event_id) = (r.owner_id, r.event_id) AND part.method = 'debit'
+        ))
       LEFT JOIN finance.cards debit ON (debit.owner_id, debit.id) = (m.owner_id, m.debit_card_id)
       LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (f.owner_id, f.id)
       LEFT JOIN LATERAL (
@@ -142,6 +161,8 @@ async function reportMovements(
   const metadata = new Map(rows.map((row) => [row.id, row]));
   return entries.flatMap((entry) => {
     const meta = metadata.get(entry.id);
+    // A fulfilled request remains in History as a trace of the refund process.
+    if (meta?.refundRequest) return [];
     const lines = entry.cardAmounts?.length
       ? entry.cardAmounts
       : [{ currency: entry.currency, amount: entry.amount }];
@@ -166,6 +187,7 @@ async function reportMovements(
       amount,
       historyStates[entry.status],
       entry.id,
+      meta?.purchaseId ?? "",
     ]);
   });
 }
@@ -337,6 +359,7 @@ export async function loadPeriodReport(
               cycleAmount(amounts),
               paid,
               remaining ?? "",
+              credited,
             ],
           ];
         },
