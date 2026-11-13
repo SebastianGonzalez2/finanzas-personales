@@ -12,6 +12,7 @@ import { readBudgets } from "./budgets.ts";
 import { reportCardCycles } from "./card-cycles.ts";
 import { listCards } from "./cards.ts";
 import { listHistory } from "./history.ts";
+import { bankBenefitsReady } from "./bank-benefit-schema.ts";
 import type { ReportPeriod } from "../lib/export/report-format.ts";
 
 export const reportRowLimit = 4000;
@@ -43,6 +44,7 @@ async function reportTotals(
   owner: string,
   period: ReportPeriod,
 ) {
+  const benefits = await bankBenefitsReady(client);
   const { rows } = await client.query<{
     concept: string;
     currency: string;
@@ -57,6 +59,15 @@ async function reportTotals(
         JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
         JOIN finance.bank_effects e ON (e.owner_id, e.event_id, e.id) = (f.owner_id, f.id, f.id)
        WHERE f.owner_id = $1 AND f.kind = 'income' AND f.status = 'confirmed'
+      ${
+        benefits
+          ? `UNION ALL
+      SELECT 'Ingreso', b.currency, b.amount, f.effective_on, NULL::uuid
+        FROM finance.bank_benefits b
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
+       WHERE b.owner_id = $1 AND f.status = 'confirmed'`
+          : ""
+      }
       UNION ALL
       SELECT 'Gasto', x.currency, x.amount, x.effective_on, x.category_id
         FROM finance.budget_expenses x WHERE x.owner_id = $1
