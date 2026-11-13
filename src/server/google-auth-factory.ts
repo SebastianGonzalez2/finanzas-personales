@@ -6,6 +6,7 @@ import {
 } from "better-auth/social-providers";
 import { PostgresDialect } from "kysely";
 import type pg from "pg";
+import { googleClientIpHeader } from "./google-http.ts";
 import {
   normalizeGoogleEmail,
   verifiedGoogleProfile,
@@ -146,6 +147,7 @@ export function createGoogleAuth(
     },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 20 },
     advanced: {
+      ipAddress: { ipAddressHeaders: [googleClientIpHeader] },
       database: { generateId: "uuid" },
       cookiePrefix: "finanzas-google",
       useSecureCookies: config.origin.startsWith("https:"),
