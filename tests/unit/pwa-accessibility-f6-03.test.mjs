@@ -41,7 +41,16 @@ test("F6-03: PWA sin almacenamiento financiero offline ni caché de respuestas",
   );
   const forbidden =
     /\b(indexedDB|localStorage|sessionStorage|caches\.|CacheStorage|BackgroundSync|periodicSync)\b|navigator\.serviceWorker\.register/;
-  const offenders = sources.filter((file) => forbidden.test(read(file)));
+  // F6-06: única excepción, la preferencia de interfaz del tutorial (ver tutorial.test.mjs).
+  const uiPreference = [
+    "src/components/intro-tour.tsx",
+    "src/domain/tutorial.ts",
+  ];
+  const offenders = sources.filter(
+    (file) =>
+      !uiPreference.includes(file.replaceAll("\\", "/")) &&
+      forbidden.test(read(file)),
+  );
   assert.deepEqual(offenders, []);
   assert.deepEqual(readdirSync(join(root, "public")).sort(), [
     "card-push-worker.js",

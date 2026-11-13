@@ -32,6 +32,7 @@ const screens = [
   "/beneficios",
   "/informes",
   "/account",
+  "/ayuda",
 ];
 
 test("CA-066: menú móvil por teclado, Escape, clic en el fondo y foco devuelto", async ({

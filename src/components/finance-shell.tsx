@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FinanceIcon } from "./finance-icon";
+import { IntroTour } from "./intro-tour";
 
 const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
@@ -38,6 +39,7 @@ const destinations = {
   },
   informes: { href: "/informes", label: "Informes", icon: "report" },
   account: { href: "/account", label: "Mi cuenta", icon: "account" },
+  ayuda: { href: "/ayuda", label: "Ayuda", icon: "help" },
 } as const;
 
 type Destination = keyof typeof destinations;
@@ -49,21 +51,40 @@ function FinanceNavigation({
   current: Destination;
   onNavigate?: () => void;
 }) {
+  // F6-06: Ayuda se ubica al final, separada de las funciones principales y
+  // cerca de «Mi cuenta».
+  const main = Object.entries(destinations).filter(
+    ([key]) => key !== "account" && key !== "ayuda",
+  );
+
   return (
     <nav
       aria-label="Navegación principal"
       className="flex flex-1 flex-col gap-6"
     >
-      {Object.entries(destinations).map(([key, destination]) => (
+      {main.map(([key, destination]) => (
         <a
           key={key}
           href={`${destination.href}#titulo-pagina`}
           aria-current={key === current ? "page" : undefined}
-          className="finance-nav-link last:mt-auto"
+          className="finance-nav-link"
           onClick={onNavigate}
         >
           <FinanceIcon name={destination.icon} />
           {destination.label}
+        </a>
+      ))}
+      <hr aria-hidden="true" className="border-t" />
+      {(["ayuda", "account"] as const).map((key) => (
+        <a
+          key={key}
+          href={`${destinations[key].href}#titulo-pagina`}
+          aria-current={key === current ? "page" : undefined}
+          className={`finance-nav-link${key === "ayuda" ? " mt-auto" : ""}`}
+          onClick={onNavigate}
+        >
+          <FinanceIcon name={destinations[key].icon} />
+          {destinations[key].label}
         </a>
       ))}
     </nav>
@@ -179,6 +200,7 @@ export function FinanceShell({
           {children}
         </main>
       </div>
+      {current === "resumen" && <IntroTour />}
     </div>
   );
 }

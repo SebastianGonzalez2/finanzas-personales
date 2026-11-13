@@ -1,6 +1,7 @@
 import { createECDH } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 import baseModule from "./playwright.config.ts";
+import { tutorialStorageKey } from "./src/domain/tutorial.ts";
 import { developmentTarget } from "./src/server/neon-development-config.ts";
 import {
   financeTestOrigin,
@@ -22,7 +23,20 @@ export default defineConfig({
   ...base,
   testDir: "./tests/e2e-finance",
   globalSetup: "./tests/support/finance-browser.mjs",
-  use: { ...base.use, baseURL: financeTestOrigin },
+  use: {
+    ...base.use,
+    baseURL: financeTestOrigin,
+    // F6-06: el tutorial introductorio queda oculto salvo en su propia prueba.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: financeTestOrigin,
+          localStorage: [{ name: tutorialStorageKey, value: "hidden" }],
+        },
+      ],
+    },
+  },
   webServer: {
     ...base.webServer,
     command:

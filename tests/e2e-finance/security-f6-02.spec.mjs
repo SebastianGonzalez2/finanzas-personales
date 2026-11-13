@@ -6,6 +6,7 @@ import { fileURLToPath, URL } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { expect, test as base } from "@playwright/test";
 import pg from "pg";
+import { tutorialStorageKey } from "../../src/domain/tutorial.ts";
 import {
   cardCommand,
   creditPayment,
@@ -930,12 +931,16 @@ test("F6-02/F6-03: con el worker activo, cerrar sesión y cambiar de titular pro
   await expect(page.getByText(otherMarker, { exact: true })).toBeVisible();
   await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
   expect(
-    await page.evaluate(async () => ({
-      caches: await caches.keys(),
-      databases: await indexedDB.databases(),
-      local: localStorage.length,
-      session: sessionStorage.length,
-    })),
+    // F6-06: la única clave permitida es la preferencia de interfaz del tutorial.
+    await page.evaluate(
+      async (uiKey) => ({
+        caches: await caches.keys(),
+        databases: await indexedDB.databases(),
+        local: Object.keys(localStorage).filter((key) => key !== uiKey).length,
+        session: sessionStorage.length,
+      }),
+      tutorialStorageKey,
+    ),
   ).toEqual({ caches: [], databases: [], local: 0, session: 0 });
   expect(blocked).toEqual([]);
 });
