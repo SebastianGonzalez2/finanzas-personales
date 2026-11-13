@@ -812,6 +812,9 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
     "/manifest.webmanifest",
     "/card-push-worker.js",
     "/icon.svg",
+    "/pwa-icons/icon-192.png",
+    "/pwa-icons/icon-512.png",
+    "/pwa-icons/icon-maskable-512.png",
   ]) {
     const response = await request.get(url);
     expect(response.status(), url).toBe(200);
@@ -830,7 +833,7 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
     const response = await a.request.get(url, { maxRedirects: 0 });
     const text = await response.text();
     expect(text, url).not.toMatch(
-      /node_modules|C:\\|\/Users\/|at .*\(.*:\d+:\d+\)|postgres|pg_|finanzas_google/i,
+      /node_modules|\bC:\\|\/Users\/|at .*\(.*:\d+:\d+\)|postgres|pg_|finanzas_google/i,
     );
   }
 });
