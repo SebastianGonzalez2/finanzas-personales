@@ -15,8 +15,14 @@ import {
 const dev = neonTargets.development;
 const prod = neonTargets.production;
 const pooled = (target) => target.endpointHost.replace(".", "-pooler.");
+// La contraseña del fixture debe ser exactamente "fixture": el detector de
+// secretos F6-02 escanea el texto versionado (git ls-files) y solo acepta
+// credenciales sintéticas de su lista cerrada. La decodificación de
+// contraseñas con caracteres especiales (%40) ya se verifica en
+// tests/unit/neon-development.test.mjs sobre el mismo núcleo
+// neonDatabaseConfig.
 const url = (target, role, extra = "") =>
-  `postgresql://${role}:fixture%40only@${pooled(target)}/${target.database}${extra}`;
+  `postgresql://${role}:fixture@${pooled(target)}/${target.database}${extra}`;
 const identity = (target) => ({
   NEON_PROJECT_ID: target.projectId,
   NEON_BRANCH_ID: target.branchId,
@@ -74,7 +80,7 @@ test("Production selecciona exclusivamente Neon Production", () => {
     assert.equal(config.host, pooled(prod));
     assert.equal(config.database, prod.database);
     assert.equal(config.user, `finanzas_google_${kind}`);
-    assert.equal(config.password, "fixture@only");
+    assert.equal(config.password, "fixture");
     assert.equal(config.ssl.rejectUnauthorized, true);
     assert.equal(config.enableChannelBinding, true);
     assert.equal(config.connectionString, undefined);
@@ -164,7 +170,7 @@ test("un endpoint, base o URL incorrectos son rechazados", () => {
         "?options=-c%20search_path%3Dneon_auth",
       ),
       url(base.target, "finanzas_google_auth").replace("postgresql:", "http:"),
-      url(base.target, "finanzas_google_auth").replace(":fixture%40only", ""),
+      url(base.target, "finanzas_google_auth").replace(":fixture", ""),
       url(base.target, "finanzas_google_auth").replace(
         "neon.tech",
         "neon.tech:6543",
