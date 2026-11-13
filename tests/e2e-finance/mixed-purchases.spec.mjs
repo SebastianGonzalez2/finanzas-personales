@@ -67,6 +67,9 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
     .selectOption({ label: "Tarjeta debit" });
   await page.getByLabel("Porción de crédito en cuotas iguales").check();
   await page.getByLabel("Importe de cada cuota").fill("2000");
+  await page.getByText("Importe y moneda originales (opcional)").click();
+  await page.getByLabel("Importe original de la compra").fill("50");
+  await page.getByLabel("Moneda original").selectOption("EUR");
   await page.getByLabel("Cantidad de cuotas").fill("3");
   await page.getByLabel("Mes de la primera cuota").fill(firstPeriod);
   await page
@@ -122,6 +125,11 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
 
   await button("Corregir compra con dos medios").click();
   await expect(page.getByLabel("Total de la compra")).toHaveValue("12000,0000");
+  await expect(page.getByLabel("Importe original de la compra")).toHaveValue(
+    "50,0000",
+  );
+  await expect(page.getByLabel("Moneda original")).toHaveValue("EUR");
+  await page.getByLabel("Importe original de la compra").fill("51");
   await page
     .getByLabel("Concepto", { exact: true })
     .fill(`${concept} corregida`);
@@ -131,5 +139,8 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
   await page.getByRole("link", { name: "Ver reemplazo" }).click();
   await expect(
     page.getByRole("heading", { name: `${concept} corregida` }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Importe original de la compra (referencia) · 51,00 EUR"),
   ).toBeVisible();
 });

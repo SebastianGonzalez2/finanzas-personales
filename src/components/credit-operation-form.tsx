@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
+  bankCurrencies,
   formatBankAmount,
   formatBankReference,
   type BankAvailability,
@@ -13,6 +14,7 @@ import {
   maxPurchaseCategories,
   type CreditAction,
   type CreditPurchaseOption,
+  type DebtAmount,
   type PurchaseCategory,
 } from "@/domain/credit-operations";
 import {
@@ -81,6 +83,7 @@ type Props = {
     debitAmount: string;
     debitCardId: string | null;
     amount: string;
+    originalPurchase: DebtAmount | null;
     concept: string;
     note: string | null;
     categoryId: string | null;
@@ -226,6 +229,8 @@ export function CreditOperationForm({
               note: form.get("note"),
               categoryId: form.get("categoryId"),
               covered: form.has("covered"),
+              originalAmount: form.get("originalAmount"),
+              originalCurrency: form.get("originalCurrency"),
               ...(commitment?.length
                 ? { fundCommitment: commitment[0] }
                 : correction && commitment
@@ -370,7 +375,9 @@ export function CreditOperationForm({
           </div>
         ) : (
           <>
-            <HistoryField label="Moneda">
+            <HistoryField
+              label={action === "purchase" ? "Moneda del cargo" : "Moneda"}
+            >
               <select
                 name="currency"
                 className={historyControl}
@@ -395,7 +402,7 @@ export function CreditOperationForm({
                     ? "Total confirmado"
                     : mixed
                       ? "Porción de crédito"
-                      : "Importe"
+                      : "Importe cargado por el emisor"
                 }
               >
                 <AmountInput
@@ -533,6 +540,40 @@ export function CreditOperationForm({
                 </p>
               </>
             )}
+            <details
+              className="sm:col-span-2"
+              open={!!correction?.originalPurchase}
+            >
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+                Importe y moneda originales (opcional)
+              </summary>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <HistoryField label="Importe original de la compra">
+                  <AmountInput
+                    name="originalAmount"
+                    defaultValue={correction?.originalPurchase?.amount}
+                  />
+                </HistoryField>
+                <HistoryField label="Moneda original">
+                  <select
+                    name="originalCurrency"
+                    className={historyControl}
+                    defaultValue={correction?.originalPurchase?.currency ?? ""}
+                  >
+                    <option value="">Elegí una moneda</option>
+                    {bankCurrencies.map((currency) => (
+                      <option key={currency} value={currency}>
+                        {currency}
+                      </option>
+                    ))}
+                  </select>
+                </HistoryField>
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Si el comercio cobró en otra moneda, podés guardar el importe
+                  y la moneda como referencia.
+                </p>
+              </div>
+            </details>
             {!correction &&
               card.currencies.some(
                 ({ currency, creditBalance }) =>

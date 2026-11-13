@@ -661,6 +661,7 @@ export default async function HistoryDetail({
                 eventId: entry.id,
                 total: entry.amount,
                 amount: credit.amount,
+                originalPurchase: credit.originalPurchase,
                 covered: mixed.covered && !credit.creditApplied,
                 effectiveOn: entry.effectiveOn,
                 categoryId: entry.categoryId,

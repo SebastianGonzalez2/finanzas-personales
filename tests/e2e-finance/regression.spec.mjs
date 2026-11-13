@@ -250,42 +250,110 @@ test("F6-01 CA-001/016/034: recursos ajenos, reintentos de crédito y cobro supe
   ).toHaveText("1.000,00 UYU");
 });
 
-test("F6-01 CA-027: el cargo del emisor se cuenta una vez y el original no se admite", async ({
+test("CA-027: registra EUR 50 como referencia y contabiliza USD 58 una vez", async ({
   actors,
   page,
 }) => {
-  const { a1 } = actors;
+  const { a1, b } = actors;
   const today = bankReferenceToday();
-  const { id: cardId } = await payload(
+  await payload(
     await command(a1, "POST", "/api/cards", cardCommand({ currency: "USD" })),
     201,
   );
-  const purchase = creditPurchase({
-    cardId,
-    currency: "USD",
-    amount: "58",
-    effectiveOn: today,
+  await payload(
+    await command(a1, "POST", "/api/bank-balances", {
+      currency: "USD",
+      amount: "100",
+      asOfDate: today,
+    }),
+    201,
+  );
+  const { id: categoryId } = await payload(
+    await command(a1, "POST", "/api/categories", {
+      kind: "expense",
+      name: "Compras CA-027",
+    }),
+    201,
+  );
+  await payload(
+    await command(a1, "POST", "/api/budgets", {
+      action: "save",
+      categoryId,
+      currency: "USD",
+      amount: "100",
+      idempotencyKey: randomUUID(),
+    }),
+    201,
+  );
+  await page.goto("/tarjetas");
+  const register = page.getByRole("button", {
+    name: "Registrar compra",
+    exact: true,
   });
+  await register.click();
+  await expect(page.getByLabel("Importe original de la compra")).toBeHidden();
+  await page.getByLabel("Importe cargado por el emisor").fill("58");
+  await page
+    .getByLabel("Concepto", { exact: true })
+    .fill("Compra sintética CA-027");
+  await page.getByLabel("Categoría (opcional)").selectOption(categoryId);
+  await page.getByText("Importe y moneda originales (opcional)").click();
+  await page.getByLabel("Importe original de la compra").fill("50");
+  await page.getByLabel("Moneda original").selectOption("EUR");
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/cards/operations") &&
+      response.request().method() === "POST",
+  );
+  await page
+    .getByRole("form", { name: /Registrar compra/ })
+    .getByRole("button", { name: "Registrar compra", exact: true })
+    .click();
+  const response = await saved;
+  const { id } = await payload(response, 201);
+  const purchase = response.request().postDataJSON();
+  const replay = await command(a1, "POST", "/api/cards/operations", purchase);
+  expect(await payload(replay, 200)).toEqual({ id });
   await payload(
     await command(a1, "POST", "/api/cards/operations", {
       ...purchase,
-      originalCurrency: "EUR",
-      originalAmount: "50",
+      originalAmount: "51",
     }),
-    400,
+    409,
   );
   await payload(
-    await command(a1, "POST", "/api/cards/operations", purchase),
-    201,
+    await command(b, "POST", "/api/cards/operations", purchase),
+    404,
   );
+  expect((await b.request.get(detail(id))).status()).toBe(404);
   await page.goto("/resumen");
   await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
     "58,00 USD",
   );
+  await expect(
+    balances(page).getByText("100,00 USD", { exact: true }),
+  ).toBeVisible();
   await page.goto("/tarjetas");
   await expect(
     page.getByText("58,00 USD", { exact: true }).first(),
   ).toBeVisible();
+  await page.goto(detail(id));
+  await expect(
+    page.getByText("Cargo confirmado por el emisor · 58,00 USD"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Importe original de la compra (referencia) · 50,00 EUR"),
+  ).toBeVisible();
+  await page.goto("/presupuestos");
+  await expect(page.getByText("58,00 USD de 100,00 USD (58%)")).toBeVisible();
+  await page.goto("/estadisticas?display=original");
+  const metrics = page.getByRole("table", { name: "Indicadores en USD" });
+  await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(
+    "58,00 USD",
+  );
+  await expect(
+    page.getByRole("table", { name: "Indicadores en EUR" }),
+  ).toHaveCount(0);
 });
 
 test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y auditoría", async ({

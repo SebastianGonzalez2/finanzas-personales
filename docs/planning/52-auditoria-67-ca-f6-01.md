@@ -21,21 +21,22 @@ Validación independiente de la etapa A de Claude. La matriz conserva la trazabi
 
 ## 2. Resultado de CA-001 a CA-067
 
-<!-- conteo: PASS=60 FAIL=1 PARTIAL=6 BLOCKED=0 NOT VERIFIED=0 -->
+<!-- conteo: PASS=61 FAIL=0 PARTIAL=6 BLOCKED=0 NOT VERIFIED=0 -->
 
 | Estado | Cantidad | Criterios |
 | --- | --- | --- |
-| PASS | 60 | Los restantes en la matriz |
-| FAIL | 1 | CA-027 |
+| PASS | 61 | Los restantes en la matriz |
+| FAIL | 0 | — |
 | PARTIAL | 6 | CA-002, CA-003, CA-004, CA-005, CA-065 y CA-066 |
 | BLOCKED | 0 | — |
 | NOT VERIFIED | 0 | — |
 
-Los CA-018 y CA-019 pasan con pruebas de navegador y PostgreSQL. Para CA-019 se aplicó el alcance v9.45 de previsiones recurrentes y rechazo de gastos futuros. CA-002 a CA-005 pasan en el entorno sintético y quedan PARTIAL para el escenario de Google real. CA-027 baja a FAIL porque v9.15 ya establece la referencia original como opción del usuario. CA-065 y CA-066 conservan PARTIAL.
+Los CA-018 y CA-019 pasan con pruebas de navegador y PostgreSQL. Para CA-019 se aplicó el alcance v9.45 de previsiones recurrentes y rechazo de gastos futuros. CA-002 a CA-005 pasan en el entorno sintético y quedan PARTIAL para el escenario de Google real. CA-027 pasa tras verificar la referencia original opcional de v9.15. CA-065 y CA-066 conservan PARTIAL.
 
 ## 3. Defectos y dependencias
 
-- **CA-027, RF-020.** El cargo del emisor queda registrado una sola vez por USD 58. La compra no permite indicar el importe y la moneda original como referencia. La decisión vigente en la sección 9.3.8 dice que la referencia es opcional para quien registra la compra. El seguimiento funcional debe cubrir su alta, lectura y ausencia de efectos financieros adicionales. [Decisión v9.15](../product/decisiones-producto.md#938-compras-con-crédito-en-moneda-diferente-a-la-de-la-deuda--opción-a-confirmada-v915)
+- **CA-027, RF-020.** Corregido el alta y la consulta de la referencia original opcional. El importe del emisor mantiene sus efectos financieros y la referencia viaja con la compra en la copia de seguridad. El alta provisional general y la confirmación posterior del cargo en el mismo movimiento quedan fuera de esta corrección. [Decisión v9.15](../product/decisiones-producto.md#938-compras-con-crédito-en-moneda-diferente-a-la-de-la-deuda--opción-a-confirmada-v915)
+  - [SQL 0038](../../src/db/migrations/0038_CA-027_purchase_original_amount.sql), SHA-256 `72bfc4daa3def622c85aeb5c8351c02e0f4f98367e8f23f9c9d24f92b2dd54af`. Destino propuesto: Neon `development`, base `neondb`. Agrega dos columnas opcionales a `finance.credit_lines` y actualiza la huella de restauración. Las compras anteriores conservan sus importes y quedan sin referencia. Tras migrar, las copias del esquema anterior se rechazan según la política vigente de restauración. El SQL se probó únicamente en PostgreSQL local desechable.
 - **CA-065, RF-051/052.** Al guardar sin conexión no se aplica el gasto ni se anuncia éxito. El refresco tras el error puede llevar a la pantalla de red de Chrome y perder el formulario. La recuperación comprobada requiere recargar y volver a ingresar el gasto. El reintento con el mismo cuerpo de un envío que sí llegó al servidor se comprobó por separado. El flujo instalado y la recuperación dentro del formulario corresponden a F6-03.
 - **PR #57 y #58.** Ambos estaban abiertos contra `main` al revisar. `git merge-tree --write-tree --name-only 9193926 72223bf`, con objetos temporales, confirmó conflicto en `tests/integration/schema.test.mjs`. Las migraciones `0035_F5-08_delete_account.sql` y `0035_F5-09_bank_benefits.sql` tienen nombres completos distintos. Resolver el conflicto durante la integración y probar el esquema combinado, el manifiesto de backup/restauración y CA-067. La eliminación de cuenta de F5-08 es una dependencia de integración. CA-063 evalúa restauración de copia.
 - **R-19 y despliegue.** Quedaron pendientes HTTPS con dos cuentas Google reales y prueba entre dispositivos, y comprobación del esquema Neon development. La [nota de F5-09](51-cashback-f5-09.md) registra `0035_F5-09` como pendiente de aplicación autorizada. La auditoría usó datos sintéticos y el entorno local desechable. GitHub Actions y el entorno de pruebas no sustituyen la validación exigida para cargar datos reales.
@@ -70,7 +71,7 @@ Los CA-018 y CA-019 pasan con pruebas de navegador y PostgreSQL. Para CA-019 se 
 | CA-024 | RF-018 | PASS | `src/server/credit-operations.ts`, `card-cycles.ts` | [LOC] `INT:f2-10-consistency`: deuda 1000→600, Bancos −400. `INT:card-cycles` (CA-023/024): pago de 1000 cubre mínimo oficial 1000, remanente 4500, aviso informativo. `UNIT:card-cycles`: aviso pendiente si el mínimo no se cubre. | Ninguno. Los importes difieren del ejemplo y cubren sus invariantes. | Alto |
 | CA-025 | RF-019 | PASS | `src/server/mixed-purchases.ts` | [LOC] `INT:mixed-purchases` («CA-025/026»), `E2F:mixed-purchases`; `INT:fund-coverage` (compra mixta descuenta una sola vez la porción bancaria) | Ninguno. | Alto |
 | CA-026 | RF-019 | PASS | `src/server/mixed-purchases.ts`, `installments.ts` | [LOC] `INT:mixed-purchases`, `E2F:mixed-purchases` (débito + crédito en cuotas, compra única, sin doble registro) | Ninguno. | Alto |
-| CA-027 | RF-020 | FAIL | `src/domain/credit-operations.ts`, `src/server/credit-operations.ts`. Decisión v9.15, sección 9.3.8. | [LOC] `E2F:regression` (CA-027): Visa USD 58 produce deuda y gasto USD 58 una vez. La API solo acepta el cargo del emisor y el flujo de compra carece de campos para conservar voluntariamente el precio EUR 50. | Ticket funcional de RF-020 para referencia opcional. Ver sección 3. | Medio |
+| CA-027 | RF-020 | PASS | `src/domain/credit-operations.ts`, `src/server/credit-operations.ts`, `src/components/credit-operation-form.tsx`, `src/components/credit-history-detail.tsx`. | [LOC] `E2F:regression` (Chrome escritorio y móvil) comprueba una compra de EUR 50 con deuda, gasto, consumo de presupuesto y estadísticas por USD 58, saldo bancario intacto, reintento e inaccesibilidad desde otra cuenta. `UNIT:credit-operations` cubre validación y omisión. `INT:account-backup`, `INT:schema` e `INT:mixed-purchases` cubren restauración, registros anteriores y correcciones. | Migración 0038 pendiente de autorización en Neon. Ver sección 3 para el alcance de v9.15. | Medio |
 | CA-028 | RF-021/047 | PASS | `src/server/refunds.ts`, `src/domain/refunds.ts`, `src/server/budgets.ts`, `src/server/bank-benefits.ts` | [LOC] `INT:bank-benefits`: 02:59:59Z es 31/01 y 03:00:00Z es 01/02 en Montevideo. Compra original intacta, devolución separada, compras de Ropa 3000, presupuesto disponible 2000, Banco +500 y abono en tarjeta 200. `INT:refunds`, `E2F:refunds`. | Ninguno. | Alto |
 | CA-029 | RF-021 | PASS | `src/server/refunds.ts` | [LOC] `INT:refunds` (CA-029): tarjeta pagada, abono 300 genera saldo a favor 300 con deuda 0 y Bancos 9700 intacto. Aplicación posterior y reintegro real a Bancos son acciones separadas. | Ninguno. | Alto |
 | CA-030 | RF-022…023 | PASS | `src/server/loans.ts`, `src/domain/loans.ts` | [LOC] `INT:loans` (prestar 3000: Bancos 10000→7000, por cobrar 3000, `totals` vacío), `E2F:loans` | Ninguno. | Alto |
@@ -146,6 +147,6 @@ La cobertura HTTP y el mecanismo de reintento dependen de cada operación. El al
 1. **F6-02:** completar negativas por acción y referencia, sesión revocada, caché y exportación. Mantener la comprobación de reintento de cada comando monetario que use clave y distinguir los endpoints que actualizan estado.
 2. **F6-03:** corregir la pérdida del formulario al quedar offline y validar CA-065/066 con PWA instalada, móvil/escritorio, teclado, foco, errores, contraste y lector de pantalla. La evidencia local usa Chrome con dos tamaños de pantalla.
 3. **F6-04:** realizar un simulacro controlado de desastre con copias cifradas, recuperación independiente y versiones de esquema. Repetir restauración en el árbol integrado de F5-08/F5-09.
-4. **F6-06/F6-07:** verificar onboarding y aprobación de uso real después de R-19. Conservar CA-027 como defecto de RF-020 para un ticket funcional y repetir los controles afectados tras integrarlo.
+4. **F6-06/F6-07:** verificar onboarding y aprobación de uso real después de R-19.
 
 Los cambios del PR #59 son el informe, los identificadores en pruebas existentes y las regresiones de auditoría. La prueba `UNIT:ca-audit-matrix` comprueba la presencia y el orden de los 67 CA, los estados, el conteo y el marcador de evidencia. La decisión de cada fila se apoya en las pruebas de producto citadas.

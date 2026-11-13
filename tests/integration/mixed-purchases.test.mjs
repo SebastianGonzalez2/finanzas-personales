@@ -19,6 +19,7 @@ import {
   voidCreditOperation,
 } from "../../src/server/credit-operations.ts";
 import {
+  creditHistoryDetail,
   findHistoryEntry,
   historyRevisions,
   listHistory,
@@ -151,6 +152,8 @@ test("F2-05: CA-025/026, compra única, importes exactos, corrección y aislamie
       idempotencyKey: randomUUID(),
       concept: "Compra financiada",
       amount: "6000",
+      originalAmount: "50",
+      originalCurrency: "EUR",
       plan: { installmentAmount: "2000", count: 3, firstPeriod: "2026-02" },
       mixed: {
         ...draft.mixed,
@@ -274,6 +277,11 @@ test("F2-05: CA-025/026, compra única, importes exactos, corrección y aislamie
     );
     assert.equal(await total("02"), undefined);
     assert.equal(await total("05"), "2000.0000");
+    const originalPurchase = { currency: "EUR", amount: "50.0000" };
+    assert.deepEqual(
+      (await creditHistoryDetail(client, owner, id))[0].originalPurchase,
+      originalPurchase,
+    );
 
     await saveBalanceAdjustment(client, owner, {
       currency: "UYU",
@@ -289,6 +297,8 @@ test("F2-05: CA-025/026, compra única, importes exactos, corrección y aislamie
       concept: "Corrección sintética",
       plan: undefined,
       amount: "5000",
+      originalAmount: undefined,
+      originalCurrency: undefined,
       mixed: {
         ...financed.mixed,
         total: "10500",
@@ -328,6 +338,11 @@ test("F2-05: CA-025/026, compra única, importes exactos, corrección y aislamie
     assert.equal(await debt(), "6000.0000");
     assert.equal(await total("01"), "13500.0000");
     assert.equal(await total("03"), undefined);
+    assert.deepEqual(
+      (await creditHistoryDetail(client, owner, revised.id))[0]
+        .originalPurchase,
+      originalPurchase,
+    );
     assert.equal(
       (await historyRevisions(client, owner, id))[0].related,
       revised.id,

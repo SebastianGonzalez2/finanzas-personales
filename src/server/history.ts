@@ -429,6 +429,9 @@ export async function creditHistoryDetail(
     CreditHistoryLine & { card: string; effectiveRate: string | null }
   >(
     `SELECT card.name AS card, l.currency, l.amount::text,
+            CASE WHEN to_jsonb(l)->>'original_currency' IS NOT NULL
+              THEN jsonb_build_object('currency', to_jsonb(l)->>'original_currency',
+                'amount', to_jsonb(l)->>'original_amount') END AS "originalPurchase",
             l.debt_delta::text AS "debtDelta", l.debt_after::text AS "debtAfter",
             ${refunds ? '(-x.delta)::text AS "creditApplied",' : ""}
             l.bank_currency AS "bankCurrency", l.bank_amount::text AS "bankAmount", l.fee::text,

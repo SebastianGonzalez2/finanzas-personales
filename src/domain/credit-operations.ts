@@ -70,6 +70,7 @@ export type CreditCommand = {
       note: string | null;
       categoryId: string | null;
       covered: boolean;
+      originalPurchase?: DebtAmount | null;
       creditApplied?: string;
       fundCommitment?: FundPortion | null;
       plan?: InstallmentTerms;
@@ -104,6 +105,7 @@ export type CreditPurchaseOption = DebtAmount & {
 };
 
 export type CreditHistoryLine = DebtAmount & {
+  originalPurchase: DebtAmount | null;
   debtDelta: string;
   debtAfter: string;
   creditApplied?: string | null;
@@ -434,6 +436,8 @@ export function parseCreditCommand(
             "note",
             "categoryId",
             "covered",
+            "originalAmount",
+            "originalCurrency",
             "creditApplied",
             "fundCommitment",
             "plan",
@@ -499,6 +503,29 @@ export function parseCreditCommand(
       data.mixed === undefined
         ? undefined
         : mixedPurchase(data.mixed, financed ?? charge, code);
+    let originalPurchase: DebtAmount | null | undefined;
+    if (
+      data.originalAmount !== undefined ||
+      data.originalCurrency !== undefined
+    ) {
+      if (data.originalAmount === "" && data.originalCurrency === "") {
+        if (mixed?.correction) originalPurchase = null;
+      } else {
+        try {
+          const originalCurrency = currency(data.originalCurrency);
+          if (originalCurrency === code) throw new Error();
+          originalPurchase = {
+            currency: originalCurrency,
+            amount: amount(data.originalAmount),
+          };
+        } catch {
+          return {
+            error:
+              "Ingresá un importe original positivo con hasta cuatro decimales y elegí una moneda distinta de la del cargo, o dejá ambos campos vacíos.",
+          };
+        }
+      }
+    }
     const fundCommitment =
       data.fundCommitment === undefined
         ? undefined
@@ -533,6 +560,7 @@ export function parseCreditCommand(
       action,
       currency: code,
       amount: charge,
+      ...(originalPurchase !== undefined && { originalPurchase }),
       ...(fundCommitment !== undefined && { fundCommitment }),
       concept,
       ...(merchantName && { merchantName }),

@@ -5,7 +5,11 @@ import type pg from "pg";
 export async function readMigrations() {
   const directory = new URL("./migrations/", import.meta.url);
   const names = (await readdir(directory)).sort();
-  if (names.some((name) => !/^\d{4}_F\d-\d{2}_[a-z_]+\.sql$/.test(name)))
+  if (
+    names.some(
+      (name) => !/^\d{4}_(?:F\d-\d{2}|CA-\d{3})_[a-z_]+\.sql$/.test(name),
+    )
+  )
     throw new Error("Nombre de migración inesperado");
   return Promise.all(
     names.map(async (version) => {

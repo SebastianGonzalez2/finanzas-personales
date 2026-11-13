@@ -76,11 +76,17 @@ export function CreditHistoryDetail({
               </>
             ) : (
               <>
-                {installmentPurchase && (
+                {(installmentPurchase || line.originalPurchase) && (
                   <p>
                     {/[1-9]/.test(line.amount)
                       ? `Cargo confirmado por el emisor · ${formatBankAmount(line)}`
                       : "Sin cargo del emisor informado al registrar la compra."}
+                  </p>
+                )}
+                {line.originalPurchase && (
+                  <p className="text-muted-foreground">
+                    Importe original de la compra (referencia) ·{" "}
+                    {formatBankAmount(line.originalPurchase)}
                   </p>
                 )}
                 {line.creditApplied && (

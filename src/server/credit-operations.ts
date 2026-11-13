@@ -83,6 +83,7 @@ export async function lockCardWrites(client: pg.PoolClient, ownerId: string) {
 type RecordedLine = DebtAmount & {
   debtDelta: string;
   debtAfter: string;
+  originalPurchase?: DebtAmount | null;
   creditDelta?: string;
   payment?: CreditPaymentLine;
 };
@@ -138,14 +139,25 @@ export async function insertCreditEvent(
     amount,
     debtDelta,
     debtAfter,
+    originalPurchase,
     creditDelta,
     payment,
   } of event.lines) {
     const statement = payment?.statementPeriod;
+    const extraColumns = [
+      ...(statement ? ["statement_period"] : []),
+      ...(originalPurchase ? ["original_amount", "original_currency"] : []),
+    ];
+    const extraValues = [
+      ...(statement ? [`${statement}-01`] : []),
+      ...(originalPurchase
+        ? [originalPurchase.amount, originalPurchase.currency]
+        : []),
+    ];
     await client.query(
       `INSERT INTO finance.credit_lines
-        (owner_id, event_id, card_id, currency, amount, debt_delta, debt_after, bank_currency, bank_amount, fee${statement ? ", statement_period" : ""})
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10${statement ? ", $11" : ""})`,
+        (owner_id, event_id, card_id, currency, amount, debt_delta, debt_after, bank_currency, bank_amount, fee${extraColumns.map((column) => `, ${column}`).join("")})
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10${extraValues.map((_, index) => `, $${11 + index}`).join("")})`,
       [
         ownerId,
         id,
@@ -157,7 +169,7 @@ export async function insertCreditEvent(
         payment?.bankCurrency ?? null,
         payment?.bankAmount ?? null,
         payment?.fee ?? zero,
-        ...(statement ? [`${statement}-01`] : []),
+        ...extraValues,
       ],
     );
     await client.query(
@@ -590,6 +602,19 @@ export async function saveCreditOperation(
     return conflict(
       "El catálogo estará disponible cuando se actualice la base de datos.",
     );
+  if (command.action === "purchase" && command.originalPurchase) {
+    const {
+      rows: [schema],
+    } = await client.query<{ ready: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+        WHERE attrelid = 'finance.credit_lines'::regclass
+          AND attname = 'original_currency' AND NOT attisdropped) AS ready`,
+    );
+    if (!schema.ready)
+      return conflict(
+        "Actualizá la base de datos para guardar la referencia original de la compra.",
+      );
+  }
   if (command.action !== "purchase" || !command.mixed)
     return applyCreditOperation(client, ownerId, command, hash);
 
@@ -628,13 +653,18 @@ async function applyMixedPurchase(
       cancelled: boolean;
       version: number;
       assigned: boolean;
+      originalAmount: string | null;
+      originalCurrency: Currency | null;
     }>(
       `SELECT coalesce(p.active_count < p.installment_count, false) AS cancelled,
               coalesce(p.version, 0) AS version,
+              to_jsonb(l)->>'original_amount' AS "originalAmount",
+              to_jsonb(l)->>'original_currency' AS "originalCurrency",
               EXISTS (SELECT 1 FROM finance.current_card_cycles c
                 WHERE (c.owner_id, c.purchase_id) = (m.owner_id, m.event_id)
                   AND c.assigned_period IS NOT NULL) AS assigned
          FROM finance.mixed_purchases m
+         JOIN finance.credit_lines l ON (l.owner_id, l.event_id, l.currency) = (m.owner_id, m.event_id, m.currency)
          LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (m.owner_id, m.event_id)
         WHERE m.owner_id = $1 AND m.event_id = $2`,
       [ownerId, eventId],
@@ -648,6 +678,23 @@ async function applyMixedPurchase(
       return conflict(
         "La compra tiene cuotas canceladas. Conservá el plan registrado o anulá la compra si corresponde.",
       );
+    if (
+      command.originalPurchase === undefined &&
+      original.originalAmount &&
+      original.originalCurrency
+    ) {
+      if (original.originalCurrency === command.currency)
+        return conflict(
+          "La moneda original debe ser distinta de la del cargo. Revisá la referencia antes de corregir la compra.",
+        );
+      command = {
+        ...command,
+        originalPurchase: {
+          amount: original.originalAmount,
+          currency: original.originalCurrency,
+        },
+      };
+    }
     if (await refundsReady(client)) {
       const {
         rows: [previous],
@@ -1234,6 +1281,7 @@ async function applyCreditOperation(
         {
           currency,
           amount,
+          originalPurchase: command.originalPurchase,
           debtDelta: command.covered ? zero : charge,
           debtAfter,
           ...(applied && {
