@@ -49,7 +49,7 @@ Reproducir en local (PostgreSQL 17 desechable en `127.0.0.1:55432`, valores púb
 
 ```powershell
 $env:TEST_DATABASE_CONFIRM = 'isolated-local-test'
-$env:TEST_DATABASE_URL = 'postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test'
+$env:TEST_DATABASE_URL = 'postgresql://f0_test:f0_test@127.0.0.1:55432/neondb'
 $env:FINANCE_BACKUP_SIGNING_KEY = '01' * 32
 node --conditions=react-server --test --test-concurrency=1 tests/integration/disaster-recovery-f6-04.test.mjs
 ```

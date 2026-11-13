@@ -117,9 +117,9 @@ Durante la elaboración fallaron pruebas por errores de la propia especificació
 
 ```bash
 npm run test:unit
-TEST_DATABASE_CONFIRM=isolated-local-test TEST_DATABASE_URL=postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test npm run test:integration
+TEST_DATABASE_CONFIRM=isolated-local-test TEST_DATABASE_URL=postgresql://f0_test:f0_test@127.0.0.1:55432/neondb npm run test:integration
 npm run build
-TEST_DATABASE_CONFIRM=isolated-local-test TEST_DATABASE_URL=postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test npm run test:e2e:finance
+TEST_DATABASE_CONFIRM=isolated-local-test TEST_DATABASE_URL=postgresql://f0_test:f0_test@127.0.0.1:55432/neondb npm run test:e2e:finance
 ```
 
 Las pruebas de artefactos de `secrets-surface-f6-02` se omiten (no se informan como aprobadas) si no existe `.next`; para que busquen los secretos sintéticos, compilar con las variables privadas de prueba del harness.

@@ -122,3 +122,38 @@ como rol final de la aplicación ni la sonda como autorización multicuenta.
 
 Trazabilidad: RF-001…004, RNF-01/02/03/09/11/12, CA-001…006, I-11/I-12 como
 preparación; sin aceptación funcional. I-01…I-10 no se modifican.
+
+## Separación Development / Production (OPS)
+
+El runtime de la aplicación (`src/server/google-database.ts`) elige el destino
+Neon desde `src/server/neon-targets.ts`, una **lista cerrada** de dos destinos
+(proyecto `dry-voice-45959315`, base `neondb`):
+
+| Entorno de ejecución | Destino | Rama | Endpoint |
+| --- | --- | --- | --- |
+| Vercel Production (`VERCEL=1`, `VERCEL_ENV=production`) | production | `br-wild-mode-b64fgovd` | `ep-morning-sunset-b6i4kxdg.c-2.sa-east-1.aws.neon.tech` |
+| Vercel Preview/Development y local (sin `VERCEL` ni `VERCEL_ENV`) | development | `br-late-feather-b6czfkx0` | `ep-falling-queen-b63xbfuk.c-2.sa-east-1.aws.neon.tech` |
+
+- Las variables **no seleccionan** el destino: solo lo confirman. `NEON_PROJECT_ID`,
+  `NEON_BRANCH_ID`, el host pooled, la base y el rol de
+  `GOOGLE_AUTH_DATABASE_URL` / `GOOGLE_FINANCE_DATABASE_URL` deben coincidir con
+  el destino del entorno; cualquier discrepancia lanza `NeonConfigError` sin
+  incluir valores.
+- Production mal configurado o incompleto **falla**: no existe fallback a
+  development. Un `VERCEL_ENV` ausente con `VERCEL` definido, desconocido, o
+  `production` sin `VERCEL=1` también falla.
+- Se mantienen roles separados (`finanzas_google_auth` / `finanzas_google_finance`),
+  TLS con verificación, channel binding y la comprobación de la sesión real
+  (`neon.branch_id`, `current_database()`, rol sin privilegios, sin acceso a
+  `neon_auth`, sin propiedad de objetos) en `assertGoogleRuntime`.
+- Los scripts de migración, aprovisionamiento y sondas de development
+  (`neon-development-config.ts`) no cambiaron. La herramienta equivalente para
+  production es exclusiva de ese destino: `neon-production-config.ts` con
+  procedimiento completo en [production-neon.md](production-neon.md).
+
+Variables por entorno de Vercel (mismos nombres, valores distintos por alcance):
+`NEON_PROJECT_ID`, `NEON_BRANCH_ID`, `GOOGLE_AUTH_DATABASE_URL`,
+`GOOGLE_FINANCE_DATABASE_URL` y el resto de `GOOGLE_*`/`FINANCE_*` de
+`.env.example`. Definirlas en **Production** con la rama/endpoint de production y
+en **Preview** con los de development; no usar «All Environments» para las URLs.
+Exponer las System Environment Variables de Vercel (`VERCEL`, `VERCEL_ENV`).

@@ -15,7 +15,7 @@ No hay parámetro para omitir verificación Google en producción. El mock de fe
 existe exclusivamente en el test y rechaza redes ajenas. Solo el administrador del
 contenedor puede atrasar el reloj de fixtures de rateLimit entre escenarios; el
 caso específico verifica el 429 real sin ese ajuste. El harness crea y elimina
-esquemas solo dentro de `localhost:55432/finanzas_test`, con la guarda F0-05 intacta;
+esquemas solo dentro de `localhost:55432/neondb`, con la guarda F0-05 intacta;
 no se ejecuta contra Neon. Las suites se serializan para compartir ese contenedor.
 
 [SQL pendiente de aprobación y resultados](planning/25-google-only-f0-04.md).
@@ -31,20 +31,21 @@ Los spikes aislados llevan sus propios package/tsconfig/pruebas y quedan fuera d
 - `npm run test:unit`: Node test runner incorporado; guardas del entorno desechable.
 - `npx playwright install chromium`, `npm run build`, `npm run test:e2e`: Chromium real, 1440×900 y 390×844, portada/teclado/desborde. Puerto 3106 exclusivo; no reutiliza servidores ajenos. No certifica navegadores móviles nativos.
 - `npm run test:integration`: PostgreSQL real; **falla** si no existe el servicio o faltan las variables; no salta tests ni toma `DATABASE_URL`.
+- Pruebas OPS de production: `tests/unit/neon-production.test.mjs` (destinos, manifiesto y hashes, autorizaciones, rechazos, idempotencia y CLIs sin conexión) y `tests/integration/production-migrations.test.mjs` (flujo completo del migrador de production sobre el PostgreSQL desechable). Solo usan destinos sintéticos, `fixture` y la base desechable; nunca Neon ni production.
 
 ## PostgreSQL desechable
 
-CI provisiona PostgreSQL 17.6 en el runner Ubuntu. El driver `pg` es solo de desarrollo y no decide ORM/driver de producción F0-05. Las credenciales siguientes son públicas y solo corresponden a ese contenedor, sin datos persistentes ni reales. En local, requiere Docker ya instalado:
+CI provisiona PostgreSQL 17.6 en el runner Ubuntu. El driver `pg` es solo de desarrollo y no decide ORM/driver de producción F0-05. Las credenciales siguientes son públicas y solo corresponden a ese contenedor, sin datos persistentes ni reales. La base desechable se llama `neondb` para emular fielmente el nombre de la base de Neon development: así las comprobaciones de identidad de la sesión (`current_database()` y rama) se aplican en pruebas tal como en Neon. En local, requiere Docker ya instalado:
 
 ```sh
-docker run --rm --name finanzas-f0-test -p 127.0.0.1:55432:5432 -e POSTGRES_USER=f0_test -e POSTGRES_PASSWORD=f0_test -e POSTGRES_DB=finanzas_test postgres:17.6
+docker run --rm --name finanzas-f0-test -p 127.0.0.1:55432:5432 -e POSTGRES_USER=f0_test -e POSTGRES_PASSWORD=f0_test -e POSTGRES_DB=neondb postgres:17.6
 ```
 
 En otra terminal PowerShell:
 
 ```powershell
 $env:TEST_DATABASE_CONFIRM = 'isolated-local-test'
-$env:TEST_DATABASE_URL = 'postgresql://f0_test:f0_test@127.0.0.1:55432/finanzas_test'
+$env:TEST_DATABASE_URL = 'postgresql://f0_test:f0_test@127.0.0.1:55432/neondb'
 npm run test:integration
 ```
 
