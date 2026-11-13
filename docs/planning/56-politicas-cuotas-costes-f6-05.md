@@ -75,7 +75,7 @@ El bloqueo histórico de F0-07 se mantiene como documento: sin remitente gratuit
 Ninguno de los planes gratuitos ofrece alertas de gasto configurables: Vercel limita umbrales/Spend Management a Pro y Neon Free no tiene spending notifications (solo Launch/Scale) ni retención de métricas > 1 día. El control vigente es **revisión manual programada**, sin código nuevo:
 
 1. **Mensual, antes del cierre del ciclo:** Vercel → Usage (transferencia, invocaciones, CPU activa, proyección); Neon → console del proyecto (CU-h, storage, transferencia); confirmar que el plan sigue siendo Hobby/Free y sin método de pago.
-2. **Tras cada despliegue:** revisar picos de invocaciones y cualquier job nuevo (no hay cron implementado; añadir uno exige re-evaluar CPU activa de 4 h).
+2. **Tras cada despliegue:** revisar picos de invocaciones y cualquier job nuevo. *Corrección F6-07:* `vercel.json` ya declara dos crons diarios (`/api/cron/contributions` 10:00 UTC, `/api/cron/card-push` 12:00 UTC; F3-03/F4-05), dentro del máximo Hobby de una ejecución diaria; añadir otro exige re-evaluar CPU activa de 4 h.
 3. **Registro:** anotar fecha, valores y enlace de evidencia en el ticket de seguimiento; un salto anómalo se investiga antes del siguiente despliegue.
 4. **Ante límite agotado:** el servicio se pausa hasta el ciclo (Hobby) o se suspende el compute (Neon Free); no hay cargo — **no** «resolverlo» activando facturación sin autorización (RNF-11); avisar al titular y esperar ciclo o ajustar consumo.
 
@@ -87,7 +87,7 @@ Estimación **documental** para 5–6 cuentas allowlist con uso doméstico inter
 | --- | --- | --- | --- |
 | Vercel invocaciones | 1 M/mes | ~10–50 k | Holgado |
 | Vercel transferencia | 100 GB/mes | < 1 GB | Holgado |
-| Vercel CPU activa | 4 h/mes | < 30 min (funciones cortas, sin cron) | Holgado; vigilable si se agregan procesos pesados |
+| Vercel CPU activa | 4 h/mes | < 30 min (funciones cortas; 2 crons diarios, un lote por titular, sin medir) | Holgado; vigilable si se agregan procesos pesados |
 | Neon CU-h | 100/proyecto/mes | ≪ 100 (scale to zero; compute 0,25 CU admite 400 h) | Holgado salvo consultas muy pesadas |
 | Neon storage | 1 GB/proyecto | «MB por proyecto con 5–6 titulares» | Verificar tamaño real con datos |
 | Neon transferencia | 5 GB/proyecto/mes | ~MB–decenas de MB (cada página consulta DB; copias suman) | Holgado; vigilar con copias |
