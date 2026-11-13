@@ -56,6 +56,7 @@ const definers = [
   "app_access.guard_session",
   "app_access.guard_user",
   "finance.account_backup_snapshot",
+  "finance.account_backup_snapshot",
   "finance.restore_account",
 ];
 
@@ -325,7 +326,7 @@ test("F6-02: RLS, privilegios y funciones privilegiadas del esquema completo", a
           "SELECT * FROM app_auth.session",
           "SELECT * FROM app_access.allowlist",
           "SELECT app_access.authorize_session('token')",
-          "SELECT * FROM finance.account_backup_snapshot()",
+          "SELECT * FROM finance.account_backup_snapshot('invalid')",
           "SET ROLE finanzas_google_auth",
         ])
           await rejectsCode(
@@ -760,49 +761,75 @@ test("F6-02: titulares A/B, sesión inválida y contexto manipulado sobre todas 
       },
     );
 
-    // F6-02-H03 (baja, defensa en profundidad): las funciones SECURITY DEFINER de
-    // copia confían en `finance.owner_id`, que el propio rol de runtime puede fijar.
-    // account_backup_snapshot() no reautoriza la sesión como sí lo hace
-    // restore_account(). El riesgo exige ejecutar SQL arbitrario con ese rol, la
-    // misma raíz de confianza que RLS; se registra para evaluar la reautorización.
     await t.test(
-      "F6-02-H03: account_backup_snapshot exige reautorizar la sesión del titular",
-      {
-        todo: "F6-02-H03: la función solo valida el contexto finance.owner_id",
-      },
+      "F6-02-H03: la copia exige una sesión vigente del mismo titular",
       async () => {
-        const stolen = await tx(owners.b, async (client) => {
-          await client.query(
-            "SELECT set_config('finance.owner_id', $1, true)",
-            [owners.a],
+        const snapshot = (owner, token) =>
+          tx(owner, async (client) => {
+            await client.query("SAVEPOINT attempt");
+            try {
+              const { rows } = await client.query(
+                "SELECT payload FROM finance.account_backup_snapshot($1)",
+                [token],
+              );
+              return rows[0].payload;
+            } catch (error) {
+              await client.query("ROLLBACK TO SAVEPOINT attempt");
+              return error.code;
+            }
+          });
+        const own = await snapshot(owners.b, tokens.b);
+        assert.match(own, new RegExp(seeded.b.event));
+        assert.doesNotMatch(own, new RegExp(seeded.a.event));
+        assert.equal(await snapshot(owners.a, tokens.b), "42501");
+        assert.equal(await snapshot(owners.b, randomUUID()), "42501");
+        assert.equal(await snapshot(owners.b, null), "42501");
+        assert.equal(
+          await snapshot(owners.a, tokens.a),
+          "42501",
+          "Sesión revocada",
+        );
+        await admin.query(
+          `UPDATE app_auth.session SET "expiresAt"=now()-interval '1 minute' WHERE token=$1`,
+          [tokens.b],
+        );
+        assert.equal(
+          await snapshot(owners.b, tokens.b),
+          "42501",
+          "Sesión expirada",
+        );
+        await tx(owners.b, async (client) => {
+          await client.query("SAVEPOINT attempt");
+          await rejectsCode(
+            client.query("SELECT * FROM finance.account_backup_snapshot()"),
+            ["42501"],
+            "El snapshot interno no es ejecutable por runtime",
           );
-          return (
-            await client.query(
-              "SELECT payload FROM finance.account_backup_snapshot()",
-            )
-          ).rows[0].payload;
+          await client.query("ROLLBACK TO SAVEPOINT attempt");
         });
-        assert.doesNotMatch(stolen, new RegExp(seeded.a.event));
       },
     );
 
-    // F6-02-H04 (baja): `fx_reference_rates` no tiene titular ni RLS y el runtime
-    // puede insertar cotizaciones arbitrarias de un proveedor permitido. Los
-    // valores son inmutables una vez escritos y condicionan las conversiones de
-    // todos los titulares. Solo explotable mediante SQL arbitrario del runtime.
     await t.test(
-      "F6-02-H04: el runtime no puede publicar cotizaciones de referencia arbitrarias",
-      {
-        todo: "F6-02-H04: INSERT de cotizaciones compartidas disponible para finanzas_app",
-      },
+      "F6-02-H04: el importador puede insertar referencias globales, las observaciones son inmutables",
       async () => {
         await tx(owners.b, async (client) => {
-          await assert.rejects(
-            client.query(
-              `INSERT INTO finance.fx_reference_rates(base_currency, quote_currency, observed_on, source, rate)
-               VALUES ('USD', 'UYU', '2001-01-01', 'frankfurter', '999999')`,
-            ),
+          await client.query("SAVEPOINT fx_probe");
+          const { rowCount } = await client.query(
+            `INSERT INTO finance.fx_reference_rates(base_currency, quote_currency, observed_on, source, rate)
+             VALUES ('USD', 'UYU', '2001-01-01', 'frankfurter', '999999')`,
           );
+          assert.equal(
+            rowCount,
+            1,
+            "Evidencia del permiso compartido de escritura",
+          );
+          await rejectsCode(
+            client.query("UPDATE finance.fx_reference_rates SET rate=1"),
+            ["42501"],
+            "Runtime sin UPDATE de observaciones",
+          );
+          await client.query("ROLLBACK TO SAVEPOINT fx_probe");
         });
       },
     );

@@ -290,11 +290,8 @@ test("F6-02: Better Auth queda configurado solo para Google con allowlist, sin c
     factory,
     /sendResetPassword|sendVerificationEmail|sendOTP/,
   );
-  // `developmentAuthConfig` (Neon Auth administrado) es código histórico de la
-  // sonda F0-04 que ningún módulo de runtime importa (hallazgo F6-02-H05, bajo).
   for (const { file, text } of sources) {
     if (file === "server/google-database.ts") continue;
-    if (file === "server/neon-development-config.ts") continue;
     assert.doesNotMatch(text, /neon_auth|@neondatabase\/auth|NEON_AUTH/, file);
     assert.doesNotMatch(text, /developmentAuthConfig/, file);
     assert.doesNotMatch(
@@ -384,7 +381,12 @@ test("F6-02: la política de origen rechaza esquemas, puertos y hosts no canóni
 });
 
 const origin = "https://finanzas.example.test";
-function exercise(path, init = {}, enabled = true) {
+function exercise(
+  path,
+  init = {},
+  enabled = true,
+  trustVercelClientIp = false,
+) {
   const calls = [];
   const request = new Request(`${origin}/api/auth/${path}`, {
     method: "POST",
@@ -395,6 +397,7 @@ function exercise(path, init = {}, enabled = true) {
   return handleGoogleHttp(request, path.split("/"), {
     enabled,
     origin,
+    trustVercelClientIp,
     handler: async (forwarded) => {
       calls.push(forwarded);
       return Response.json({ url: "https://accounts.google.com/x" });
@@ -611,30 +614,41 @@ test("F6-02: sin credenciales de Google configuradas el acceso falla cerrado", a
   }
 });
 
-// F6-02-H01 (media, disponibilidad): `handleGoogleHttp` reconstruye la solicitud
-// POST con solo `content-type`, `origin` y `cookie`. Better Auth no recibe la IP
-// del cliente, por lo que el límite de tasa por ruta se aplica a un único
-// «no-trusted-ip» compartido por todos los visitantes. Evidencia ejecutable:
-// tests/integration/security-auth-f6-02.test.mjs. Corregir reenviando la cabecera
-// de IP de confianza de la plataforma (x-forwarded-for / x-real-ip en Vercel).
-test(
-  "F6-02-H01: el adaptador reenvía la IP de confianza para limitar por cliente",
-  {
-    todo: "F6-02-H01: sin IP, todos los visitantes comparten un único cubo de límite de tasa",
-  },
-  async () => {
-    const { calls } = await exercise("sign-in/social", {
-      headers: {
-        origin,
-        "content-type": "application/json",
-        "x-forwarded-for": "203.0.113.7",
+test("F6-02-H01: solo acepta una dirección IP individual del proxy confiable", async () => {
+  for (const [trustVercelClientIp, supplied, expected] of [
+    [true, "203.0.113.7", "203.0.113.7"],
+    [true, "2001:db8::7", "2001:db8::7"],
+    [true, "203.0.113.7, 198.51.100.1", null],
+    [true, "invalid", null],
+    [false, "203.0.113.7", null],
+  ]) {
+    const headers = {
+      "x-vercel-forwarded-for": supplied,
+      "x-forwarded-for": "198.51.100.1",
+      "x-real-ip": "198.51.100.2",
+    };
+    const post = await exercise(
+      "sign-in/social",
+      {
+        headers: { origin, "content-type": "application/json", ...headers },
+        body: '{"provider":"google"}',
       },
-      body: '{"provider":"google"}',
-    });
-    const forwarded = calls[0].headers;
-    assert.ok(
-      forwarded.get("x-forwarded-for") || forwarded.get("x-real-ip"),
-      "La solicitud reenviada carece de IP del cliente",
+      true,
+      trustVercelClientIp,
     );
-  },
-);
+    assert.equal(post.calls[0].headers.get("x-vercel-forwarded-for"), expected);
+    assert.equal(post.calls[0].headers.get("x-forwarded-for"), null);
+    assert.equal(post.calls[0].headers.get("x-real-ip"), null);
+
+    const callback = await exercise(
+      "callback/google",
+      { method: "GET", body: undefined, headers },
+      true,
+      trustVercelClientIp,
+    );
+    assert.equal(
+      callback.calls[0].headers.get("x-vercel-forwarded-for"),
+      expected,
+    );
+  }
+});

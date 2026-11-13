@@ -90,6 +90,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0033_F5-06_reference_exchange_rates.sql",
       "0034_F5-07_account_backup.sql",
       "0035_F5-09_bank_benefits.sql",
+      "0036_F6-02_authorize_account_backup.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -146,6 +147,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       exchangeRates,
       backup,
       benefits,
+      authorizedBackup,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -473,6 +475,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       statistics,
       exchangeRates,
       backup,
+      benefits,
     ]) {
       await assert.rejects(migrateInTransaction(client, migration.sha256));
       await client.query(migration.sql);
@@ -481,10 +484,14 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
         [migration.version, migration.sha256],
       );
     }
-    assert.deepEqual(await migrateInTransaction(client, benefits.sha256), [
-      benefits.version,
-    ]);
-    assert.deepEqual(await migrateInTransaction(client, benefits.sha256), []);
+    assert.deepEqual(
+      await migrateInTransaction(client, authorizedBackup.sha256),
+      [authorizedBackup.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, authorizedBackup.sha256),
+      [],
+    );
     assert.equal(
       (
         await client.query(

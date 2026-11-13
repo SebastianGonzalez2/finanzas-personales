@@ -1,6 +1,6 @@
-# F6-02 · Auditoría de seguridad y pruebas negativas (etapa A)
+# F6-02 · Auditoría de seguridad, correcciones y validación
 
-Auditoría de privacidad, autenticación, autorización, aislamiento A/B, RLS, PWA/caché, exposición de secretos y exportaciones/copias. Ticket [F6-02](05-plan-de-implementacion.md) ("Sin fuga entre cuentas; secretos ausentes de artefactos/logs"). Continúa el seguimiento F6 de [52-auditoria-67-ca-f6-01.md](52-auditoria-67-ca-f6-01.md).
+Auditoría de privacidad, autenticación, autorización, aislamiento A/B, RLS, PWA/caché, exposición de secretos y exportaciones/copias. Ticket [F6-02](05-plan-de-implementacion.md) ("Sin fuga entre cuentas; secretos ausentes de artefactos/logs"). Continúa el seguimiento F6 de [52-auditoria-67-ca-f6-01.md](52-auditoria-67-ca-f6-01.md). Las secciones 1–11 registran la etapa A hasta `9995552`. La [etapa B](#12-etapa-b--validación-independiente-y-correcciones) registra el estado vigente del [PR #60](https://github.com/SebastianGonzalez2/finanzas-personales/pull/60).
 
 **Restricciones respetadas:** no se modificó código productivo (autenticación, sesiones, autorización, RLS, exportaciones), secretos, `.env*`, Neon ni esquemas. Todo se ejecutó contra una PostgreSQL 17 local desechable (`127.0.0.1:55432`, protegida por `testDatabaseConfig`) con identidades sintéticas (`.invalid`) y secretos de prueba. No hubo tráfico hacia Google, Neon, Vercel ni producción.
 
@@ -123,3 +123,55 @@ TEST_DATABASE_CONFIRM=isolated-local-test TEST_DATABASE_URL=postgresql://f0_test
 ```
 
 Las pruebas de artefactos de `secrets-surface-f6-02` se omiten (no se informan como aprobadas) si no existe `.next`; para que busquen los secretos sintéticos, compilar con las variables privadas de prueba del harness.
+
+## 12. Etapa B · Validación independiente y correcciones
+
+El trabajo continuó sobre `codex/F6-02-auditoria-seguridad`, con base F6-01 `dac920a`. Al verificar GitHub el 12 de noviembre, #57, #58 y #59 estaban abiertos. #60 seguía en borrador sobre la rama de #59. El árbol auditado incluye #58 (F5-09) y las pruebas de #59. La baja de cuenta de #57 tiene una rama independiente y su superficie específica queda fuera de esta evidencia. El inventario dinámico incorporará sus rutas cuando estén presentes en el árbol de integración.
+
+Cobertura relacionada con `RF-001…004`, `RF-048/049`, `RF-051`, `CA-001…005`, `CA-061…063`, el componente de caché de `CA-065` e `I-12`. R-01, R-13, R-15 y R-19 siguen sujetos a la validación en el destino HTTPS autorizado. Se conservaron los datos sintéticos y los roles de ejecución reales en PostgreSQL desechable.
+
+| Hallazgo | Veredicto independiente e impacto | Corrección y evidencia |
+| --- | --- | --- |
+| H01 · Media | Confirmado. El POST perdía la IP y permitía agotar el límite de acceso compartido con tres solicitudes anónimas que pasaran la comprobación de origen. | El adaptador acepta una dirección IPv4 o IPv6 individual de `x-vercel-forwarded-for` cuando el runtime está identificado como despliegue de Vercel. Better Auth solo consulta esa cabecera. Un cliente bloqueado recibe `429` aunque cambie cabeceras alternativas y otro cliente puede iniciar el flujo. Una IP ausente, inválida o sin proxy de confianza usa el límite compartido de respaldo. La prueba local no acredita la inyección del encabezado en un despliegue real. [Cabeceras de Vercel](https://vercel.com/docs/headers/request-headers) y [variables del sistema](https://vercel.com/docs/environment-variables/system-environment-variables). |
+| H02 · Baja | Confirmado. Faltaban controles de navegación embebida, MIME, referrer y permisos en páginas. | `next.config.ts` fija `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, `no-referrer` y restringe cámara, micrófono, geolocalización y pagos. CSP restringe los orígenes de recursos y conserva scripts y estilos inline para hidratación y UI. En el build de producción se excluye `unsafe-eval`. Se comprobaron páginas públicas y privadas, worker activo y acciones hidratadas en Chrome. [CSP en Next.js](https://nextjs.org/docs/app/guides/content-security-policy). |
+| H03 · Baja | Confirmado. El rol financiero podía fijar el contexto y ejecutar la copia privilegiada sin revalidar la sesión. La ruta HTTP ya comprobaba la sesión y el titular. | La migración 0036 quita al runtime el acceso directo al snapshot interno. La nueva firma exige un token vigente del titular del contexto y llama al snapshot original. La restauración sigue usando el snapshot interno tras autorizar su propia sesión y tomar el bloqueo exclusivo. Se probaron copia propia, token ajeno, inexistente, nulo, revocado y expirado, y denegación de la firma antigua con SQLSTATE `42501`. |
+| H04 · Baja | Confirmado como riesgo de integridad residual. El runtime puede insertar observaciones globales falsas y afectar conversiones si se compromete su capacidad de ejecutar SQL arbitrario. Las observaciones son públicas por diseño, así que la falta de RLS por titular en esa tabla no representa una fuga. | Se comprobó un `INSERT` sintético bajo el rol real y se revirtió. Un `UPDATE` quedó denegado. El refresco legítimo de F5-06 inserta observaciones y actualiza su caché global dentro de la transacción financiera. Se conserva el permiso documentado. Separar el escritor requeriría un proceso o credencial dedicada y coordinar el refresco y las lecturas. Un `SECURITY DEFINER` invocable por el mismo rol con datos arbitrarios conservaría la capacidad de publicar valores falsos. |
+| H05 · Limpieza | Confirmado como código inerte. `developmentAuthConfig` solo era invocado por su prueba, sin endpoint ni consumidor productivo. | Se eliminaron la función, el campo de configuración histórico y su prueba exclusiva. El escaneo del runtime incorpora ahora `neon-development-config.ts`. La regla que impide acceso al esquema administrado desde los roles de la app permanece activa. |
+
+**Descartes.** El RSC anónimo de Next.js contiene una redirección y metadatos estáticos. El prefetch no entrega datos privados. La normalización HTTP de espacios finales no permite agregar un sufijo a la credencial del cron. El término de búsqueda reflejado no prueba que B pueda leer un movimiento de A. Los identificadores públicos del proyecto de desarrollo no constituyen credenciales. La dependencia de orden de `schema.test.mjs` se limita al harness aislado.
+
+**Alcance de RLS.** Las matrices comprobaron lectura, escritura y borrado A/B con los roles de ejecución, sin contexto y con referencias ajenas. La RLS usa un GUC establecido por el servidor tras autorizar la sesión. La capacidad de ejecutar SQL arbitrario como `finanzas_app` permitiría cambiar ese GUC para consultas ordinarias. La migración 0036 protege la entrada de copia, y la aplicación sigue dependiendo de consultas parametrizadas y autorización de servidor para el resto. La prueba de cron comprueba su credencial separada y las pruebas de roles impiden que el runtime modifique la allowlist.
+
+### 12.1 Migración preparada para revisión
+
+- **SQL exacto** [0036_F6-02_authorize_account_backup.sql](../../src/db/migrations/0036_F6-02_authorize_account_backup.sql).
+- **SHA-256** `8ba70ab33cb3c71f13eb743949a2628483116806aafc799534bee1c012cdb017`.
+- **Destino previsto** `neondb`, rama `development` de Neon (`br-late-feather-b6czfkx0`), conexión directa con el propietario de migraciones, usando la transacción y comprobación de hash del repositorio.
+- **Impacto y reversibilidad** modifica permisos de ejecución y añade una sobrecarga. No transforma filas ni cambia el formato, el esquema de datos o la firma de los archivos de copia. Antes de confirmar, PostgreSQL revierte toda la migración si falla. Tras confirmarla, revertirla requeriría una nueva migración que retirara la sobrecarga y restaurara el permiso original, con un rollback coordinado de la aplicación. Eso reabriría H03. La versión anterior de la app usa la firma sin argumentos y la nueva versión usa la firma con token. Coordinar la activación para evitar una interrupción de descarga y vista previa.
+- **Precondición comprobada** Neon development registra hasta `0034_F5-07_account_backup.sql`. Las funciones de copia y restauración pertenecen a `neondb_owner`. `finanzas_app` puede ejecutar la firma antigua y autorizar sesiones, e insertar cotizaciones. El catálogo no mostró roles de runtime elevados ni tablas financieras con titular sin `ENABLE` y `FORCE ROW LEVEL SECURITY`. La firma nueva y 0035 están ausentes. Solo se consultó metadato, sin lecturas de filas de titulares.
+- **Aprobación pendiente** ADR 0004 exige autorización expresa. La 0035 de [F5-09 / PR #58](https://github.com/SebastianGonzalez2/finanzas-personales/pull/58) debe aplicarse previamente con su propia autorización. El migrador admite una sola migración pendiente por ejecución autorizada. F6-02 propone 0036 después de 0035. Ningún SQL de modificación se ejecutó en Neon.
+
+### 12.2 Archivos de la etapa B
+
+- `src/server/google-http.ts`, `src/server/google-auth-factory.ts` y `src/app/api/auth/[...path]/route.ts` endurecen el origen de la IP de Better Auth.
+- `next.config.ts` declara las cabeceras de seguridad. `src/server/neon-development-config.ts` elimina el auxiliar inerte.
+- La migración `0036` y `src/app/api/account/backup/route.ts` enlazan la copia al token de sesión.
+- `tests/unit/{security-surface-f6-02,neon-development}.test.mjs`, `tests/integration/{security-auth-f6-02,security-rls-f6-02,account-backup,schema}.test.mjs` y `tests/e2e-finance/security-f6-02.spec.mjs` actualizan la evidencia, incluido cierre de sesión con el worker activo y navegación hacia atrás.
+- `tests/unit/secrets-surface-f6-02.test.mjs` informa archivo y patrón ante coincidencias sin imprimir el contenido inspeccionado.
+
+### 12.3 Pruebas y resultados
+
+| Comando o comprobación | Resultado observado |
+| --- | --- |
+| `npm run check` | Prettier, lint, typecheck y build de producción aprobados. |
+| `npm run test:unit` | 145 aprobadas, 0 fallidas u omitidas. Escaneo del repositorio y de ambos artefactos compilados ejecutado. |
+| `npm run test:integration` | 131 aprobadas, 0 fallidas u omitidas, sin `todo`. PostgreSQL 17.6 local. Incluye Better Auth real, OAuth con transporte simulado, RLS, ACL y evolución de 0035 a 0036 con autorización por hash. |
+| `npm run test:e2e` | 18 aprobadas en Chrome, escritorio y viewport móvil. |
+| `npm run test:e2e:finance` | 84 aprobadas en Chrome, 0 fallidas. Los 10 casos de la matriz de seguridad se ejecutaron en escritorio y se omitieron en el viewport móvil. Chrome se ejecutó con su caché de navegación hacia atrás habilitada. |
+| Escaneo de logs de build y pruebas, incluida salida de Next.js | 0 coincidencias con los valores sintéticos buscados, patrones de claves privadas y credenciales de Google o Neon. |
+
+Se corrigieron errores de las primeras ejecuciones en las pruebas nuevas: el nombre `X-Retry-After` de Better Auth, la preparación de 0035 como migración previa y la elección de una API con método `GET` para repetir la cookie revocada. Las suites completas se volvieron a ejecutar. La revisión de navegador cubrió hidratación, navegación y controles de acceso con las nuevas cabeceras. No hubo cambios visuales intencionales.
+
+### 12.4 Verificación restante
+
+La verificación local usa Better Auth y roles reales de la app, con Google simulado en el transporte. Quedan pendientes R-19 (dos cuentas autorizadas y una denegada, HTTPS y dos dispositivos), prueba de cabeceras y aislamiento de límites desde un despliegue de vista previa autorizado, y comprobación de PWA instalada y push real. La prueba en Chrome usa el service worker real y el historial del navegador con datos sintéticos. H04 queda abierto como riesgo de integridad y el despliegue de H03 depende del orden de migración anterior. La revisión del flujo de borrado de cuenta se podrá integrar cuando #57 esté presente en la base probada.

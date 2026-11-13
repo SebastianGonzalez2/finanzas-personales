@@ -26,15 +26,18 @@ import type pg from "pg";
 
 export const runtime = "nodejs";
 
-async function readSnapshot(client: pg.PoolClient) {
+async function readSnapshot(client: pg.PoolClient, sessionToken: string) {
   const {
     rows: [snapshot],
   } = await client.query<{
     payload: string;
     revision: string;
     schema: string;
-  }>(`SELECT s.*, s.payload::jsonb->>'schema' AS schema
-      FROM finance.account_backup_snapshot() s`);
+  }>(
+    `SELECT s.*, s.payload::jsonb->>'schema' AS schema
+      FROM finance.account_backup_snapshot($1) s`,
+    [sessionToken],
+  );
   return snapshot;
 }
 
@@ -64,8 +67,8 @@ export async function POST(request: Request) {
         );
       const { snapshot, ownerId } = await withGoogleOwner(
         request,
-        async (client, ownerId) => ({
-          snapshot: await readSnapshot(client),
+        async (client, ownerId, sessionToken) => ({
+          snapshot: await readSnapshot(client, sessionToken),
           ownerId,
         }),
       );
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
           throw error;
         }
         if (action === "preview") {
-          const { revision, schema } = await readSnapshot(client);
+          const { revision, schema } = await readSnapshot(client, sessionToken);
           if (schema !== backup.schema)
             return exportFailure(
               "La copia corresponde a otra versión del esquema financiero.",

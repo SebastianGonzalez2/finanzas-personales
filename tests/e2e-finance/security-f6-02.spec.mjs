@@ -1,4 +1,4 @@
-/* global Buffer */
+/* global Buffer, navigator, caches */
 import { createHash, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -838,22 +838,69 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
 test("F6-02-H02: las páginas fijan cabeceras de seguridad (frame, MIME, referrer, CSP)", async ({
   actors,
 }) => {
-  test.fail(
-    true,
-    "F6-02-H02: next.config.ts y vercel.json no declaran cabeceras de seguridad",
-  );
   const { a } = actors;
-  const response = await a.request.get("/resumen", { maxRedirects: 0 });
-  const headers = response.headers();
-  expect(headers["x-content-type-options"]).toBe("nosniff");
-  expect(headers["referrer-policy"]).toMatch(
-    /no-referrer|same-origin|strict-origin/,
-  );
-  expect(headers["content-security-policy"] ?? "").toMatch(
-    /frame-ancestors 'none'|frame-ancestors 'self'/,
-  );
+  for (const path of ["/resumen", "/auth/sign-in", "/card-push-worker.js"]) {
+    const response = await a.request.get(path, { maxRedirects: 0 });
+    const headers = response.headers();
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["content-security-policy"]).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(headers["content-security-policy"]).toContain("object-src 'none'");
+    expect(headers["content-security-policy"]).not.toContain("unsafe-eval");
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["permissions-policy"]).toContain("camera=(), microphone=()");
+  }
+});
+
+test("F6-02: con el worker activo, cerrar sesión invalida el acceso y el historial no muestra datos privados", async ({
+  actors,
+}) => {
+  const { a, b, fixtures } = actors;
+  const page = await a.newPage();
+  const blocked = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /Content Security Policy/i.test(message.text())
+    )
+      blocked.push(message.text());
+  });
+  const marker = "Movimiento privado F6-02 caché";
   expect(
-    headers["x-frame-options"] ?? headers["content-security-policy"],
-  ).toBeTruthy();
-  expect(headers["permissions-policy"]).toBeTruthy();
+    (await send(a, "POST", "/api/bank-balances", sample.bankBalance)).status(),
+  ).toBe(201);
+  expect(
+    (await send(a, "POST", "/api/movements", sample.expense(marker))).status(),
+  ).toBe(201);
+  await page.goto("/historial");
+  await expect(page.getByText(marker, { exact: true })).toBeVisible();
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.register("/card-push-worker.js", {
+      scope: "/",
+    });
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  expect(
+    await page.evaluate(() => navigator.serviceWorker.controller !== null),
+  ).toBe(true);
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  const replay = await a.request.get("/api/account", {
+    headers: {
+      cookie: `${fixtures.cookies.a1.name}=${fixtures.cookies.a1.value}`,
+    },
+  });
+  expect(replay.status()).toBe(401);
+  expect((await b.request.get("/api/account")).status()).toBe(200);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => caches.keys())).toEqual([]);
+  expect(blocked).toEqual([]);
 });

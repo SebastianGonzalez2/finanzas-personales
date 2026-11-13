@@ -16,11 +16,12 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
   const pool = new pg.Pool(testDatabaseConfig());
   try {
     const { owners } = await financeBrowserFixtures();
-    const {
-      rows: [session],
-    } = await pool.query(
-      'SELECT token FROM app_auth.session WHERE "userId" = $1 LIMIT 1',
-      [owners.a],
+    const { rows: sessions } = await pool.query(
+      'SELECT DISTINCT ON ("userId") "userId", token FROM app_auth.session WHERE "userId" = ANY($1::text[]) ORDER BY "userId", token',
+      [[owners.a, owners.b]],
+    );
+    const tokens = new Map(
+      sessions.map(({ userId, token }) => [userId, token]),
     );
     const tx = (ownerId, work, exclusive = false) =>
       withOwnerTransaction(pool, async () => ({ ownerId }), work, {
@@ -32,7 +33,8 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
         async (client) =>
           (
             await client.query(
-              "SELECT * FROM finance.account_backup_snapshot()",
+              "SELECT * FROM finance.account_backup_snapshot($1)",
+              [tokens.get(owner)],
             )
           ).rows[0],
       );
@@ -52,7 +54,7 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
           return (
             await client.query(
               "SELECT finance.restore_account($1,$2,$3,$4,$5) AS result",
-              [session.token, payload, revision, id, digest],
+              [tokens.get(owners.a), payload, revision, id, digest],
             )
           ).rows[0].result;
         },

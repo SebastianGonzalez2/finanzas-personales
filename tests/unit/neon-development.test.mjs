@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  developmentAuthConfig,
   developmentDatabaseConfig,
   developmentTarget,
 } from "../../src/server/neon-development-config.mts";
@@ -12,8 +11,6 @@ const target = {
   branchName: "development",
   database: "neondb",
   endpointHost: "ep-synthetic.sa-east-1.aws.neon.tech",
-  authBaseUrl:
-    "https://ep-synthetic.neonauth.sa-east-1.aws.neon.tech/neondb/auth",
 };
 const env = {
   NEON_PROJECT_ID: target.projectId,
@@ -22,8 +19,6 @@ const env = {
     "postgresql://fixture:fixture%40only@ep-synthetic-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
   DATABASE_URL_UNPOOLED:
     "postgresql://fixture:fixture%40only@ep-synthetic.sa-east-1.aws.neon.tech/neondb?sslmode=require",
-  NEON_AUTH_BASE_URL: target.authBaseUrl,
-  NEON_AUTH_COOKIE_SECRET: "synthetic-cookie-secret-at-least-32-characters",
 };
 
 test("development: endpoint aprobado, TLS verificado, channel binding y decimal sin parsers float", () => {
@@ -69,19 +64,6 @@ test("development: rechaza proyecto/rama, production, otro endpoint/DB y opcione
   assert.throws(() => developmentDatabaseConfig(env, null));
   assert.throws(() =>
     developmentDatabaseConfig(env, { ...target, branchName: "production" }),
-  );
-});
-
-test("Auth: exige URL exacta de la rama verificada y secret privado; sin logs SDK", () => {
-  assert.equal(developmentAuthConfig(env, target).logLevel, "silent");
-  for (const patch of [
-    { NEON_AUTH_BASE_URL: `${target.authBaseUrl}/other` },
-    { NEON_AUTH_COOKIE_SECRET: "short" },
-    { NEON_BRANCH_ID: "production" },
-  ])
-    assert.throws(() => developmentAuthConfig({ ...env, ...patch }, target));
-  assert.throws(() =>
-    developmentAuthConfig(env, { ...target, authBaseUrl: null }),
   );
 });
 

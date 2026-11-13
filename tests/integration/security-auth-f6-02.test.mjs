@@ -253,54 +253,48 @@ test("F6-02: atributos de la cookie de sesión y límite de sesión", async () =
   }
 });
 
-// F6-02-H01 (media, disponibilidad). Evidencia: handleGoogleHttp reconstruye el
-// POST sin cabeceras de IP, de modo que Better Auth agrupa a todos los clientes
-// en el cubo «no-trusted-ip|/sign-in/social» (3 intentos cada 10 s en total).
-// Cualquier visitante anónimo con un Origin válido puede dejar sin acceso a las
-// cuentas autorizadas. Corregir reenviando la IP de la plataforma.
-test(
-  "F6-02-H01: el límite de tasa de sign-in se aplica por cliente y no es global",
-  {
-    todo: "F6-02-H01: cubo único «no-trusted-ip» compartido por todos los visitantes",
-  },
-  async () => {
-    const clean = await prepareDatabase();
-    const admin = new pg.Pool(testDatabaseConfig());
-    const authPool = new pg.Pool(authPoolConfig);
-    try {
-      const auth = createGoogleAuth(authPool, config(financeTestOrigin));
-      const attempt = (ip) =>
-        handleGoogleHttp(
-          new Request(`${financeTestOrigin}/api/auth/sign-in/social`, {
-            method: "POST",
-            headers: {
-              origin: financeTestOrigin,
-              "content-type": "application/json",
-              "x-forwarded-for": ip,
-            },
-            body: JSON.stringify({ provider: "google" }),
-          }),
-          ["sign-in", "social"],
-          {
-            enabled: true,
+test("F6-02-H01: un cliente bloqueado no agota el límite de otro ni puede falsificarlo", async () => {
+  const clean = await prepareDatabase();
+  const authPool = new pg.Pool(authPoolConfig);
+  try {
+    const auth = createGoogleAuth(authPool, config(financeTestOrigin));
+    const attempt = (ip, spoofed, trustVercelClientIp = true) =>
+      handleGoogleHttp(
+        new Request(`${financeTestOrigin}/api/auth/sign-in/social`, {
+          method: "POST",
+          headers: {
             origin: financeTestOrigin,
-            handler: (r) => auth.handler(r),
+            "content-type": "application/json",
+            "x-vercel-forwarded-for": ip,
+            "x-forwarded-for": spoofed,
+            "x-real-ip": spoofed,
           },
-        );
-      const statuses = [];
-      for (let index = 1; index <= 6; index++)
-        statuses.push((await attempt(`203.0.113.${index}`)).status);
-      const { rows } = await admin.query(
-        'SELECT key FROM app_auth."rateLimit" ORDER BY key',
+          body: JSON.stringify({ provider: "google" }),
+        }),
+        ["sign-in", "social"],
+        {
+          enabled: true,
+          trustVercelClientIp,
+          origin: financeTestOrigin,
+          handler: (r) => auth.handler(r),
+        },
       );
-      assert.deepEqual(
-        statuses,
-        [200, 200, 200, 200, 200, 200],
-        `Seis clientes distintos recibieron ${statuses.join(",")}; claves: ${rows.map((r) => r.key).join(" ")}`,
+    for (let index = 1; index <= 3; index++)
+      assert.equal(
+        (await attempt("203.0.113.1", `198.51.100.${index}`)).status,
+        200,
       );
-    } finally {
-      await Promise.all([admin.end(), authPool.end()]);
-      await clean();
-    }
-  },
-);
+    const limited = await attempt("203.0.113.1", "198.51.100.4");
+    assert.equal(limited.status, 429);
+    assert.ok(Number(limited.headers.get("x-retry-after")) > 0);
+    assert.equal((await attempt("203.0.113.2", "198.51.100.4")).status, 200);
+    for (let index = 3; index <= 6; index++)
+      assert.equal(
+        (await attempt(`203.0.113.${index}`, "198.51.100.5", false)).status,
+        index === 6 ? 429 : 200,
+      );
+  } finally {
+    await authPool.end();
+    await clean();
+  }
+});

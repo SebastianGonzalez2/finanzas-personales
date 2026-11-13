@@ -104,7 +104,7 @@ test("F6-02: el repositorio versionado no contiene credenciales, claves privadas
     if (file.endsWith("package-lock.json")) continue;
     const text = readFileSync(join(root, file), "utf8");
     for (const [pattern, label] of patterns)
-      assert.doesNotMatch(text, pattern, `${file}: ${label}`);
+      assert.ok(!pattern.test(text), `${file}: ${label}`);
     for (const [, user, password, host] of text.matchAll(connection)) {
       const harmless =
         publicUsers.has(user) ||
@@ -164,12 +164,14 @@ test(
           !text.includes(value),
           `${where} contiene un secreto de prueba`,
         );
-      assert.doesNotMatch(
-        text,
-        /postgres(?:ql)?:\/\/[^\s"']+:[^\s"']+@/,
-        where,
+      assert.ok(
+        !/postgres(?:ql)?:\/\/[^\s"']+:[^\s"']+@/.test(text),
+        `${where} contiene credenciales PostgreSQL`,
       );
-      assert.doesNotMatch(text, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, where);
+      assert.ok(
+        !/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text),
+        `${where} contiene una clave privada`,
+      );
     }
   },
 );
@@ -200,13 +202,20 @@ test(
           !text.includes(value),
           `${where} incrusta un secreto de prueba`,
         );
-      assert.doesNotMatch(
-        text,
-        /postgres(?:ql)?:\/\/[^\s"'`]+:[^\s"'`]+@[^\s"'`]*neon\.tech/,
-        where,
+      assert.ok(
+        !/postgres(?:ql)?:\/\/[^\s"'`]+:[^\s"'`]+@[^\s"'`]*neon\.tech/.test(
+          text,
+        ),
+        `${where} contiene credenciales de Neon`,
       );
-      assert.doesNotMatch(text, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, where);
-      assert.doesNotMatch(text, /GOCSPX-[A-Za-z0-9_-]{20,}/, where);
+      assert.ok(
+        !/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text),
+        `${where} contiene una clave privada`,
+      );
+      assert.ok(
+        !/GOCSPX-[A-Za-z0-9_-]{20,}/.test(text),
+        `${where} contiene un secreto de cliente de Google`,
+      );
     }
     const required = JSON.parse(
       readFileSync(join(build, "required-server-files.json"), "utf8"),
