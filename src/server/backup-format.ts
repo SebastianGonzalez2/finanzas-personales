@@ -185,11 +185,19 @@ export async function decodeBackup(
   } catch {
     throw new BackupError("El contenido de la copia es inválido.");
   }
-  const snapshot = object(JSON.parse(payload));
+  let snapshot: Record<string, unknown>;
+  try {
+    snapshot = object(JSON.parse(payload));
+  } catch {
+    throw new BackupError("El contenido de la copia es inválido.");
+  }
   if (
     typeof snapshot.schema !== "string" ||
     !hex256.test(snapshot.schema) ||
-    Object.values(object(snapshot.tables)).some((rows) => !Array.isArray(rows))
+    !snapshot.tables ||
+    typeof snapshot.tables !== "object" ||
+    Array.isArray(snapshot.tables) ||
+    Object.values(snapshot.tables).some((rows) => !Array.isArray(rows))
   )
     throw new BackupError("El contenido de la copia es inválido.");
   return {
