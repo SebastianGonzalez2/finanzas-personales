@@ -31,6 +31,7 @@ Los spikes aislados llevan sus propios package/tsconfig/pruebas y quedan fuera d
 - `npm run test:unit`: Node test runner incorporado; guardas del entorno desechable.
 - `npx playwright install chromium`, `npm run build`, `npm run test:e2e`: Chromium real, 1440×900 y 390×844, portada/teclado/desborde. Puerto 3106 exclusivo; no reutiliza servidores ajenos. No certifica navegadores móviles nativos.
 - `npm run test:integration`: PostgreSQL real; **falla** si no existe el servicio o faltan las variables; no salta tests ni toma `DATABASE_URL`.
+- Pruebas OPS de production: `tests/unit/neon-production.test.mjs` (destinos, manifiesto y hashes, autorizaciones, rechazos, idempotencia y CLIs sin conexión) y `tests/integration/production-migrations.test.mjs` (flujo completo del migrador de production sobre el PostgreSQL desechable). Solo usan destinos sintéticos, `fixture` y la base desechable; nunca Neon ni production.
 
 ## PostgreSQL desechable
 

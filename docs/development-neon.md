@@ -146,8 +146,10 @@ Neon desde `src/server/neon-targets.ts`, una **lista cerrada** de dos destinos
   TLS con verificación, channel binding y la comprobación de la sesión real
   (`neon.branch_id`, `current_database()`, rol sin privilegios, sin acceso a
   `neon_auth`, sin propiedad de objetos) en `assertGoogleRuntime`.
-- Los scripts de migración, aprovisionamiento y sondas siguen siendo **solo
-  development** (`neon-development-config.ts`); no existe aún tooling para production.
+- Los scripts de migración, aprovisionamiento y sondas de development
+  (`neon-development-config.ts`) no cambiaron. La herramienta equivalente para
+  production es exclusiva de ese destino: `neon-production-config.ts` con
+  procedimiento completo en [production-neon.md](production-neon.md).
 
 Variables por entorno de Vercel (mismos nombres, valores distintos por alcance):
 `NEON_PROJECT_ID`, `NEON_BRANCH_ID`, `GOOGLE_AUTH_DATABASE_URL`,
