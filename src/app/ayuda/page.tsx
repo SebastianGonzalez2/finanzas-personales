@@ -22,10 +22,16 @@ export default async function AyudaPage() {
           <p className="text-sm text-muted-foreground">
             Preguntas frecuentes sobre las funciones de la aplicación.
           </p>
-          {/* F6-06: lugar reservado para la acción «Ver tutorial introductorio»
-              de la próxima etapa. Mantener discreto hasta su implementación. */}
-          <p className="text-xs text-muted-foreground">
-            Tutorial introductorio: estará disponible próximamente.
+          <p className="text-sm">
+            <a
+              href="/resumen?tutorial=1"
+              className="inline-flex min-h-11 items-center underline underline-offset-2"
+            >
+              Volver a ver tutorial
+            </a>{" "}
+            <span className="text-muted-foreground">
+              (recorrido introductorio de cinco pasos)
+            </span>
           </p>
         </header>
         <AyudaFaq groups={ayudaGroups} />

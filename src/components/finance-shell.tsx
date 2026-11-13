@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FinanceIcon } from "./finance-icon";
+import { IntroTour } from "./intro-tour";
 
 const destinations = {
   resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
@@ -199,6 +200,7 @@ export function FinanceShell({
           {children}
         </main>
       </div>
+      {current === "resumen" && <IntroTour />}
     </div>
   );
 }
