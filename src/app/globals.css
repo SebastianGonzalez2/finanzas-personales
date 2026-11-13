@@ -5,7 +5,9 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
@@ -19,7 +21,9 @@
   --foreground: #ffffff;
   --card: #131313;
   --card-foreground: #ffffff;
+  --muted: #1e1e1e;
   --muted-foreground: #a3a3a3;
+  --accent: #1e1e1e;
   --border: #262626;
   --primary: #3558d4;
   --primary-foreground: #ffffff;
@@ -41,6 +45,30 @@
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+
+  /* F6-03 (CA-066): los resúmenes desplegables son controles táctiles (≈44 px);
+     las clases de utilidad con py-* siguen prevaleciendo. */
+  summary {
+    cursor: pointer;
+    padding-block: 0.625rem;
+  }
+
+  /* F6-03 (CA-066): control rechazado por la validación; no solo por color. */
+  [aria-invalid="true"] {
+    border-color: #f87171;
+    outline: 1px solid #f87171;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -119,6 +147,11 @@
 
   body:has(.finance-drawer[open]) {
     overflow: hidden;
+  }
+
+  /* El aviso de conexión es fijo: reserva espacio para no tapar el final. */
+  body:has([data-connection="offline"]) main {
+    padding-bottom: 6rem;
   }
 
   .finance-indicators,

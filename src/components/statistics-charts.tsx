@@ -145,7 +145,7 @@ export function StatisticsBarList({
               {row.href ? (
                 <Link
                   href={row.href}
-                  className="underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
                 >
                   {row.label}
                 </Link>
@@ -329,7 +329,7 @@ export function StatisticsMonthlyChart({
                   x={x}
                   y={height - bottom - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[10px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   Sin datos
                 </text>
@@ -337,7 +337,7 @@ export function StatisticsMonthlyChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[11px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -373,7 +373,7 @@ export function StatisticsMonthlyChart({
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[11px]"
+                className="fill-muted-foreground text-xs"
               >
                 {shortMonthLabel(row.period)}
               </text>
@@ -384,7 +384,7 @@ export function StatisticsMonthlyChart({
                     height - bottom - Math.max(incomeHeight, expenseHeight) - 5
                   }
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[10px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   Incompleto
                 </text>
@@ -480,7 +480,7 @@ export function StatisticsHistoryChart({
                   x={x}
                   y={middle - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[10px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   Sin datos
                 </text>
@@ -488,7 +488,7 @@ export function StatisticsHistoryChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[11px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -518,7 +518,7 @@ export function StatisticsHistoryChart({
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[11px]"
+                className="fill-muted-foreground text-xs"
               >
                 {shortMonthLabel(row.period)}
               </text>
