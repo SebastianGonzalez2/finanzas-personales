@@ -13,7 +13,7 @@ import {
 } from "../../src/server/bank-balances.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
-test("F1-02: anclas exactas por titular y moneda con reintento, concurrencia y rollback", async () => {
+test("F1-02 CA-007: anclas exactas por titular y moneda con reintento, concurrencia y rollback", async () => {
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 2 });
   const as = (ownerId, work) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);

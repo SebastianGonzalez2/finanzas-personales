@@ -13,6 +13,7 @@ import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { parseHistoryParams } from "../../src/domain/history.ts";
 import { parseMovement } from "../../src/domain/movements.ts";
 import { parseRefundCommand } from "../../src/domain/refunds.ts";
+import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
 import {
   listBankBalances,
   saveOpeningBalance,
@@ -608,7 +609,7 @@ test("F5-09: el abono figura en la estimación del ciclo y el aislamiento A/B pr
     },
   ));
 
-test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero", () =>
+test("F5-09 CA-028 y CA-067: reembolsos y cashback al cambiar de mes en Montevideo", () =>
   setup(
     async ({
       client,
@@ -621,6 +622,14 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
       buy,
     }) => {
       const categoryId = randomUUID();
+      const beforeMidnight = bankReferenceToday(
+        new Date("2026-02-01T02:59:59Z"),
+      );
+      const afterMidnight = bankReferenceToday(
+        new Date("2026-02-01T03:00:00Z"),
+      );
+      assert.equal(beforeMidnight, "2026-01-31");
+      assert.equal(afterMidnight, "2026-02-01");
       await client.query(
         "INSERT INTO finance.categories(owner_id,id,kind,name) VALUES ($1,$2,'expense','Ropa')",
         [owner, categoryId],
@@ -640,8 +649,11 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
         (await saveBudget(client, owner, budget, today)).status,
         "created",
       );
-      const debitPurchase = await expense({ categoryId });
-      const creditPurchase = await buy("1000");
+      const debitPurchase = await expense({
+        categoryId,
+        effectiveOn: beforeMidnight,
+      });
+      const creditPurchase = await buy("1000", beforeMidnight);
       await expense({ categoryId, amount: "3000", effectiveOn: february });
       const budgetsBefore = await listBudgets(client, owner, "2026-02");
       assert.equal(budgetsBefore[0].progress.consumed, "3000.0000");
@@ -657,7 +669,7 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
           action: "pending",
           purchaseId: debitPurchase,
           amount: "500",
-          effectiveOn: "2026-02-01",
+          effectiveOn: afterMidnight,
           idempotencyKey: randomUUID(),
         },
         today,
@@ -676,7 +688,7 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
             purchaseId,
             pendingId: method === "debit" ? pendingId : null,
             parts: [{ method, categoryId: category, amount }],
-            effectiveOn: february,
+            effectiveOn: afterMidnight,
             idempotencyKey: randomUUID(),
           },
           today,
@@ -685,12 +697,14 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
         const id = await created(saveRefund(client, owner, command));
         const entry = await getRefundEntry(client, owner, id);
         assert.equal(entry.purchaseId, purchaseId);
-        assert.equal(entry.effectiveOn, february);
+        assert.equal(entry.effectiveOn, afterMidnight);
         refunds.push(entry);
       }
       assert.equal(await bank(), "5500.0000");
       assert.equal((await findCard()).debt, "800.0000");
-      const benefitId = await created(benefit({ destination: "card", cardId }));
+      const benefitId = await created(
+        benefit({ destination: "card", cardId, effectiveOn: afterMidnight }),
+      );
       assert.equal(await bank(), "5500.0000");
       assert.equal((await findCard()).debt, "500.0000");
       assert.deepEqual(
@@ -787,7 +801,13 @@ test("F5-09 CA-028 y CA-067: reembolsos de enero y cashback conviven en febrero"
         const row = report.movimientos.find((entry) => entry[10] === id);
         assert.deepEqual(
           [row[0], row[1], row[5], row[8], row[11]],
-          [february, "Devolución recibida", card ?? "", amount, purchaseId],
+          [
+            afterMidnight,
+            "Devolución recibida",
+            card ?? "",
+            amount,
+            purchaseId,
+          ],
         );
       }
       const cashback = report.movimientos.find(
