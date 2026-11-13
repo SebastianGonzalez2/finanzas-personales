@@ -96,7 +96,8 @@ type CreditEvent = {
     | "card_opening"
     | "card_adjustment"
     | "purchase_refund"
-    | "card_credit_return";
+    | "card_credit_return"
+    | "bank_benefit";
   concept: string;
   categoryId?: string | null;
   note?: string | null;
