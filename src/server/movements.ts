@@ -11,6 +11,7 @@ import {
   insertClassification,
 } from "./classification.ts";
 import { hasLinkedRefund } from "./refund-schema.ts";
+import { bankBenefitsReady } from "./bank-benefit-schema.ts";
 import {
   isSharedExpense,
   sharedExpensesReady,
@@ -1041,6 +1042,8 @@ async function movementTotals<T extends MovementTotal>(
   const mixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
+  // F5-09: el beneficio bancario acreditado es ingreso del mes de acreditación.
+  const benefits = !byMerchant && (await bankBenefitsReady(client));
   const { rows } = await client.query<T>(
     `SELECT kind, currency, sum(amount)::text AS amount ${byMerchant ? ', ref.merchant_id AS "merchantId"' : ""} FROM (
        SELECT f.id, f.kind, e.currency, abs(e.amount_signed) AS amount
@@ -1083,6 +1086,15 @@ async function movementTotals<T extends MovementTotal>(
         SELECT f.id, 'expense', o.currency, o.expense FROM finance.loan_operations o
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
         WHERE o.owner_id = $1 AND o.expense > 0 AND f.status = 'confirmed'
+          AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
+          : ""
+      }
+      ${
+        benefits
+          ? `UNION ALL
+        SELECT f.id, 'income', b.currency, b.amount FROM finance.bank_benefits b
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
+        WHERE b.owner_id = $1 AND f.status = 'confirmed'
           AND f.effective_on >= $2::date AND f.effective_on < $2::date + interval '1 month'`
           : ""
       }

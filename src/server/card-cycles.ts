@@ -112,13 +112,14 @@ async function readCycles(
         refunds
           ? `ARRAY(SELECT jsonb_build_object('cardId', l.card_id, 'currency', l.currency,
         'effectiveOn', to_char(f.effective_on, 'YYYY-MM-DD'),
-        'amount', (CASE WHEN f.kind = 'purchase_refund' THEN -l.debt_delta ELSE -x.delta END)::text)
+        'amount', (CASE WHEN f.kind = 'card_purchase' THEN -x.delta ELSE -l.debt_delta END)::text)
         FROM finance.card_credit_changes x
         JOIN finance.credit_lines l ON (l.owner_id, l.event_id, l.currency) = (x.owner_id, x.event_id, x.currency)
         JOIN finance.financial_events f ON (f.owner_id, f.id) = (x.owner_id, x.event_id)
         WHERE x.owner_id = $1 AND ($2::uuid IS NULL OR x.card_id = $2) AND f.status = 'confirmed'
           AND ($3::date IS NULL OR f.effective_on <= $3)
-          AND ((f.kind = 'purchase_refund' AND l.debt_delta < 0) OR (f.kind = 'card_purchase' AND x.delta < 0)))`
+          AND ((f.kind IN ('purchase_refund', 'bank_benefit') AND l.debt_delta < 0)
+            OR (f.kind = 'card_purchase' AND x.delta < 0)))`
           : "ARRAY[]::jsonb[]"
       } AS credits`,
     [ownerId, cardId ?? null, asOf ?? null],

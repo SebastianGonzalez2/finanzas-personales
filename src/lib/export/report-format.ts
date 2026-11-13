@@ -111,6 +111,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       moneyColumn("importe", "Importe"),
       { id: "estado", label: "Confirmación", kind: "text" },
       { id: "movimiento_id", label: "Identificador", kind: "text" },
+      { id: "compra_original_id", label: "Compra original", kind: "text" },
     ],
   },
   {
@@ -142,6 +143,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       moneyColumn("compras", "Compras del ciclo"),
       moneyColumn("pagos", "Pagos del ciclo"),
       moneyColumn("saldo_pendiente", "Saldo pendiente"),
+      moneyColumn("abonos", "Abonos en la estimación"),
     ],
   },
   {
