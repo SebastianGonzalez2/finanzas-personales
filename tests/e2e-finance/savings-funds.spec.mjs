@@ -180,7 +180,10 @@ test("F3-02: Resumen muestra el disponible y el formulario protege lo reservado"
     path: testInfo.outputPath("disponible-libre.png"),
   });
 
-  await page.getByRole("button", { name: "+ Nueva transacción" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
+    .click();
   const form = page.getByRole("form", { name: "Nueva transacción" });
   const amount = form.getByLabel("Importe");
   await amount.fill("200,0001");

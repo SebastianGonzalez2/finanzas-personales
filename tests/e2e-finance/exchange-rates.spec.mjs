@@ -129,7 +129,20 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     );
 
     // UI-02: el selector global vive en la barra superior (segmentado).
-    await page.goto("/resumen");
+    await page.goto(`/resumen?month=${monday.slice(0, 7)}`);
+    await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
+      "10,00 EUR",
+    );
+    const categories = page.getByRole("region", {
+      name: "Gastos por categoría",
+    });
+    await expect(categories).toContainText("15,00 USD");
+    const flow = page.getByRole("region", {
+      name: "Flujo de los últimos seis meses",
+    });
+    await flow.getByText("Ver como tabla", { exact: true }).click();
+    await expect(flow.getByRole("row").last()).toContainText("15,00 USD");
+    await flow.getByText("Ver como tabla", { exact: true }).click();
     const selector = page.getByRole("group", {
       name: "Moneda de visualización",
     });
@@ -146,6 +159,7 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     await expect(
       page.getByRole("region", { name: "Equivalencia del disponible libre" }),
     ).toContainText("90,00 EUR");
+    await expect(categories).toContainText("10,00 EUR");
     await page.screenshot({ path: testInfo.outputPath("resumen-moneda.png") });
 
     const saved = await second.newPage();
@@ -239,6 +253,18 @@ test("F5-06: sin cotización histórica, tasa manual reproducible y aislada", as
       idempotencyKey: randomUUID(),
     });
     expect(expense.status(), await expense.text()).toBe(201);
+
+    const display = await post("display-currency", { currency: "EUR" });
+    expect(display.status()).toBe(200);
+    await page.goto("/resumen?month=2000-01");
+    await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
+      "100,00 UYU",
+    );
+    await expect(
+      page.getByRole("region", { name: "Gastos por categoría" }),
+    ).toContainText(
+      "Faltan cotizaciones para mostrar todos los gastos del mes.",
+    );
 
     await page.goto(
       "/estadisticas?from=2000-01-02&to=2000-01-02&display=EUR&kind=expense",

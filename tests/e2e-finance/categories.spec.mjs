@@ -28,7 +28,10 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   ).toBe(201);
 
   await page.goto("/resumen");
-  await page.getByRole("button", { name: "+ Nueva transacción" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
+    .click();
   const form = page.getByRole("form", { name: "Nueva transacción" });
   await form.getByLabel("Importe").fill("25,1234");
   await form.getByLabel("Fecha").fill("2025-02-03");
@@ -91,7 +94,10 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await page.screenshot({ path: testInfo.outputPath("F5-01-catalogo.png") });
 
   await page.goto("/resumen");
-  await page.getByRole("button", { name: "+ Nueva transacción" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
+    .click();
   await expect(category.locator(`option[value="${id}"]`)).toHaveCount(0);
 
   await page.goto(`/historial/movimientos/${eventId}`);

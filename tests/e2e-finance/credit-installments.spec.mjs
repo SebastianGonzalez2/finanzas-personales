@@ -19,7 +19,9 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
   const other = await browser.newContext({ baseURL: financeTestOrigin });
   await other.addCookies([cookies.b]);
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) =>
+    errors.push(`${page.url()}: ${error.message}`),
+  );
   const today = bankReferenceToday();
   const month = today.slice(0, 7);
   const periods = Array.from({ length: 4 }, (_, index) =>
@@ -77,7 +79,10 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
     await expect(page.getByText("Tarjeta guardada.")).toBeVisible();
 
     await page.goto("/resumen");
-    await button("+ Nueva transacción").click();
+    await page
+      .getByRole("banner")
+      .getByRole("link", { name: "Registrar movimiento" })
+      .click();
     await button("Compra con tarjeta de crédito").click();
     await page
       .getByRole("checkbox", { name: "Compra en cuotas iguales" })
@@ -104,7 +109,11 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
     await expect(report).toContainText("Cuota 1 · Sin categorizar");
     await expect(bank).toContainText("10.000,00 UYU");
 
-    await page.getByLabel("Mes del reporte").fill(periods[1]);
+    await page
+      .getByRole("group", { name: "Mes del reporte" })
+      .locator("summary")
+      .click();
+    await page.getByLabel("Elegir mes").fill(periods[1]);
     await button("Ver mes").click();
     await expect(report).toContainText("Cuota 2");
     await expect(expenses).toHaveText("2.000,00 UYU");

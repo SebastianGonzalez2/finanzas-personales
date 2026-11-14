@@ -22,8 +22,14 @@ export function RecentAmountCorrection({
   const [saved, setSaved] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const confirmation = useRef<HTMLParagraphElement>(null);
 
-  if (saved) return <p role="status">Importe corregido.</p>;
+  if (saved)
+    return (
+      <p role="status" tabIndex={-1} ref={confirmation}>
+        Importe corregido.
+      </p>
+    );
   return open ? (
     <form
       method="post"
@@ -40,9 +46,9 @@ export function RecentAmountCorrection({
           })
         ) {
           setSaved(true);
-          document
-            .getElementById("mis-finanzas")
-            ?.focus({ preventScroll: true });
+          requestAnimationFrame(() =>
+            confirmation.current?.focus({ preventScroll: true }),
+          );
           router.refresh();
         }
       }}

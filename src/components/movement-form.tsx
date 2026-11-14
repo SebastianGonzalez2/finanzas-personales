@@ -87,7 +87,7 @@ export function MovementForm({
   const sentRevision = useRef<{ action: "void" | "correct"; body: string }>(
     null,
   );
-  const trigger = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const correctionInput = useRef<HTMLInputElement>(null);
   const correctionTrigger = useRef<HTMLButtonElement>(null);
@@ -115,16 +115,32 @@ export function MovementForm({
       save.current?.focus();
   }, [pending, uncertain]);
 
-  function toggle() {
+  function focusRegistrationTrigger() {
+    const target = returnFocus.current;
+    if (target && target !== document.body && target.isConnected)
+      target.focus();
+    else
+      document
+        .querySelector<HTMLElement>('.finance-topbar [data-tour="registrar"]')
+        ?.focus();
+  }
+
+  function closeForm() {
+    setOpen(false);
+    focusRegistrationTrigger();
+  }
+
+  function openForm(initialKind: "expense" | "bank_transfer" = "expense") {
     if (creditOpen || sharedOpen || submitLock.current || revisionUncertain)
       return;
     if (open) {
-      setOpen(false);
-      trigger.current?.focus();
+      heading.current?.focus();
       return;
     }
+    const active = document.activeElement;
+    returnFocus.current = active instanceof HTMLElement ? active : null;
     if (!uncertain) {
-      setKind("expense");
+      setKind(initialKind);
       setCurrency(configured[0]);
       setAmount("");
       setEffectiveOn(today);
@@ -138,8 +154,10 @@ export function MovementForm({
     }
     setOpen(true);
     requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (active === trigger.current || active === document.body)
+      if (
+        document.activeElement === active ||
+        document.activeElement === document.body
+      )
         heading.current?.focus();
     });
   }
@@ -180,8 +198,7 @@ export function MovementForm({
               ? "Ingreso registrado."
               : "Gasto registrado.",
         );
-        setOpen(false);
-        trigger.current?.focus();
+        closeForm();
         router.refresh();
       } else if (
         response.status >= 500 ||
@@ -240,7 +257,7 @@ export function MovementForm({
         );
         setSavedId(null);
         setEditing(false);
-        trigger.current?.focus();
+        focusRegistrationTrigger();
         router.refresh();
       } else if (
         response.status >= 500 ||
@@ -268,18 +285,27 @@ export function MovementForm({
   }
 
   return (
-    <div className="mt-4">
+    <div>
       <button
-        ref={trigger}
         type="button"
-        className={primary}
+        hidden
         aria-expanded={open}
         aria-controls="nueva-transaccion"
         aria-disabled={pending || revisionUncertain || creditOpen || sharedOpen}
-        onClick={toggle}
+        onClick={() => openForm()}
       >
         + Nueva transacción
       </button>
+      {bankTransfersReady && (
+        <button
+          type="button"
+          hidden
+          data-open-bank-transfer
+          onClick={() => openForm("bank_transfer")}
+        >
+          Cambio de moneda
+        </button>
+      )}
       <p role="status" className={message ? "mt-2 text-sm" : "sr-only"}>
         {message}
       </p>
@@ -454,16 +480,26 @@ export function MovementForm({
                     setOpen(false);
                     router.refresh();
                   }
-                  requestAnimationFrame(() =>
-                    (result ? trigger.current : heading.current)?.focus(),
-                  );
+                  requestAnimationFrame(() => {
+                    if (result) focusRegistrationTrigger();
+                    else heading.current?.focus();
+                  });
                 }}
               />
             ) : !configured.length ? (
-              <p className="text-sm text-muted-foreground">
-                Configurá un saldo inicial en «Disponible libre» para registrar
-                un ingreso o gasto.
-              </p>
+              <div className="grid gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Configurá un saldo inicial en «Disponible libre» para
+                  registrar un ingreso o gasto.
+                </p>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn--ghost justify-self-start"
+                  onClick={closeForm}
+                >
+                  Cerrar formulario
+                </button>
+              </div>
             ) : (
               <form
                 method="post"
@@ -671,7 +707,7 @@ export function MovementForm({
                     type="button"
                     disabled={pending}
                     className="min-h-11 rounded-lg px-2 text-sm hover:bg-accent"
-                    onClick={toggle}
+                    onClick={closeForm}
                   >
                     {uncertain ? "Cerrar formulario" : "Cancelar"}
                   </button>

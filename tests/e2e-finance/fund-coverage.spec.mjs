@@ -66,7 +66,8 @@ test("F3-05: autoriza dos fondos, registra un compromiso y paga solo la parte el
 
   await page.goto("/resumen");
   await page
-    .getByRole("button", { name: "+ Nueva transacción", exact: true })
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
     .click();
   await page
     .getByRole("form", { name: "Nueva transacción" })

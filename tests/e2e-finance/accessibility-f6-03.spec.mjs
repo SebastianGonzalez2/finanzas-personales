@@ -287,7 +287,9 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   expect(configured.status()).toBe(201);
 
   await page.goto("/resumen");
-  const open = page.getByRole("button", { name: "+ Nueva transacción" });
+  const open = page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" });
   const form = page.getByRole("form", { name: "Nueva transacción" });
   await open.focus();
   await open.press("Enter");
@@ -363,7 +365,10 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
     ).status(),
   ).toBe(201);
   await page.goto("/resumen");
-  await page.getByRole("button", { name: "+ Nueva transacción" }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
+    .click();
   const form = page.getByRole("form", { name: "Nueva transacción" });
   const amount = form.getByLabel("Importe");
   await amount.fill("500");

@@ -26,12 +26,13 @@ export async function listLoanDueNotices(
   client: pg.PoolClient,
   ownerId: string,
   today: string,
+  upcomingPaymentDays = 0,
 ) {
   if (!(await loansReady(client))) return [];
   const loans = await listLoans(client, ownerId);
   return loans
-    .map((loan) =>
-      loanDueNotice({
+    .flatMap((loan) => {
+      const notice = loanDueNotice({
         loanId: loan.id,
         concept: loan.concept,
         direction: loan.direction,
@@ -39,10 +40,18 @@ export async function listLoanDueNotices(
         dueOn: loan.dueOn,
         outstanding: loan.outstanding,
         today,
-        leadDays: loan.noticeLeadDays,
-      }),
-    )
-    .filter((notice) => notice !== null)
+        leadDays:
+          loan.direction === "payable" && upcomingPaymentDays > 0
+            ? Math.max(
+                upcomingPaymentDays,
+                loan.noticeLeadDays ?? defaultNoticeLeadDays,
+              )
+            : loan.noticeLeadDays,
+      });
+      return notice
+        ? [{ ...notice, isPayment: loan.direction === "payable" }]
+        : [];
+    })
     .sort(byDueOn);
 }
 
@@ -50,20 +59,28 @@ export async function listRecurrenceDueNotices(
   client: pg.PoolClient,
   ownerId: string,
   today: string,
+  upcomingPaymentDays = defaultNoticeLeadDays,
 ) {
   if (!(await recurrencesReady(client))) return [];
   if (!(await recurrenceTrackingReady(client))) return [];
-  const through = new Date(`${today}T00:00:00Z`);
-  through.setUTCDate(through.getUTCDate() + defaultNoticeLeadDays);
-  const horizon = through.toISOString().slice(0, 10);
+  const through = (days: number) => {
+    const date = new Date(`${today}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  };
+  const paymentHorizon = through(upcomingPaymentDays);
+  const incomeHorizon = through(defaultNoticeLeadDays);
   // Solo fecha cierta (v9.36): los períodos aproximados o sin fecha no
   // generan aviso de vencimiento; su estado ya es visible en Recurrentes.
   const seriesList = (
     await listRecurrences(client, ownerId, today, true)
   ).filter((series) => series.dateMode === "exact");
-  const notices: DueNotice[] = [];
+  const notices: (DueNotice & { isPayment: boolean })[] = [];
   for (const series of seriesList) {
-    const latest = latestTrackedIndex(series, horizon);
+    const latest = latestTrackedIndex(
+      series,
+      series.kind === "expense" ? paymentHorizon : incomeHorizon,
+    );
     if (latest < 0) continue;
     const { indices } = trackedPeriodPage(series, latest);
     const periods = await trackedPeriods(client, ownerId, series, indices);
@@ -79,8 +96,13 @@ export async function listRecurrenceDueNotices(
         referenceAmount: period.referenceAmount,
         remaining: period.remaining,
         today,
+        leadDays:
+          series.kind === "expense"
+            ? upcomingPaymentDays
+            : defaultNoticeLeadDays,
       });
-      if (notice) notices.push(notice);
+      if (notice)
+        notices.push({ ...notice, isPayment: series.kind === "expense" });
     }
   }
   return notices.sort(byDueOn);

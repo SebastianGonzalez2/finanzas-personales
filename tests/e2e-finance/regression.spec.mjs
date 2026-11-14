@@ -72,7 +72,11 @@ test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión 
   const uyu = balances(page)
     .getByRole("listitem")
     .filter({ hasText: "Saldo bancario 10.000,00 UYU" });
-  await expect(uyu).toContainText("Confirmado al 01/01/2025");
+  await expect(uyu).toContainText("Saldo confirmado el 01/01");
+  await expect(uyu.locator("time").first()).toHaveAttribute(
+    "datetime",
+    "2025-01-01",
+  );
   const tomorrow = new Date(`${bankReferenceToday()}T00:00:00Z`);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   const concept = "Gasto sintético sin conexión";
@@ -88,7 +92,9 @@ test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión 
     }),
     400,
   );
-  const open = page.getByRole("button", { name: "+ Nueva transacción" });
+  const open = page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" });
   const form = page.getByRole("form", { name: "Nueva transacción" });
   const fillExpense = async () => {
     await open.focus();
@@ -145,9 +151,7 @@ test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión 
   ).toEqual(saved);
   await expect(page.getByText("Gasto registrado.")).toBeVisible();
   await expect(balances(page)).toContainText("Saldo bancario 9.500,00 UYU");
-  await expect(balances(page)).toContainText(
-    "Calculado · 10.000,00 UYU confirmado al 01/01/2025",
-  );
+  await expect(balances(page)).toContainText("Confirmado 10.000,00 UYU");
   await expect(balances(page)).not.toContainText(/saldo real verificado/i);
   const history = await a2.newPage();
   await history.goto(`/historial?q=${encodeURIComponent(concept)}`);
@@ -330,9 +334,10 @@ test("CA-027: registra EUR 50 como referencia y contabiliza USD 58 una vez", asy
   await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
     "58,00 USD",
   );
-  await expect(
-    balances(page).getByText("100,00 USD", { exact: true }),
-  ).toBeVisible();
+  await page.getByRole("tab", { name: "USD" }).click();
+  await expect(page.getByRole("tabpanel", { name: "USD" })).toContainText(
+    "Saldo bancario 100,00 USD",
+  );
   await page.goto("/tarjetas");
   await expect(
     page.getByText("58,00 USD", { exact: true }).first(),

@@ -39,8 +39,11 @@ export const tutorialSteps: readonly TutorialStep[] = [
   {
     id: "nueva-transaccion",
     title: "Registrar un movimiento",
-    text: "Con «Nueva transacción» cargás gastos, ingresos y transferencias. Esto es solo una guía: no se crea nada.",
-    targets: ['button[aria-controls="nueva-transaccion"]'],
+    text: "Con «Registrar movimiento» cargás gastos, ingresos y transferencias. Esto es solo una guía: no se crea nada.",
+    targets: [
+      '.finance-topbar [data-tour="registrar"]',
+      '.finance-dock [data-tour="registrar"]',
+    ],
   },
   {
     id: "ayuda",

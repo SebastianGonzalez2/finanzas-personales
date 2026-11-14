@@ -57,7 +57,10 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
     ).toBe(201);
 
   await page.goto("/resumen");
-  await button("+ Nueva transacción").click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: "Registrar movimiento" })
+    .click();
   await button("Compra con tarjeta de crédito").click();
   await page.getByLabel("Pagué una parte con débito").check();
   await page.getByLabel("Total de la compra").fill("12000");

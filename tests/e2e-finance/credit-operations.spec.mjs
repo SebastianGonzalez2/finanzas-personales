@@ -60,9 +60,14 @@ test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar g
     await balance("100,00 USD");
 
     await page.goto("/resumen");
-    await balance("10.000,00 UYU");
+    await expect(page.getByRole("tabpanel", { name: "UYU" })).toContainText(
+      "Saldo bancario 10.000,00 UYU",
+    );
     await expect(money("Gastos del mes")).toHaveCount(0);
-    await open("+ Nueva transacción");
+    await page
+      .getByRole("banner")
+      .getByRole("link", { name: "Registrar movimiento" })
+      .click();
     await open("Compra con tarjeta de crédito");
     await expect(page.getByLabel(/Saldo a favor aplicado/)).toHaveCount(0);
     await expect(

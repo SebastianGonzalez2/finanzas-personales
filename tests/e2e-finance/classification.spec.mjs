@@ -32,7 +32,10 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
       [owners.a, randomUUID(), today],
     );
     await page.goto("/resumen");
-    await page.getByRole("button", { name: /Nueva transacción/ }).click();
+    await page
+      .getByRole("banner")
+      .getByRole("link", { name: "Registrar movimiento" })
+      .click();
     await page
       .getByRole("textbox", { name: /^Importe Sin separador/ })
       .fill("500");

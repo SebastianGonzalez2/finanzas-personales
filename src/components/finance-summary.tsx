@@ -6,7 +6,6 @@ import {
   type BankCheckpoint,
 } from "@/domain/bank-balances";
 import {
-  movementDisplayMethods,
   type MovementTotal,
   type RecentBankTransfer,
   type RecentMovement,
@@ -16,46 +15,37 @@ import type { FundSource } from "@/domain/fund-coverage";
 import type { CatalogCard } from "@/domain/cards";
 import {
   formatInstallmentPeriod,
+  installmentPeriodAt,
+  isInstallmentPeriod,
   type MonthlyInstallment,
 } from "@/domain/installments";
 import { BankBalanceRow } from "./bank-balance-row";
 import { BankCheckpointHistory } from "./bank-checkpoint-history";
 import { BalanceAdjustmentForm } from "./balance-adjustment-form";
-import { FinanceIcon } from "./finance-icon";
+import Link from "next/link";
+import { Icon } from "./ui/icon";
 import { MovementForm } from "./movement-form";
-import { RecentAmountCorrection } from "./recent-amount-correction";
 import type { MovementTag } from "@/domain/classification";
 import { HistoryField, historyButton, historyControl } from "./history-fields";
 import { Card } from "./ui/card";
 
-const indicators = [
-  {
-    title: "Ingresos del mes",
-    icon: "income",
-    accent: "text-[#8196ff]",
-    description: "Los ingresos registrados aparecerán acá.",
-  },
-  {
-    title: "Gastos del mes",
-    icon: "expense",
-    accent: "text-[#4ade80]",
-    description: "Los gastos registrados aparecerán acá.",
-  },
-] as const;
+import { summaryMonthEnd, type summaryPeriods } from "@/domain/summary-period";
+import type { Currency } from "@/domain/money";
+import { BalanceHero } from "./glaciar-summary/balance-hero";
+import type { HistoryEntry } from "@/domain/history";
+import { SummaryRecent } from "./glaciar-summary/summary-recent";
+import {
+  SummaryFlows,
+  SummaryPlanning,
+  type SummaryFx,
+  type SummaryWidgets,
+} from "./glaciar-summary/summary-panels";
+import { TransferButton } from "./glaciar-summary/transfer-button";
 
-const sections = [
-  { title: "Recurrentes", icon: "calendar" },
-  { title: "Gastos recientes", icon: "expense", list: "expenses" },
-  { title: "Fondos de ahorro", icon: "savings" },
-  { title: "Ingresos recientes", icon: "income", list: "incomes" },
-] as const;
-
-function daysInMonth(period: string) {
-  const [year, month] = period.split("-").map(Number);
-  const date = new Date(0);
-  date.setUTCFullYear(year, month, 0);
-  return date.getUTCDate();
-}
+const fullDate = new Intl.DateTimeFormat("es-UY", {
+  dateStyle: "full",
+  timeZone: "UTC",
+});
 
 export function FinanceSummary({
   balances,
@@ -66,19 +56,25 @@ export function FinanceSummary({
   period,
   categories,
   tags,
-  creditCards,
+  registrationCards,
   debitCards,
   installmentsReady,
   sharedExpensesReady,
   monthlyInstallments,
   totals,
   refundTotals,
-  expenses,
-  incomes,
+  recent,
+  activity,
   bankTransfers,
   bankTransfersReady,
   movementRegistrationReady,
   currencySummary,
+  currency,
+  periods,
+  fx,
+  panels,
+  movementReadable,
+  cardsReady,
 }: {
   balances: BankAvailability[];
   fundSources?: FundSource[] | null;
@@ -88,35 +84,106 @@ export function FinanceSummary({
   period: string;
   categories: CatalogCategory[];
   tags?: MovementTag[] | null;
-  creditCards: CatalogCard[];
+  registrationCards: CatalogCard[];
   debitCards?: CatalogCard[];
   installmentsReady: boolean;
   sharedExpensesReady: boolean;
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
   refundTotals: Pick<MovementTotal, "currency" | "amount">[];
-  expenses: RecentMovement[];
-  incomes: RecentMovement[];
+  recent: RecentMovement[];
+  activity: HistoryEntry[];
   bankTransfers: RecentBankTransfer[];
   bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
   currencySummary: React.ReactNode;
+  currency: Currency;
+  periods: ReturnType<typeof summaryPeriods>;
+  fx: SummaryFx;
+  panels: SummaryWidgets | null;
+  movementReadable: boolean;
+  cardsReady: boolean;
 }) {
-  const recent = { expenses, incomes };
+  const stepper = (offset: number) => {
+    const target = installmentPeriodAt(period, offset);
+    const label = offset < 0 ? "Mes anterior" : "Mes siguiente";
+    const arrow = (
+      <Icon
+        name={offset < 0 ? "chevronLeft" : "chevronRight"}
+        duotone={false}
+        className="size-4"
+      />
+    );
+    return isInstallmentPeriod(target) ? (
+      <Link
+        href={`/resumen?month=${target}`}
+        className="lab-stepper__btn"
+        aria-label={label}
+      >
+        {arrow}
+      </Link>
+    ) : (
+      <button
+        className="lab-stepper__btn"
+        type="button"
+        aria-label={label}
+        disabled
+      >
+        {arrow}
+      </button>
+    );
+  };
 
   return (
-    <>
-      <h1
-        id="titulo-pagina"
-        tabIndex={-1}
-        className="text-xl leading-7 font-semibold"
-      >
-        Resumen financiero
-      </h1>
-      <p className="mt-1 text-muted-foreground first-letter:uppercase">
-        {formatInstallmentPeriod(period)}
-      </p>
-      {currencySummary}
+    <div className="glaciar-summary">
+      <div className="f-pagehead">
+        <div>
+          <p className="c-eyebrow">
+            <span className="c-eyebrow__line" aria-hidden="true" />
+            <time dateTime={today}>
+              {fullDate.format(new Date(`${today}T12:00:00Z`))}
+            </time>
+          </p>
+          <h1 id="titulo-pagina" tabIndex={-1} className="f-title">
+            Resumen financiero
+          </h1>
+        </div>
+        <div className="lab-stepper" role="group" aria-label="Mes del reporte">
+          {stepper(-1)}
+          <details className="relative">
+            <summary className="lab-stepper__label cursor-pointer list-none">
+              <Icon name="calendar" className="size-4" />
+              <span className="first-letter:uppercase">
+                {formatInstallmentPeriod(period)}
+              </span>
+              <span className="sr-only"> · Elegir otro mes</span>
+            </summary>
+            <form
+              action="/resumen"
+              method="get"
+              className="mt-2 grid gap-2 pb-2"
+            >
+              <HistoryField label="Elegir mes">
+                <input
+                  type="month"
+                  placeholder="AAAA-MM"
+                  pattern="[0-9]{4}-(0[1-9]|1[0-2])"
+                  name="month"
+                  required
+                  min="0001-01"
+                  max="9999-12"
+                  defaultValue={period}
+                  className={historyControl}
+                />
+              </HistoryField>
+              <button type="submit" className={historyButton}>
+                Ver mes
+              </button>
+            </form>
+          </details>
+          {stepper(1)}
+        </div>
+      </div>
       {movementRegistrationReady ? (
         <MovementForm
           bankTransfersReady={bankTransfersReady}
@@ -125,7 +192,7 @@ export function FinanceSummary({
           fundSources={fundSources}
           categories={categories}
           tags={tags}
-          creditCards={creditCards}
+          creditCards={registrationCards}
           debitCards={debitCards}
           installmentsReady={installmentsReady}
           sharedExpensesReady={sharedExpensesReady}
@@ -136,107 +203,70 @@ export function FinanceSummary({
         </p>
       )}
 
-      <section aria-label="Indicadores financieros" className="mt-6">
-        {installmentsReady && (
-          <form
-            action="/resumen"
-            method="get"
-            className="mb-4 flex flex-wrap items-end gap-2"
-          >
-            <HistoryField label="Mes del reporte">
-              <input
-                type="month"
-                placeholder="AAAA-MM"
-                pattern="[0-9]{4}-(0[1-9]|1[0-2])"
-                name="month"
-                required
-                min="0001-01"
-                max="9999-12"
-                defaultValue={period}
-                className={historyControl}
-              />
-            </HistoryField>
-            <button type="submit" className={historyButton}>
-              Ver mes
-            </button>
-          </form>
-        )}
-        <div className="finance-indicators">
-          <Card className="min-w-0 gap-3 rounded-[1.125rem] p-6 shadow-none">
-            <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
-              <FinanceIcon name="wallet" className="text-[#fb713f]" />
-              Disponible libre
-            </h2>
-            <ul aria-label="Saldos bancarios por moneda">
-              {bankCurrencies.map((currency) => {
-                const history = checkpoints.filter(
-                  (checkpoint) => checkpoint.currency === currency,
-                );
-                const firstDate = history.at(-1)?.asOfDate;
-                return (
-                  <BankBalanceRow
-                    key={currency}
-                    currency={currency}
-                    initialBalance={balances.find(
-                      (balance) => balance.currency === currency,
-                    )}
-                    today={today}
-                  >
-                    {firstDate && (
-                      <>
-                        <BalanceAdjustmentForm
-                          currency={currency}
-                          today={today}
-                          firstDate={firstDate}
-                        />
-                        <BankCheckpointHistory checkpoints={history} />
-                      </>
-                    )}
-                  </BankBalanceRow>
-                );
-              })}
-            </ul>
-          </Card>
-          {indicators.map(({ title, icon, accent, description }) => {
-            const monthly = bankCurrencies.flatMap((currency) =>
-              totals.filter(
-                (total) => total.kind === icon && total.currency === currency,
+      <section aria-label="Indicadores financieros" className="b-grid">
+        <BalanceHero
+          hint
+          balances={bankCurrencies.map((currency) => {
+            const history = checkpoints.filter(
+              (checkpoint) => checkpoint.currency === currency,
+            );
+            const firstDate = history.at(-1)?.asOfDate;
+            return {
+              currency,
+              content: (
+                <BankBalanceRow
+                  currency={currency}
+                  initialBalance={balances.find(
+                    (balance) => balance.currency === currency,
+                  )}
+                  today={today}
+                  transfer={
+                    <TransferButton
+                      available={
+                        bankTransfersReady && movementRegistrationReady
+                      }
+                    />
+                  }
+                  history={
+                    history.length > 0 && (
+                      <BankCheckpointHistory checkpoints={history} />
+                    )
+                  }
+                >
+                  {firstDate && reconciliationReady && (
+                    <BalanceAdjustmentForm
+                      currency={currency}
+                      today={today}
+                      firstDate={firstDate}
+                    />
+                  )}
+                </BankBalanceRow>
               ),
-            );
-            return (
-              <Card
-                key={title}
-                className="min-h-[13.0625rem] min-w-0 gap-6 rounded-[1.125rem] p-6 shadow-none"
-              >
-                <h2 className="flex items-center gap-2 font-medium text-muted-foreground">
-                  <FinanceIcon name={icon} className={accent} />
-                  {title}
-                </h2>
-                {monthly.length ? (
-                  <ul
-                    aria-label={title}
-                    className="space-y-1 text-lg font-semibold tabular-nums"
-                  >
-                    {monthly.map((total) => (
-                      <li key={total.currency} className="wrap-anywhere">
-                        {formatBankAmount(total)}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div>
-                    <p className="text-[1.625rem] leading-8 font-semibold">
-                      Sin datos
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {description}
-                    </p>
-                  </div>
-                )}
-              </Card>
-            );
+            };
           })}
-        </div>
+        />
+        <SummaryFlows
+          currency={currency}
+          fx={fx}
+          periods={periods}
+          totals={totals}
+          today={today}
+        />
+        <SummaryPlanning
+          panels={panels}
+          today={today}
+          period={period}
+          cardsReady={cardsReady}
+        />
+        <SummaryRecent
+          recent={recent}
+          activity={activity}
+          available={movementReadable}
+          canCorrect={movementRegistrationReady && reconciliationReady}
+        />
+      </section>
+      <section aria-label="Detalle financiero">
+        {currencySummary}
         {refundTotals.length > 0 && (
           <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
             <h3 className="font-semibold">Devoluciones recibidas en el mes</h3>
@@ -247,7 +277,7 @@ export function FinanceSummary({
             </ul>
             <a
               className="w-fit underline"
-              href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${daysInMonth(period)}`}
+              href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${summaryMonthEnd(period).slice(-2)}`}
             >
               Ver devoluciones en el historial
             </a>
@@ -331,105 +361,6 @@ export function FinanceSummary({
           </Card>
         )}
       </section>
-
-      <section aria-labelledby="mis-finanzas" className="mt-5">
-        <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-y py-3">
-          <h2 id="mis-finanzas" tabIndex={-1} className="text-lg font-semibold">
-            Mis finanzas
-          </h2>
-          <nav aria-label="Secciones de Mis finanzas">
-            <a
-              href="/resumen#titulo-pagina"
-              aria-current="page"
-              className="finance-nav-link text-sm"
-            >
-              <FinanceIcon name="summary" />
-              Resumen
-            </a>
-          </nav>
-        </div>
-        <div className="finance-board">
-          {sections.map((section) => (
-            <div
-              key={section.title}
-              className="min-w-0 rounded-2xl border bg-[var(--finance-well)] p-2"
-            >
-              <h3 className="flex items-center gap-2 px-2 py-2 text-sm font-semibold">
-                <FinanceIcon
-                  name={section.icon}
-                  className="text-muted-foreground"
-                />
-                {section.title}
-              </h3>
-              <Card className="min-h-24 justify-center p-4 text-sm text-muted-foreground shadow-none">
-                {"list" in section ? (
-                  <RecentMovements
-                    movements={recent[section.list]}
-                    canCorrect={
-                      movementRegistrationReady && reconciliationReady
-                    }
-                  />
-                ) : (
-                  <p>Disponible en una próxima etapa.</p>
-                )}
-              </Card>
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
-
-function RecentMovements({
-  movements,
-  canCorrect,
-}: {
-  movements: RecentMovement[];
-  canCorrect: boolean;
-}) {
-  if (!movements.length) return <p>Todavía no hay movimientos de este tipo.</p>;
-
-  return (
-    <ul className="divide-y">
-      {movements.map((movement) => (
-        <li
-          key={`${movement.id}-${movement.currency}`}
-          className="space-y-1 py-2 first:pt-0 last:pb-0 wrap-anywhere"
-        >
-          <div className="flex flex-wrap justify-between gap-x-3 font-medium text-foreground">
-            <p>{movement.concept}</p>
-            <p className="tabular-nums">{formatBankAmount(movement)}</p>
-          </div>
-          <p>
-            <time dateTime={movement.effectiveOn}>
-              {formatBankReference(movement.effectiveOn)}
-            </time>
-            {" · "}
-            {movement.category ?? "Sin categorizar"}
-            {" · "}
-            {movementDisplayMethods[movement.method]}
-          </p>
-          {movement.note && (
-            <p className="whitespace-pre-wrap">{movement.note}</p>
-          )}
-          {movement.shared && (
-            <a
-              className="font-medium underline"
-              href={`/historial/movimientos/${movement.id}`}
-            >
-              Ver gasto y obligaciones
-            </a>
-          )}
-          {canCorrect && !movement.shared && movement.method !== "credit" && (
-            <RecentAmountCorrection
-              eventId={movement.id}
-              amount={movement.amount}
-              concept={movement.concept}
-            />
-          )}
-        </li>
-      ))}
-    </ul>
+    </div>
   );
 }

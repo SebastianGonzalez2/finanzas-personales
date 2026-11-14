@@ -295,6 +295,7 @@ export async function listCardCycleAlerts(
   ownerId: string,
   cards: CatalogCard[],
   today: string,
+  upcomingThrough?: string,
 ) {
   const data = await readCycles(client, ownerId);
   const alerts = cards
@@ -327,7 +328,15 @@ export async function listCardCycleAlerts(
           today,
           amountsByCycle.get(key) ?? [],
         );
-        return summary.alert && summary.dueOn && summary.remaining
+        const pending =
+          summary.alert ||
+          (upcomingThrough &&
+            summary.dueOn &&
+            summary.dueOn >= today &&
+            summary.dueOn <= upcomingThrough &&
+            summary.remaining !== null &&
+            summary.remaining !== "0.0000");
+        return pending && summary.dueOn && summary.remaining
           ? [
               {
                 cardId: card.id,
