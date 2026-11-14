@@ -30,10 +30,13 @@ uniform vec3 u_c1;
 uniform vec3 u_c2;
 uniform vec3 u_c3;
 uniform float u_gain;
+uniform float u_flip;
+uniform float u_seed;
 void main(){
   vec2 uv=gl_FragCoord.xy/u_res;
+  if(u_flip>0.5) uv.y=1.0-uv.y;
   vec2 p=uv;p.x*=u_res.x/u_res.y;
-  float t=u_time*0.045;
+  float t=u_time*0.045+u_seed;
   vec3 col=u_base;
   for(int i=0;i<4;i++){
     float fi=float(i);
@@ -69,8 +72,11 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 export function AmbientShader({
   palette,
   scale = 0.4,
+  position = "top",
 }: {
   palette: PaletteKey;
+  /** «bottom» dibuja las ondas invertidas para el final de la página. */
+  position?: "top" | "bottom";
   /** Fracción de la resolución CSS que se renderiza (la luz difusa tolera poca). */
   scale?: number;
 }) {
@@ -107,9 +113,9 @@ export function AmbientShader({
       new Float32Array([-1, -1, 3, -1, -1, 3]),
       gl.STATIC_DRAW,
     );
-    const position = gl.getAttribLocation(program, "a_pos");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    const vertexPosition = gl.getAttribLocation(program, "a_pos");
+    gl.enableVertexAttribArray(vertexPosition);
+    gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
     const resolution = gl.getUniformLocation(program, "u_res");
     const time = gl.getUniformLocation(program, "u_time");
     const colors: Palette = palettes[palette];
@@ -118,6 +124,15 @@ export function AmbientShader({
     setColor("u_base", colors.base);
     colors.bands.forEach((band, index) => setColor(`u_c${index}`, band));
     gl.uniform1f(gl.getUniformLocation(program, "u_gain"), colors.gain);
+    gl.uniform1f(
+      gl.getUniformLocation(program, "u_flip"),
+      position === "bottom" ? 1 : 0,
+    );
+    // Otra fase para que abajo no sea un espejo exacto de arriba.
+    gl.uniform1f(
+      gl.getUniformLocation(program, "u_seed"),
+      position === "bottom" ? 7.3 : 0,
+    );
 
     let frame = 0;
     let last = 0;
@@ -197,10 +212,13 @@ export function AmbientShader({
       gl.deleteShader(fs);
       gl.deleteBuffer(buffer);
     };
-  }, [palette, scale, animate]);
+  }, [palette, scale, animate, position]);
 
   return (
-    <div aria-hidden="true" className="lab-ambient lab-ambient--waves">
+    <div
+      aria-hidden="true"
+      className={`lab-ambient lab-ambient--waves lab-ambient--${position}`}
+    >
       <canvas ref={canvas} className="lab-ambient__canvas" />
     </div>
   );

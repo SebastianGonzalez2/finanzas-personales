@@ -2573,3 +2573,96 @@
     box-shadow: 0 0 0 1.5px #070910;
   }
 }
+
+/* ─────────────── Ondas al final de la página y luz del medio ─────────────── */
+@layer components {
+  /* Franja inferior: las mismas ondas, invertidas, al final del contenido. */
+  .lab-c .lab-ambient--waves.lab-ambient--bottom {
+    inset: auto 0 0;
+    height: 100vh;
+    height: 100dvh;
+    background:
+      radial-gradient(80% 30% at 70% 88%, var(--lab-glow-1), transparent 70%),
+      radial-gradient(70% 28% at 25% 78%, var(--lab-glow-2), transparent 70%),
+      radial-gradient(60% 20% at 50% 68%, var(--lab-glow-3), transparent 70%),
+      var(--lab-bg);
+    -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
+    mask-image: linear-gradient(to top, #000 50%, transparent);
+  }
+
+  /* Deja aire bajo el último panel para que la franja inferior se vea. */
+  .lab-final .c-main {
+    padding-bottom: 240px;
+  }
+
+  @media (min-width: 64rem) {
+    .lab-final .c-main {
+      padding-bottom: 200px;
+    }
+  }
+
+  /* Luz del medio: manchas difusas muy tenues que derivan despacio. Solo
+     transformaciones (las mueve el compositor, sin repintar). */
+  .lab-glow {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .lab-glow span {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.55;
+    filter: blur(110px);
+    will-change: transform;
+    animation: lab-glow-drift 70s ease-in-out infinite alternate;
+  }
+
+  .lab-glow span:nth-child(1) {
+    top: 18%;
+    left: -12%;
+    width: 52vw;
+    height: 42vh;
+    background: var(--lab-glow-1);
+  }
+
+  .lab-glow span:nth-child(2) {
+    top: 42%;
+    right: -14%;
+    width: 46vw;
+    height: 46vh;
+    background: var(--lab-glow-2);
+    animation-duration: 90s;
+    animation-direction: alternate-reverse;
+  }
+
+  .lab-glow span:nth-child(3) {
+    top: 64%;
+    left: 28%;
+    width: 42vw;
+    height: 32vh;
+    background: var(--lab-glow-3);
+    animation-duration: 110s;
+  }
+
+  @keyframes lab-glow-drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(8vw, -6vh, 0) scale(1.15);
+    }
+  }
+
+  html[data-lab-motion="off"] .lab-glow span {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lab-glow span {
+      animation: none;
+    }
+  }
+}

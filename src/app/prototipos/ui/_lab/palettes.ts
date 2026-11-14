@@ -49,7 +49,7 @@ export const palettes = {
   },
   glaciar: {
     name: "Glaciar",
-    description: "Plata y azul hielo: sobria, casi monocroma.",
+    description: "Definitiva: plata y azul hielo, sobria y casi monocroma.",
     swatch: ["#070a0d", "#d3e3f2", "#7f9db8", "#4a6a80"],
     base: [0.027, 0.035, 0.047],
     bands: [
@@ -79,7 +79,7 @@ export type PaletteKey = keyof typeof palettes;
 export const paletteKeys = Object.keys(palettes) as PaletteKey[];
 
 // Solo en memoria (sin almacenamiento del navegador, regla F6-02).
-let current: PaletteKey = "turquesa";
+let current: PaletteKey = "glaciar";
 const listeners = new Set<() => void>();
 
 export function setPalette(key: PaletteKey) {
@@ -94,6 +94,6 @@ export function usePalette() {
       return () => listeners.delete(listener);
     },
     () => current,
-    () => "turquesa" as PaletteKey,
+    () => "glaciar" as PaletteKey,
   );
 }

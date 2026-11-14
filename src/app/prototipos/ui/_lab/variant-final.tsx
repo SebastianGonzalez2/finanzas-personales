@@ -111,7 +111,15 @@ export function VariantFinal({ view }: { view: LabView }) {
   const palette = usePalette();
   return (
     <div className="lab-root lab-c lab-final" data-palette={palette}>
+      {/* Luz suave y lenta en toda la pantalla, para que el medio no sea un
+          fondo negro y quieto. */}
+      <div className="lab-glow" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
       <AmbientShader palette={palette} scale={0.5} />
+      <AmbientShader palette={palette} scale={0.5} position="bottom" />
       <div className="c-grain" aria-hidden="true" />
       <LabBar />
       <aside className="c-rail" aria-label="Menú lateral">
