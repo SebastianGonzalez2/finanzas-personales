@@ -169,7 +169,7 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
     await screenshot("detalle-auditado.png");
 
     await page.goto(`/resumen?month=${periods[1]}`);
-    await expect(expenses).toHaveText("1.900,0001 UYU");
+    await expect(expenses).toHaveText("1.900,00 UYU");
     await page.goto(`/resumen?month=${periods[2]}`);
     await expect(report).toHaveCount(0);
     await expect(expenses).toHaveCount(0);

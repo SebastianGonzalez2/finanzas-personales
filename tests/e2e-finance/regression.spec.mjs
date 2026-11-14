@@ -447,8 +447,8 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
     for (const sessionPage of [page, secondPage]) {
       const summary = await sessionPage.goto("/resumen");
       expect(summary.headers()["cache-control"]).toContain("no-store");
-      await expect(balances(sessionPage)).toContainText("25.999,9999 UYU");
-      await expect(balances(sessionPage)).toContainText("100,1251 USD");
+      await expect(balances(sessionPage)).toContainText("26.000,00 UYU");
+      await expect(balances(sessionPage)).toContainText("100,13 USD");
     }
   });
 
@@ -505,7 +505,7 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
     expect(forgedOwner).toEqual({ error: "Solicitud inválida." });
     await otherPage.goto("/resumen");
     await expect(balances(otherPage)).toContainText("911,25 UYU");
-    await expect(balances(otherPage)).not.toContainText("100,1251 USD");
+    await expect(balances(otherPage)).not.toContainText("100,13 USD");
   });
 
   await test.step("Si se pierde la respuesta, la UI reenvía la corrección original", async () => {
@@ -543,9 +543,7 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
       page.getByText("Gasto · Corregido", { exact: true }),
     ).toBeVisible();
     await page.getByRole("link", { name: "Ver reemplazo" }).click();
-    await expect(
-      page.getByText("1.500,0001 UYU", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("1.500,00 UYU", { exact: true })).toBeVisible();
   });
 
   await test.step("La segunda sesión ve la corrección y el saldo confirmado intacto", async () => {
@@ -556,7 +554,7 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
     await secondPage.goto("/resumen");
     const saldoUYU = balances(secondPage)
       .getByRole("listitem")
-      .filter({ hasText: "25.999,9999 UYU" });
+      .filter({ hasText: "26.000,00 UYU" });
     await saldoUYU
       .getByText("Confirmaciones de saldo", { exact: false })
       .click();
@@ -566,9 +564,9 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
       }),
     ).toBeVisible();
     await expect(
-      saldoUYU.getByText(/Diferencia de conciliación: −499,9999 UYU/),
+      saldoUYU.getByText(/Diferencia de conciliación: −500,00 UYU/),
     ).toBeVisible();
-    await expect(saldoUYU).toContainText("25.999,9999 UYU");
+    await expect(saldoUYU).toContainText("26.000,00 UYU");
   });
 
   await test.step("Anulación auditada y cierre independiente de la primera sesión", async () => {

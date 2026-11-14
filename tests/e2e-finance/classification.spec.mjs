@@ -83,7 +83,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
       page.getByRole("heading", { name: "Desglose por categorías" }),
     ).toBeVisible();
     await expect(
-      page.getByText(/Transporte sintético · 375,0001 UYU/),
+      page.getByText(/Transporte sintético · 375,00 UYU/),
     ).toBeVisible();
     const foreignEdit = {
       data: {
@@ -120,7 +120,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
       .getByText("Últimas clasificaciones anteriores", { exact: true })
       .click();
     await expect(
-      page.getByText("Transporte sintético · 375,0001 UYU"),
+      page.getByText("Transporte sintético · 375,00 UYU"),
     ).toBeVisible();
 
     await page.goto("/estadisticas?display=original");

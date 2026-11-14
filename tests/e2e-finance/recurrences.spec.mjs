@@ -36,7 +36,7 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
   const list = page.getByRole("list", { name: "Recurrencias guardadas" });
   await expect(list).toContainText("Seguro sintético de enero");
   await expect(list).toContainText("Fecha aproximada");
-  await expect(list).toContainText("125,1234 UYU");
+  await expect(list).toContainText("125,12 UYU");
   await expect(list).not.toContainText(/Sin pago confirmado|Vence el/);
   await page.reload();
   await expect(list).toContainText(

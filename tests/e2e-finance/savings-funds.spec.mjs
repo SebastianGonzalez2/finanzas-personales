@@ -76,17 +76,17 @@ test("F3-01: confirma reservas, traspasos y liberaciones sin afectar Bancos ni g
   await move(
     "Traspasar desde Vacaciones F3-01",
     "1000,0001",
-    "Traspasar 1.000,0001 UYU desde Vacaciones F3-01 hacia Emergencia F3-01.",
+    "Traspasar 1.000,00 UYU desde Vacaciones F3-01 hacia Emergencia F3-01.",
     "Emergencia F3-01",
   );
-  await expect(page.getByText("1.000,0001 UYU", { exact: true })).toBeVisible();
+  await expect(page.getByText("1.000,00 UYU", { exact: true })).toBeVisible();
   await expect(page.getByText("7.000,00 UYU", { exact: true })).toBeVisible();
   await move(
     "Liberar de Vacaciones F3-01",
     "500,0002",
-    "Liberar 500,0002 UYU de Vacaciones F3-01.",
+    "Liberar 500,00 UYU de Vacaciones F3-01.",
   );
-  await expect(page.getByText("7.500,0002 UYU", { exact: true })).toBeVisible();
+  await expect(page.getByText("7.500,00 UYU", { exact: true })).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -187,7 +187,7 @@ test("F3-02: Resumen muestra el disponible y el formulario protege lo reservado"
   await form.getByLabel("Concepto", { exact: true }).fill("Gasto F3-02");
   const save = form.getByRole("button", { name: "Guardar movimiento" });
   await save.click();
-  await expect(form.getByRole("alert")).toContainText("Faltan 0,0001 UYU");
+  await expect(form.getByRole("alert")).toContainText("Faltan 0,00 UYU");
   await expect(
     page.getByText("Los gastos registrados aparecerán acá."),
   ).toBeVisible();
