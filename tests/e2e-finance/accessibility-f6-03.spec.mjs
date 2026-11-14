@@ -106,11 +106,27 @@ test("CA-066: navegación de escritorio con nombre, foco visible y salto al tít
   await page.keyboard.press("Enter");
   await expect(page.getByRole("main")).toBeFocused();
   const nav = page.getByRole("navigation", { name: "Navegación principal" });
-  await expect(nav).toMatchAriaSnapshot(`
-    - navigation "Navegación principal":
-      - link "Resumen"
-      - link "Historial"
-  `);
+  // UI-02: riel agrupado (General / Planificación / Crédito / Catálogos y,
+  // abajo, Avisos, Ayuda y Mi cuenta). Se verifican todos los destinos en orden.
+  await expect(nav.getByRole("link")).toHaveText([
+    "Resumen",
+    "Historial",
+    "Estadísticas",
+    "Informes",
+    "Presupuestos",
+    "Recurrentes",
+    "Fondos de ahorro",
+    "Tarjetas",
+    "Deudas y préstamos",
+    "Beneficios bancarios",
+    "Categorías",
+    "Comercios y contactos",
+    "Avisos",
+    "Ayuda",
+    "Mi cuenta",
+  ]);
+  for (const group of ["General", "Planificación", "Crédito", "Catálogos"])
+    await expect(nav.getByText(group, { exact: true })).toBeAttached();
   await expect(nav.getByRole("link", { name: "Resumen" })).toHaveAttribute(
     "aria-current",
     "page",

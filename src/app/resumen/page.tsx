@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
-import { DisplayCurrencySelector } from "@/components/display-currency-selector";
 import { CurrencyValue } from "@/components/current-currency-value";
 import { ExchangeRateDetails } from "@/components/exchange-rate-details";
 import { Card } from "@/components/ui/card";
@@ -179,11 +178,7 @@ export default async function SummaryPage({
         period={period}
         currencySummary={
           <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 shadow-none">
-            <DisplayCurrencySelector
-              key={data.currency}
-              currency={data.currency}
-              ready={fx !== null}
-            />
+            {/* UI-02: la moneda se elige en la barra superior del shell. */}
             {fx ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <section
