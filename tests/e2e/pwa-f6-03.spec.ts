@@ -14,7 +14,7 @@ test("RF-051: manifest instalable, íconos PNG públicos y metadatos móviles", 
   );
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
     "content",
-    "#131313",
+    "#070a0d",
   );
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
 
@@ -28,8 +28,8 @@ test("RF-051: manifest instalable, íconos PNG públicos y metadatos móviles", 
     lang: "es",
     start_url: "/",
     display: "standalone",
-    background_color: "#131313",
-    theme_color: "#131313",
+    background_color: "#070a0d",
+    theme_color: "#070a0d",
   });
   expect(manifest.description).toBeTruthy();
   type Icon = { src: string; sizes: string; type: string; purpose?: string };
