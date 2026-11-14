@@ -1,5 +1,7 @@
 # Especificación visual de FinTrack
 
+> **Sustituida en lo visual (2026-11-14, v9.50):** la identidad vigente es [ui-identidad-visual.md](ui-identidad-visual.md). De esta guía siguen valiendo solo los **límites funcionales** (dashboard fijo, sin ocultar importes, favoritos solo en Estadísticas, nada offline, ningún control que prometa funciones inexistentes).
+
 [Captura de referencia](../fintrack-original.jpeg)
 
 **Ticket:** F0-02 · **Fecha:** 2026-11-07 · **Estado:** especificación para revisión; sin UI implementada.

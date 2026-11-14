@@ -1,10 +1,10 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.49  
-**Actualizado:** 2026-11-08  
+**Versión:** 9.50  
+**Actualizado:** 2026-11-14  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
-**Referencia visual:** `docs/fintrack-original.jpeg` y `docs/design/fintrack-visual-spec.md`
+**Referencia visual:** `docs/design/ui-identidad-visual.md` (vigente desde v9.50); `docs/fintrack-original.jpeg` y `docs/design/fintrack-visual-spec.md` quedan como referencia histórica de límites funcionales
 
 > **CAMBIO VIGENTE v9.49 (2026-11-08):** la autenticación se simplifica a **solo Google**, con **lista privada de 5–6 cuentas autorizadas** administrada por el titular y **Better Auth autogestionado en Next.js**; se conservan **Neon PostgreSQL, Vercel y el aislamiento financiero**. Quedan sustituidos **Neon Auth administrado**, código compartido de invitación, correo/contraseña, OTP, verificación/recuperación propias y SMTP para acceder. El texto anterior en §11.4, §11.4.2, §11.4.3, §11.4.5, §12 y el historial queda como constancia de decisiones **revocadas**, no como instrucciones actuales. Ver [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
@@ -920,3 +920,4 @@
 - **2026-11-07 — v9.46 (tanda 10, 1A/2A/3A/4B/5A):** recordar entre sesiones y dispositivos la moneda de visualización escogida; límite de presupuesto excepcional solo por un mes con retorno al habitual; copias de seguridad cifrables opcionalmente con contraseña separada de login, validación antes de reemplazar; no ofrecer ocultar importes del dashboard; omitir un único período de ingreso recurrente sin afectar los siguientes.
 - **2026-11-07 — v9.47 (tanda 11, 1A/2A/3A/4A/5B):** filtros/búsquedas guardadas del historial; gastos recurrentes compartidos con gasto propio y cuenta por cobrar creados únicamente al pagar realmente; cobros de préstamos en moneda distinta con dos importes confirmados; aviso informativo cuando un fondo no alcanza la meta en la fecha objetivo sin pausar sus aportes; sin recordatorios periódicos de copias de seguridad.
 - **2026-11-07 — v9.48 (tanda 12, 1A/2A/3A/4A/5A; planificación funcional cerrada):** desarrollo incremental y probado por fases sin eliminar requisitos; correcciones históricas no sobrescriben saldos bancarios confirmados y muestran discrepancias; excepciones bancarias con registro de hechos reales, sin automatización especulativa; stack Next.js/TypeScript/Tailwind/shadcn + Neon PostgreSQL/Auth + Vercel sujeto a validación; crear documentación técnica consolidada y handoff para Codex, con catálogo de riesgos y criterios de aceptación. No iniciar código funcional en este commit.
+- **2026-11-14 — v9.50 (UI-01, identidad visual aprobada):** el usuario aprueba la identidad «Ambient Glow + Glassmorphism» con paleta **Glaciar** fija, tipografía Plus Jakarta Sans, vidrio perceptible en tres niveles, ondas de luz animadas arriba y al final de la página con luz tenue en el medio, menú de riel expandible en escritorio y barra flotante en móvil. En Resumen: Disponible libre con pestañas por moneda (muestran el saldo real de cada moneda; **no convierten**) y aviso aclaratorio; el selector superior es la moneda de visualización de toda la app (v9.46); gráfica de flujo espejada; anillo de categorías; tarjetas de crédito dibujadas; tutorial con flechas que explica ambos selectores, «Cambio de moneda» y «Confirmar saldo». **Solo presentación:** no cambia reglas contables, cálculos, permisos ni datos. Detalle en `docs/design/ui-identidad-visual.md`; aplicación por etapas UI-02…UI-06.
