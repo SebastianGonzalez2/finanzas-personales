@@ -22,8 +22,8 @@ test("F6-03: el manifest declara instalación, idioma, colores e íconos PNG", a
   assert.equal(data.lang, "es");
   assert.equal(data.start_url, "/");
   assert.equal(data.display, "standalone");
-  assert.equal(data.theme_color, "#131313");
-  assert.equal(data.background_color, "#131313");
+  assert.equal(data.theme_color, "#070a0d");
+  assert.equal(data.background_color, "#070a0d");
   assert.ok(data.description);
   const png = data.icons.filter((icon) => icon.type === "image/png");
   assert.ok(png.some((icon) => icon.sizes === "192x192"));
@@ -145,7 +145,7 @@ test("F6-03: controles con área táctil adecuada y texto legible", () => {
 
 test("F6-03: el layout declara color de tema y registra los avisos globales", () => {
   const layout = read("src/app/layout.tsx");
-  assert.match(layout, /themeColor: "#131313"/);
+  assert.match(layout, /themeColor: "#070a0d"/);
   assert.match(layout, /<ConnectionStatus \/>/);
   assert.match(layout, /<FormValidation \/>/);
   assert.match(layout, /lang="es"/);

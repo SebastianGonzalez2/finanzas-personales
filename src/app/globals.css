@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* UI-02 — Sistema visual «Ambient Glow + Glassmorphism», paleta Glaciar.
+   Fuente de verdad: docs/design/ui-identidad-visual.md (§3 tokens, §4 reglas).
+   Implementación de referencia: src/app/prototipos/ui/_lab/lab.css
+   ([data-palette="glaciar"] de la variante Final). Todo el CSS propio va en
+   `@layer base/components` para que las utilidades de Tailwind sigan ganando. */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -7,30 +13,94 @@
   --color-card-foreground: var(--card-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--glaciar-faint);
   --color-accent: var(--accent);
   --color-border: var(--border);
+  --color-border-strong: var(--glaciar-border-strong);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-glass-1: var(--glaciar-glass-1);
+  --color-glass-2: var(--glaciar-glass-2);
+  --color-glass-3: var(--glaciar-glass-3);
+  --color-solid: var(--glaciar-solid);
+  --color-income: var(--data-income);
+  --color-expense: var(--data-expense);
+  --color-good: var(--state-good);
+  --color-warning: var(--state-warning);
+  --color-critical: var(--state-critical);
+  --color-positive: var(--amount-positive);
+  --font-sans:
+    var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-panel: 20px;
+  --radius-control: 10px;
 }
 
 :root {
   color-scheme: dark;
-  --background: #131313;
-  --foreground: #ffffff;
-  --card: #131313;
-  --card-foreground: #ffffff;
-  --muted: #1e1e1e;
-  --muted-foreground: #a3a3a3;
-  --accent: #1e1e1e;
-  --border: #262626;
-  --primary: #3558d4;
-  --primary-foreground: #ffffff;
-  --ring: #c0ceff;
-  --finance-well: #0f0f0f;
-  --finance-hover: #181818;
-  --finance-selected: #1e1e1e;
+
+  /* Glaciar: grafito con acento plata/azul hielo (guía §3). */
+  --glaciar-bg: #070a0d;
+  --glaciar-text: #eef2f6;
+  --glaciar-muted: #a3aeba;
+  --glaciar-faint: #68737f;
+  --glaciar-accent: #d3e3f2;
+  --glaciar-accent-ink: #0b1620;
+  --glaciar-focus: #e6f0fa;
+  --glaciar-border: rgb(220 235 250 / 10%);
+  --glaciar-border-strong: rgb(220 235 250 / 20%);
+  --glaciar-glass-1: rgb(60 80 100 / 22%);
+  --glaciar-glass-2: rgb(18 24 30 / 46%);
+  --glaciar-glass-3: rgb(9 12 16 / 84%);
+  --glaciar-blur-1: 28px;
+  --glaciar-blur-2: 20px;
+  --glaciar-blur-3: 14px;
+  --glaciar-highlight: rgb(255 255 255 / 8%);
+  --glaciar-shadow:
+    0 1px 1px rgb(0 0 0 / 25%), 0 24px 60px -30px rgb(1 8 12 / 90%);
+  --glaciar-hover: rgb(220 235 250 / 6%);
+  --glaciar-track: rgb(220 235 250 / 9%);
+  --glaciar-selected: color-mix(
+    in srgb,
+    var(--glaciar-accent) 13%,
+    transparent
+  );
+  --glaciar-solid: rgb(9 12 16 / 95%);
+  --glaciar-glow-1: rgb(140 175 210 / 22%);
+  --glaciar-glow-2: rgb(80 110 140 / 12%);
+  --glaciar-glow-3: rgb(100 160 180 / 10%);
+  --glaciar-brand: linear-gradient(140deg, #c9dbec, #7f9db8 60%, #4a6a80);
+  --glaciar-brand-ink: #0b1620;
+
+  /* Colores de datos: fijos, validados para contraste y daltonismo (§3). */
+  --data-income: #199e70;
+  --data-expense: #9085e9;
+  --data-category-1: #3987e5;
+  --data-category-2: #199e70;
+  --data-category-3: #c98500;
+  --data-category-4: #9085e9;
+  --data-category-5: #d55181;
+  --data-category-other: #5d6b82;
+  --state-good: #5fd3a0;
+  --state-warning: #f0b35a;
+  --state-critical: #f47b7b;
+  --amount-positive: #6fdcb8;
+
+  /* Tokens semánticos que ya usan las pantallas actuales (transición a UI-05). */
+  --background: #070a0d;
+  --foreground: #eef2f6;
+  --card: var(--glaciar-glass-3);
+  --card-foreground: var(--glaciar-text);
+  --muted: var(--glaciar-track);
+  --muted-foreground: #a3aeba;
+  --accent: var(--glaciar-hover);
+  --border: var(--glaciar-border);
+  --primary: #d3e3f2;
+  --primary-foreground: #0b1620;
+  --ring: #e6f0fa;
+  --finance-well: var(--glaciar-solid);
+  --finance-hover: var(--glaciar-hover);
+  --finance-selected: var(--glaciar-selected);
 }
 
 @layer base {
@@ -40,11 +110,16 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
 
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--glaciar-accent) 30%, transparent);
   }
 
   /* F6-03 (CA-066): los resúmenes desplegables son controles táctiles (≈44 px);
@@ -56,8 +131,13 @@
 
   /* F6-03 (CA-066): control rechazado por la validación; no solo por color. */
   [aria-invalid="true"] {
-    border-color: #f87171;
-    outline: 1px solid #f87171;
+    border-color: var(--state-critical);
+    outline: 1px solid var(--state-critical);
+  }
+
+  select option {
+    background: #0d1217;
+    color: var(--glaciar-text);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -72,88 +152,1047 @@
   }
 }
 
+/* ───────────────────────── Superficies y controles ───────────────────────── */
 @layer components {
-  .finance-shell {
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-
-  .finance-sidebar {
-    display: none;
-  }
-
-  .finance-content {
-    padding-inline: 1rem;
-  }
-
-  .finance-nav-link {
+  /* Vidrio: tres niveles (guía §3). Nivel 1 destacado, 2 paneles, 3 tablas y
+     formularios casi opacos. */
+  .ui-panel {
     position: relative;
     display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-    gap: 0.75rem;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    color: var(--muted-foreground);
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px;
+    border: 1px solid var(--glaciar-border);
+    border-radius: var(--radius-panel);
+    background: var(--glaciar-glass-2);
+    box-shadow:
+      inset 0 1px 0 var(--glaciar-highlight),
+      var(--glaciar-shadow);
+    backdrop-filter: blur(var(--glaciar-blur-2)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--glaciar-blur-2)) saturate(140%);
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease,
+      background 0.25s ease;
+    animation: ui-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
 
-  .finance-nav-link:hover,
-  .finance-icon-button:hover {
-    background: var(--finance-hover);
-    color: var(--foreground);
+  .ui-panel:hover {
+    border-color: var(--glaciar-border-strong);
   }
 
-  .finance-nav-link[aria-current="page"] {
-    background: var(--finance-selected);
-    color: var(--foreground);
-    font-weight: 600;
+  .ui-panel--hero {
+    overflow: hidden;
+    gap: 20px;
+    padding: 24px;
+    border-color: color-mix(in srgb, var(--glaciar-accent) 18%, transparent);
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 1%) 45%),
+      var(--glaciar-glass-1);
+    backdrop-filter: blur(var(--glaciar-blur-1)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--glaciar-blur-1)) saturate(160%);
   }
 
-  .finance-nav-link[aria-current="page"]::before {
+  /* Orbe de luz del panel destacado (saldo, acceso). */
+  .ui-hero-orb {
     position: absolute;
-    inset-block: 0.625rem;
-    inset-inline-start: 0;
-    width: 2px;
+    top: -40%;
+    right: -10%;
+    width: 60%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      var(--glaciar-glow-1),
+      var(--glaciar-glow-2) 45%,
+      transparent 68%
+    );
+    filter: blur(20px);
+    pointer-events: none;
+  }
+
+  .ui-panel--feature {
+    background:
+      radial-gradient(
+        70% 90% at 100% 0%,
+        color-mix(in srgb, var(--glaciar-accent) 8%, transparent),
+        transparent 60%
+      ),
+      var(--glaciar-glass-2);
+  }
+
+  .ui-panel--dense {
+    padding: 0;
+    background: var(--glaciar-glass-3);
+    backdrop-filter: blur(var(--glaciar-blur-3));
+    -webkit-backdrop-filter: blur(var(--glaciar-blur-3));
+  }
+
+  .ui-card {
+    border-color: var(--glaciar-border);
+    background: var(--glaciar-glass-3);
+    box-shadow:
+      inset 0 1px 0 var(--glaciar-highlight),
+      var(--glaciar-shadow);
+    backdrop-filter: blur(var(--glaciar-blur-3));
+    -webkit-backdrop-filter: blur(var(--glaciar-blur-3));
+  }
+
+  /* Un vidrio dentro de otro no vuelve a desenfocar: mismo aspecto, menos
+     costo por cuadro sobre el fondo animado (guía §4.5). */
+  :is(.ui-panel, [data-slot="card"])
+    :is(.ui-panel, .ui-panel--dense, [data-slot="card"]) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: none;
+  }
+
+  .ui-panel__head {
+    display: flex;
+    min-height: 28px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ui-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
+  .ui-panel__icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--glaciar-accent) 20%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--glaciar-accent) 12%, transparent);
+    color: var(--glaciar-accent);
+  }
+
+  @keyframes ui-rise {
+    from {
+      opacity: 0;
+      translate: 0 8px;
+    }
+    to {
+      opacity: 1;
+      translate: none;
+    }
+  }
+
+  /* Botones */
+  .ui-btn {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      transform 0.12s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .ui-btn:active:not(:disabled, [aria-disabled="true"]) {
+    transform: scale(0.98);
+  }
+
+  .ui-btn:disabled,
+  .ui-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .ui-btn--primary {
+    background: var(--glaciar-accent);
+    color: var(--glaciar-accent-ink);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 35%),
+      0 6px 20px -8px color-mix(in srgb, var(--glaciar-accent) 70%, transparent);
+  }
+
+  .ui-btn--primary:hover:not(:disabled, [aria-disabled="true"]) {
+    background: color-mix(in srgb, var(--glaciar-accent) 88%, white);
+  }
+
+  .ui-btn--outline {
+    border-color: var(--glaciar-border-strong);
+    background: rgb(255 255 255 / 2%);
+    color: var(--glaciar-text);
+  }
+
+  .ui-btn--outline:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 50%, transparent);
+    background: var(--glaciar-hover);
+  }
+
+  .ui-btn--ghost {
+    min-height: 36px;
+    padding: 0 12px;
+    border-color: var(--glaciar-border);
+    color: var(--glaciar-text);
+    font-weight: 500;
+  }
+
+  .ui-btn--ghost:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-btn--ghost[aria-expanded="true"] {
+    border-color: var(--glaciar-border-strong);
+    background: var(--glaciar-hover);
+  }
+
+  .ui-btn--glass {
+    border-color: var(--glaciar-border-strong);
+    background: rgb(255 255 255 / 6%);
+    color: var(--glaciar-text);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .ui-btn--glass:hover:not(:disabled, [aria-disabled="true"]) {
+    background: rgb(255 255 255 / 11%);
+  }
+
+  .ui-icon-btn,
+  .finance-icon-button {
+    position: relative;
+    display: grid;
+    min-width: 44px;
+    min-height: 44px;
+    place-items: center;
+    border-radius: 12px;
+    color: var(--glaciar-muted);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+
+  .ui-icon-btn:hover,
+  .finance-icon-button:hover {
+    background: var(--glaciar-hover);
+    color: var(--glaciar-text);
+  }
+
+  .ui-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--glaciar-accent);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .ui-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Segmentado (moneda de visualización, pestañas) */
+  .ui-segment {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--glaciar-border);
+    border-radius: 12px;
+    background: rgb(0 0 0 / 18%);
+    transition: opacity 0.2s ease;
+  }
+
+  .ui-segment[aria-busy="true"] {
+    cursor: progress;
+  }
+
+  .ui-segment__option {
+    position: relative;
+    min-width: 48px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 9px;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+
+  .ui-segment__option:hover:not(:disabled, [aria-disabled="true"]) {
+    color: var(--glaciar-text);
+  }
+
+  .ui-segment__option[aria-pressed="true"],
+  .ui-segment__option[aria-selected="true"] {
+    background: rgb(255 255 255 / 10%);
+    color: var(--glaciar-text);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 8%),
+      0 1px 3px rgb(0 0 0 / 30%);
+  }
+
+  .ui-segment__option:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .ui-segment__option[aria-disabled="true"] {
+    cursor: progress;
+  }
+
+  .ui-segment__option[data-pending="true"]::after {
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    left: 6px;
+    height: 2px;
     border-radius: 2px;
-    background: var(--ring);
+    background: var(--glaciar-accent);
+    content: "";
+    animation: ui-pending 1s ease-in-out infinite alternate;
+  }
+
+  @keyframes ui-pending {
+    from {
+      opacity: 0.25;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Campos */
+  .ui-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ui-field__label {
+    color: var(--glaciar-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .ui-control {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: var(--radius-control);
+    background: rgb(0 0 0 / 20%);
+    color: var(--glaciar-text);
+    font-size: 16px;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .ui-control::placeholder {
+    color: var(--glaciar-faint);
+  }
+
+  .ui-control:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 40%, transparent);
+  }
+
+  .ui-control:focus-visible {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 60%, transparent);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--glaciar-accent) 18%, transparent);
+  }
+
+  .ui-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  select.ui-control,
+  .ui-select select {
+    padding-right: 36px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3aeba' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    cursor: pointer;
+  }
+
+  .ui-search {
+    display: flex;
+    min-height: 44px;
+    min-width: min(100%, 280px);
+    flex: 1 1 280px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: var(--radius-control);
+    background: rgb(0 0 0 / 20%);
+    color: var(--glaciar-muted);
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .ui-search:focus-within {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 60%, transparent);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--glaciar-accent) 18%, transparent);
+  }
+
+  .ui-search input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--glaciar-text);
+    font-size: 16px;
+    outline: none;
+  }
+
+  .ui-search input::placeholder {
+    color: var(--glaciar-faint);
+  }
+
+  /* Etiquetas de estado: siempre icono + texto, nunca solo color. */
+  .ui-tag {
+    display: inline-flex;
+    min-height: 22px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .ui-tag--neutral {
+    background: rgb(255 255 255 / 6%);
+    color: var(--glaciar-muted);
+  }
+
+  .ui-tag--good {
+    background: rgb(95 211 160 / 12%);
+    color: var(--state-good);
+  }
+
+  .ui-tag--warning {
+    background: rgb(240 179 90 / 13%);
+    color: var(--state-warning);
+  }
+
+  .ui-tag--critical {
+    background: rgb(244 123 123 / 14%);
+    color: var(--state-critical);
+  }
+
+  .ui-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .ui-eyebrow::before {
+    width: 28px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--glaciar-accent), transparent);
     content: "";
   }
 
-  .finance-icon-button {
+  @supports not (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    :root {
+      --glaciar-glass-1: rgb(20 27 34 / 94%);
+      --glaciar-glass-2: rgb(14 19 24 / 95%);
+      --glaciar-glass-3: rgb(10 13 17 / 97%);
+    }
+  }
+}
+
+/* ───────────────────────── Fondo ambiental ───────────────────────── */
+@layer components {
+  /* Raíz con fondo propio (shell y acceso). `isolation` deja las capas del
+     fondo con z-index negativo detrás del contenido y sobre la base. */
+  .glaciar-root {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background:
+      radial-gradient(
+        60% 40% at 50% 100%,
+        var(--glaciar-glow-2),
+        transparent 70%
+      ),
+      var(--glaciar-bg);
+  }
+
+  /* Ondas WebGL. La capa CSS es la alternativa estática (sin WebGL, cargando,
+     contexto perdido o movimiento reducido) y queda debajo del lienzo. */
+  .ambient {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 118vh;
+    height: 118dvh;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        80% 30% at 30% 12%,
+        var(--glaciar-glow-1),
+        transparent 70%
+      ),
+      radial-gradient(
+        70% 28% at 75% 22%,
+        var(--glaciar-glow-2),
+        transparent 70%
+      ),
+      radial-gradient(
+        60% 20% at 50% 32%,
+        var(--glaciar-glow-3),
+        transparent 70%
+      ),
+      var(--glaciar-bg);
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+
+  /* Franja inferior: las mismas ondas, invertidas, al final del contenido. */
+  .ambient--bottom {
+    inset: auto 0 0;
+    height: 100vh;
+    height: 100dvh;
+    background:
+      radial-gradient(
+        80% 30% at 70% 94%,
+        var(--glaciar-glow-1),
+        transparent 70%
+      ),
+      radial-gradient(
+        70% 28% at 25% 88%,
+        var(--glaciar-glow-2),
+        transparent 70%
+      ),
+      radial-gradient(
+        60% 20% at 50% 80%,
+        var(--glaciar-glow-3),
+        transparent 70%
+      ),
+      var(--glaciar-bg);
+    -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
+    mask-image: linear-gradient(to top, #000 50%, transparent);
+    /* En páginas cortas las dos franjas se superponen: «lighten» conserva la
+       luz de ambas en lugar de que la base opaca de abajo apague la de arriba. */
+    mix-blend-mode: lighten;
+  }
+
+  .ambient__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  .ambient__canvas[data-ready="true"] {
+    opacity: 1;
+  }
+
+  /* Luz del medio: manchas difusas muy tenues que derivan despacio. Solo
+     transformaciones (las mueve el compositor, sin repintar). */
+  .ambient-glow {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .ambient-glow span {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.55;
+    filter: blur(110px);
+    will-change: transform;
+    animation: ambient-drift 70s ease-in-out infinite alternate;
+  }
+
+  .ambient-glow span:nth-child(1) {
+    top: 18%;
+    left: -12%;
+    width: 52vw;
+    height: 42vh;
+    background: var(--glaciar-glow-1);
+  }
+
+  .ambient-glow span:nth-child(2) {
+    top: 42%;
+    right: -14%;
+    width: 46vw;
+    height: 46vh;
+    background: var(--glaciar-glow-2);
+    animation-duration: 90s;
+    animation-direction: alternate-reverse;
+  }
+
+  .ambient-glow span:nth-child(3) {
+    top: 64%;
+    left: 28%;
+    width: 42vw;
+    height: 32vh;
+    background: var(--glaciar-glow-3);
+    animation-duration: 110s;
+  }
+
+  @keyframes ambient-drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(8vw, -6vh, 0) scale(1.15);
+    }
+  }
+
+  /* Pestaña oculta: el compositor no sigue moviendo la luz. */
+  html[data-ambient="paused"] .ambient-glow span {
+    animation-play-state: paused;
+  }
+
+  /* Sin aceleración gráfica la luz queda quieta: si deriva, cada vidrio se
+     vuelve a desenfocar en CPU en cada cuadro. */
+  .ambient-glow[data-motion="static"] span {
+    animation: none;
+    will-change: auto;
+  }
+
+  /* Grano fino: evita bandas en los degradados. */
+  .ambient-grain {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+}
+
+/* ───────────────────────── Shell y navegación ───────────────────────── */
+@layer components {
+  .finance-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .finance-brand__mark {
     display: grid;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
     place-items: center;
-    border-radius: 0.5rem;
-    cursor: pointer;
+    border-radius: 11px;
+    background: var(--glaciar-brand);
+    color: var(--glaciar-brand-ink);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 35%),
+      0 8px 20px -8px rgb(127 157 184 / 70%);
+  }
+
+  .finance-brand__name {
+    display: block;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .finance-brand__sub {
+    display: block;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .finance-nav {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .finance-nav ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .finance-nav__heading {
+    padding: 0 12px 6px;
+    color: var(--glaciar-faint);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .finance-nav__item {
+    position: relative;
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    color: var(--glaciar-muted);
+    font-size: 14px;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .finance-nav__item:hover {
+    background: var(--glaciar-hover);
+    color: var(--glaciar-text);
+  }
+
+  .finance-nav__item[aria-current="page"] {
+    background: var(--glaciar-selected);
+    color: var(--glaciar-text);
+    font-weight: 600;
+  }
+
+  .finance-nav__item[aria-current="page"] .finance-nav__icon {
+    color: var(--glaciar-accent);
+  }
+
+  .finance-nav__icon {
+    display: grid;
+    place-items: center;
+  }
+
+  .finance-nav__label {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-nav__footer {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--glaciar-border);
   }
 
   .finance-drawer {
     position: fixed;
     inset: 0 auto 0 0;
-    width: min(19.25rem, calc(100% - 2rem));
+    width: min(320px, calc(100% - 32px));
+    max-width: none;
     height: 100vh;
     height: 100dvh;
     max-height: none;
+    margin: 0;
     overflow-y: auto;
-    border-inline-end: 1px solid var(--border);
-    background: var(--finance-well);
-    color: var(--foreground);
+    border-right: 1px solid var(--glaciar-border-strong);
+    background: color-mix(in srgb, var(--glaciar-bg) 92%, transparent);
+    color: var(--glaciar-text);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .finance-drawer[open] {
+    animation: finance-slide 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
   }
 
   .finance-drawer::backdrop {
-    background: rgb(0 0 0 / 60%);
+    background: rgb(2 4 10 / 60%);
+    backdrop-filter: blur(2px);
+  }
+
+  .finance-drawer__inner {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    gap: 24px;
+    padding: 16px;
+  }
+
+  @keyframes finance-slide {
+    from {
+      transform: translateX(-24px);
+      opacity: 0;
+    }
   }
 
   body:has(.finance-drawer[open]) {
     overflow: hidden;
   }
 
-  /* El aviso de conexión es fijo: reserva espacio para no tapar el final. */
-  body:has([data-connection="offline"]) main {
-    padding-bottom: 6rem;
+  .finance-frame {
+    min-width: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
+  .finance-topbar {
+    display: flex;
+    max-width: 1280px;
+    align-items: center;
+    gap: 12px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .finance-topbar__actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .finance-main {
+    max-width: 1280px;
+    margin: 0 auto;
+    /* Aire bajo el último panel para que se vea la franja inferior de ondas
+       y la barra flotante no tape contenido. */
+    padding: 8px 16px 240px;
+  }
+
+  .finance-currency {
+    position: relative;
+  }
+
+  .finance-currency__error {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 35;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 32px));
+    padding: 10px 12px;
+    border: 1px solid rgb(244 123 123 / 40%);
+    border-radius: 12px;
+    background: var(--glaciar-solid);
+    color: var(--glaciar-text);
+    font-size: 13px;
+    box-shadow: var(--glaciar-shadow);
+  }
+
+  /* Barra flotante móvil */
+  .finance-dock {
+    position: fixed;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--glaciar-solid) 75%, transparent);
+    box-shadow: 0 20px 40px -16px rgb(0 0 0 / 85%);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    transform: translateX(-50%);
+  }
+
+  .finance-dock__item {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--glaciar-muted);
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+
+  .finance-dock__item:hover {
+    color: var(--glaciar-text);
+  }
+
+  .finance-dock__item[aria-current="page"] {
+    background: rgb(255 255 255 / 9%);
+    color: var(--glaciar-accent);
+  }
+
+  .finance-dock .ui-icon-btn {
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 999px;
+  }
+
+  .finance-dock__add {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--glaciar-accent);
+    color: var(--glaciar-accent-ink);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%);
+    cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+
+  .finance-dock__add:active {
+    transform: scale(0.96);
+  }
+
+  /* Riel lateral: solo escritorio. */
+  .finance-sidebar {
+    display: none;
+  }
+
+  /* El aviso de conexión ocupa espacio arriba: no tapa el contenido. */
+  body:has([data-connection="offline"]) .finance-main {
+    padding-bottom: 264px;
+  }
+
+  @media (max-width: 39.99rem) {
+    .finance-topbar .finance-brand__name {
+      display: none;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .finance-topbar {
+      padding: 20px 24px;
+    }
+
+    .finance-main {
+      padding-inline: 24px;
+    }
+  }
+
+  /* Navegación flotante: riel compacto que se expande con puntero o foco. */
+  @media (min-width: 64rem) {
+    .finance-sidebar {
+      position: fixed;
+      top: 16px;
+      bottom: 16px;
+      left: 16px;
+      z-index: 25;
+      display: flex;
+      width: 68px;
+      flex-direction: column;
+      gap: 20px;
+      overflow: hidden;
+      padding: 14px 12px;
+      border: 1px solid var(--glaciar-border);
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--glaciar-solid) 60%, transparent);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      transition:
+        width 0.32s cubic-bezier(0.2, 0.7, 0.2, 1),
+        background 0.32s ease,
+        box-shadow 0.32s ease;
+    }
+
+    .finance-sidebar:hover,
+    .finance-sidebar:focus-within {
+      width: 264px;
+      background: var(--glaciar-solid);
+      box-shadow: 24px 0 60px -30px rgb(0 0 0 / 90%);
+    }
+
+    .finance-sidebar
+      :is(
+        .finance-brand__name,
+        .finance-brand__sub,
+        .finance-nav__label,
+        .finance-nav__heading
+      ) {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .finance-sidebar:is(:hover, :focus-within)
+      :is(
+        .finance-brand__name,
+        .finance-brand__sub,
+        .finance-nav__label,
+        .finance-nav__heading
+      ) {
+      opacity: 1;
+      transition-delay: 0.08s;
+    }
+
+    .finance-sidebar .finance-nav {
+      gap: 12px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .finance-sidebar .finance-nav__heading {
+      padding: 0 8px 4px;
+      white-space: nowrap;
+    }
+
+    .finance-sidebar .finance-nav__item {
+      min-height: 40px;
+      padding: 4px 8px;
+    }
+
+    .finance-frame {
+      padding-left: 100px;
+    }
+
+    .finance-topbar > .finance-brand {
+      visibility: hidden;
+    }
+
+    .finance-dock {
+      display: none;
+    }
+
+    .finance-main {
+      padding-bottom: 200px;
+    }
+
+    body:has([data-connection="offline"]) .finance-main {
+      padding-bottom: 224px;
+    }
+  }
+
+  /* Indicadores del resumen actual (se rediseñan en UI-03). */
   .finance-indicators,
   .finance-board {
     display: grid;
@@ -169,10 +1208,6 @@
   }
 
   @media (min-width: 48rem) {
-    .finance-content {
-      padding-inline: 1.5rem;
-    }
-
     .finance-indicators {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -183,49 +1218,43 @@
     }
   }
 
-  @media (min-width: 64rem) {
-    .finance-shell {
-      display: grid;
-      grid-template-columns: 16.25rem minmax(0, 1fr);
-    }
-
-    .finance-sidebar {
-      position: sticky;
-      top: 0;
-      display: flex;
-      height: 100vh;
-      height: 100dvh;
-      flex-direction: column;
-      gap: 1.5rem;
-      overflow-y: auto;
-      border-inline-end: 1px solid var(--border);
-      padding: 1rem;
-      background: var(--finance-well);
-    }
-  }
-
   @media (min-width: 90rem) {
-    .finance-shell {
-      grid-template-columns: 19.25rem minmax(0, 1fr);
-    }
-
-    .finance-sidebar {
-      padding-inline: 1.375rem;
-    }
-
-    .finance-content {
-      padding-inline: 1.75rem;
-    }
-
     .finance-board {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
+}
 
-  @media (min-width: 120rem) {
-    .finance-content {
-      max-width: 99.5rem;
-      margin-inline: auto;
+/* ───────────────────────── Accesibilidad ───────────────────────── */
+@layer components {
+  @media (prefers-reduced-motion: reduce) {
+    .ui-panel,
+    .ambient-glow span,
+    .ui-segment__option[data-pending="true"]::after {
+      animation: none !important;
+    }
+
+    .finance-sidebar,
+    .finance-sidebar * {
+      transition: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .ui-panel,
+    .ui-btn,
+    .ui-segment,
+    .ui-control,
+    .ui-search,
+    .finance-sidebar,
+    .finance-dock {
+      border: 1px solid CanvasText;
+    }
+
+    .ambient,
+    .ambient-glow,
+    .ambient-grain {
+      display: none;
     }
   }
 }

@@ -53,6 +53,7 @@ const textButton =
 export function IntroTour() {
   const [step, setStep] = useState<number | null>(null);
   const [box, setBox] = useState<Box | null>(null);
+  const [cardOnTop, setCardOnTop] = useState(false);
   const card = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -104,8 +105,8 @@ export function IntroTour() {
         : window.innerHeight - 8;
 
     const target = visibleTarget(targets);
-    if (target?.closest(".finance-sidebar")) {
-      // La barra lateral es fija y con desplazamiento propio.
+    if (target?.closest(".finance-sidebar, .finance-dock")) {
+      // El riel y la barra móvil son fijos (el riel, con desplazamiento propio).
       target.scrollIntoView({ block: "nearest" });
     } else if (target) {
       const { top, bottom } = target.getBoundingClientRect();
@@ -114,10 +115,21 @@ export function IntroTour() {
 
     function measure() {
       const element = visibleTarget(targets);
-      if (!element) return setBox(null);
+      if (!element) {
+        setCardOnTop(false);
+        return setBox(null);
+      }
       const rect = element.getBoundingClientRect();
+      // UI-02: en móvil, si el elemento está abajo (barra flotante), la tarjeta
+      // sube para no taparlo.
+      const onTop =
+        window.innerWidth < 640 && rect.top > window.innerHeight / 2;
+      setCardOnTop(onTop);
       const top = Math.max(rect.top - pad, 4);
-      const bottom = Math.min(rect.bottom + pad, room());
+      const bottom = Math.min(
+        rect.bottom + pad,
+        onTop ? window.innerHeight - 4 : room(),
+      );
       if (bottom - top < 24) return setBox(null);
       setBox({
         top,
@@ -170,7 +182,7 @@ export function IntroTour() {
         aria-modal="false"
         aria-label="Tutorial introductorio"
         tabIndex={-1}
-        className="fixed inset-x-3 bottom-3 z-50 grid gap-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-lg outline-none sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-[24rem]"
+        className={`fixed inset-x-3 z-50 grid gap-3 rounded-2xl border border-border-strong bg-solid p-4 text-card-foreground shadow-lg outline-none sm:inset-x-auto sm:top-auto sm:right-4 sm:bottom-4 sm:w-[24rem] ${cardOnTop ? "top-3" : "bottom-3"}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="grid gap-1">

@@ -1,205 +1,105 @@
-"use client";
-
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { FinanceIcon } from "./finance-icon";
+import { headers } from "next/headers";
+import type { ReactNode } from "react";
+import type { Currency } from "@/domain/money";
+import { withGoogleOwner } from "@/server/google-auth";
+import { displayCurrency, exchangeRatesReady } from "@/server/exchange-rates";
+import { AmbientBackground } from "./ambient-background";
+import { DisplayCurrencySelector } from "./display-currency-selector";
+import { FinanceMobileNav } from "./finance-mobile-nav";
+import {
+  Brand,
+  FinanceNavigation,
+  navHref,
+  type Destination,
+} from "./finance-navigation";
 import { IntroTour } from "./intro-tour";
+import { RegisterMovementLink } from "./register-movement-link";
+import { buttonClass } from "./ui/button";
+import { Icon } from "./ui/icon";
 
-const destinations = {
-  resumen: { href: "/resumen", label: "Resumen", icon: "summary" },
-  historial: { href: "/historial", label: "Historial", icon: "calendar" },
-  estadisticas: {
-    href: "/estadisticas",
-    label: "Estadísticas",
-    icon: "chart",
-  },
-  recurrentes: { href: "/recurrentes", label: "Recurrentes", icon: "calendar" },
-  presupuestos: {
-    href: "/presupuestos",
-    label: "Presupuestos",
-    icon: "wallet",
-  },
-  categorias: {
-    href: "/categorias",
-    label: "Categorías",
-    icon: "savings",
-  },
-  tarjetas: { href: "/tarjetas", label: "Tarjetas", icon: "card" },
-  catalogo: {
-    href: "/catalogo",
-    label: "Comercios y contactos",
-    icon: "store",
-  },
-  fondos: { href: "/fondos", label: "Fondos de ahorro", icon: "savings" },
-  avisos: { href: "/avisos", label: "Avisos", icon: "bell" },
-  deudas: { href: "/deudas", label: "Deudas y préstamos", icon: "finance" },
-  beneficios: {
-    href: "/beneficios",
-    label: "Beneficios bancarios",
-    icon: "wallet",
-  },
-  informes: { href: "/informes", label: "Informes", icon: "report" },
-  account: { href: "/account", label: "Mi cuenta", icon: "account" },
-  ayuda: { href: "/ayuda", label: "Ayuda", icon: "help" },
-} as const;
+export type { Destination } from "./finance-navigation";
 
-type Destination = keyof typeof destinations;
+// UI-02 — Shell Glaciar: fondo ambiental, barra superior (Ayuda, moneda de
+// visualización y «Registrar movimiento»), riel lateral flotante en
+// escritorio y barra flotante con cajón en móvil. Cada página ya verificó la
+// sesión y el titular en servidor; el shell vuelve a pasar por
+// `withGoogleOwner` para leer solo la preferencia de moneda del titular de la
+// sesión (nunca de la URL). Si no puede leerla, el selector queda deshabilitado.
+type DisplayPreference = { currency: Currency | null; ready: boolean };
 
-function FinanceNavigation({
-  current,
-  onNavigate,
-}: {
-  current: Destination;
-  onNavigate?: () => void;
-}) {
-  // F6-06: Ayuda se ubica al final, separada de las funciones principales y
-  // cerca de «Mi cuenta».
-  const main = Object.entries(destinations).filter(
-    ([key]) => key !== "account" && key !== "ayuda",
-  );
-
-  return (
-    <nav
-      aria-label="Navegación principal"
-      className="flex flex-1 flex-col gap-6"
-    >
-      {main.map(([key, destination]) => (
-        <a
-          key={key}
-          href={`${destination.href}#titulo-pagina`}
-          aria-current={key === current ? "page" : undefined}
-          className="finance-nav-link"
-          onClick={onNavigate}
-        >
-          <FinanceIcon name={destination.icon} />
-          {destination.label}
-        </a>
-      ))}
-      <hr aria-hidden="true" className="border-t" />
-      {(["ayuda", "account"] as const).map((key) => (
-        <a
-          key={key}
-          href={`${destinations[key].href}#titulo-pagina`}
-          aria-current={key === current ? "page" : undefined}
-          className={`finance-nav-link${key === "ayuda" ? " mt-auto" : ""}`}
-          onClick={onNavigate}
-        >
-          <FinanceIcon name={destinations[key].icon} />
-          {destinations[key].label}
-        </a>
-      ))}
-    </nav>
-  );
+async function readDisplayCurrency(): Promise<DisplayPreference> {
+  const request = new Request("https://internal.invalid", {
+    headers: await headers(),
+  });
+  return withGoogleOwner(request, async (client, ownerId) => ({
+    currency: await displayCurrency(client, ownerId),
+    ready: await exchangeRatesReady(client),
+  })).catch(() => ({ currency: null, ready: false }));
 }
 
-export function FinanceShell({
+export async function FinanceShell({
   current,
   children,
 }: {
   current: Destination;
   children: ReactNode;
 }) {
-  const drawer = useRef<HTMLDialogElement>(null);
-  const sidebar = useRef<HTMLElement>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const closeDrawer = () => drawer.current?.close();
-
-  useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 64rem)");
-    function closeOnDesktop() {
-      const dialog = drawer.current;
-      if (!desktop.matches || !dialog?.open) return;
-
-      const focusedLink = dialog.contains(document.activeElement)
-        ? document.activeElement?.getAttribute("href")
-        : null;
-      dialog.close();
-
-      const sidebarLinks = sidebar.current?.querySelectorAll("a");
-      const equivalent = Array.from(sidebarLinks ?? []).find(
-        (link) => link.getAttribute("href") === focusedLink,
-      );
-      (
-        equivalent ??
-        sidebar.current?.querySelector<HTMLElement>('[aria-current="page"]')
-      )?.focus();
-    }
-
-    desktop.addEventListener("change", closeOnDesktop);
-    return () => desktop.removeEventListener("change", closeOnDesktop);
-  }, []);
-
   return (
-    <div className="finance-shell">
-      <aside ref={sidebar} className="finance-sidebar">
-        <p className="flex min-h-11 items-center gap-3 font-semibold">
-          <FinanceIcon name="finance" className="text-ring" />
-          Finanzas personales
-        </p>
-        <FinanceNavigation current={current} />
-      </aside>
+    <FinanceShellView current={current} display={await readDisplayCurrency()}>
+      {children}
+    </FinanceShellView>
+  );
+}
 
-      <dialog
-        ref={drawer}
-        aria-labelledby="titulo-navegacion"
-        className="finance-drawer"
-        onClose={() => setDrawerOpen(false)}
-        // Clic en el fondo (el propio <dialog>): cierra y devuelve el foco al botón.
-        onClick={(event) => {
-          if (event.target === event.currentTarget) closeDrawer();
-        }}
-      >
-        <div className="flex min-h-full flex-col gap-6 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 id="titulo-navegacion" className="text-lg font-semibold">
-              Navegación
-            </h2>
-            <button
-              type="button"
-              className="finance-icon-button"
-              aria-label="Cerrar navegación"
-              onClick={closeDrawer}
+/** Marcado del shell, sin acceso a datos (la preferencia llega resuelta). */
+export function FinanceShellView({
+  current,
+  display,
+  children,
+}: {
+  current: Destination;
+  display: DisplayPreference;
+  children: ReactNode;
+}) {
+  return (
+    <div className="finance-shell glaciar-root">
+      <AmbientBackground />
+      <div className="finance-frame">
+        <header className="finance-topbar">
+          <Brand subtitle={false} />
+          <div className="finance-topbar__actions">
+            <a
+              href={navHref("/ayuda")}
+              className="ui-icon-btn"
+              aria-label="Ayuda"
+              title="Ayuda"
             >
-              <FinanceIcon name="close" />
-            </button>
-          </div>
-          <FinanceNavigation current={current} onNavigate={closeDrawer} />
-        </div>
-      </dialog>
-
-      <div className="min-w-0">
-        <header className="border-b">
-          <div className="finance-content flex min-h-16 items-center gap-3">
-            <button
-              type="button"
-              className="finance-icon-button lg:hidden"
-              aria-label="Abrir navegación"
-              aria-haspopup="dialog"
-              aria-expanded={drawerOpen}
-              onClick={() => {
-                drawer.current?.showModal();
-                setDrawerOpen(true);
-              }}
-            >
-              <FinanceIcon name="menu" />
-            </button>
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <span className="hidden items-center gap-2 text-muted-foreground lg:flex">
-                <FinanceIcon name="finance" />
-                Finanzas
-                <FinanceIcon name="chevron" className="size-4" />
-              </span>
-              {destinations[current].label}
-            </p>
+              <Icon name="help" />
+            </a>
+            <DisplayCurrencySelector
+              key={display.currency ?? "sin-moneda"}
+              currency={display.currency}
+              ready={display.ready}
+            />
+            <RegisterMovementLink
+              className={buttonClass("primary")}
+              handleRequest
+            />
           </div>
         </header>
-        <main
-          id="contenido"
-          tabIndex={-1}
-          className="finance-content pt-5 pb-8"
-        >
+
+        {/* Después de la barra superior en el orden de foco: Tab recorre
+            barra → menú → contenido; visualmente el riel queda fijo a la izquierda. */}
+        <aside className="finance-sidebar" aria-label="Menú lateral">
+          <Brand />
+          <FinanceNavigation current={current} />
+        </aside>
+
+        <main id="contenido" tabIndex={-1} className="finance-main">
           {children}
         </main>
       </div>
+      <FinanceMobileNav current={current} />
       {current === "resumen" && <IntroTour />}
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { buttonClass } from "./ui/button";
 export function GoogleAccess({ signOut = false }: { signOut?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -40,7 +41,11 @@ export function GoogleAccess({ signOut = false }: { signOut?: boolean }) {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="min-h-11 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+        aria-busy={busy}
+        className={buttonClass(
+          signOut ? "outline" : "primary",
+          "min-h-11 px-4 text-[15px]",
+        )}
       >
         {busy ? "Un momento…" : signOut ? "Cerrar sesión" : "Entrar con Google"}
       </button>

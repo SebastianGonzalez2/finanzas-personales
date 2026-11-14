@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 
-export const historyControl =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
-export const historyButton =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60";
-export const historyPrimary = `${historyButton} border-primary bg-primary text-primary-foreground hover:bg-primary/85`;
+// UI-02: controles compartidos con el estilo Glaciar (`.ui-control`, `.ui-btn`
+// en globals.css). Mantienen 44 px de alto y permiten texto en varias líneas
+// para no desbordar en 360 px.
+export const historyControl = "ui-control";
+const historyButtonBase =
+  "ui-btn min-h-11 px-3 py-2 text-center whitespace-normal";
+export const historyButton = `${historyButtonBase} ui-btn--outline`;
+export const historyPrimary = `${historyButtonBase} ui-btn--primary`;
 
 export function HistoryField({
   label,

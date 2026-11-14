@@ -1,7 +1,16 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { ConnectionStatus } from "@/components/connection-status";
 import { FormValidation } from "@/components/form-validation";
 import "./globals.css";
+
+// UI-02: tipografía definitiva (guía §2). `next/font` la descarga al compilar y
+// la sirve desde el propio dominio: compatible con la CSP (font-src 'self').
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Finanzas personales",
@@ -12,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#131313",
+  themeColor: "#070a0d",
   colorScheme: "dark",
 };
 
@@ -20,7 +29,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es">
+    <html lang="es" className={jakarta.variable}>
       <body>
         <a
           href="#contenido"

@@ -128,13 +128,21 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
       "15,00 USD",
     );
 
+    // UI-02: el selector global vive en la barra superior (segmentado).
     await page.goto("/resumen");
-    const select = page.getByRole("combobox", {
+    const selector = page.getByRole("group", {
       name: "Moneda de visualización",
     });
-    await expect(select).toHaveValue("USD");
-    await select.selectOption("EUR");
-    await page.getByRole("button", { name: "Guardar moneda" }).click();
+    await expect(
+      selector.getByRole("button", { name: "USD", pressed: true }),
+    ).toBeVisible();
+    await selector.getByRole("button", { name: "EUR" }).click();
+    await expect(
+      selector.getByRole("button", { name: "EUR", pressed: true }),
+    ).toBeVisible();
+    await expect(
+      selector.getByRole("button", { name: "USD", pressed: false }),
+    ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Equivalencia del disponible libre" }),
     ).toContainText("90,00 EUR");
@@ -146,10 +154,17 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     await expect(
       saved.getByRole("combobox", { name: "Moneda de visualización" }),
     ).toHaveValue("EUR");
+    await expect(
+      saved
+        .getByRole("group", { name: "Moneda de visualización" })
+        .getByRole("button", { name: "EUR", pressed: true }),
+    ).toBeVisible();
     await isolated.goto("/resumen");
     await expect(
-      isolated.getByRole("combobox", { name: "Moneda de visualización" }),
-    ).toHaveValue("USD");
+      isolated
+        .getByRole("group", { name: "Moneda de visualización" })
+        .getByRole("button", { name: "USD", pressed: true }),
+    ).toBeVisible();
     expect(
       (await post(request, "display-currency", { currency: "UYU" })).status(),
     ).toBe(401);
