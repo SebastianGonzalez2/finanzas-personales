@@ -32,6 +32,7 @@ uniform vec3 u_c3;
 uniform float u_gain;
 uniform float u_flip;
 uniform float u_seed;
+uniform float u_offset;
 void main(){
   vec2 uv=gl_FragCoord.xy/u_res;
   if(u_flip>0.5) uv.y=1.0-uv.y;
@@ -40,7 +41,7 @@ void main(){
   vec3 col=u_base;
   for(int i=0;i<4;i++){
     float fi=float(i);
-    float y=0.74-fi*0.075
+    float y=0.74+u_offset-fi*0.075
       +0.085*sin(p.x*1.25+t*(1.0+fi*0.25)+fi*1.7)
       +0.045*sin(p.x*2.6-t*0.8+fi*2.3)
       +0.07*(fbm(vec2(p.x*0.7+t*0.35,fi*3.0))-0.5);
@@ -132,6 +133,12 @@ export function AmbientShader({
     gl.uniform1f(
       gl.getUniformLocation(program, "u_seed"),
       position === "bottom" ? 7.3 : 0,
+    );
+    // Abajo, las ondas se apoyan cerca del borde inferior (el espacio libre
+    // bajo el último panel) en lugar de quedar detrás del contenido.
+    gl.uniform1f(
+      gl.getUniformLocation(program, "u_offset"),
+      position === "bottom" ? 0.17 : 0,
     );
 
     let frame = 0;

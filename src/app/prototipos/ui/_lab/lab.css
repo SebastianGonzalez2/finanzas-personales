@@ -2582,9 +2582,9 @@
     height: 100vh;
     height: 100dvh;
     background:
-      radial-gradient(80% 30% at 70% 88%, var(--lab-glow-1), transparent 70%),
-      radial-gradient(70% 28% at 25% 78%, var(--lab-glow-2), transparent 70%),
-      radial-gradient(60% 20% at 50% 68%, var(--lab-glow-3), transparent 70%),
+      radial-gradient(80% 30% at 70% 94%, var(--lab-glow-1), transparent 70%),
+      radial-gradient(70% 28% at 25% 88%, var(--lab-glow-2), transparent 70%),
+      radial-gradient(60% 20% at 50% 80%, var(--lab-glow-3), transparent 70%),
       var(--lab-bg);
     -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
     mask-image: linear-gradient(to top, #000 50%, transparent);
