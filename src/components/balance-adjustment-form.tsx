@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { adjustmentNoteLimit } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
 import { useFinancialCommand } from "./financial-command";
+import { Icon } from "./ui/icon";
 
 const control =
   "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
@@ -36,15 +37,16 @@ export function BalanceAdjustmentForm({
   }
 
   return (
-    <div className="mt-1 text-sm">
+    <div className="contents text-sm">
       <button
         ref={trigger}
         type="button"
-        aria-label={`Actualizar saldo real de Bancos ${currency}`}
+        aria-label={`Confirmar saldo real de Bancos ${currency}`}
         aria-expanded={open}
         aria-controls={`${prefix}-formulario`}
         aria-disabled={pending || uncertain}
-        className="min-h-11 rounded-md px-2 text-start font-medium text-ring hover:bg-accent"
+        className="ui-btn ui-btn--glass"
+        data-tour="confirmar-saldo"
         onClick={() => {
           if (pending || uncertain) return;
           if (open) return close();
@@ -53,12 +55,17 @@ export function BalanceAdjustmentForm({
           requestAnimationFrame(() => amount.current?.focus());
         }}
       >
-        Actualizar saldo real
+        <Icon name="check" duotone={false} className="size-4" />
+        Confirmar saldo
       </button>
-      <p role="status" className={message ? "mt-1 text-sm" : "sr-only"}>
+      <p role="status" className={message ? "basis-full text-sm" : "sr-only"}>
         {message}
       </p>
-      <div id={`${prefix}-formulario`} hidden={!open}>
+      <div
+        id={`${prefix}-formulario`}
+        hidden={!open}
+        className="min-w-0 basis-full"
+      >
         {open && (
           <form
             method="post"

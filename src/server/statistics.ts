@@ -258,6 +258,8 @@ export async function summaryFlowFx(
   range: StatisticsRange,
   target: Currency,
   today: string,
+  history = range,
+  comparison: StatisticsRange | null = null,
 ) {
   const schema = await statisticsReady(client);
   if (!schema.ready) return null;
@@ -267,7 +269,7 @@ export async function summaryFlowFx(
     client,
     ownerId,
     source,
-    range,
+    history,
     null,
     filters,
     target,
@@ -278,13 +280,62 @@ export async function summaryFlowFx(
   const { rows } = await client.query<{
     kind: "income" | "expense" | "refund";
     amount: string | null;
+    count: number;
   }>(
     `${displayCte(source, target)}
-     SELECT kind, CASE WHEN count(amount) = count(*) THEN round(sum(amount), 4)::text END AS amount
-       FROM scoped GROUP BY kind`,
-    parameters(ownerId, range, filters, target),
+     SELECT kind, count(DISTINCT event_id)::int AS count,
+       CASE WHEN count(amount) = count(*) THEN round(sum(amount), 4)::text END AS amount
+       FROM scoped WHERE effective_on BETWEEN $11::date AND $12::date GROUP BY kind`,
+    [...parameters(ownerId, history, filters, target), range.from, range.to],
   );
-  return { rows, quotes: [...quotes.values()], missing };
+  const { rows: months } = await client.query<{
+    period: string;
+    income: string | null;
+    expense: string | null;
+    result: string | null;
+  }>(
+    `${displayCte(source, target)}
+     SELECT to_char(effective_on, 'YYYY-MM') AS period,
+       CASE WHEN count(amount) FILTER (WHERE kind = 'income') = count(*) FILTER (WHERE kind = 'income')
+         THEN round(sum(amount) FILTER (WHERE kind = 'income'), 4)::text END AS income,
+       CASE WHEN count(amount) FILTER (WHERE kind = 'expense') = count(*) FILTER (WHERE kind = 'expense')
+         THEN round(sum(amount) FILTER (WHERE kind = 'expense'), 4)::text END AS expense,
+       CASE WHEN count(amount) = count(*) THEN round(
+         sum(CASE WHEN kind = 'income' THEN amount ELSE -amount END), 4
+       )::text END AS result
+     FROM scoped WHERE kind IN ('income', 'expense')
+     GROUP BY 1 ORDER BY 1`,
+    parameters(ownerId, history, filters, target),
+  );
+  const previous = comparison
+    ? (
+        await client.query<(typeof rows)[number]>(
+          `${displayCte(source, target)}
+         SELECT kind, count(DISTINCT event_id)::int AS count,
+           CASE WHEN count(amount) = count(*) THEN round(sum(amount), 4)::text END AS amount
+         FROM scoped WHERE kind IN ('income', 'expense') GROUP BY kind`,
+          parameters(ownerId, comparison, filters, target),
+        )
+      ).rows
+    : [];
+  const hasExpenses = rows.some(
+    ({ kind, amount }) => kind === "expense" && amount !== null,
+  );
+  const spending = hasExpenses
+    ? await categories(
+        client,
+        displayCte(source, target),
+        parameters(ownerId, range, { ...filters, kind: "expense" }, target),
+      )
+    : [];
+  return {
+    rows,
+    months,
+    previous,
+    spending,
+    quotes: [...quotes.values()],
+    missing,
+  };
 }
 
 export async function statisticsReady(client: pg.PoolClient) {

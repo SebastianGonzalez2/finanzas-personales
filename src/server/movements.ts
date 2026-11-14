@@ -1118,6 +1118,50 @@ export async function listRecentMovements(
   kind: MovementKind,
   installmentsReady = false,
 ) {
+  return recentMovementRows<RecentMovement>(
+    client,
+    ownerId,
+    kind,
+    installmentsReady,
+    false,
+  );
+}
+
+export async function listSummaryRecentMovements(
+  client: pg.PoolClient,
+  ownerId: string,
+  installmentsReady: boolean,
+) {
+  type OrderedMovement = RecentMovement & { createdAt: string };
+  const expenses = await recentMovementRows<OrderedMovement>(
+    client,
+    ownerId,
+    "expense",
+    installmentsReady,
+    true,
+  );
+  const incomes = await recentMovementRows<OrderedMovement>(
+    client,
+    ownerId,
+    "income",
+    false,
+    true,
+  );
+  return [...expenses, ...incomes].sort(
+    (a, b) =>
+      b.effectiveOn.localeCompare(a.effectiveOn) ||
+      b.createdAt.localeCompare(a.createdAt) ||
+      b.id.localeCompare(a.id),
+  );
+}
+
+async function recentMovementRows<T extends RecentMovement>(
+  client: pg.PoolClient,
+  ownerId: string,
+  kind: MovementKind,
+  installmentsReady: boolean,
+  includeCreatedAt: boolean,
+) {
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const mixed = credit && (await mixedPurchasesReady(client));
   const shared = kind === "expense" && (await sharedExpensesReady(client));
@@ -1131,8 +1175,9 @@ export async function listRecentMovements(
         WHERE a.owner_id = $1 AND a.event_id = recent.id)
       ELSE recent.category END AS category`
     : "category";
-  const { rows } = await client.query<RecentMovement>(
+  const { rows } = await client.query<T>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
+            ${includeCreatedAt ? `to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt",` : ""}
             currency, amount, method, note, ${category}
             ${shared ? ", EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE s.owner_id = $1 AND s.event_id = recent.id) AS shared" : ""} FROM (
       SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,

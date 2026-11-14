@@ -18,7 +18,10 @@ test("F2-08: repartir un gasto y saldar una deuda desde Historial", async ({
   expect(opening.status()).toBe(201);
   await page.goto("/resumen");
   const openExpense = async () => {
-    await page.getByRole("button", { name: /Nueva transacción/ }).click();
+    await page
+      .getByRole("banner")
+      .getByRole("link", { name: "Registrar movimiento" })
+      .click();
     await page
       .getByRole("button", { name: "Gasto con otras personas" })
       .click();

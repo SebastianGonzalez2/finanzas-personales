@@ -16,6 +16,7 @@ import {
 } from "@/domain/bank-balances";
 import { connectionAwareMessage } from "./connection";
 import type { Currency } from "@/domain/money";
+import { Icon } from "./ui/icon";
 
 const inputClass =
   "min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
@@ -24,12 +25,16 @@ export function BankBalanceRow({
   currency,
   initialBalance,
   today,
+  transfer,
   children,
+  history,
 }: {
   currency: Currency;
   initialBalance?: BankAvailability;
   today: string;
+  transfer: ReactNode;
   children?: ReactNode;
+  history?: ReactNode;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState<BankBalance>();
@@ -38,7 +43,7 @@ export function BankBalanceRow({
   const [error, setError] = useState("");
   const amountInput = useRef<HTMLInputElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLParagraphElement>(null);
   const balance = initialBalance ?? saved;
   const prefix = `saldo-${currency}`;
 
@@ -95,66 +100,97 @@ export function BankBalanceRow({
     requestAnimationFrame(() => openButton.current?.focus());
   }
 
+  const available =
+    initialBalance &&
+    formatBankAmount({
+      currency,
+      amount: initialBalance.availableAmount,
+    });
+  const [whole, cents] = available ? available.split(" ")[0].split(",") : [];
+
   return (
-    <li className="min-w-0 border-t py-2 first:border-t-0 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center justify-between gap-x-2">
-        <h3 ref={heading} tabIndex={-1} className="text-sm font-medium">
-          {currency}
-        </h3>
-        {!balance && !open && (
-          <button
-            ref={openButton}
-            type="button"
-            className="min-h-11 rounded-md px-2 text-sm font-medium text-ring hover:bg-accent"
-            aria-label={`Configurar Bancos ${currency}`}
-            onClick={showForm}
-          >
-            Configurar
-          </button>
-        )}
-      </div>
+    <>
       <div role="status" aria-atomic="true">
-        {balance ? (
+        <p ref={heading} tabIndex={-1} className="b-hero__value tabular-nums">
+          <span className="b-hero__currency" aria-hidden={Boolean(available)}>
+            {currency}
+          </span>
+          {whole ? (
+            <>
+              <span aria-hidden="true" className="wrap-anywhere">
+                {whole}
+                <span className="b-hero__cents">,{cents}</span>
+              </span>
+              <span className="sr-only">{available}</span>
+            </>
+          ) : (
+            <span className="text-2xl tracking-normal">
+              {balance ? "Actualizando…" : "Sin configurar"}
+            </span>
+          )}
+        </p>
+        {balance && (
           <>
-            {initialBalance && (
-              <p className="mt-1 text-lg font-semibold wrap-anywhere tabular-nums">
-                {formatBankAmount({
-                  currency,
-                  amount: initialBalance.availableAmount,
-                })}
+            <div className="b-hero__meta">
+              <p className="lab-tag lab-tag--good">
+                <Icon name="check" duotone={false} className="size-3" />
+                <span>
+                  Saldo confirmado el{" "}
+                  <time
+                    dateTime={balance.asOfDate}
+                    title={formatBankReference(balance.asOfDate)}
+                  >
+                    {formatBankReference(balance.asOfDate).slice(0, 5)}
+                  </time>
+                </span>
               </p>
-            )}
-            <p className="mt-1 text-sm wrap-anywhere tabular-nums">
+              <p className="lab-muted text-sm">
+                Ya descuenta fondos reservados
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums wrap-anywhere">
               Saldo bancario{" "}
               {formatBankAmount({
                 currency,
                 amount: balance.calculatedAmount ?? balance.amount,
               })}
-            </p>
-            {initialBalance && initialBalance.reservedAmount !== "0.0000" && (
-              <p className="text-xs text-muted-foreground">
-                Reservado{" "}
-                {formatBankAmount({
-                  currency,
-                  amount: initialBalance.reservedAmount,
-                })}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {balance.calculatedAmount !== undefined && (
-                <>Calculado · {formatBankAmount(balance)} confirmado al </>
+              {initialBalance && initialBalance.reservedAmount !== "0.0000" && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span>
+                    Reservado{" "}
+                    {formatBankAmount({
+                      currency,
+                      amount: initialBalance.reservedAmount,
+                    })}
+                  </span>
+                </>
               )}
-              {balance.calculatedAmount === undefined && "Confirmado al "}
-              <time dateTime={balance.asOfDate}>
-                {formatBankReference(balance.asOfDate)}
-              </time>
+              {balance.calculatedAmount !== undefined && (
+                <> · Confirmado {formatBankAmount(balance)}</>
+              )}
             </p>
           </>
-        ) : (
-          <p className="text-xs text-muted-foreground">Sin configurar</p>
         )}
       </div>
-      {children}
+      <div className="b-hero__actions mt-5">
+        {transfer}
+        {children}
+        {!balance && !open && (
+          <button
+            ref={openButton}
+            type="button"
+            className="ui-btn ui-btn--glass"
+            aria-label={`Configurar Bancos ${currency}`}
+            onClick={showForm}
+          >
+            <Icon name="check" duotone={false} className="size-4" />
+            Configurar saldo
+          </button>
+        )}
+      </div>
+      {history}
       {open && !balance && (
         <form
           method="post"
@@ -226,6 +262,6 @@ export function BankBalanceRow({
           </p>
         </form>
       )}
-    </li>
+    </>
   );
 }

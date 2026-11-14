@@ -58,14 +58,28 @@ function Summary() {
             </span>
           }
         >
-          <CashflowChart data={cashflow} mode="mirror" height={264} />
+          <CashflowChart
+            data={cashflow.map((point) => ({
+              ...point,
+              income: String(point.income),
+              expense: String(point.expense),
+              result: String(point.income - point.expense),
+            }))}
+            height={264}
+          />
         </Panel>
         <Panel
           title="Gastos por categoría"
           icon="categories"
           className="b-span-5"
         >
-          <CategoryDonut data={categorySpending} total={categoryTotal} />
+          <CategoryDonut
+            data={categorySpending.map((item) => ({
+              ...item,
+              amount: String(item.amount),
+            }))}
+            total={String(categoryTotal)}
+          />
         </Panel>
 
         <Panel
