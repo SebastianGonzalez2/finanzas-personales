@@ -3435,3 +3435,138 @@
     }
   }
 }
+
+/* ─────────────── Aviso del saldo y tutorial con flechas ─────────────── */
+@layer components {
+  .b-hero__switch {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .b-hero__hint {
+    max-width: 220px;
+    color: var(--lab-muted);
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
+  }
+
+  @media (max-width: 39.99rem) {
+    .lab-final .c-topbar .lab-brand__name {
+      display: none;
+    }
+
+    .b-hero__switch {
+      align-items: flex-start;
+    }
+
+    .b-hero__hint {
+      text-align: left;
+    }
+  }
+
+  .lab-tour__spot {
+    position: fixed;
+    z-index: 60;
+    border-radius: 14px;
+    box-shadow:
+      0 0 0 2px var(--lab-accent),
+      0 0 0 100vmax rgb(1 6 10 / 55%);
+    pointer-events: none;
+    transition:
+      top 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      height 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .lab-tour__arrow {
+    position: fixed;
+    inset: 0;
+    z-index: 61;
+    width: 100vw;
+    height: 100vh;
+    overflow: visible;
+    color: var(--lab-accent);
+    pointer-events: none;
+  }
+
+  .lab-tour__path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: lab-tour-draw 0.5s 0.15s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  }
+
+  @keyframes lab-tour-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .lab-tour__card {
+    position: fixed;
+    z-index: 62;
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 18px;
+    background: rgb(6 18 22 / 94%);
+    color: var(--lab-text);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 85%);
+    backdrop-filter: blur(16px);
+    outline: none;
+    transition:
+      top 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .lab-tour__count {
+    color: var(--lab-accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .lab-tour__title {
+    margin-top: 2px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .lab-tour__text {
+    color: #c9d6da;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .lab-tour__dots {
+    display: flex;
+    gap: 4px;
+  }
+
+  .lab-tour__dots span {
+    height: 4px;
+    flex: 1;
+    border-radius: 999px;
+    background: var(--lab-track);
+  }
+
+  .lab-tour__dots span.is-done {
+    background: var(--lab-accent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lab-tour__path {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+}

@@ -49,8 +49,11 @@ import {
 
 export function BalanceHero({
   showRegister = true,
+  hint = false,
 }: {
   showRegister?: boolean;
+  /** Aviso breve bajo las pestañas: aclara que no convierten (Final). */
+  hint?: boolean;
 }) {
   const [selected, setSelected] = useState(0);
   const balance = balances[selected];
@@ -65,38 +68,47 @@ export function BalanceHero({
           </span>
           Disponible libre
         </h2>
-        <div
-          role="tablist"
-          aria-label="Moneda del saldo"
-          className="lab-segment"
-        >
-          {balances.map((item, index) => (
-            <button
-              key={item.currency}
-              type="button"
-              role="tab"
-              id={`b-tab-${item.currency}`}
-              aria-selected={index === selected}
-              aria-controls="b-hero-panel"
-              tabIndex={index === selected ? 0 : -1}
-              className="lab-segment__option"
-              onClick={() => setSelected(index)}
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowRight" && event.key !== "ArrowLeft")
-                  return;
-                const next =
-                  (index +
-                    (event.key === "ArrowRight" ? 1 : balances.length - 1)) %
-                  balances.length;
-                setSelected(next);
-                document
-                  .getElementById(`b-tab-${balances[next].currency}`)
-                  ?.focus();
-              }}
-            >
-              {item.currency}
-            </button>
-          ))}
+        <div className="b-hero__switch">
+          <div
+            role="tablist"
+            aria-label="Moneda del saldo"
+            aria-describedby={hint ? "b-hero-hint" : undefined}
+            className="lab-segment"
+            data-tour="moneda-cuenta"
+          >
+            {balances.map((item, index) => (
+              <button
+                key={item.currency}
+                type="button"
+                role="tab"
+                id={`b-tab-${item.currency}`}
+                aria-selected={index === selected}
+                aria-controls="b-hero-panel"
+                tabIndex={index === selected ? 0 : -1}
+                className="lab-segment__option"
+                onClick={() => setSelected(index)}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft")
+                    return;
+                  const next =
+                    (index +
+                      (event.key === "ArrowRight" ? 1 : balances.length - 1)) %
+                    balances.length;
+                  setSelected(next);
+                  document
+                    .getElementById(`b-tab-${balances[next].currency}`)
+                    ?.focus();
+                }}
+              >
+                {item.currency}
+              </button>
+            ))}
+          </div>
+          {hint && (
+            <p id="b-hero-hint" className="b-hero__hint">
+              Cambiá entre tu cuenta en pesos, dólares o euros
+            </p>
+          )}
         </div>
       </header>
       <div
@@ -115,7 +127,7 @@ export function BalanceHero({
             Saldo confirmado el {shortDate(balance.confirmedOn)}
           </span>
           <span className="lab-muted text-sm">
-            Ya descuenta lo reservado en fondos
+            Ya descuenta fondos reservados y deuda de tarjetas
           </span>
         </p>
       </div>
@@ -126,11 +138,19 @@ export function BalanceHero({
             Registrar movimiento
           </button>
         )}
-        <button type="button" className="lab-btn lab-btn--glass">
+        <button
+          type="button"
+          className="lab-btn lab-btn--glass"
+          data-tour="cambio-moneda"
+        >
           <LabIcon name="swap" duotone={false} className="size-4" />
           Cambio de moneda
         </button>
-        <button type="button" className="lab-btn lab-btn--glass">
+        <button
+          type="button"
+          className="lab-btn lab-btn--glass"
+          data-tour="confirmar-saldo"
+        >
           <LabIcon name="check" duotone={false} className="size-4" />
           Confirmar saldo
         </button>

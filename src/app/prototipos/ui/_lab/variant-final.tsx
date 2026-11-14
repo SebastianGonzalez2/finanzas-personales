@@ -6,6 +6,7 @@ import { cashflow, categorySpending, categoryTotal } from "./data";
 import { LabIcon } from "./icons";
 import { MovementsExplorer } from "./movements";
 import type { LabView } from "./nav";
+import { LabTour, openLabTour } from "./tour";
 import { Brand, CurrencySegment, LabBar, LabNav, MonthStepper } from "./shell";
 import { BalanceHero, CardObjects, FlowCard, Notices } from "./variant-b";
 import { Dock } from "./variant-c";
@@ -41,7 +42,7 @@ function Summary() {
       </div>
 
       <div className="b-grid">
-        <BalanceHero showRegister={false} />
+        <BalanceHero showRegister={false} hint />
         <div className="b-flows">
           <FlowCard kind="income" />
           <FlowCard kind="expense" />
@@ -120,8 +121,25 @@ export function VariantFinal({ view }: { view: LabView }) {
         <header className="c-topbar">
           <Brand subtitle={false} />
           <div className="ml-auto flex items-center gap-2">
-            <CurrencySegment className="hidden sm:flex" />
-            <button type="button" className="lab-btn lab-btn--primary">
+            {view === "resumen" && (
+              <button
+                type="button"
+                className="lab-icon-btn"
+                aria-label="Ver tutorial"
+                title="Ver tutorial"
+                onClick={openLabTour}
+              >
+                <LabIcon name="help" />
+              </button>
+            )}
+            <div data-tour="moneda-app">
+              <CurrencySegment />
+            </div>
+            <button
+              type="button"
+              className="lab-btn lab-btn--primary"
+              data-tour="registrar"
+            >
               <LabIcon name="plus" duotone={false} className="size-4" />
               <span className="hidden sm:inline">Registrar movimiento</span>
               <span className="sr-only sm:hidden">Registrar movimiento</span>
@@ -152,6 +170,7 @@ export function VariantFinal({ view }: { view: LabView }) {
         </main>
       </div>
       <Dock view={view} variant="final" />
+      {view === "resumen" && <LabTour />}
     </div>
   );
 }

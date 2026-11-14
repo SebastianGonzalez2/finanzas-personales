@@ -119,6 +119,7 @@ function NavItem({
     return (
       <span
         className="lab-nav__item is-inert"
+        data-nav={item.key}
         aria-disabled="true"
         title="Fuera del alcance del prototipo"
       >
@@ -130,6 +131,7 @@ function NavItem({
       href={href}
       aria-current={current ? "page" : undefined}
       className="lab-nav__item"
+      data-nav={item.key}
       onClick={onNavigate}
       aria-label={compact ? item.label : undefined}
     >
