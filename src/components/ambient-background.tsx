@@ -86,6 +86,32 @@ function useReducedMotion() {
   );
 }
 
+// Sin aceleración gráfica (WebGL por software, GPU bloqueada o equipos muy
+// limitados) el shader y la deriva de la luz recalculan cada vidrio en CPU en
+// cada cuadro. En ese caso el fondo usa la alternativa estática (guía §4.4–5).
+let hardwareWebgl: boolean | undefined;
+
+function probeHardwareWebgl() {
+  if (hardwareWebgl !== undefined) return hardwareWebgl;
+  try {
+    const gl = document.createElement("canvas").getContext("webgl", {
+      failIfMajorPerformanceCaveat: true,
+    });
+    hardwareWebgl = gl !== null;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    hardwareWebgl = false;
+  }
+  return hardwareWebgl;
+}
+
+const noSubscription = () => () => {};
+
+/** `true` si hay WebGL con aceleración (en servidor: alternativa estática). */
+function useHardwareWebgl() {
+  return useSyncExternalStore(noSubscription, probeHardwareWebgl, () => false);
+}
+
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
   const shader = gl.createShader(type);
   if (!shader) return null;
@@ -101,11 +127,14 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 function AmbientWaves({
   position,
   animate,
+  enabled,
   scale = 0.5,
 }: {
   /** «bottom» dibuja las ondas invertidas para el final de la página. */
   position: "top" | "bottom";
   animate: boolean;
+  /** `false`: no se crea contexto WebGL y queda la capa CSS estática. */
+  enabled: boolean;
   /** Fracción de la resolución CSS que se renderiza (la luz difusa tolera poca). */
   scale?: number;
 }) {
@@ -113,7 +142,7 @@ function AmbientWaves({
 
   useEffect(() => {
     const element = canvas.current;
-    if (!element) return;
+    if (!element || !enabled) return;
     const gl = element.getContext("webgl", {
       alpha: false,
       antialias: false,
@@ -121,8 +150,9 @@ function AmbientWaves({
       stencil: false,
       powerPreference: "low-power",
       preserveDrawingBuffer: false,
+      failIfMajorPerformanceCaveat: true,
     });
-    if (!gl) return; // Sin WebGL: queda la capa CSS.
+    if (!gl) return; // Sin WebGL acelerado: queda la capa CSS.
 
     const vs = compile(gl, gl.VERTEX_SHADER, vertex);
     const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
@@ -238,7 +268,7 @@ function AmbientWaves({
       gl.deleteShader(fs);
       gl.deleteBuffer(buffer);
     };
-  }, [animate, position, scale]);
+  }, [animate, enabled, position, scale]);
 
   return (
     <div
@@ -253,6 +283,7 @@ function AmbientWaves({
 
 export function AmbientBackground() {
   const reduced = useReducedMotion();
+  const accelerated = useHardwareWebgl();
 
   // Con la pestaña oculta también se detiene la deriva CSS de la luz del medio.
   useEffect(() => {
@@ -272,13 +303,21 @@ export function AmbientBackground() {
   return (
     <>
       {/* Luz suave y lenta en toda la pantalla: el medio no queda negro y quieto. */}
-      <div className="ambient-glow" aria-hidden="true">
+      <div
+        className="ambient-glow"
+        data-motion={accelerated ? undefined : "static"}
+        aria-hidden="true"
+      >
         <span />
         <span />
         <span />
       </div>
-      <AmbientWaves position="top" animate={!reduced} />
-      <AmbientWaves position="bottom" animate={!reduced} />
+      <AmbientWaves position="top" animate={!reduced} enabled={accelerated} />
+      <AmbientWaves
+        position="bottom"
+        animate={!reduced}
+        enabled={accelerated}
+      />
       <div className="ambient-grain" aria-hidden="true" />
     </>
   );

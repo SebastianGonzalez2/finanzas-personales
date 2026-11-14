@@ -789,6 +789,13 @@
     animation-play-state: paused;
   }
 
+  /* Sin aceleración gráfica la luz queda quieta: si deriva, cada vidrio se
+     vuelve a desenfocar en CPU en cada cuadro. */
+  .ambient-glow[data-motion="static"] span {
+    animation: none;
+    will-change: auto;
+  }
+
   /* Grano fino: evita bandas en los degradados. */
   .ambient-grain {
     position: fixed;
