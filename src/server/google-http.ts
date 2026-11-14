@@ -96,7 +96,11 @@ export async function handleGoogleHttp(
       });
     } else {
       step = "request.forward";
-      forward = new Request(request, { headers });
+      // No se copia el objeto Request recibido: en Next.js llega como un
+      // NextRequest enlazado y el constructor nativo (undici) lo rechaza con
+      // "Cannot read private member #state". Se arma un GET nuevo solo con la
+      // URL (code, state e iss intactos) y los encabezados (cookies incluidas).
+      forward = new Request(request.url, { method: "GET", headers });
     }
     // El manejador etiqueta sus propias etapas; "request.unexpected" cubre un
     // fallo no etiquetado.
