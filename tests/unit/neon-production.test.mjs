@@ -986,3 +986,22 @@ test("cobertura RLS: rechaza tablas sin proteger, ausencia de tablas y filas inv
       (error) => error.code === "ERR_ASSERTION",
     );
 });
+
+test("verificación development: usa la cobertura RLS dinámica y no un total fijo", async () => {
+  for (const file of [
+    "scripts/verify-google-runtime.mjs",
+    "scripts/verify-google-runtime-production.mjs",
+  ]) {
+    const source = await readFile(
+      new URL(`../../${file}`, import.meta.url),
+      "utf8",
+    );
+    assert.match(source, /assertFinanceRlsCoverage\(coverage\)/);
+    assert.match(source, /financeRlsCoverageSql/);
+    assert.doesNotMatch(source, /protected_finance|financialRlsTables: \d/);
+  }
+  const { scripts } = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  assert.match(scripts["auth:google:verify"], /--conditions=react-server/);
+});
