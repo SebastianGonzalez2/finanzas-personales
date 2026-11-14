@@ -133,14 +133,23 @@ export function parseBalanceAdjustment(
 
 const wholeAmount = new Intl.NumberFormat("es-UY", { useGrouping: "always" });
 
+/**
+ * Presentation only: rounds half away from zero to two decimals on the exact
+ * decimal string. Stored amounts and intermediate calculations keep full precision.
+ */
 export function formatBankAmount(
   balance: Pick<BankBalance, "amount" | "currency">,
 ): string {
-  const [whole, fraction] = balance.amount.split(".");
+  const [whole, fraction = ""] = balance.amount.split(".");
   const negative = whole.startsWith("-");
-  const grouped = wholeAmount.format(BigInt(negative ? whole.slice(1) : whole));
-  const decimals = (fraction ?? "").replace(/0+$/, "").padEnd(2, "0");
-  return `${negative ? "−" : ""}${grouped},${decimals} ${balance.currency}`;
+  const hundredths =
+    BigInt(negative ? whole.slice(1) : whole) * BigInt(100) +
+    BigInt(fraction.slice(0, 2).padEnd(2, "0")) +
+    (/^\d{2}[5-9]/.test(fraction) ? BigInt(1) : BigInt(0));
+  const grouped = wholeAmount.format(hundredths / BigInt(100));
+  const cents = (hundredths % BigInt(100)).toString().padStart(2, "0");
+  const sign = negative && hundredths !== BigInt(0) ? "−" : "";
+  return `${sign}${grouped},${cents} ${balance.currency}`;
 }
 
 export function formatBankReference(asOfDate: string): string {
