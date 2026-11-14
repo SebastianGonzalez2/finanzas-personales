@@ -153,7 +153,13 @@ export function MovementForm({
       sentBody.current = null;
     }
     setOpen(true);
-    requestAnimationFrame(() => heading.current?.focus());
+    requestAnimationFrame(() => {
+      if (
+        document.activeElement === active ||
+        document.activeElement === document.body
+      )
+        heading.current?.focus();
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {

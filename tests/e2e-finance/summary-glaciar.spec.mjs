@@ -279,6 +279,36 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
     await usdPanel
       .getByRole("button", { name: "Cancelar", exact: true })
       .click();
+
+    // Simula que el navegador difiere el foco inicial hasta después de que
+    // el usuario entra a un campo. El formulario debe respetar ese foco.
+    const register = page
+      .getByRole("banner")
+      .getByRole("link", { name: "Registrar movimiento" });
+    const delayedFocus = await register.evaluateHandle((link) => {
+      link.focus();
+      const callbacks = [];
+      const requestFrame = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (callback) => callbacks.push(callback);
+      try {
+        link.click();
+      } finally {
+        globalThis.requestAnimationFrame = requestFrame;
+      }
+      return () => {
+        callbacks.forEach((callback) => callback(globalThis.performance.now()));
+        return callbacks.length;
+      };
+    });
+    const concept = page
+      .getByRole("form", { name: "Nueva transacción" })
+      .getByLabel("Concepto", { exact: true });
+    await concept.fill("Borrador de prueba");
+    expect(await delayedFocus.evaluate((run) => run())).toBeGreaterThan(0);
+    await delayedFocus.dispose();
+    await expect(concept).toBeFocused();
+    await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+
     await page.getByRole("link", { name: "Mes anterior" }).click();
     await expect(page).toHaveURL(new RegExp(`month=${previous}`));
 
