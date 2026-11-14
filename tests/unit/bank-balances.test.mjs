@@ -7,6 +7,7 @@ import {
   parseBalanceAdjustment,
   parseOpeningBalance,
 } from "../../src/domain/bank-balances.ts";
+import { sumFx } from "../../src/domain/exchange-rates.ts";
 import { handleOpeningBalance } from "../../src/server/bank-balances-http.ts";
 
 const input = { currency: "UYU", amount: "10000,125", asOfDate: "2024-02-29" };
@@ -25,7 +26,7 @@ test("F1-02: conserva precisión, cero, negativos y moneda original", () => {
     { ...input, amount: "-9999999999999999,9999", currency: "EUR" },
     today,
   );
-  assert.equal(formatBankAmount(maximum), "−9.999.999.999.999.999,9999 EUR");
+  assert.equal(formatBankAmount(maximum), "−10.000.000.000.000.000,00 EUR");
   assert.equal(
     formatBankAmount(
       parseOpeningBalance({ ...input, currency: "USD", amount: "100" }, today),
@@ -153,4 +154,46 @@ test("F1-05 valida ajustes fechados, nota e idempotencia sin aceptar titular ext
       "error" in parseBalanceAdjustment({ ...input, ...invalid }, today),
     );
   }
+});
+
+test("UI: importes se muestran con dos decimales y redondeo normal", () => {
+  const show = (amount, currency = "USD") =>
+    formatBankAmount({ amount, currency });
+  assert.equal(show("24.6239"), "24,62 USD");
+  assert.equal(show("-24.6239"), "−24,62 USD");
+  assert.equal(show("24.6250"), "24,63 USD");
+  assert.equal(show("-24.6250"), "−24,63 USD");
+  assert.equal(show("24.6249"), "24,62 USD");
+  assert.equal(show("24.6"), "24,60 USD");
+  assert.equal(show("24"), "24,00 USD");
+  assert.equal(show("0"), "0,00 USD");
+  assert.equal(show("0.0000"), "0,00 USD");
+  assert.equal(show("-0.0040"), "0,00 USD");
+  assert.equal(show("-0.0050"), "−0,01 USD");
+  assert.equal(show("1234567.8951", "UYU"), "1.234.567,90 UYU");
+  assert.equal(show("-1000.0049", "EUR"), "−1.000,00 EUR");
+  assert.equal(show("999.9950"), "1.000,00 USD");
+});
+
+test("UI: una conversión entre monedas conserva precisión y se redondea solo al presentar", () => {
+  // 1000 UYU a 0,0246239 USD/UYU = 24,6239 USD internos (4 decimales).
+  const usd = sumFx([{ amount: "1000.0000", rate: "0.0246239" }]);
+  assert.equal(usd, "24.6239");
+  assert.equal(formatBankAmount({ amount: usd, currency: "USD" }), "24,62 USD");
+  const negative = sumFx([{ amount: "-1000.0000", rate: "0.0246239" }]);
+  assert.equal(negative, "-24.6239");
+  assert.equal(
+    formatBankAmount({ amount: negative, currency: "USD" }),
+    "−24,62 USD",
+  );
+  // Sumar antes de redondear: 0,0046 + 0,0046 = 0,0092 → 0,01 (no 0,00 + 0,00).
+  const total = sumFx([
+    { amount: "100.0000", rate: "0.000046" },
+    { amount: "100.0000", rate: "0.000046" },
+  ]);
+  assert.equal(total, "0.0092");
+  assert.equal(
+    formatBankAmount({ amount: total, currency: "USD" }),
+    "0,01 USD",
+  );
 });

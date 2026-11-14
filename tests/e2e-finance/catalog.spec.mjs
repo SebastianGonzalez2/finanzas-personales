@@ -64,7 +64,7 @@ test("F5-03: autocompletar, unificar y consultar las compras de un comercio", as
     await expect(
       page.getByText("Comercios unificados en Tienda Inglesa."),
     ).toBeVisible();
-    await expect(page.getByText("30,0003 UYU", { exact: true })).toBeVisible();
+    await expect(page.getByText("30,00 UYU", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Tienda Inglesa" }).click();
     await expect(page.getByText("Compra de prueba A")).toBeVisible();
     await expect(page.getByText("Compra de prueba B")).toBeVisible();

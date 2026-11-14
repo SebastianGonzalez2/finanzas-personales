@@ -63,7 +63,7 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
     const response = await create;
     expect(response.status()).toBe(201);
     const { id } = await response.json();
-    await expect(page.getByText("15.000,1234 UYU")).toBeVisible();
+    await expect(page.getByText("15.000,12 UYU")).toBeVisible();
     await expect(page.getByText("Límite informado")).toHaveCount(1);
 
     // Synthetic positions simulate later financial writes solely to exercise the catalog read contract.
@@ -73,8 +73,8 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
       [owners.a, id],
     );
     await page.reload();
-    await expect(page.getByText("3.000,0001 UYU")).toBeVisible();
-    await expect(page.getByText("12,3456 USD")).toBeVisible();
+    await expect(page.getByText("3.000,00 UYU")).toBeVisible();
+    await expect(page.getByText("12,35 USD")).toBeVisible();
     await otherPage.goto("/tarjetas");
     await expect(otherPage.getByText("Crédito sintético")).toHaveCount(0);
     const update = {
@@ -107,7 +107,7 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
     ).toBe(409);
     await page.reload();
     await expect(page.getByText("Crédito sintético")).toBeVisible();
-    await expect(page.getByText("12,3456 USD")).toBeVisible();
+    await expect(page.getByText("12,35 USD")).toBeVisible();
 
     const results = await Promise.all([
       send(context, update),
@@ -136,8 +136,8 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
     await page.getByRole("button", { name: "Confirmar archivo" }).click();
     await expect(page.getByRole("status")).toHaveText("Tarjeta archivada.");
     await expect(page.getByText("Archivadas (1)")).toBeVisible();
-    await expect(page.getByText("3.000,0001 UYU")).toBeVisible();
-    await expect(page.getByText("12,3456 USD")).toBeVisible();
+    await expect(page.getByText("3.000,00 UYU")).toBeVisible();
+    await expect(page.getByText("12,35 USD")).toBeVisible();
     expect(
       await page.locator("html").evaluate((element) => element.scrollWidth),
     ).toBeLessThanOrEqual(testInfo.project.use.viewport.width);

@@ -107,10 +107,10 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     );
     const metrics = page.getByRole("table", { name: "Indicadores en UYU" });
     await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(
-      "100,0001 UYU",
+      "100,00 UYU",
     );
     await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(
-      "140,0001 UYU",
+      "140,00 UYU",
     );
     await expect(
       metrics.getByRole("row", { name: /^Devoluciones/ }),
@@ -122,11 +122,11 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     });
     const current = positions.getByRole("row", { name: /Período elegido/ });
     await expect(current).toContainText("915,00 UYU");
-    await expect(current).toContainText("140,0002 UYU");
-    await expect(current).toContainText("774,9998 UYU");
+    await expect(current).toContainText("140,00 UYU");
+    await expect(current).toContainText("775,00 UYU");
     await expect(
       positions.getByRole("row", { name: /Comparación/ }),
-    ).toContainText("759,9998 UYU");
+    ).toContainText("760,00 UYU");
     await page
       .getByText("Ver evolución de saldos y patrimonio", { exact: true })
       .click();
@@ -150,7 +150,7 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
       .getByRole("link", { name: "Equipamiento sintético", exact: true })
       .click();
     const entry = page.getByRole("link", { name: new RegExp(concept) });
-    await expect(entry).toContainText("100,0001 UYU");
+    await expect(entry).toContainText("100,00 UYU");
     await expect(entry).toHaveAttribute(
       "href",
       `/historial/movimientos/${purchaseId}#titulo-pagina`,
@@ -236,7 +236,7 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     await saved.goto("/resumen");
     await expect(
       saved.getByRole("list", { name: "Gastos del mes" }),
-    ).toHaveText("100,0001 UYU");
+    ).toHaveText("100,00 UYU");
     await expect(
       saved.getByRole("link", { name: "Mis favoritos" }),
     ).toHaveCount(0);
