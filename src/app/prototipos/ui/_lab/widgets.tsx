@@ -6,7 +6,6 @@ import { ProgressRing } from "./charts";
 import {
   budgetState,
   budgets,
-  creditCards,
   formatUYU,
   funds,
   installments,
@@ -266,54 +265,6 @@ export function FundsList({ style }: { style: "bars" | "rings" }) {
                   />
                 </div>
               )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function daysBetween(from: string, to: string) {
-  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
-}
-
-/** Ciclo de la tarjeta: avance hacia el cierre y fecha de vencimiento. */
-export function CardCycles({ today }: { today: string }) {
-  return (
-    <ul className="lab-cycles">
-      {creditCards.map((card) => {
-        const total = daysBetween(card.cycleStart, card.closesOn);
-        const elapsed = daysBetween(card.cycleStart, today);
-        const left = daysBetween(today, card.closesOn);
-        return (
-          <li key={card.last4}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 font-medium">
-                <span
-                  className={`lab-chipcard lab-chipcard--${card.tone}`}
-                  aria-hidden="true"
-                />
-                {card.name}{" "}
-                <span className="lab-muted tabular-nums">
-                  ···· {card.last4}
-                </span>
-              </span>
-              <span className="lab-muted text-xs">Cierra en {left} días</span>
-            </div>
-            <div className="lab-meter lab-meter--cycle" aria-hidden="true">
-              <span style={{ width: `${(elapsed / total) * 100}%` }} />
-            </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-              <span className="tabular-nums">
-                {card.debts
-                  .map((debt) => money(debt.amount, debt.currency))
-                  .join(" · ")}
-              </span>
-              <span className="lab-muted text-xs">
-                Cierre {shortDate(card.closesOn)} · Vence{" "}
-                {shortDate(card.dueOn)}
-              </span>
             </div>
           </li>
         );

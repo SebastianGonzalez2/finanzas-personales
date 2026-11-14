@@ -477,48 +477,6 @@ function percent(value: number, total: number) {
   return `${((value / total) * 100).toFixed(1).replace(".", ",")} %`;
 }
 
-/** Barras horizontales: la forma más legible para comparar magnitudes. */
-export function CategoryBars({
-  data,
-  total,
-}: {
-  data: Category[];
-  total: number;
-}) {
-  const max = Math.max(...data.map((d) => d.amount));
-  return (
-    <ul className="lab-catbars" aria-label="Gastos del mes por categoría">
-      {data.map((d) => (
-        <li key={d.name}>
-          <div className="lab-catbars__head">
-            <span className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="lab-key-rect"
-                style={{ background: d.color }}
-              />
-              {d.name}
-            </span>
-            <span className="tabular-nums">
-              {formatUYU(d.amount)}{" "}
-              <span className="lab-muted">· {percent(d.amount, total)}</span>
-            </span>
-          </div>
-          <div className="lab-catbars__track">
-            <div
-              className="lab-catbars__fill"
-              style={{
-                width: `${(d.amount / max) * 100}%`,
-                background: d.color,
-              }}
-            />
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /** Anillo con total al centro; el foco o el puntero cambian la lectura central. */
 export function CategoryDonut({
   data,
@@ -611,59 +569,6 @@ export function CategoryDonut({
             />
             <span className="truncate">{d.name}</span>
             <span className="ml-auto tabular-nums">{formatUYU(d.amount)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Barra segmentada 100 %: proporciones de un vistazo, con detalle debajo. */
-export function SegmentBar({
-  data,
-  total,
-}: {
-  data: Category[];
-  total: number;
-}) {
-  const [active, setActive] = useState<number | null>(null);
-  return (
-    <div className="lab-segbar" onPointerLeave={() => setActive(null)}>
-      <div
-        className="lab-segbar__track"
-        role="img"
-        aria-label="Proporción de gastos del mes por categoría"
-      >
-        {data.map((d, i) => (
-          <span
-            key={d.name}
-            tabIndex={0}
-            role="img"
-            aria-label={`${d.name}: ${formatUYU(d.amount)}, ${percent(d.amount, total)}`}
-            className={`lab-segbar__seg${active !== null && active !== i ? " is-muted" : ""}`}
-            style={{ flexGrow: d.amount, background: d.color }}
-            onPointerEnter={() => setActive(i)}
-            onPointerMove={() => setActive(i)}
-            onFocus={() => setActive(i)}
-            onBlur={() => setActive(null)}
-          />
-        ))}
-      </div>
-      <ul className="lab-segbar__legend" aria-label="Detalle por categoría">
-        {data.map((d, i) => (
-          <li key={d.name} className={active === i ? "is-active" : undefined}>
-            <span className="flex items-center gap-2 lab-muted">
-              <span
-                aria-hidden="true"
-                className="lab-key-rect"
-                style={{ background: d.color }}
-              />
-              {d.name}
-            </span>
-            <strong className="tabular-nums">{compactUYU(d.amount)}</strong>
-            <span className="lab-muted tabular-nums">
-              {percent(d.amount, total)}
-            </span>
           </li>
         ))}
       </ul>

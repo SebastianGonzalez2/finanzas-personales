@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LabIcon } from "./icons";
 import { setLabPaused, useLabMotion } from "./motion";
+import { paletteKeys, palettes, setPalette, usePalette } from "./palettes";
 import {
   footerItems,
   navGroups,
@@ -12,24 +13,12 @@ import {
   type LabView,
 } from "./nav";
 
-export type LabVariant = "a" | "b" | "c" | "final";
+export type LabVariant = "final";
 
-const variants: { key: LabVariant; name: string; short: string }[] = [
-  { key: "a", name: "Ambient Minimal", short: "A" },
-  { key: "b", name: "Ambient Dynamic", short: "B" },
-  { key: "c", name: "Ambient Premium", short: "C" },
-  { key: "final", name: "Final", short: "F" },
-];
-
-/** Barra del laboratorio: identifica el prototipo y permite comparar variantes. */
-export function LabBar({
-  variant,
-  view,
-}: {
-  variant: LabVariant;
-  view: LabView;
-}) {
+/** Barra del laboratorio: identifica el prototipo y permite comparar paletas. */
+export function LabBar() {
   const { paused, reduced } = useLabMotion();
+  const palette = usePalette();
   return (
     <div className="lab-bar">
       <p className="lab-bar__tag">
@@ -37,20 +26,30 @@ export function LabBar({
         <span className="hidden sm:inline">Prototipo UI-01 ·</span> Datos
         ficticios
       </p>
-      <nav aria-label="Variantes del prototipo" className="lab-bar__switch">
-        {variants.map((item) => (
-          <Link
-            key={item.key}
-            href={`/prototipos/ui/${item.key}?vista=${view}`}
-            aria-current={item.key === variant ? "page" : undefined}
+      <div
+        role="group"
+        aria-label="Paleta de colores"
+        className="lab-bar__switch"
+      >
+        {paletteKeys.map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={key === palette}
+            title={palettes[key].description}
             className="lab-bar__option"
+            onClick={() => setPalette(key)}
           >
-            <span className="lab-bar__key">{item.short}</span>
-            <span className="hidden md:inline">{item.name}</span>
-            <span className="sr-only md:hidden">{item.name}</span>
-          </Link>
+            <span className="lab-bar__swatch" aria-hidden="true">
+              {palettes[key].swatch.slice(1).map((color) => (
+                <span key={color} style={{ background: color }} />
+              ))}
+            </span>
+            <span className="hidden md:inline">{palettes[key].name}</span>
+            <span className="sr-only md:hidden">{palettes[key].name}</span>
+          </button>
         ))}
-      </nav>
+      </div>
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -72,10 +71,6 @@ export function LabBar({
                 : "Pausar fondo"}
           </span>
         </button>
-        <Link href="/prototipos/ui" className="lab-bar__icon">
-          <LabIcon name="categories" duotone={false} className="size-4" />
-          <span className="sr-only md:not-sr-only">Comparar</span>
-        </Link>
       </div>
     </div>
   );

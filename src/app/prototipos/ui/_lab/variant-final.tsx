@@ -6,10 +6,10 @@ import { cashflow, categorySpending, categoryTotal } from "./data";
 import { LabIcon } from "./icons";
 import { MovementsExplorer } from "./movements";
 import type { LabView } from "./nav";
+import { usePalette } from "./palettes";
 import { LabTour, openLabTour } from "./tour";
 import { Brand, CurrencySegment, LabBar, LabNav, MonthStepper } from "./shell";
-import { BalanceHero, CardObjects, FlowCard, Notices } from "./variant-b";
-import { Dock } from "./variant-c";
+import { BalanceHero, CardObjects, Dock, FlowCard, Notices } from "./pieces";
 import {
   BudgetList,
   FundsList,
@@ -108,11 +108,12 @@ function Summary() {
 }
 
 export function VariantFinal({ view }: { view: LabView }) {
+  const palette = usePalette();
   return (
-    <div className="lab-root lab-c lab-final">
-      <AmbientShader preset="waves" scale={0.5} />
+    <div className="lab-root lab-c lab-final" data-palette={palette}>
+      <AmbientShader palette={palette} scale={0.5} />
       <div className="c-grain" aria-hidden="true" />
-      <LabBar variant="final" view={view} />
+      <LabBar />
       <aside className="c-rail" aria-label="Menú lateral">
         <Brand />
         <LabNav variant="final" view={view} compact />

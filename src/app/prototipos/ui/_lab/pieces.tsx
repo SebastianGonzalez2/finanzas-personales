@@ -2,18 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AmbientShader } from "./ambient";
-import {
-  CashflowChart,
-  CategoryDonut,
-  Sparkline,
-  seriesColors,
-} from "./charts";
+import { Sparkline, seriesColors } from "./charts";
 import {
   balances,
   cashflow,
-  categorySpending,
-  categoryTotal,
   creditCards,
   labToday,
   money,
@@ -23,29 +15,12 @@ import {
   shortDate,
 } from "./data";
 import { LabIcon } from "./icons";
-import { MovementsExplorer } from "./movements";
 import type { LabView } from "./nav";
-import {
-  Brand,
-  CurrencySegment,
-  LabBar,
-  LabNav,
-  MobileDrawer,
-  MonthStepper,
-} from "./shell";
-import {
-  BudgetList,
-  Delta,
-  FundsList,
-  Panel,
-  PanelLink,
-  RecentMovements,
-  UpcomingList,
-} from "./widgets";
+import { MobileDrawer } from "./shell";
+import { Delta } from "./widgets";
 
-// Variante B — Ambient Dynamic: shader de auroras en movimiento, vidrio más
-// perceptible, iconos con color propio por destino y piezas visuales
-// expresivas (saldo por moneda, tarjetas como objetos, anillo de categorías).
+// UI-01 — Piezas de la versión Final. Nacieron en las variantes B (saldo,
+// ingresos/gastos, tarjetas, avisos) y C (barra flotante móvil).
 
 export function BalanceHero({
   showRegister = true,
@@ -259,180 +234,47 @@ export function Notices() {
   );
 }
 
-function Summary() {
+export function Dock({
+  view,
+  variant = "final",
+}: {
+  view: LabView;
+  variant?: "final";
+}) {
   return (
-    <>
-      <div className="b-pagehead">
-        <div>
-          <p className="lab-muted text-sm">Sábado 14 de noviembre</p>
-          <h1 id="titulo-pagina" tabIndex={-1} className="b-title">
-            Resumen financiero
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <MonthStepper />
-          <CurrencySegment className="hidden md:inline-flex" />
-        </div>
-      </div>
-
-      <div className="b-grid">
-        <BalanceHero />
-        <div className="b-flows">
-          <FlowCard kind="income" />
-          <FlowCard kind="expense" />
-        </div>
-
-        <Panel
-          title="Ingresos y gastos"
-          icon="stats"
-          className="b-span-8"
-          action={<span className="lab-muted text-xs">UYU · 6 meses</span>}
-        >
-          <CashflowChart data={cashflow} mode="area" height={248} />
-        </Panel>
-        <Panel
-          title="Gastos por categoría"
-          icon="categories"
-          className="b-span-4"
-        >
-          <CategoryDonut data={categorySpending} total={categoryTotal} />
-        </Panel>
-
-        <Panel
-          title="Tarjetas de crédito"
-          icon="cards"
-          className="b-span-7"
-          action={<PanelLink href="#">Ver ciclos</PanelLink>}
-        >
-          <CardObjects />
-        </Panel>
-        <Panel title="Avisos" icon="notices" className="b-span-5">
-          <Notices />
-        </Panel>
-
-        <Panel title="Fondos de ahorro" icon="funds" className="b-span-4">
-          <FundsList style="rings" />
-        </Panel>
-        <Panel title="Presupuestos" icon="budgets" className="b-span-4">
-          <BudgetList limit={4} />
-        </Panel>
-        <Panel title="Próximos pagos" icon="recurring" className="b-span-4">
-          <UpcomingList withInstallments={false} />
-        </Panel>
-
-        <Panel
-          title="Movimientos recientes"
-          icon="history"
-          className="b-span-12"
-          action={
-            <PanelLink href="/prototipos/ui/b?vista=movimientos">
-              Ver historial
-            </PanelLink>
-          }
-        >
-          <RecentMovements count={6} />
-        </Panel>
-      </div>
-    </>
-  );
-}
-
-function TabBar({ view }: { view: LabView }) {
-  return (
-    <nav aria-label="Accesos rápidos" className="b-tabbar">
+    <nav aria-label="Accesos rápidos" className="c-dock">
       <Link
-        href="/prototipos/ui/b?vista=resumen"
+        href={`/prototipos/ui/${variant}?vista=resumen`}
         aria-current={view === "resumen" ? "page" : undefined}
-        className="b-tabbar__item"
+        className="c-dock__item"
       >
         <LabIcon name="summary" />
-        Resumen
+        <span className="sr-only">Resumen</span>
       </Link>
       <Link
-        href="/prototipos/ui/b?vista=movimientos"
+        href={`/prototipos/ui/${variant}?vista=movimientos`}
         aria-current={view === "movimientos" ? "page" : undefined}
-        className="b-tabbar__item"
+        className="c-dock__item"
       >
         <LabIcon name="history" />
-        Historial
+        <span className="sr-only">Historial</span>
       </Link>
       <button
         type="button"
-        className="b-tabbar__fab"
+        className="c-dock__add"
         aria-label="Registrar movimiento"
       >
-        <LabIcon name="plus" duotone={false} className="size-6" />
+        <LabIcon name="plus" duotone={false} />
       </button>
-      <span className="b-tabbar__item is-inert" aria-disabled="true">
-        <LabIcon name="cards" />
-        Tarjetas
+      <span
+        className="c-dock__item is-inert"
+        aria-disabled="true"
+        title="Fuera del alcance del prototipo"
+      >
+        <LabIcon name="stats" />
+        <span className="sr-only">Estadísticas</span>
       </span>
-      <MobileDrawer
-        variant="b"
-        view={view}
-        trigger={
-          <span className="b-tabbar__more">
-            <LabIcon name="menu" duotone={false} />
-            Más
-          </span>
-        }
-      />
+      <MobileDrawer variant={variant} view={view} />
     </nav>
-  );
-}
-
-export function VariantB({ view }: { view: LabView }) {
-  return (
-    <div className="lab-root lab-b">
-      <AmbientShader preset="aurora" scale={0.35} />
-      <LabBar variant="b" view={view} />
-      <div className="b-shell">
-        <aside className="b-sidebar">
-          <Brand />
-          <LabNav variant="b" view={view} />
-        </aside>
-        <div className="min-w-0">
-          <header className="b-topbar">
-            <Brand subtitle={false} />
-            <label className="b-search">
-              <LabIcon name="search" duotone={false} className="size-4" />
-              <span className="sr-only">Buscar movimientos</span>
-              <input
-                type="search"
-                placeholder="Buscar movimientos, comercios o categorías"
-              />
-            </label>
-            <button
-              type="button"
-              className="lab-icon-btn b-bell"
-              aria-label="Avisos: 3 sin leer"
-            >
-              <LabIcon name="notices" />
-              <span className="b-bell__dot" aria-hidden="true" />
-            </button>
-          </header>
-          <main id="contenido" tabIndex={-1} className="b-main">
-            {view === "resumen" ? (
-              <Summary />
-            ) : (
-              <>
-                <div className="b-pagehead">
-                  <div>
-                    <p className="lab-muted text-sm">Noviembre 2026</p>
-                    <h1 id="titulo-pagina" tabIndex={-1} className="b-title">
-                      Historial
-                    </h1>
-                  </div>
-                </div>
-                <div className="lab-panel lab-panel--dense">
-                  <MovementsExplorer />
-                </div>
-              </>
-            )}
-          </main>
-        </div>
-      </div>
-      <TabBar view={view} />
-    </div>
   );
 }

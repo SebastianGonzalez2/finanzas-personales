@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useLabMotion } from "./motion";
+import { palettes, type Palette, type PaletteKey } from "./palettes";
 
 // UI-01 — Fondo ambiental. Siempre hay una capa CSS estática (alternativa sin
 // WebGL, con movimiento reducido o mientras carga). El shader se dibuja a baja
@@ -20,36 +21,20 @@ return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash
 float fbm(vec2 p){float v=0.0;float a=0.5;for(int i=0;i<4;i++){v+=a*noise(p);p*=2.02;a*=0.5;}return v;}
 `;
 
-const fragments = {
-  // Auroras difusas: azul, violeta y turquesa sobre azul noche.
-  aurora: `${common}
-void main(){
-  vec2 uv=gl_FragCoord.xy/u_res;
-  vec2 p=uv;p.x*=u_res.x/u_res.y;
-  float t=u_time*0.03;
-  vec2 q=vec2(fbm(p*1.3+vec2(t,0.0)),fbm(p*1.3+vec2(3.1,-t)));
-  float n=fbm(p*1.05+q*1.7+vec2(t*0.6,-t*0.4));
-  vec3 base=vec3(0.024,0.039,0.082);
-  vec3 blue=vec3(0.16,0.33,0.86);
-  vec3 violet=vec3(0.42,0.26,0.86);
-  vec3 teal=vec3(0.04,0.58,0.60);
-  vec3 col=base;
-  col=mix(col,blue,smoothstep(0.36,0.84,n)*0.62);
-  col=mix(col,violet,smoothstep(0.46,0.9,q.x)*0.50*(1.0-uv.y*0.3));
-  col=mix(col,teal,smoothstep(0.5,0.93,q.y)*0.40*(0.4+uv.y*0.6));
-  float vig=smoothstep(1.35,0.15,length((uv-vec2(0.55,0.7))*vec2(1.0,1.25)));
-  col=mix(base,col,0.45+0.55*vig);
-  col+=(hash(gl_FragCoord.xy+fract(u_time))-0.5)/255.0;
-  gl_FragColor=vec4(col,1.0);
-}`,
-  // Ondas de seda: bandas lentas que se funden con un azul petróleo profundo.
-  waves: `${common}
+// Ondas de seda: bandas lentas que se funden con la base. Los colores llegan
+// como uniformes desde la paleta elegida.
+const fragment = `${common}
+uniform vec3 u_base;
+uniform vec3 u_c0;
+uniform vec3 u_c1;
+uniform vec3 u_c2;
+uniform vec3 u_c3;
+uniform float u_gain;
 void main(){
   vec2 uv=gl_FragCoord.xy/u_res;
   vec2 p=uv;p.x*=u_res.x/u_res.y;
   float t=u_time*0.045;
-  vec3 base=vec3(0.016,0.035,0.055);
-  vec3 col=base;
+  vec3 col=u_base;
   for(int i=0;i<4;i++){
     float fi=float(i);
     float y=0.74-fi*0.075
@@ -60,17 +45,14 @@ void main(){
     float d=(uv.y-y)/w;
     float band=exp(-d*d);
     float silk=exp(-d*d*22.0);
-    vec3 c=i==0?vec3(0.05,0.62,0.58):i==1?vec3(0.18,0.40,0.92):i==2?vec3(0.44,0.30,0.88):vec3(0.10,0.25,0.55);
-    col+=c*(band*0.26+silk*0.30);
+    vec3 c=i==0?u_c0:i==1?u_c1:i==2?u_c2:u_c3;
+    col+=c*(band*0.26+silk*0.30)*u_gain;
   }
-  col*=0.18+0.82*smoothstep(0.08,0.62,uv.y);
-  col=mix(col,base,smoothstep(0.55,1.25,abs(uv.x-0.5)*1.6)*0.35);
+  col=mix(u_base,col,0.18+0.82*smoothstep(0.08,0.62,uv.y));
+  col=mix(col,u_base,smoothstep(0.55,1.25,abs(uv.x-0.5)*1.6)*0.35);
   col+=(hash(gl_FragCoord.xy+fract(u_time))-0.5)/255.0;
   gl_FragColor=vec4(col,1.0);
-}`,
-} as const;
-
-export type AmbientPreset = keyof typeof fragments;
+}`;
 
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
   const shader = gl.createShader(type);
@@ -85,10 +67,10 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 }
 
 export function AmbientShader({
-  preset,
+  palette,
   scale = 0.4,
 }: {
-  preset: AmbientPreset;
+  palette: PaletteKey;
   /** Fracción de la resolución CSS que se renderiza (la luz difusa tolera poca). */
   scale?: number;
 }) {
@@ -109,7 +91,7 @@ export function AmbientShader({
     if (!gl) return; // Sin WebGL: queda la capa CSS.
 
     const vs = compile(gl, gl.VERTEX_SHADER, vertex);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, fragments[preset]);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
     const program = gl.createProgram();
     if (!vs || !fs || !program) return;
     gl.attachShader(program, vs);
@@ -130,6 +112,12 @@ export function AmbientShader({
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
     const resolution = gl.getUniformLocation(program, "u_res");
     const time = gl.getUniformLocation(program, "u_time");
+    const colors: Palette = palettes[palette];
+    const setColor = (name: string, [r, g, b]: Palette["base"]) =>
+      gl.uniform3f(gl.getUniformLocation(program, name), r, g, b);
+    setColor("u_base", colors.base);
+    colors.bands.forEach((band, index) => setColor(`u_c${index}`, band));
+    gl.uniform1f(gl.getUniformLocation(program, "u_gain"), colors.gain);
 
     let frame = 0;
     let last = 0;
@@ -209,22 +197,11 @@ export function AmbientShader({
       gl.deleteShader(fs);
       gl.deleteBuffer(buffer);
     };
-  }, [preset, scale, animate]);
+  }, [palette, scale, animate]);
 
   return (
-    <div aria-hidden="true" className={`lab-ambient lab-ambient--${preset}`}>
+    <div aria-hidden="true" className="lab-ambient lab-ambient--waves">
       <canvas ref={canvas} className="lab-ambient__canvas" />
-    </div>
-  );
-}
-
-/** Fondo solo CSS (variante A): manchas de luz con deriva lenta en el compositor. */
-export function AmbientCss() {
-  return (
-    <div aria-hidden="true" className="lab-ambient lab-ambient--minimal">
-      <span className="lab-blob lab-blob--1" />
-      <span className="lab-blob lab-blob--2" />
-      <span className="lab-blob lab-blob--3" />
     </div>
   );
 }
