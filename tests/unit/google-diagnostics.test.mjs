@@ -27,7 +27,7 @@ const prod = neonTargets.production;
 const dev = neonTargets.development;
 // Valores que jamás deben aparecer en un registro.
 const secrets = [
-  "postgresql://finanzas_google_auth:SUPER-SECRETO@host.invalid/neondb",
+  "postgresql://user:SUPER-SECRETO@host/neondb",
   "SUPER-SECRETO",
   "token-privado-123",
 ];
@@ -89,14 +89,14 @@ test("OPS: la lista de etapas es cerrada, única y solo contiene códigos seguro
     assert.equal(isGoogleStage(stage), true);
   }
   assert.equal(isGoogleStage("request.invented"), false);
-  assert.equal(isGoogleStage("postgresql://u:p@h/db"), false);
+  assert.equal(isGoogleStage("postgresql://user:fixture@host/db"), false);
   assert.equal(isGoogleStage(undefined), false);
 });
 
 test("OPS: logGoogleStage solo emite una línea fija con un código predefinido", () => {
   const out = [];
   logGoogleStage("db.connect-timeout", (l) => out.push(l));
-  logGoogleStage("postgresql://u:SUPER-SECRETO@h/db", (l) => out.push(l));
+  logGoogleStage("postgresql://user:SUPER-SECRETO@host/db", (l) => out.push(l));
   assert.deepEqual(out, [
     "[google-auth] stage=db.connect-timeout",
     "[google-auth] stage=request.unexpected",
