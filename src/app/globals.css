@@ -711,6 +711,9 @@
       var(--glaciar-bg);
     -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
     mask-image: linear-gradient(to top, #000 50%, transparent);
+    /* En páginas cortas las dos franjas se superponen: «lighten» conserva la
+       luz de ambas en lugar de que la base opaca de abajo apague la de arriba. */
+    mix-blend-mode: lighten;
   }
 
   .ambient__canvas {

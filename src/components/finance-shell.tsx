@@ -25,10 +25,9 @@ export type { Destination } from "./finance-navigation";
 // sesión y el titular en servidor; el shell vuelve a pasar por
 // `withGoogleOwner` para leer solo la preferencia de moneda del titular de la
 // sesión (nunca de la URL). Si no puede leerla, el selector queda deshabilitado.
-async function readDisplayCurrency(): Promise<{
-  currency: Currency | null;
-  ready: boolean;
-}> {
+type DisplayPreference = { currency: Currency | null; ready: boolean };
+
+async function readDisplayCurrency(): Promise<DisplayPreference> {
   const request = new Request("https://internal.invalid", {
     headers: await headers(),
   });
@@ -45,8 +44,23 @@ export async function FinanceShell({
   current: Destination;
   children: ReactNode;
 }) {
-  const display = await readDisplayCurrency();
+  return (
+    <FinanceShellView current={current} display={await readDisplayCurrency()}>
+      {children}
+    </FinanceShellView>
+  );
+}
 
+/** Marcado del shell, sin acceso a datos (la preferencia llega resuelta). */
+export function FinanceShellView({
+  current,
+  display,
+  children,
+}: {
+  current: Destination;
+  display: DisplayPreference;
+  children: ReactNode;
+}) {
   return (
     <div className="finance-shell glaciar-root">
       <AmbientBackground />
