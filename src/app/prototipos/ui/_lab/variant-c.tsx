@@ -296,11 +296,17 @@ function Summary() {
   );
 }
 
-function Dock({ view }: { view: LabView }) {
+export function Dock({
+  view,
+  variant = "c",
+}: {
+  view: LabView;
+  variant?: "c" | "final";
+}) {
   return (
     <nav aria-label="Accesos rápidos" className="c-dock">
       <Link
-        href="/prototipos/ui/c?vista=resumen"
+        href={`/prototipos/ui/${variant}?vista=resumen`}
         aria-current={view === "resumen" ? "page" : undefined}
         className="c-dock__item"
       >
@@ -308,7 +314,7 @@ function Dock({ view }: { view: LabView }) {
         <span className="sr-only">Resumen</span>
       </Link>
       <Link
-        href="/prototipos/ui/c?vista=movimientos"
+        href={`/prototipos/ui/${variant}?vista=movimientos`}
         aria-current={view === "movimientos" ? "page" : undefined}
         className="c-dock__item"
       >
@@ -330,7 +336,7 @@ function Dock({ view }: { view: LabView }) {
         <LabIcon name="stats" />
         <span className="sr-only">Estadísticas</span>
       </span>
-      <MobileDrawer variant="c" view={view} />
+      <MobileDrawer variant={variant} view={view} />
     </nav>
   );
 }

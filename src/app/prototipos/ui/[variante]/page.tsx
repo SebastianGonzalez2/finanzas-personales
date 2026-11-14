@@ -3,11 +3,13 @@ import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 import { VariantA } from "../_lab/variant-a";
 import { VariantB } from "../_lab/variant-b";
 import { VariantC } from "../_lab/variant-c";
+import { VariantFinal } from "../_lab/variant-final";
 
 const titles = {
   a: "A · Ambient Minimal",
   b: "B · Ambient Dynamic",
   c: "C · Ambient Premium",
+  final: "Final · Combinación elegida",
 } as const;
 
 export async function generateMetadata({
@@ -31,5 +33,6 @@ export default async function VariantPage(
   if (variante === "a") return <VariantA view={view} />;
   if (variante === "b") return <VariantB view={view} />;
   if (variante === "c") return <VariantC view={view} />;
+  if (variante === "final") return <VariantFinal view={view} />;
   notFound();
 }

@@ -3229,7 +3229,7 @@
 
   @media (min-width: 48rem) {
     .lab-index__grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -3328,5 +3328,110 @@
 @layer components {
   .lab-panel__head {
     flex-wrap: wrap;
+  }
+}
+
+/* ───────────────────────── Variante Final ─────────────────────────
+   Base C (fondo, acento turquesa, riel y dock) con letra y vidrio de B. */
+@layer components {
+  .lab-final {
+    --lab-font: var(--font-lab-jakarta), system-ui, sans-serif;
+    --lab-glass-1: rgb(22 52 60 / 26%);
+    --lab-glass-2: rgb(10 26 32 / 44%);
+    --lab-glass-3: rgb(6 14 18 / 82%);
+    --lab-blur-1: 28px;
+    --lab-blur-2: 20px;
+    --lab-blur-3: 14px;
+    --lab-highlight: rgb(255 255 255 / 8%);
+    --lab-border: rgb(200 240 240 / 11%);
+    --lab-border-strong: rgb(200 240 240 / 22%);
+    --lab-radius: 20px;
+    --lab-shadow:
+      0 1px 1px rgb(0 0 0 / 25%), 0 24px 60px -30px rgb(1 8 12 / 90%);
+  }
+
+  .lab-final .lab-panel {
+    padding: 22px;
+  }
+
+  .lab-final .lab-panel--dense {
+    padding: 0;
+  }
+
+  .f-pagehead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0 28px;
+  }
+
+  .f-title {
+    margin-top: 12px;
+    font-size: clamp(30px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+
+  .lab-final .b-eyebrow__icon {
+    background: rgb(115 224 201 / 14%);
+    color: var(--lab-accent);
+  }
+
+  .lab-final .b-flow--income .b-eyebrow__icon {
+    background: rgb(25 158 112 / 18%);
+    color: #6fdcb8;
+  }
+
+  .lab-final .b-flow--expense .b-eyebrow__icon {
+    background: rgb(144 133 233 / 18%);
+    color: #b4aaff;
+  }
+
+  .lab-final .b-hero {
+    border-color: rgb(200 240 240 / 16%);
+  }
+
+  .lab-final .b-hero__orb {
+    background: radial-gradient(
+      circle,
+      rgb(25 170 160 / 32%),
+      rgb(47 111 216 / 12%) 45%,
+      transparent 68%
+    );
+  }
+
+  .is-final .lab-index__preview {
+    background:
+      radial-gradient(
+        50% 80% at 80% 30%,
+        rgb(25 170 160 / 45%),
+        transparent 70%
+      ),
+      linear-gradient(
+        170deg,
+        transparent 40%,
+        rgb(13 158 148 / 55%) 50%,
+        transparent 60%
+      ),
+      linear-gradient(
+        175deg,
+        transparent 50%,
+        rgb(46 102 235 / 45%) 58%,
+        transparent 66%
+      ),
+      #04090e;
+  }
+
+  @media (min-width: 80rem) {
+    .lab-final .b-span-7 {
+      grid-column: span 7 !important;
+    }
+
+    .lab-final .b-span-5 {
+      grid-column: span 5 !important;
+    }
   }
 }

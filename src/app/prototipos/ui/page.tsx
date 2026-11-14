@@ -4,6 +4,16 @@ import { AmbientCss } from "./_lab/ambient";
 
 const options = [
   {
+    key: "final",
+    name: "Final",
+    tagline: "Tu combinación de A, B y C",
+    points: [
+      "Fondo, color turquesa y navegación de C",
+      "Letra, vidrio, saldo, tarjetas, anillo y avisos de B",
+      "Gráfica de flujo espejada de C",
+    ],
+  },
+  {
     key: "a",
     name: "Ambient Minimal",
     tagline: "Sobria y precisa",

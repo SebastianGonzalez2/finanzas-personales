@@ -12,12 +12,13 @@ import {
   type LabView,
 } from "./nav";
 
-export type LabVariant = "a" | "b" | "c";
+export type LabVariant = "a" | "b" | "c" | "final";
 
 const variants: { key: LabVariant; name: string; short: string }[] = [
   { key: "a", name: "Ambient Minimal", short: "A" },
   { key: "b", name: "Ambient Dynamic", short: "B" },
   { key: "c", name: "Ambient Premium", short: "C" },
+  { key: "final", name: "Final", short: "F" },
 ];
 
 /** Barra del laboratorio: identifica el prototipo y permite comparar variantes. */

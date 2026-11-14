@@ -47,7 +47,11 @@ import {
 // perceptible, iconos con color propio por destino y piezas visuales
 // expresivas (saldo por moneda, tarjetas como objetos, anillo de categorías).
 
-function BalanceHero() {
+export function BalanceHero({
+  showRegister = true,
+}: {
+  showRegister?: boolean;
+}) {
   const [selected, setSelected] = useState(0);
   const balance = balances[selected];
   const parts = moneyParts(balance.amount, balance.currency);
@@ -116,10 +120,12 @@ function BalanceHero() {
         </p>
       </div>
       <div className="b-hero__actions">
-        <button type="button" className="lab-btn lab-btn--primary">
-          <LabIcon name="plus" duotone={false} className="size-4" />
-          Registrar movimiento
-        </button>
+        {showRegister && (
+          <button type="button" className="lab-btn lab-btn--primary">
+            <LabIcon name="plus" duotone={false} className="size-4" />
+            Registrar movimiento
+          </button>
+        )}
         <button type="button" className="lab-btn lab-btn--glass">
           <LabIcon name="swap" duotone={false} className="size-4" />
           Cambio de moneda
@@ -133,7 +139,7 @@ function BalanceHero() {
   );
 }
 
-function FlowCard({ kind }: { kind: "income" | "expense" }) {
+export function FlowCard({ kind }: { kind: "income" | "expense" }) {
   const totals = monthTotals[kind];
   const [main, ...rest] = totals.rows;
   return (
@@ -175,7 +181,7 @@ function FlowCard({ kind }: { kind: "income" | "expense" }) {
   );
 }
 
-function CardObjects() {
+export function CardObjects() {
   return (
     <ul className="b-cards">
       {creditCards.map((card) => {
@@ -214,7 +220,7 @@ function CardObjects() {
   );
 }
 
-function Notices() {
+export function Notices() {
   return (
     <ul className="b-notices">
       {notices.map((notice) => (
