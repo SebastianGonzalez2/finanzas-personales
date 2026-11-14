@@ -168,6 +168,38 @@ El alcance **Preview** mantiene los valores de development
 HTTPS entre dispositivos con cuentas Google reales son pasos posteriores,
 condiciones de ADR 0004; esta preparación no despliega ni habilita uso real.
 
+## Diagnóstico de un 503 en `/api/auth`
+
+El navegador siempre recibe la misma respuesta genérica. Cuando el servidor
+responde 503, los registros de Vercel (Functions) muestran **una sola línea
+fija** con un código de etapa de una lista cerrada
+(`src/server/google-diagnostics.ts`):
+
+```
+[google-auth] stage=<código>
+```
+
+Nunca se registran mensajes, stacks, URLs, usuarios, contraseñas, tokens,
+cookies ni valores de variables. Buscar en los registros `[google-auth]`.
+
+| Código | Significado y dónde mirar (sin valores) |
+| --- | --- |
+| `request.disabled` | `GOOGLE_AUTH_READY` no es exactamente `true` (sin espacios ni saltos de línea). |
+| `request.origin`, `config.auth-origin` | `GOOGLE_AUTH_ORIGIN` no es un origen canónico (`https://dominio`, sin barra final, ruta ni espacios). |
+| `request.body` | Cuerpo JSON ausente, inválido o demasiado grande. |
+| `config.neon-environment` | `VERCEL` / `VERCEL_ENV` no identifican un destino válido (System Environment Variables). |
+| `config.neon-identity-production` | `NEON_PROJECT_ID` / `NEON_BRANCH_ID` ausentes o distintos del destino de production. |
+| `config.neon-identity-development` | La función resolvió el destino **development** en un despliegue de Production: normalmente las System Environment Variables (`VERCEL`, `VERCEL_ENV`) no están expuestas. |
+| `config.neon-connection-*`, `config.neon-ssl-option` | `GOOGLE_AUTH_DATABASE_URL` ausente, con host/base/puerto distintos del destino o con parámetros no permitidos. |
+| `config.database-role` | El usuario de `GOOGLE_AUTH_DATABASE_URL` no es `finanzas_google_auth`. |
+| `config.auth-secret`, `config.auth-client` | `GOOGLE_AUTH_SECRET` (mínimo 32 caracteres) o `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` ausentes. |
+| `db.connect-*` | Falló la conexión: `auth-failed` (credenciales/SCRAM), `timeout`, `network` (DNS/rechazo), `tls`, `other`. |
+| `runtime.query-*` | Falló la consulta de identidad del runtime: `permission`, `missing-object` (esquema/tabla ausente), `timeout`, etc. |
+| `runtime.mismatch-*` | La sesión PostgreSQL no coincide con el destino: `branch`, `database`, `role`, `privileged`, `managed-access`, `owns`, `row`. |
+| `auth.init-failed` | Better Auth no pudo inicializarse. |
+| `auth.handler-api-*` | Better Auth rechazó la solicitud con un estado conocido (`forbidden`, `bad-request`, `too-many-requests`, …). |
+| `auth.handler-db-*`, `auth.handler-failed` | Fallo de base de datos (clasificado como en `db.connect-*`) o genérico dentro de Better Auth. |
+
 ## Controles y garantías
 
 | Control | Dónde |

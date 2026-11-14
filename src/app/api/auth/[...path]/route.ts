@@ -1,6 +1,9 @@
 import { googleAuth, googleAuthEnabled } from "@/server/google-auth.ts";
+import { googleAuthRoute } from "@/server/google-auth-route.ts";
+import { logGoogleStage } from "@/server/google-diagnostics.ts";
 import { handleGoogleHttp } from "@/server/google-http.ts";
 import process from "node:process";
+import type { PoolClient } from "pg";
 import { googlePool, assertGoogleRuntime } from "@/server/google-database.ts";
 export const runtime = "nodejs";
 async function handle(
@@ -13,15 +16,14 @@ async function handle(
     trustVercelClientIp:
       process.env.VERCEL === "1" && Boolean(process.env.VERCEL_DEPLOYMENT_ID),
     origin: process.env.GOOGLE_AUTH_ORIGIN ?? "",
-    handler: async (r) => {
-      const client = await googlePool("auth").connect();
-      try {
-        await assertGoogleRuntime(client, "auth");
-      } finally {
-        client.release();
-      }
-      return googleAuth().handler(r);
-    },
+    // Only a predefined stage code is logged; the browser gets a generic 503.
+    onFailure: (stage) => logGoogleStage(stage),
+    handler: (r) =>
+      googleAuthRoute<PoolClient>(r, {
+        pool: () => googlePool("auth"),
+        assertRuntime: (client) => assertGoogleRuntime(client, "auth"),
+        auth: googleAuth,
+      }),
   });
 }
 export { handle as GET, handle as POST };
