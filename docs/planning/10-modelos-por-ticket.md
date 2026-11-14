@@ -123,6 +123,17 @@ Documentación: [OpenCode y selección de modelos](https://opencode.ai/docs/mode
 | F6-06 | Guía de usuario | **OC** | **GLM-5.3-Flash Free**: Redactar onboarding basado en pantallas y funciones reales | **Terra Medium** — Respaldo si no pasa las pruebas | — |
 | F6-07 | Cierre de riesgos y aprobación real | **CX** | No delegar núcleo monetario, permisos o esquema | **Sol High** — Implementación crítica y pruebas | Astra High |
 
+### UI — Identidad visual ([guía](../design/ui-identidad-visual.md))
+
+| Ticket | Objetivo | Ruta | Primera pasada gratis con OpenCode | Codex: modelo/esfuerzo y cierre | Revisión opcional |
+|---|---|---|---|---|---|
+| UI-01 | Exploración y diseño aprobado | **CX** | Ya entregado (prototipo y guía) | **Sol Medium** — Solo correcciones de revisión | — |
+| UI-02 | Base del sistema de diseño y shell | **MIX** | **GLM-5.3-Flash Free**: Tokens, tipografía, componentes base y estilos del shell | **Sol High** — Shell, navegación, sesión/rutas protegidas, e2e y rendimiento del fondo | Astra Medium |
+| UI-03 | Resumen con datos reales | **MIX** | **GLM-5.3-Flash Free**: Maquetación de tarjetas y gráficos | **Sol High** — Conectar datos reales sin alterar importes ni duplicar cómputos | Astra High |
+| UI-04 | Historial con nuevo estilo | **MIX** | **GLM-5.3-Flash Free**: Tabla, filtros y versión móvil | **Sol Medium** — Filtros guardados, selección masiva y e2e | — |
+| UI-05 | Resto de pantallas y formularios | **OC** | **GLM-5.3-Flash Free**: Aplicar componentes por pantalla | **Sol Medium** — Respaldo si no pasan las pruebas | — |
+| UI-06 | Tutorial con flechas y Ayuda | **OC** | **GLM-5.3-Flash Free**: Pasos, textos y pregunta de Ayuda | **Terra Medium** — Respaldo si no pasan las pruebas | — |
+
 ## Ejemplo inmediato: F2-10 (próximo ticket de F2)
 **Ruta MIX — DeepSeek V4.1 Flash Free → Codex Sol High.** OpenCode, **sin conexión a Neon ni credenciales**, lee los contratos, enumera riesgos y agrega pruebas iniciales con datos sintéticos para: pagos parciales, reintentos, saldos indebidos, owner A/B y carreras de concurrencia. Codex continúa en **la misma rama**, revisa assertions y efectos, completa los casos de locks/atomicidad/RLS, corrige la implementación si falla, ejecuta el conjunto completo de pruebas y publica PR. Usar Astra High para revisión independiente de la PR si está disponible; no confundir tests verdes con prueba de seguridad formal.
 
