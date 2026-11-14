@@ -3,19 +3,37 @@ import process from "node:process";
 import { createGoogleAuth } from "./google-auth-factory.ts";
 import { authOrigin } from "./google-policy.ts";
 import { assertGoogleRuntime, googlePool } from "./google-database.ts";
+import { GoogleStageError } from "./google-diagnostics.ts";
 import { withOwnerTransaction } from "../db/owner-context.ts";
 import type pg from "pg";
 export const googleAuthEnabled = () => process.env.GOOGLE_AUTH_READY === "true";
 let auth: ReturnType<typeof createGoogleAuth> | undefined;
 export function googleAuth() {
-  if (!googleAuthEnabled()) throw new Error("Acceso en preparación");
+  if (!googleAuthEnabled())
+    throw new GoogleStageError("request.disabled", "Acceso en preparación");
   if (!auth) {
-    const origin = authOrigin(process.env.GOOGLE_AUTH_ORIGIN);
+    let origin: string;
+    try {
+      origin = authOrigin(process.env.GOOGLE_AUTH_ORIGIN);
+    } catch {
+      throw new GoogleStageError(
+        "config.auth-origin",
+        "Origen de Auth inválido",
+      );
+    }
     const secret = process.env.GOOGLE_AUTH_SECRET ?? "";
     const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
-    if (secret.length < 32 || !clientId || !clientSecret)
-      throw new Error("Configuración incompleta");
+    if (secret.length < 32)
+      throw new GoogleStageError(
+        "config.auth-secret",
+        "Configuración incompleta",
+      );
+    if (!clientId || !clientSecret)
+      throw new GoogleStageError(
+        "config.auth-client",
+        "Configuración incompleta",
+      );
     auth = createGoogleAuth(googlePool("auth"), {
       origin,
       secret,

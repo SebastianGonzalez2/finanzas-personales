@@ -6,6 +6,7 @@ import {
   neonTargetFor,
   type NeonTarget,
 } from "./neon-targets.ts";
+import { GoogleStageError } from "./google-diagnostics.ts";
 
 type GoogleKind = "auth" | "finance";
 type Environment = Record<string, string | undefined>;
@@ -28,7 +29,8 @@ export function googleDatabaseConfig(env: Environment, kind: GoogleKind) {
     { ...env, DATABASE_URL: value },
     neonTargetFor(env),
   );
-  if (config.user !== expected) throw new Error("Runtime no autorizado");
+  if (config.user !== expected)
+    throw new GoogleStageError("config.database-role", "Runtime no autorizado");
   return {
     ...config,
     max: 3,
@@ -63,15 +65,24 @@ export function assertGoogleRuntimeRow(
   kind: GoogleKind,
   target: NeonTarget,
 ) {
-  if (
-    row?.branch !== target.branchId ||
-    row.database !== target.database ||
-    row.role !== expectedRole(kind) ||
-    row.privileged !== false ||
-    row.managed_access !== false ||
-    row.owns !== false
-  )
-    throw new Error("Runtime no autorizado");
+  // Cada comprobación tiene su propio código de etapa (sin valores) para que un
+  // rechazo en Production pueda distinguirse sin registrar datos de la sesión.
+  const stage = !row
+    ? "runtime.mismatch-row"
+    : row.branch !== target.branchId
+      ? "runtime.mismatch-branch"
+      : row.database !== target.database
+        ? "runtime.mismatch-database"
+        : row.role !== expectedRole(kind)
+          ? "runtime.mismatch-role"
+          : row.privileged !== false
+            ? "runtime.mismatch-privileged"
+            : row.managed_access !== false
+              ? "runtime.mismatch-managed-access"
+              : row.owns !== false
+                ? "runtime.mismatch-owns"
+                : undefined;
+  if (stage) throw new GoogleStageError(stage, "Runtime no autorizado");
 }
 
 export async function assertGoogleRuntime(

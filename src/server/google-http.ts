@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { authOrigin, limitedJson } from "./google-policy.ts";
+import { googleStageOf, type GoogleStage } from "./google-diagnostics.ts";
 
 export const googleClientIpHeader = "x-vercel-forwarded-for";
 export const googlePrivateHeaders = {
@@ -19,6 +20,8 @@ export async function handleGoogleHttp(
     origin: string;
     trustVercelClientIp?: boolean;
     handler: (r: Request) => Promise<Response>;
+    // Diagnóstico privado: recibe solo un código de etapa predefinido.
+    onFailure?: (stage: GoogleStage) => void;
   },
 ) {
   const joined = path.join("/");
@@ -28,7 +31,18 @@ export async function handleGoogleHttp(
       ["sign-in/social", "sign-out"].includes(joined))
   ))
     return failure(404);
-  if (!dependencies.enabled) return failure(503);
+  const report = (stage: GoogleStage) => {
+    try {
+      dependencies.onFailure?.(stage);
+    } catch {
+      // El diagnóstico nunca debe alterar la respuesta.
+    }
+  };
+  if (!dependencies.enabled) {
+    report("request.disabled");
+    return failure(503);
+  }
+  let step: GoogleStage = "request.origin";
   try {
     const origin = authOrigin(dependencies.origin);
     const clientIp = dependencies.trustVercelClientIp
@@ -44,6 +58,7 @@ export async function handleGoogleHttp(
         request.headers.get("sec-fetch-site") === "cross-site"
       )
         return failure(403);
+      step = "request.body";
       const input = await limitedJson(request);
       if (!input || typeof input !== "object" || Array.isArray(input))
         return failure(400);
@@ -64,6 +79,7 @@ export async function handleGoogleHttp(
               errorCallbackURL: `${origin}/auth/sign-in`,
             }
           : {};
+      step = "request.forward";
       const url = new URL(request.url);
       url.search = "";
       const postHeaders = new Headers({
@@ -79,9 +95,14 @@ export async function handleGoogleHttp(
         body: JSON.stringify(body),
       });
     } else {
+      step = "request.forward";
       forward = new Request(request, { headers });
     }
+    // El manejador etiqueta sus propias etapas; "request.unexpected" cubre un
+    // fallo no etiquetado.
+    step = "request.unexpected";
     const response = await dependencies.handler(forward);
+    step = "request.response";
     const responseHeaders = new Headers(response.headers);
     for (const [k, v] of Object.entries(googlePrivateHeaders))
       responseHeaders.set(k, v);
@@ -89,7 +110,8 @@ export async function handleGoogleHttp(
       status: response.status,
       headers: responseHeaders,
     });
-  } catch {
+  } catch (error) {
+    report(googleStageOf(error, step));
     return failure(503);
   }
 }
