@@ -7,6 +7,10 @@ import {
   googleDatabaseConfig,
 } from "../src/server/google-database.ts";
 import { productionTarget } from "../src/server/neon-production-config.ts";
+import {
+  assertFinanceRlsCoverage,
+  financeRlsCoverageSql,
+} from "../src/server/finance-rls-coverage.mts";
 
 // Diagnóstico remoto de SOLO LECTURA del runtime de Neon production, para el
 // titular, tras aprovisionar y antes de configurar Vercel. El destino se fija
@@ -37,16 +41,19 @@ try {
         has_schema_privilege(current_user,'finance','USAGE') AS finance_schema,
         (SELECT has_table_privilege(current_user,c.oid,'UPDATE') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app_access' AND c.relname='allowlist') AS change_list,
         (SELECT has_table_privilege(current_user,c.oid,'INSERT') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app_access' AND c.relname='audit') AS change_audit,
-        (SELECT has_table_privilege(current_user,c.oid,'SELECT') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='finance' AND c.relname='user_preferences') AS finance_read,
-        (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-         WHERE n.nspname='finance' AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity) AS protected_finance`);
+        (SELECT has_table_privilege(current_user,c.oid,'SELECT') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='finance' AND c.relname='user_preferences') AS finance_read`);
       stage = `${kind}:privileges`;
       assert.equal(p.change_list, false);
       assert.equal(p.change_audit, false);
       assert.equal(p.finance_read, false); // NOINHERIT: finance must SET LOCAL ROLE explicitly.
       assert.equal(p.finance_schema, false);
       assert.equal(p.auth_schema, kind === "auth");
-      assert.equal(p.protected_finance, 6);
+      // Todas las tablas financieras con owner_id: RLS y FORCE RLS (dinámico).
+      stage = `${kind}:rls-coverage`;
+      const {
+        rows: [coverage],
+      } = await client.query(financeRlsCoverageSql);
+      const financialRlsTables = assertFinanceRlsCoverage(coverage);
       if (kind === "auth") {
         stage = `${kind}:empty-state`;
         const {
@@ -76,7 +83,7 @@ try {
         runtime: kind,
         connected: true,
         leastPrivilege: true,
-        financialRlsTables: 6,
+        financialRlsTables,
       });
     } finally {
       if (client) {

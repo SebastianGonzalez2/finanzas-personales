@@ -35,6 +35,11 @@ import {
   provisionGoogleRuntimeProduction,
 } from "../../src/server/google-runtime-production.mts";
 
+import {
+  assertFinanceRlsCoverage,
+  financeRlsCoverageSql,
+} from "../../src/server/finance-rls-coverage.mts";
+
 const prod = neonTargets.production;
 const dev = neonTargets.development;
 const pooledHost = prod.endpointHost.replace(".", "-pooler.");
@@ -897,4 +902,106 @@ test("CLI plan de runtime production no imprime secretos ni ejecuta cambios", ()
   assert.equal(info.authReady, false);
   assert.ok(!plan.stdout.includes("postgresql://"));
   assert.ok(plan.stdout.includes("--approved-runtime-credentials"));
+});
+
+test("verificación production: el comando npm usa la condición react-server", async () => {
+  const { scripts } = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  const command = scripts["auth:google:verify:production"];
+  assert.match(command, /^node --conditions=react-server /);
+  assert.match(command, /--env-file=\.env\.production\.google\.local /);
+  assert.match(command, /scripts\/verify-google-runtime-production\.mjs$/);
+});
+
+test("verificación production: arranca con las condiciones del comando npm y falla cerrada sin conexión", () => {
+  // Sin la condición react-server la importación de `server-only` aborta antes
+  // de llegar a la comprobación. Con ella, sin GOOGLE_AUTH_READY=false el script
+  // falla controlado en la primera etapa, sin conectar ni imprimir secretos.
+  const env = { ...process.env };
+  delete env.GOOGLE_AUTH_READY;
+  let result;
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        "--conditions=react-server",
+        "scripts/verify-google-runtime-production.mjs",
+      ],
+      { cwd: root, encoding: "utf8", env, stdio: "pipe" },
+    );
+  } catch (error) {
+    result = error;
+  }
+  assert.equal(result?.status, 1);
+  assert.deepEqual(JSON.parse(result.stderr), {
+    verified: false,
+    stage: "closed-flag",
+    code: "ERR_ASSERTION",
+  });
+});
+
+test("cobertura RLS: consulta de solo lectura sobre tablas finance con owner_id", () => {
+  assert.match(financeRlsCoverageSql, /^SELECT/);
+  assert.match(financeRlsCoverageSql, /n\.nspname='finance'/);
+  assert.match(financeRlsCoverageSql, /a\.attname='owner_id'/);
+  assert.match(financeRlsCoverageSql, /relrowsecurity/);
+  assert.match(financeRlsCoverageSql, /relforcerowsecurity/);
+  assert.doesNotMatch(
+    financeRlsCoverageSql,
+    /\b(INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|SET)\b/i,
+  );
+});
+
+test("cobertura RLS: acepta cualquier total mientras todas las tablas estén protegidas", () => {
+  assert.equal(
+    assertFinanceRlsCoverage({ owner_tables: 61, protected_tables: 61 }),
+    61,
+  );
+  assert.equal(
+    assertFinanceRlsCoverage({ owner_tables: 6, protected_tables: 6 }),
+    6,
+  );
+  assert.equal(
+    assertFinanceRlsCoverage({ owner_tables: 62, protected_tables: 62 }),
+    62,
+  );
+});
+
+test("cobertura RLS: rechaza tablas sin proteger, ausencia de tablas y filas inválidas", () => {
+  for (const row of [
+    { owner_tables: 61, protected_tables: 60 },
+    { owner_tables: 61, protected_tables: 0 },
+    { owner_tables: 6, protected_tables: 61 },
+    { owner_tables: 0, protected_tables: 0 },
+    { owner_tables: null, protected_tables: null },
+    { owner_tables: "61", protected_tables: "61" },
+    { owner_tables: 61 },
+    {},
+    undefined,
+    null,
+  ])
+    assert.throws(
+      () => assertFinanceRlsCoverage(row),
+      (error) => error.code === "ERR_ASSERTION",
+    );
+});
+
+test("verificación development: usa la cobertura RLS dinámica y no un total fijo", async () => {
+  for (const file of [
+    "scripts/verify-google-runtime.mjs",
+    "scripts/verify-google-runtime-production.mjs",
+  ]) {
+    const source = await readFile(
+      new URL(`../../${file}`, import.meta.url),
+      "utf8",
+    );
+    assert.match(source, /assertFinanceRlsCoverage\(coverage\)/);
+    assert.match(source, /financeRlsCoverageSql/);
+    assert.doesNotMatch(source, /protected_finance|financialRlsTables: \d/);
+  }
+  const { scripts } = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  assert.match(scripts["auth:google:verify"], /--conditions=react-server/);
 });

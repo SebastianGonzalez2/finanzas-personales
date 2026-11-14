@@ -141,8 +141,8 @@ verificado y channel binding, obligatorios por configuración.
 
    Requiere el archivo privado. Comprueba con `assertGoogleRuntime` que cada
    rol conecta al destino de production con mínimos privilegios (sin acceso a
-   `neon_auth`, sin propiedad de objetos, RLS forzada en las 6 tablas
-   financieras y estados de allowlist/usuarios/sesiones vacíos). Debe pasar
+   `neon_auth`, sin propiedad de objetos, RLS y FORCE RLS en todas las
+   tablas financieras con `owner_id` (comprobación dinámica, sin número fijo) y estados de allowlist/usuarios/sesiones vacíos). Debe pasar
    antes del Paso 4.
 
 ## Paso 4 — Vercel (posterior a esta preparación)
