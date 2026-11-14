@@ -91,13 +91,21 @@ function useReducedMotion() {
 // cada cuadro. En ese caso el fondo usa la alternativa estática (guía §4.4–5).
 let hardwareWebgl: boolean | undefined;
 
+// Rasterizadores por software que no siempre declaran la penalización de
+// rendimiento (p. ej. SwiftShader en Chromium sin GPU, llvmpipe en Linux).
+const softwareRenderer = /swiftshader|llvmpipe|softpipe|software|basic render/i;
+
 function probeHardwareWebgl() {
   if (hardwareWebgl !== undefined) return hardwareWebgl;
   try {
     const gl = document.createElement("canvas").getContext("webgl", {
       failIfMajorPerformanceCaveat: true,
     });
-    hardwareWebgl = gl !== null;
+    const info = gl?.getExtension("WEBGL_debug_renderer_info");
+    const renderer = info
+      ? String(gl?.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? "")
+      : "";
+    hardwareWebgl = gl !== null && !softwareRenderer.test(renderer);
     gl?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
     hardwareWebgl = false;
