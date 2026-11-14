@@ -35,3 +35,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+UI-01 (laboratorio visual en `/prototipos/ui`, sin dependencias npm nuevas)
+carga mediante `next/font/google` las tipografías Geist, Plus Jakarta Sans e
+Instrument Serif, todas bajo SIL Open Font License 1.1
+(https://openfontlicense.org). Next.js las descarga en la compilación y las
+sirve desde el propio dominio; no hay solicitudes a Google en tiempo de uso.
