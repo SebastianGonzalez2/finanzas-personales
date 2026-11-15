@@ -63,14 +63,14 @@ function PositionTrend({
           Number(((point.units - low) * BigInt(4800)) / (high - low)) / 100,
   }));
   return (
-    <figure className="grid min-w-0 gap-1 rounded-md border p-2">
+    <figure className="grid min-w-0 gap-1 rounded-xl border border-(--glaciar-border) p-2">
       <figcaption className="text-sm font-medium">
         {label} · {currency}
       </figcaption>
       <svg
         aria-hidden="true"
         viewBox="0 0 280 60"
-        className="w-full text-primary"
+        className="w-full text-(--glaciar-accent)"
       >
         <polyline
           points={coordinates.map(({ x, y }) => `${x},${y}`).join(" ")}
@@ -105,7 +105,7 @@ function PositionTrend({
             ),
           )}
       </svg>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs lab-muted">
         {formatBankReference(firstDate)}
         {duration > 0 && ` – ${formatBankReference(lastDate)}`} ·{" "}
         {formatStatisticsAmount(unitsDecimal(low), currency)}
@@ -135,7 +135,7 @@ function StatisticsTable({
       <table className="w-full text-left text-sm">
         <caption className="pb-2 text-left font-medium">{title}</caption>
         <thead>
-          <tr className="border-b bg-muted/60">
+          <tr className="border-b bg-(--glaciar-hover)">
             {headings.map((label) => (
               <th scope="col" key={label} className="px-2 py-2">
                 {label}
@@ -219,16 +219,16 @@ export function StatisticsPositions({
   return (
     <section className="grid gap-2">
       <h3 className="font-semibold">Situación financiera por fecha</h3>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm lab-muted">
         Saldos, reservas y deudas al cierre del día según los registros
         disponibles. Se aplica el filtro de moneda.
       </p>
       {codes.length > 0 && (
         <details>
-          <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-(--glaciar-text)">
             Ver evolución de saldos y patrimonio
           </summary>
-          <p className="mb-2 text-xs text-muted-foreground">
+          <p className="mb-2 text-xs lab-muted">
             En Banco, un punto lleno indica un saldo confirmado, un punto hueco
             indica un saldo calculado y un cuadrado marca un ajuste.
           </p>
@@ -250,7 +250,7 @@ export function StatisticsPositions({
         </details>
       )}
       {snapshot.positions.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm lab-muted">
           Sin saldos, reservas ni deudas registrados para estas fechas.
         </p>
       ) : (
@@ -341,11 +341,11 @@ export function StatisticsRecurringExpenses({
     <section className="grid gap-2">
       <h3 className="font-semibold">Gastos recurrentes</h3>
       {!snapshot.recurrencesReady ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm lab-muted">
           Disponible al habilitar la confirmación de recurrencias.
         </p>
       ) : codes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm lab-muted">
           Sin gastos registrados en los períodos elegidos.
         </p>
       ) : (
@@ -423,10 +423,10 @@ export function StatisticsRecurringExpenses({
                       <span>{share}</span>
                       <span
                         aria-hidden="true"
-                        className="mt-1 block h-2 min-w-16 rounded-full bg-muted"
+                        className="mt-1 block h-2 min-w-16 rounded-full bg-(--glaciar-track)"
                       >
                         <span
-                          className="block h-full rounded-full bg-primary"
+                          className="block h-full rounded-full bg-expense"
                           style={{ width: `${width}%` }}
                         />
                       </span>

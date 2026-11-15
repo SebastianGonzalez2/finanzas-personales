@@ -18,13 +18,15 @@ import { formatBankReference } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
 import { fxSourceName, sumFx } from "@/domain/exchange-rates";
 import { movementDisplayMethods } from "@/domain/movements";
-import { historyButton } from "./history-fields";
+import { buttonClass } from "./ui/button";
+import { Icon } from "./ui/icon";
+import { Kpi } from "./glaciar/screen";
+import { percentageChange } from "@/domain/statistics";
 import {
   StatisticsComparisonTable,
   StatisticsPositions,
   StatisticsRecurringExpenses,
 } from "./statistics-tables";
-import { Card } from "./ui/card";
 import {
   StatisticsBarList,
   StatisticsCategoryBars,
@@ -33,6 +35,14 @@ import {
   StatisticsMethodBars,
   StatisticsMonthlyChart,
 } from "./statistics-charts";
+
+const laneMain: StatisticsChartId[] = [
+  "income-expense",
+  "methods",
+  "income-categories",
+  "history",
+];
+const laneSide: StatisticsChartId[] = ["expense-categories", "summary"];
 
 function currencies(values: { currency: Currency }[]) {
   return [...new Set(values.map(({ currency }) => currency))].sort();
@@ -104,6 +114,39 @@ function CategoryComparison({
   );
 }
 
+type TotalRow = StatisticsSnapshot["totals"][number];
+
+function MetricDelta({
+  current,
+  previous,
+  label,
+  good,
+}: {
+  current: string | undefined;
+  previous: string | undefined;
+  label: string;
+  good: "up" | "down" | null;
+}) {
+  if (current === undefined || previous === undefined) return null;
+  const change = percentageChange(current, previous);
+  if (change === null)
+    return <span className="lab-delta">Base cero vs. {label}</span>;
+  const diff = amountUnits(current) - amountUnits(previous);
+  const up = diff >= BigInt(0);
+  const tone =
+    good === null || diff === BigInt(0)
+      ? ""
+      : (good === "up") === up
+        ? " is-good"
+        : " is-bad";
+  return (
+    <span className={`lab-delta${tone}`}>
+      <Icon name={up ? "trendUp" : "trendDown"} className="size-3.5" />
+      {change} vs. {label}
+    </span>
+  );
+}
+
 function StatisticsMetrics({
   snapshot,
   favorite,
@@ -112,21 +155,29 @@ function StatisticsMetrics({
   favorite: boolean | undefined;
 }) {
   const periods = [snapshot.range, snapshot.previous];
-  const net = (row: StatisticsSnapshot["totals"][number]) =>
+  const net = (row: TotalRow) =>
     unitsDecimal(amountUnits(row.income) - amountUnits(row.expense));
   const metrics = [
     {
       label: "Ingresos",
-      get: (row: StatisticsSnapshot["totals"][number]) => row.income,
+      get: (row: TotalRow) => row.income,
+      good: "up" as const,
     },
     {
       label: "Gastos",
-      get: (row: StatisticsSnapshot["totals"][number]) => row.expense,
+      get: (row: TotalRow) => row.expense,
+      good: "down" as const,
     },
-    { label: "Resultado del período", get: net },
+    {
+      label: "Resultado del período",
+      get: net,
+      good: "up" as const,
+      hero: true,
+    },
     {
       label: "Devoluciones acreditadas",
-      get: (row: StatisticsSnapshot["totals"][number]) => row.refunds,
+      get: (row: TotalRow) => row.refunds,
+      good: null,
     },
   ];
   const available = currencies([
@@ -141,7 +192,7 @@ function StatisticsMetrics({
       description={`${snapshot.range.label}${snapshot.previous ? ` frente a ${snapshot.previous.label}` : ""}`}
     >
       {periods.some((period) => period && !period.complete) && (
-        <p className="text-sm text-muted-foreground">
+        <p className="lab-muted text-xs">
           La fecha de hoy todavía está en curso.
         </p>
       )}
@@ -151,12 +202,12 @@ function StatisticsMetrics({
             snapshot.previous.from,
             snapshot.previous.to,
           ) && (
-          <p className="text-sm text-muted-foreground">
+          <p className="lab-muted text-xs">
             Los períodos tienen distinta duración.
           </p>
         )}
       {available.length === 0 ? (
-        <p role="status" className="text-sm text-muted-foreground">
+        <p role="status" className="lab-muted text-sm">
           No hay movimientos registrados con estos filtros.
         </p>
       ) : (
@@ -168,16 +219,48 @@ function StatisticsMetrics({
             (row) => row.currency === currency,
           );
           return (
-            <StatisticsComparisonTable
-              key={currency}
-              title={`Indicadores en ${currency}`}
-              currency={currency}
-              rows={metrics.map(({ label, get }) => ({
-                label,
-                current: current ? get(current) : null,
-                previous: previous ? get(previous) : null,
-              }))}
-            />
+            <div key={currency} className="grid gap-3">
+              {available.length > 1 && (
+                <h3 className="text-sm font-semibold">{currency}</h3>
+              )}
+              <div className="gs-kpis">
+                {metrics.map(({ label, get, good, hero }) => {
+                  const now = current ? get(current) : undefined;
+                  const before = previous ? get(previous) : undefined;
+                  return (
+                    <Kpi
+                      key={label}
+                      label={label}
+                      hero={hero}
+                      value={
+                        now === undefined
+                          ? "Sin datos"
+                          : formatStatisticsAmount(now, currency)
+                      }
+                      extra={
+                        snapshot.previous && (
+                          <MetricDelta
+                            current={now}
+                            previous={before}
+                            label={snapshot.previous.label}
+                            good={good}
+                          />
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+              <StatisticsComparisonTable
+                title={`Indicadores en ${currency}`}
+                currency={currency}
+                rows={metrics.map(({ label, get }) => ({
+                  label,
+                  current: current ? get(current) : null,
+                  previous: previous ? get(previous) : null,
+                }))}
+              />
+            </div>
           );
         })
       )}
@@ -210,7 +293,7 @@ function StatisticsSummaryCard({
         ))}
       </div>
       <Link
-        className={historyButton}
+        className={buttonClass("outline")}
         href={`/estadisticas${statisticsSearch(filters, { view: "todas" })}#estadisticas-metrics`}
       >
         Ver indicadores del período
@@ -232,72 +315,93 @@ function StatisticsDrilldown({
     (category) => category.parentId && category.parentId === filters.category,
   );
   const page = Number(filters.detailPage ?? 1);
+  const clearHref = `/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, tag: undefined, tags: undefined, detailPage: undefined })}`;
+  const current = categoryName
+    ? categoryName
+    : filters.category === "none"
+      ? "Sin categorizar"
+      : "Movimientos filtrados";
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="font-semibold">
-          Detalle de movimientos
-          {categoryName
-            ? ` · ${categoryName}`
-            : filters.category === "none"
-              ? " · Sin categorizar"
-              : ""}
-        </h2>
-        <Link
-          href={`/estadisticas${statisticsSearch(filters, { category: undefined, kind: undefined, method: undefined, card: undefined, tag: undefined, tags: undefined, detailPage: undefined })}`}
-          className={historyButton}
-        >
-          Quitar filtros de detalle
-        </Link>
-      </div>
+    <>
+      <nav aria-label="Ruta del detalle" className="gs-crumbs">
+        <Link href={clearHref}>Estadísticas</Link>
+        <Icon name="chevronRight" className="size-3.5" />
+        <span aria-current="page">{current}</span>
+      </nav>
       {children.length > 0 && (
-        <StatisticsBarList
-          label="Subcategorías"
-          empty="Sin subcategorías con movimientos."
-          rows={children.map((child) => ({
-            key: `${child.currency}-${child.categoryId}-${child.kind}`,
-            label: child.category,
-            amount: child.amount,
-            currency: child.currency,
-            href: `/estadisticas${statisticsSearch(filters, {
-              category: child.categoryId ?? "none",
+        <section className="lab-panel gs-span-5" aria-label="Subcategorías">
+          <header className="lab-panel__head">
+            <h3 className="lab-panel__title">Subcategorías</h3>
+          </header>
+          <StatisticsBarList
+            label="Subcategorías"
+            empty="Sin subcategorías con movimientos."
+            rows={children.map((child) => ({
+              key: `${child.currency}-${child.categoryId}-${child.kind}`,
+              label: child.category,
+              amount: child.amount,
               currency: child.currency,
-              kind: child.kind,
-              detailPage: undefined,
-            })}`,
-            detail: "Ver movimientos",
-          }))}
-        />
+              tone: child.kind,
+              href: `/estadisticas${statisticsSearch(filters, {
+                category: child.categoryId ?? "none",
+                currency: child.currency,
+                kind: child.kind,
+                detailPage: undefined,
+              })}`,
+              detail: "Ver movimientos",
+            }))}
+          />
+        </section>
       )}
-      <section className="grid gap-2">
+      <section
+        className={`lab-panel ${children.length > 0 ? "gs-span-7" : ""}`}
+        aria-labelledby="estadisticas-detalle-titulo"
+      >
+        <header className="lab-panel__head">
+          <h2 id="estadisticas-detalle-titulo" className="lab-panel__title">
+            Detalle de movimientos
+            {categoryName
+              ? ` · ${categoryName}`
+              : filters.category === "none"
+                ? " · Sin categorizar"
+                : ""}
+          </h2>
+          <Link href={clearHref} className={buttonClass("outline")}>
+            Quitar filtros de detalle
+          </Link>
+        </header>
         <h3 className="text-sm font-semibold">
           Movimientos que explican la cifra
         </h3>
         {snapshot.entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="lab-muted text-sm">
             No hay movimientos con estos filtros en esta página.
           </p>
         ) : (
-          <ul className="divide-y">
+          <ul className="gs-rows">
             {snapshot.entries.map((entry) => (
               <li
                 key={`${entry.kind}-${entry.id}-${entry.currency}-${entry.date}`}
               >
                 <Link
                   href={`/historial/movimientos/${entry.id}#titulo-pagina`}
-                  className="grid gap-2 rounded-md px-2 py-3 hover:bg-muted sm:grid-cols-[1fr_auto] sm:items-center"
+                  className="flex w-full min-w-0 items-center gap-3 rounded-lg px-2 py-1 hover:bg-(--glaciar-hover)"
                 >
-                  <div className="min-w-0">
-                    <p className="font-medium wrap-anywhere">{entry.concept}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                  <div className="gs-row__main">
+                    <p className="gs-row__title">{entry.concept}</p>
+                    <p className="gs-row__sub">
                       {formatBankReference(entry.date)} ·{" "}
                       {flowLabels[entry.kind]}
                     </p>
                   </div>
-                  <span className="tabular-nums">
-                    {formatStatisticsAmount(entry.amount, entry.currency)}
+                  <span className="gs-row__aside">
+                    <span
+                      className={`gs-row__amount ${entry.kind === "expense" ? "is-negative" : "is-positive"}`}
+                    >
+                      {formatStatisticsAmount(entry.amount, entry.currency)}
+                    </span>
                     {entry.quote && (
-                      <small className="block text-muted-foreground">
+                      <small className="lab-muted">
                         {formatStatisticsAmount(
                           sumFx([
                             { amount: entry.amount, rate: entry.quote.rate },
@@ -321,7 +425,7 @@ function StatisticsDrilldown({
         >
           {page > 1 && (
             <Link
-              className={historyButton}
+              className={buttonClass("outline")}
               href={`/estadisticas${statisticsSearch(filters, { detailPage: String(page - 1) })}`}
             >
               Página anterior
@@ -329,7 +433,7 @@ function StatisticsDrilldown({
           )}
           {snapshot.hasNextPage && page < 999999 && (
             <Link
-              className={historyButton}
+              className={buttonClass("outline")}
               href={`/estadisticas${statisticsSearch(filters, { detailPage: String(page + 1) })}`}
             >
               Página siguiente
@@ -337,7 +441,7 @@ function StatisticsDrilldown({
           )}
         </nav>
       </section>
-    </Card>
+    </>
   );
 }
 export function StatisticsDashboard({
@@ -394,7 +498,7 @@ export function StatisticsDashboard({
       >
         <div className="grid gap-5">
           {monthlyCurrencies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Sin datos para comparar en el período.
             </p>
           ) : (
@@ -441,7 +545,7 @@ export function StatisticsDashboard({
             </section>
           ))}
           {categoryCurrencies.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Sin categorías con movimientos en el período.
             </p>
           )}
@@ -477,7 +581,7 @@ export function StatisticsDashboard({
             </section>
           ))}
           {categoryCurrencies.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Sin categorías con movimientos en el período.
             </p>
           )}
@@ -539,7 +643,7 @@ export function StatisticsDashboard({
             </section>
           ))}
           {methodCurrencies.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Sin medios de pago registrados en el período.
             </p>
           )}
@@ -567,7 +671,7 @@ export function StatisticsDashboard({
             </section>
           ))}
           {currencies(snapshot.months).length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Sin datos históricos para este período.
             </p>
           )}
@@ -585,23 +689,52 @@ export function StatisticsDashboard({
     ),
   };
   const visible = view === "favoritos" ? favorites : statisticsChartIdList;
+  const main = visible.filter((id) => laneMain.includes(id));
+  const side = visible.filter((id) => laneSide.includes(id));
+  const head = visible.filter((id) => id === "metrics");
+  // M-05: en «Todas» se usan dos carriles. En «Mis favoritos» solo si el orden
+  // visual resultante (Indicadores, principal, lateral) coincide con el orden
+  // global guardado; si no, una columna que lo respeta (DOM = visual = teclado).
+  const laneOrder = [...head, ...main, ...side];
+  const lanes =
+    main.length > 0 &&
+    side.length > 0 &&
+    (view === "todas" || laneOrder.every((id, index) => id === visible[index]));
+  const detail =
+    filters.category ||
+    filters.method ||
+    filters.kind ||
+    filters.card ||
+    filters.tag ||
+    filters.tags;
   return (
-    <div className="grid gap-4">
-      {(filters.category ||
-        filters.method ||
-        filters.kind ||
-        filters.card ||
-        filters.tag ||
-        filters.tags) && (
+    <div className="gs-grid">
+      {detail && (
         <StatisticsDrilldown
           snapshot={snapshot}
           filters={filters}
           categoryName={categoryName}
         />
       )}
-      {visible.map((chart) => (
-        <Fragment key={chart}>{cards[chart]}</Fragment>
-      ))}
+      {lanes ? (
+        <>
+          {head.map((chart) => (
+            <Fragment key={chart}>{cards[chart]}</Fragment>
+          ))}
+          <div className="gs-lane-main gs-stack">
+            {main.map((chart) => (
+              <Fragment key={chart}>{cards[chart]}</Fragment>
+            ))}
+          </div>
+          <div className="gs-lane-side gs-stack">
+            {side.map((chart) => (
+              <Fragment key={chart}>{cards[chart]}</Fragment>
+            ))}
+          </div>
+        </>
+      ) : (
+        visible.map((chart) => <Fragment key={chart}>{cards[chart]}</Fragment>)
+      )}
     </div>
   );
 }

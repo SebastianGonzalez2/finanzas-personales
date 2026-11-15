@@ -2,11 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import {
-  favoriteLabel,
-  statisticsChartIds,
-  type StatisticsChartId,
-} from "@/domain/statistics";
+import { favoriteLabel, type StatisticsChartId } from "@/domain/statistics";
 import { connectionAwareMessage } from "./connection";
 
 export function StatisticsFavoriteButton({
@@ -46,18 +42,27 @@ export function StatisticsFavoriteButton({
     <div className="grid justify-items-end gap-1">
       <button
         type="button"
-        className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg border px-2 text-sm font-semibold hover:bg-muted disabled:opacity-60"
+        className="ui-icon-btn gs-star border border-(--glaciar-border) disabled:opacity-60"
         aria-label={label}
         aria-pressed={favorite}
         title={label}
         disabled={sending || refreshing}
         onClick={toggle}
       >
-        <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
-        <span className="sr-only">{statisticsChartIds[chart]}</span>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="size-5"
+          fill={favorite ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        >
+          <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+        </svg>
       </button>
       {error && (
-        <p role="alert" className="max-w-48 text-xs text-muted-foreground">
+        <p role="alert" className="max-w-48 lab-muted text-xs">
           {error}
         </p>
       )}
