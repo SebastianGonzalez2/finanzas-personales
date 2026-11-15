@@ -70,6 +70,9 @@ test("F6-06: Escape y Omitir cierran sin guardar la preferencia permanente", asy
   await page.goto("/resumen");
   const tour = page.getByRole("dialog", { name: "Tutorial introductorio" });
   await expect(tour).toBeVisible();
+  // El foco se asigna en el mismo efecto que registra el listener de Escape:
+  // esperarlo evita pulsar la tecla antes de que el tutorial la escuche.
+  await expect(tour).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(tour).toBeHidden();
   expect(await preference(page)).toBeNull();
