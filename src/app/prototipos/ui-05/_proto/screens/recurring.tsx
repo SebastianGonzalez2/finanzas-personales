@@ -112,9 +112,9 @@ function SeriesList() {
             </div>
             <div className="ui05-row__aside">
               <span
-                className={`ui05-row__amount ${item.kind === "income" ? "is-positive" : ""}`}
+                className={`ui05-row__amount ${item.kind === "income" ? "is-positive" : "is-negative"}`}
               >
-                {item.kind === "income" ? "+" : ""}
+                {item.kind === "income" ? "+" : "−"}
                 {m(item.amount, item.currency)}
               </span>
               <span className="flex flex-wrap justify-end gap-1">

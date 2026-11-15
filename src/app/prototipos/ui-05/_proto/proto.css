@@ -158,6 +158,21 @@
     }
   }
 
+  /* M-05 — Carriles independientes (principal 8 + lateral 4) para paneles de
+     altura variable. Cada carril se apila por su cuenta, así que no quedan
+     huecos entre filas; el orden del DOM es el visual (carril principal y
+     después lateral). Por debajo de 80rem se apilan en una sola columna para
+     que las tablas del carril principal conserven ancho suficiente. */
+  @media (min-width: 80rem) {
+    .ui05-grid > .ui05-lane-main {
+      grid-column: span 8;
+    }
+
+    .ui05-grid > .ui05-lane-side {
+      grid-column: span 4;
+    }
+  }
+
   .ui05-stack {
     display: grid;
     min-width: 0;
@@ -430,6 +445,10 @@
 
   .ui05-row__amount.is-positive {
     color: var(--amount-positive);
+  }
+
+  .ui05-row__amount.is-negative {
+    color: var(--amount-negative);
   }
 
   /* ---------- Formularios (vidrio 3, casi opaco) ---------- */

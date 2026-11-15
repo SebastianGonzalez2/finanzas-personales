@@ -4,6 +4,7 @@ import {
   type HistoryEntry,
   type HistoryKind,
 } from "@/domain/history";
+import { historyAmountTones } from "./history-entry";
 import { Icon, type IconName } from "./ui/icon";
 
 // UI-04: piezas de la tabla del Historial portadas de
@@ -86,6 +87,7 @@ export function historyDisplayAmount(entry: HistoryEntry) {
 
 export function HistoryTableAmount({ entry }: { entry: HistoryEntry }) {
   const sign = amountSign[entry.kind];
+  const tone = historyAmountTones[entry.kind];
   const transfer =
     entry.kind === "bank_transfer" && entry.otherCurrency && entry.otherAmount;
   const signed = (line: {
@@ -100,7 +102,7 @@ export function HistoryTableAmount({ entry }: { entry: HistoryEntry }) {
     : [historyDisplayAmount(entry)];
   return (
     <span
-      className={`lab-amount${sign === "+" ? " is-positive" : ""}${entry.status === "voided" ? " is-voided" : ""}`}
+      className={`lab-amount${tone ? ` is-${tone}` : ""}${entry.status === "voided" ? " is-voided" : ""}`}
     >
       {lines.map((line, index) => (
         <span

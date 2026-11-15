@@ -5,7 +5,7 @@ import {
   movementDisplayMethods,
   type RecentMovement,
 } from "@/domain/movements";
-import { HistoryAmount } from "../history-entry";
+import { HistoryAmount, historyAmountTones } from "../history-entry";
 import { RecentAmountCorrection } from "../recent-amount-correction";
 import { Icon, type IconName } from "../ui/icon";
 import { Panel, PanelLink } from "./panel";
@@ -64,7 +64,9 @@ export function SummaryRecent({
         </>
       ),
       amount: (
-        <span className={`lab-amount ${income ? "is-positive" : ""}`}>
+        <span
+          className={`lab-amount ${income ? "is-positive" : "is-negative"}`}
+        >
           {income ? "+" : "−"}
           {formatBankAmount(movement)}
         </span>
@@ -116,7 +118,9 @@ export function SummaryRecent({
           </>
         ),
         amount: (
-          <span className="lab-amount">
+          <span
+            className={`lab-amount ${historyAmountTones[entry.kind] ? `is-${historyAmountTones[entry.kind]}` : ""}`}
+          >
             <HistoryAmount entry={entry} />
           </span>
         ),

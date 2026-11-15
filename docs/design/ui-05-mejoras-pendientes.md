@@ -1,6 +1,6 @@
 # UI-05 — Mejoras identificadas durante la revisión visual
 
-**Estado:** M-01, M-02 y M-03 **implementadas en prototipo** (rama `codex/UI-05-M01-03-mejoras-visuales`); **implementación en producción pendiente** (las pantallas reales `/fondos`, `/presupuestos` y `/ayuda` conservan el diseño anterior hasta UI-05C/UI-05H). M-04, M-05 y M-06 pendientes.
+**Estado:** M-01, M-02 y M-03 **implementadas en prototipo** (rama `codex/UI-05-M01-03-mejoras-visuales`); **implementación en producción pendiente** (las pantallas reales `/fondos`, `/presupuestos` y `/ayuda` conservan el diseño anterior hasta UI-05C/UI-05H). **M-06 implementada en pantallas reales** (Resumen e Historial, rama `codex/UI-05-M06-colores-movimientos`) y en el prototipo de Recurrentes; el resto de prototipos y pantallas aún no reales queda pendiente (ver «Estado de implementación» en M-06). **M-05 implementada en prototipo** (Estadísticas, Mi cuenta y Fondos; rama `codex/UI-05-M05-layout`); la regla para producción queda documentada para UI-05D. M-04 pendiente.
 **Origen:** revisión visual del usuario, 15 de noviembre de 2026.
 **Diseño de referencia:** Glaciar.
 **PR de planificación:** #77 (UI-05-DESIGN). Este documento registra decisiones solicitadas por el usuario; no autoriza cambiar lógica financiera ni ampliar el alcance de la PR de planificación.
@@ -13,8 +13,8 @@
 | M-02 | Colores de estados de Presupuestos | Chat 1 | UI; conservar reglas de clasificación · **prototipo ✔ / producción pendiente** |
 | M-03 | Simplificar Ayuda | Chat 1 | UI; eliminar búsqueda y filtros · **prototipo ✔ / producción pendiente** |
 | M-04 | Ocultar cotización manual permanente en Presupuestos | Posterior (lógica financiera) | UI + manejo de errores y cotizaciones automáticas |
-| M-05 | Optimizar grid y espacios vacíos | Chat 3 | Revisión de composición y responsive |
-| M-06 | Diferenciar ingresos y egresos por colores | Chat 2 | UI transversal; mantener semántica contable |
+| M-05 | Optimizar grid y espacios vacíos | Chat 3 | Revisión de composición y responsive · **prototipo ✔ / producción en UI-05D** |
+| M-06 | Diferenciar ingresos y egresos por colores | Chat 2 | UI transversal; mantener semántica contable · **real ✔ (Resumen, Historial) / prototipo ✔ (Recurrentes) / resto pendiente** |
 
 **Regla general:** aplicar solo cambios aprobados y pertinentes a la rama de implementación. Revisar `AGENTS.md`, la documentación de Glaciar y los componentes existentes. Reutilizar tokens y patrones, mantener accesibilidad y contraste, sin rehacer pantallas, alterar cálculos, migraciones, APIs, saldos o permisos. Las capturas y rutas de UI-05-DESIGN pueden ser prototipos: comprobar qué está implementado en las pantallas reales antes de actuar. La PR #77 solo contiene planificación/prototipos y no debería recibir cambios funcionales.
 
@@ -108,6 +108,37 @@
 
 **Criterio de aceptación:** menos huecos perceptibles, buen orden de lectura y distribución estable en móvil y escritorio.
 
+**Estado (2026-11-15): implementado en prototipo; producción pendiente (UI-05D).**
+
+**Técnica elegida: carriles independientes con CSS Grid**, el mismo patrón que ya usan Tarjetas, Fondos, Presupuestos, Avisos y Catálogos (`ui05-span-8 ui05-stack` + `ui05-span-4 ui05-stack`). Se descartaron: Masonry nativo de CSS (sin soporte estable en todos los navegadores), multicolumna `columns` (ordena por columna, reubica tarjetas al cambiar alturas y no admite anchos 8/4) y Masonry con JS (dependencia, saltos de layout e hidratación). Los carriles no usan JS y el orden del DOM coincide con el visual y con el foco de teclado.
+
+**Cambios (solo prototipos):**
+- `_proto/proto.css`: clases `ui05-lane-main` (8 columnas) y `ui05-lane-side` (4) desde 80rem (1280 px); por debajo se apilan en una columna para que la tabla del Histórico conserve ancho.
+- **Estadísticas** (`analysis.tsx`, `Charts`): «Indicadores» a ancho completo; carril principal = Ingresos y gastos por mes → Medios de pago → Ingresos por categoría → Histórico por fecha; carril lateral = Gastos por categoría → Resumen inteligente → Gastos recurrentes. Contenido de los paneles sin cambios; «Detalle» sin cambios.
+- **Mi cuenta** (`support.tsx`): una columna (cuenta → copias → eliminar).
+- **Fondos** (`planning.tsx`): la fila de acciones de cada ficha queda al pie (`mt-auto`, como `.ui05-card__actions` en Tarjetas); las fichas de una fila alinean sus botones.
+
+**Verificación en vivo** (`next dev`, sesión real; medición de la posición de cada panel con `getBoundingClientRect`; se descarta la separación de 20 px entre filtros e indicadores, que es el espaciado propio de la pantalla):
+
+| Pantalla | Antes (capturas 1440) | Después |
+| --- | --- | --- |
+| Estadísticas · Con datos | hueco de ~137 px bajo «Ingresos y gastos por mes» | 0 huecos entre paneles a 1440, 1280, 1024, 768 y 375 px |
+| Estadísticas · Todas | ~137 px + ~80 px bajo «Gastos recurrentes» | 0 huecos a 1440 y 1280; la diferencia entre carriles queda solo al pie de la página |
+| Mi cuenta | ~150 px antes de «Eliminar cuenta» | 0 huecos a 1440 y 375 (también con «Restaurar copia» desplegado) |
+| Fondos | ~110 px vacíos bajo los botones de «Fondo de emergencia» | acciones alineadas en la fila (misma altura de inicio en ambas fichas) |
+
+Sin desplazamiento horizontal en ningún ancho. La tabla del Histórico entra a 1280 px (693 px en 737 px de panel). Tab recorre los paneles en este orden: Indicadores → carril principal → carril lateral. **Resumen** (real) medido a 1440: sin huecos entre paneles; no se tocó. Las capturas de `docs/design/ui-05/capturas` no se regeneraron porque el script requiere el PostgreSQL desechable en Docker, que no está disponible en este equipo.
+
+**Pantallas revisadas sin cambios:** Tarjetas, Avisos, Informes, Ayuda (resuelta en M-03), Deudas, Recurrentes, Catálogos, Beneficios y Ciclo de tarjeta ya usan carriles o pares de dos elementos; solo sobra espacio al final de la página.
+
+**Regla para producción (UI-05D, Estadísticas real con favoritos dinámicos):**
+- Ancho completo: `metrics` y el panel de detalle (`StatisticsDrilldown`). Carril principal: `income-expense`, `methods`, `income-categories`, `history`. Carril lateral: `expense-categories`, `summary`.
+- Dentro de cada carril se conserva el orden de la vista (en favoritos, `created_at`); entre carriles el orden es el de la regla. Confirmar en UI-05D que ese cambio de orden es aceptable.
+- **Si un carril queda vacío**, no usar carriles: el resto va a ancho completo en una columna (si no, quedaría un hueco de 8 o 4 columnas).
+- Carriles solo desde 80rem; por debajo, una columna en orden de DOM (carril principal y después lateral). En móvil, «Gastos por categoría» aparece después de los paneles del carril principal.
+
+**Nota para M-04 (Presupuestos):** al quitar el formulario permanente de cotización manual, el carril lateral queda solo con la nota «El seguimiento se reinicia cada mes…». Revisar ahí el reparto 8/4 (por ejemplo, llevar la nota al encabezado).
+
 ## M-06 — Colores semánticos para ingresos y egresos
 
 **Objetivo:** distinguir visualmente entradas y salidas de dinero en las listas, comenzando por «Movimientos recientes» de Resumen y extendiendo el criterio a las secciones aplicables.
@@ -123,6 +154,12 @@
 **Precaución:** un pago de tarjeta puede ser salida bancaria y mostrarse como importe negativo, pero **no debe duplicarse como gasto contable** en Presupuestos o Estadísticas. Diferenciar presentación de flujo bancario y clasificación financiera.
 
 **Criterio de aceptación:** importes claramente distinguibles y contrastados, sin cambiar saldos, estadísticas ni cálculos.
+
+**Estado de implementación (M-06):**
+- **Pantallas reales (Glaciar):** «Movimientos recientes» de Resumen, tabla de Historial y su detalle (`/historial/[source]/[id]`). Solo presentación: token `--amount-negative` (= `--state-critical`), clase `.lab-amount.is-negative` y mapa único `historyAmountTones` en `src/components/history-entry.tsx`, que decide el tono por **tipo de movimiento**, no por el signo.
+- **Tonos:** verde = ingreso, devolución de compra, reintegro de saldo a favor, beneficio bancario. Rojo = gasto, compra con tarjeta, pago de tarjeta (salida bancaria; sigue sin contarse como gasto). Neutro = cambio de moneda/transferencia, operaciones de préstamo/deuda y ajustes. Se mantienen los signos `+`/`−`; el cambio de moneda conserva su `+` pero ya no es verde.
+- **Prototipos:** lista de Recurrentes (`.ui05-row__amount.is-negative`, con `−` en gastos). Los demás prototipos no muestran movimientos con signo, salvo la línea de tiempo de Obligaciones, que se deja neutra a propósito (capital de préstamo e intereses no son ingreso/gasto ordinario).
+- **Pendiente de trasladar:** Recurrentes y Obligaciones/préstamos al implementarse en producción (UI-05) deben reutilizar `--amount-negative` y el criterio de tonos anterior; Deudas y Presupuestos reales no se tocaron.
 
 ---
 

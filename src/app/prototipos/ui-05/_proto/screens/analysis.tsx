@@ -278,144 +278,236 @@ function Metrics() {
 }
 
 function Charts({ all }: { all: boolean }) {
+  // M-05: carriles independientes. Principal = evolución y flujos (paneles
+  // anchos y tabla); lateral = composición e interpretación. Cada carril se
+  // apila por su cuenta, sin huecos entre paneles de alturas distintas.
   return (
     <div className="ui05-grid">
       <Metrics />
-      <StatPanel
-        id="st-flow"
-        title="Ingresos y gastos por mes"
-        icon="trendUp"
-        favorite
-        className="ui05-span-8"
-      >
-        <CashflowChart data={flow} height={260} />
-      </StatPanel>
-      <StatPanel
-        id="st-categories"
-        title="Gastos por categoría"
-        icon="budgets"
-        favorite
-        className="ui05-span-4"
-      >
-        <CategoryDonut data={categories} total="52410" />
-        <a href={protoHref("estadisticas", "detalle")} className="lab-link">
-          Ver detalle por subcategoría
-          <Icon name="chevronRight" duotone={false} className="size-3.5" />
-        </a>
-      </StatPanel>
-      <StatPanel
-        id="st-methods"
-        title="Medios de pago"
-        icon="cards"
-        favorite={!all}
-        className="ui05-span-6"
-      >
-        <HBars
-          items={[
-            {
-              label: "Tarjeta de crédito",
-              value: m("27340.00"),
-              ratio: 0.52,
-              color: "#3987e5",
-            },
-            {
-              label: "Débito bancario",
-              value: m("16820.00"),
-              ratio: 0.32,
-              color: "#199e70",
-            },
-            {
-              label: "Transferencia",
-              value: m("8250.00"),
-              ratio: 0.16,
-              color: "#c98500",
-            },
-          ]}
-        />
-        <p className="lab-muted text-xs">
-          Importes registrados según el medio de pago. Un pago de tarjeta no se
-          cuenta como segundo gasto.
-        </p>
-      </StatPanel>
-      <StatPanel
-        id="st-smart"
-        title="Resumen inteligente"
-        icon="sparkle"
-        favorite={!all}
-        className="ui05-span-6"
-      >
-        <ul className="ui05-rows">
-          <li>
-            <RowIcon name="trendDown" />
-            <div className="ui05-row__main">
-              <p className="ui05-row__title">
-                Gastaste 34 % menos que en octubre
+      <div className="ui05-lane-main ui05-stack">
+        <StatPanel
+          id="st-flow"
+          title="Ingresos y gastos por mes"
+          icon="trendUp"
+          favorite
+        >
+          <CashflowChart data={flow} height={260} />
+        </StatPanel>
+        <StatPanel
+          id="st-methods"
+          title="Medios de pago"
+          icon="cards"
+          favorite={!all}
+        >
+          <HBars
+            items={[
+              {
+                label: "Tarjeta de crédito",
+                value: m("27340.00"),
+                ratio: 0.52,
+                color: "#3987e5",
+              },
+              {
+                label: "Débito bancario",
+                value: m("16820.00"),
+                ratio: 0.32,
+                color: "#199e70",
+              },
+              {
+                label: "Transferencia",
+                value: m("8250.00"),
+                ratio: 0.16,
+                color: "#c98500",
+              },
+            ]}
+          />
+          <p className="lab-muted text-xs">
+            Importes registrados según el medio de pago. Un pago de tarjeta no
+            se cuenta como segundo gasto.
+          </p>
+        </StatPanel>
+        {all && (
+          <>
+            <StatPanel
+              id="st-income"
+              title="Ingresos por categoría"
+              icon="income"
+              favorite={false}
+            >
+              <HBars
+                items={[
+                  {
+                    label: "Sueldo",
+                    value: m("92000.00"),
+                    ratio: 0.94,
+                    color: "#199e70",
+                  },
+                  {
+                    label: "Freelance",
+                    value: m("4760.00"),
+                    ratio: 0.05,
+                    color: "#3987e5",
+                  },
+                  {
+                    label: "Reintegros",
+                    value: m("1240.00"),
+                    ratio: 0.01,
+                    color: "#5d6b82",
+                  },
+                ]}
+              />
+            </StatPanel>
+            <StatPanel
+              id="st-history"
+              title="Histórico por fecha"
+              icon="calendar"
+              favorite={false}
+            >
+              <p className="lab-muted text-sm">
+                Saldos, reservas y deudas al cierre del día según los registros
+                disponibles. Se aplica el filtro de moneda.
               </p>
-              <p className="ui05-row__sub">
-                Principalmente en Hogar (−8.120,00 UYU).
+              <table className="ui05-table ui05-table--stack">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th className="is-num">Banco</th>
+                    <th className="is-num">Reservado</th>
+                    <th className="is-num">Disponible</th>
+                    <th className="is-num">Deuda de tarjetas</th>
+                    <th className="is-num">Patrimonio registrado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    [
+                      "30/09",
+                      "●",
+                      "214.300,00",
+                      "112.000,00",
+                      "102.300,00",
+                      "31.900,00",
+                      "182.400,00",
+                    ],
+                    [
+                      "31/10",
+                      "○",
+                      "228.910,00",
+                      "116.200,00",
+                      "112.710,00",
+                      "26.110,00",
+                      "202.800,00",
+                    ],
+                    [
+                      "15/11",
+                      "●",
+                      "236.130,00",
+                      "118.500,00",
+                      "117.630,00",
+                      "24.570,30",
+                      "211.559,70",
+                    ],
+                  ].map(([date, dot, bank, reserved, free, debt, worth]) => (
+                    <tr key={date}>
+                      <td data-label="Fecha" className="lab-muted">
+                        {date}
+                      </td>
+                      <td data-label="Banco" className="is-num">
+                        <span
+                          aria-label={dot === "●" ? "Confirmado" : "Calculado"}
+                        >
+                          {dot}
+                        </span>{" "}
+                        {bank}
+                      </td>
+                      <td data-label="Reservado" className="is-num">
+                        {reserved}
+                      </td>
+                      <td data-label="Disponible" className="is-num">
+                        {free}
+                      </td>
+                      <td data-label="Deuda de tarjetas" className="is-num">
+                        {debt}
+                      </td>
+                      <td
+                        data-label="Patrimonio"
+                        className="is-num font-semibold"
+                      >
+                        {worth}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="lab-muted text-xs">
+                En Banco, un punto lleno indica un saldo confirmado y un punto
+                hueco, un saldo calculado. Importes en UYU.
               </p>
-            </div>
-          </li>
-          <li>
-            <RowIcon name="budgets" />
-            <div className="ui05-row__main">
-              <p className="ui05-row__title">
-                Alimentación concentra el 36 % del gasto
-              </p>
-              <p className="ui05-row__sub">18.640,00 UYU en 23 movimientos.</p>
-            </div>
-          </li>
-          <li>
-            <RowIcon name="recurring" />
-            <div className="ui05-row__main">
-              <p className="ui05-row__title">
-                Los recurrentes son el 41 % del gasto
-              </p>
-              <p className="ui05-row__sub">
-                Alquiler, servicios y suscripciones.
-              </p>
-            </div>
-          </li>
-        </ul>
-      </StatPanel>
-      {all && (
-        <>
-          <StatPanel
-            id="st-income"
-            title="Ingresos por categoría"
-            icon="income"
-            favorite={false}
-            className="ui05-span-6"
-          >
-            <HBars
-              items={[
-                {
-                  label: "Sueldo",
-                  value: m("92000.00"),
-                  ratio: 0.94,
-                  color: "#199e70",
-                },
-                {
-                  label: "Freelance",
-                  value: m("4760.00"),
-                  ratio: 0.05,
-                  color: "#3987e5",
-                },
-                {
-                  label: "Reintegros",
-                  value: m("1240.00"),
-                  ratio: 0.01,
-                  color: "#5d6b82",
-                },
-              ]}
-            />
-          </StatPanel>
+            </StatPanel>
+          </>
+        )}
+      </div>
+      <div className="ui05-lane-side ui05-stack">
+        <StatPanel
+          id="st-categories"
+          title="Gastos por categoría"
+          icon="budgets"
+          favorite
+        >
+          <CategoryDonut data={categories} total="52410" />
+          <a href={protoHref("estadisticas", "detalle")} className="lab-link">
+            Ver detalle por subcategoría
+            <Icon name="chevronRight" duotone={false} className="size-3.5" />
+          </a>
+        </StatPanel>
+        <StatPanel
+          id="st-smart"
+          title="Resumen inteligente"
+          icon="sparkle"
+          favorite={!all}
+        >
+          <ul className="ui05-rows">
+            <li>
+              <RowIcon name="trendDown" />
+              <div className="ui05-row__main">
+                <p className="ui05-row__title">
+                  Gastaste 34 % menos que en octubre
+                </p>
+                <p className="ui05-row__sub">
+                  Principalmente en Hogar (−8.120,00 UYU).
+                </p>
+              </div>
+            </li>
+            <li>
+              <RowIcon name="budgets" />
+              <div className="ui05-row__main">
+                <p className="ui05-row__title">
+                  Alimentación concentra el 36 % del gasto
+                </p>
+                <p className="ui05-row__sub">
+                  18.640,00 UYU en 23 movimientos.
+                </p>
+              </div>
+            </li>
+            <li>
+              <RowIcon name="recurring" />
+              <div className="ui05-row__main">
+                <p className="ui05-row__title">
+                  Los recurrentes son el 41 % del gasto
+                </p>
+                <p className="ui05-row__sub">
+                  Alquiler, servicios y suscripciones.
+                </p>
+              </div>
+            </li>
+          </ul>
+        </StatPanel>
+        {all && (
           <StatPanel
             id="st-recurring"
             title="Gastos recurrentes"
             icon="recurring"
             favorite={false}
-            className="ui05-span-6"
           >
             <div
               className="ui05-split"
@@ -442,96 +534,8 @@ function Charts({ all }: { all: boolean }) {
               </li>
             </ul>
           </StatPanel>
-          <StatPanel
-            id="st-history"
-            title="Histórico por fecha"
-            icon="calendar"
-            favorite={false}
-            className="ui05-span-12"
-          >
-            <p className="lab-muted text-sm">
-              Saldos, reservas y deudas al cierre del día según los registros
-              disponibles. Se aplica el filtro de moneda.
-            </p>
-            <table className="ui05-table ui05-table--stack">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th className="is-num">Banco</th>
-                  <th className="is-num">Reservado</th>
-                  <th className="is-num">Disponible</th>
-                  <th className="is-num">Deuda de tarjetas</th>
-                  <th className="is-num">Patrimonio registrado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  [
-                    "30/09",
-                    "●",
-                    "214.300,00",
-                    "112.000,00",
-                    "102.300,00",
-                    "31.900,00",
-                    "182.400,00",
-                  ],
-                  [
-                    "31/10",
-                    "○",
-                    "228.910,00",
-                    "116.200,00",
-                    "112.710,00",
-                    "26.110,00",
-                    "202.800,00",
-                  ],
-                  [
-                    "15/11",
-                    "●",
-                    "236.130,00",
-                    "118.500,00",
-                    "117.630,00",
-                    "24.570,30",
-                    "211.559,70",
-                  ],
-                ].map(([date, dot, bank, reserved, free, debt, worth]) => (
-                  <tr key={date}>
-                    <td data-label="Fecha" className="lab-muted">
-                      {date}
-                    </td>
-                    <td data-label="Banco" className="is-num">
-                      <span
-                        aria-label={dot === "●" ? "Confirmado" : "Calculado"}
-                      >
-                        {dot}
-                      </span>{" "}
-                      {bank}
-                    </td>
-                    <td data-label="Reservado" className="is-num">
-                      {reserved}
-                    </td>
-                    <td data-label="Disponible" className="is-num">
-                      {free}
-                    </td>
-                    <td data-label="Deuda de tarjetas" className="is-num">
-                      {debt}
-                    </td>
-                    <td
-                      data-label="Patrimonio"
-                      className="is-num font-semibold"
-                    >
-                      {worth}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="lab-muted text-xs">
-              En Banco, un punto lleno indica un saldo confirmado y un punto
-              hueco, un saldo calculado. Importes en UYU.
-            </p>
-          </StatPanel>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
