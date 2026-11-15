@@ -249,10 +249,12 @@ test("F2-02 CA-020/021: compra y pago parcial y total de crédito sin duplicar g
     await expect(money("Gastos del mes")).toHaveText("3.020,00 UYU");
 
     await page.goto("/tarjetas");
+    await page.getByLabel("Más acciones de Visa F2-02").click();
     await open("Actualizar deuda");
     await page.getByLabel("Total confirmado").fill("1800.0001");
     await open("Actualizar deuda");
     await balance("1.800,00 UYU");
+    await page.getByLabel("Más acciones de Visa F2-02").click();
     await open("Registrar compra");
     await page.getByLabel("Importe cargado por el emisor").fill("50");
     await page

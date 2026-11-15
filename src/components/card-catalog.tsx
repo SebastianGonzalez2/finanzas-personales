@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { FundSource } from "@/domain/fund-coverage";
 import {
   bankCurrencies,
@@ -28,16 +34,21 @@ import {
 } from "./credit-operation-form";
 import type { MovementTag } from "@/domain/classification";
 import { useFinancialCommand } from "./financial-command";
-import { Card } from "./ui/card";
-
-const button =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60";
-const primary = `${button} border-primary bg-primary text-primary-foreground hover:bg-primary/85`;
-const control =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
+import { ActionMenu } from "./glaciar/action-menu";
+import {
+  EmptyState,
+  FormFoot,
+  FormPanel,
+  FormSection,
+  PageHead,
+  RowIcon,
+} from "./glaciar/screen";
+import { Panel } from "./glaciar-summary/panel";
+import { Button, buttonClass } from "./ui/button";
+import { Field, Input, Select } from "./ui/field";
+import { Icon } from "./ui/icon";
 
 type Operation = { card: CatalogCard; action: CreditAction };
-const creditActions = ["purchase", "payment", "adjustment"] as const;
 
 export function CardCatalog({
   cards,
@@ -53,6 +64,7 @@ export function CardCatalog({
   cyclesReady,
   mixedReady,
   plans,
+  aside,
 }: {
   cards: CatalogCard[];
   today: string;
@@ -67,6 +79,7 @@ export function CardCatalog({
   cyclesReady: boolean;
   mixedReady: boolean;
   plans: InstallmentSummary[];
+  aside?: ReactNode;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<CatalogCard | Operation | "new" | null>(
@@ -74,14 +87,11 @@ export function CardCatalog({
   );
   const [message, setMessage] = useState("");
   const add = useRef<HTMLButtonElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLElement>(null);
   const active = cards.filter((card) => !card.archived);
   const archived = cards.filter((card) => card.archived);
 
-  function open(
-    card: CatalogCard | Operation | "new",
-    from: HTMLButtonElement,
-  ) {
+  function open(card: CatalogCard | Operation | "new", from: HTMLElement) {
     trigger.current = from;
     setMessage("");
     setEditor(card);
@@ -99,23 +109,35 @@ export function CardCatalog({
     });
   }
 
+  const operate = creditReady
+    ? (card: CatalogCard) => (action: CreditAction, from: HTMLElement) =>
+        open({ card, action }, from)
+    : undefined;
+
   return (
     <>
+      <PageHead
+        eyebrow="Crédito"
+        title="Tarjetas"
+        description="Gestioná tus tarjetas de débito y crédito por moneda."
+        actions={
+          <Button
+            ref={add}
+            variant="primary"
+            disabled={editor !== null}
+            onClick={(event) => open("new", event.currentTarget)}
+          >
+            <Icon name="plus" duotone={false} className="size-4" />
+            Agregar tarjeta
+          </Button>
+        }
+      />
       <p role="status" className={message ? "text-sm" : "sr-only"}>
         {message}
       </p>
-      <button
-        ref={add}
-        type="button"
-        className={`${primary} justify-self-start`}
-        disabled={editor !== null}
-        onClick={(event) => open("new", event.currentTarget)}
-      >
-        Agregar tarjeta
-      </button>
       {editor &&
         (typeof editor === "object" && "action" in editor ? (
-          <Card className="p-4 sm:p-5">
+          <div className="gs-form">
             <CreditOperationForm
               action={editor.action}
               cards={[editor.card]}
@@ -136,7 +158,7 @@ export function CardCatalog({
               installmentsReady={installmentsReady}
               close={close}
             />
-          </Card>
+          </div>
         ) : (
           <CardEditor
             card={editor === "new" ? undefined : editor}
@@ -145,219 +167,355 @@ export function CardCatalog({
             creditReady={creditReady}
           />
         ))}
-      <section aria-labelledby="tarjetas-activas" className="grid gap-3">
-        <h2 id="tarjetas-activas" className="font-semibold">
-          Activas
-        </h2>
-        {active.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Todavía no tenés tarjetas activas.
-          </p>
-        ) : (
-          <ul className="grid gap-3 xl:grid-cols-2">
-            {active.map((card) => (
-              <CardEntry
-                key={card.id}
-                card={card}
-                plans={plans.filter(({ cardId }) => cardId === card.id)}
-                today={today}
-                cyclesReady={cyclesReady}
-                editDisabled={editor !== null}
-                edit={(from) => open(card, from)}
-                operate={
-                  creditReady
-                    ? (action, from) => open({ card, action }, from)
-                    : undefined
-                }
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-      {archived.length > 0 && (
-        <details
-          className="rounded-lg border p-4"
-          open={message === "Tarjeta archivada." || undefined}
-        >
-          <summary className="cursor-pointer font-semibold">
-            Archivadas ({archived.length})
-          </summary>
-          <ul className="mt-3 grid gap-3 xl:grid-cols-2">
-            {archived.map((card) => (
-              <CardEntry
-                key={card.id}
-                card={card}
-                plans={plans.filter(({ cardId }) => cardId === card.id)}
-                today={today}
-                cyclesReady={cyclesReady}
-                editDisabled={editor !== null}
-                operate={
-                  creditReady
-                    ? (action, from) => open({ card, action }, from)
-                    : undefined
-                }
-              />
-            ))}
-          </ul>
-        </details>
-      )}
+      <div className="gs-grid">
+        <div className="gs-span-8 gs-stack">
+          <section aria-labelledby="tarjetas-activas" className="gs-stack">
+            <h2 id="tarjetas-activas" className="lab-panel__title">
+              Activas
+              <span className="lab-tag lab-tag--neutral">{active.length}</span>
+            </h2>
+            {active.length === 0 ? (
+              <EmptyState
+                icon="cards"
+                title="Todavía no tenés tarjetas activas"
+              >
+                Agregá tus tarjetas de crédito para seguir deuda, cierres y
+                vencimientos, y las de débito para registrar gastos desde
+                Bancos.
+              </EmptyState>
+            ) : (
+              <ul className="b-cards">
+                {active.map((card, index) => (
+                  <CardTile
+                    key={card.id}
+                    card={card}
+                    teal={index % 2 === 1}
+                    cyclesReady={cyclesReady}
+                    editDisabled={editor !== null}
+                    edit={(from) => open(card, from)}
+                    operate={operate?.(card)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+          {plans.length > 0 && (
+            <InstallmentsPanel plans={plans} cards={cards} today={today} />
+          )}
+        </div>
+        <div className="gs-span-4 gs-stack">
+          {aside}
+          {archived.length > 0 && (
+            <ArchivedPanel
+              cards={archived}
+              open={message === "Tarjeta archivada."}
+              cyclesReady={cyclesReady}
+              editDisabled={editor !== null}
+              operate={operate}
+            />
+          )}
+        </div>
+      </div>
     </>
   );
 }
 
-function CardEntry({
+function CardTile({
   card,
-  plans,
-  today,
+  teal,
   cyclesReady,
   edit,
   editDisabled,
   operate,
 }: {
   card: CatalogCard;
-  plans: InstallmentSummary[];
-  today: string;
+  teal: boolean;
   cyclesReady: boolean;
-  edit?: (from: HTMLButtonElement) => void;
-  editDisabled?: boolean;
-  operate?: (action: CreditAction, from: HTMLButtonElement) => void;
+  edit: (from: HTMLElement) => void;
+  editDisabled: boolean;
+  operate?: (action: CreditAction, from: HTMLElement) => void;
 }) {
+  const credit = card.kind === "credit";
   return (
-    <li className="min-w-0">
-      <Card className="gap-3 p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold wrap-anywhere">{card.name}</h3>
-            <p className="text-sm wrap-anywhere text-muted-foreground">
-              {cardKinds[card.kind]}
-              {card.issuer && ` · ${card.issuer}`}
-            </p>
-          </div>
-          {edit && (
+    <li
+      className={`b-card ${credit && teal ? "b-card--teal" : ""} ${credit ? "" : "gs-card--debit"}`}
+    >
+      <div className="relative z-1 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold wrap-anywhere">
+            {card.name}
+          </h3>
+          {card.issuer && <p className="gs-card__issuer">{card.issuer}</p>}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="gs-card__kind">{cardKinds[card.kind]}</span>
+          <span className="b-card__chip" aria-hidden="true" />
+        </div>
+      </div>
+      {credit ? (
+        <dl className="relative z-1 grid gap-1">
+          {card.currencies.map(
+            ({ currency, limit, debt, creditBalance }) =>
+              debt !== null &&
+              creditBalance !== null && (
+                <div key={currency} className="grid gap-1">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <dt className="sr-only">Deuda registrada {currency}</dt>
+                    <dd className="b-card__debt tabular-nums">
+                      {formatBankAmount({ currency, amount: debt })}
+                    </dd>
+                  </div>
+                  <div className="gs-card__limit flex flex-wrap justify-between gap-x-3 tabular-nums">
+                    <dt>Saldo a favor registrado</dt>
+                    <dd>
+                      {formatBankAmount({ currency, amount: creditBalance })}
+                    </dd>
+                  </div>
+                  {limit && (
+                    <div className="gs-card__limit flex flex-wrap justify-between gap-x-3 tabular-nums">
+                      <dt>Límite informado</dt>
+                      <dd>{formatBankAmount({ currency, amount: limit })}</dd>
+                    </div>
+                  )}
+                </div>
+              ),
+          )}
+        </dl>
+      ) : (
+        <>
+          <p className="relative z-1 text-sm text-white/80">
+            Vinculada a Bancos por moneda.
+          </p>
+          <p className="gs-card__issuer relative z-1">
+            {card.currencies.map(({ currency }) => currency).join(" · ")}
+          </p>
+        </>
+      )}
+      <div className="gs-card__actions">
+        {credit && operate ? (
+          <>
+            {cyclesReady && (
+              <a href={`/tarjetas/${card.id}/resumen`}>
+                Resúmenes y ciclos
+                <Icon
+                  name="chevronRight"
+                  duotone={false}
+                  className="size-3.5"
+                />
+              </a>
+            )}
             <button
               type="button"
               disabled={editDisabled}
-              className={button}
-              aria-label={`Editar ${card.name}`}
-              onClick={(event) => edit(event.currentTarget)}
+              onClick={(event) => operate("payment", event.currentTarget)}
             >
-              Editar
+              {creditActionLabels.payment}
             </button>
-          )}
-        </div>
-        {card.kind === "debit" && (
-          <p className="text-sm text-muted-foreground">
-            Vinculada a Bancos por moneda.
-          </p>
+            <ActionMenu
+              label={`Más acciones de ${card.name}`}
+              items={[
+                {
+                  label: creditActionLabels.purchase,
+                  disabled: editDisabled,
+                  onSelect: (from) => operate("purchase", from),
+                },
+                {
+                  label: creditActionLabels.adjustment,
+                  disabled: editDisabled,
+                  onSelect: (from) => operate("adjustment", from),
+                },
+                {
+                  label: "Editar tarjeta",
+                  ariaLabel: `Editar ${card.name}`,
+                  disabled: editDisabled,
+                  onSelect: edit,
+                },
+              ]}
+            />
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={editDisabled}
+            aria-label={`Editar ${card.name}`}
+            onClick={(event) => edit(event.currentTarget)}
+          >
+            Editar
+          </button>
         )}
-        <ul aria-label="Monedas de la tarjeta" className="divide-y border-t">
-          {card.currencies.map(({ currency, limit, debt, creditBalance }) => (
-            <li
-              key={currency}
-              className="grid gap-1 py-2 text-sm sm:grid-cols-[auto_1fr] sm:gap-3"
-            >
-              <span className="font-semibold">{currency}</span>
-              {debt !== null && creditBalance !== null && (
-                <dl className="grid gap-1">
-                  <CardAmount
-                    label="Deuda registrada"
-                    amount={formatBankAmount({ currency, amount: debt })}
-                  />
-                  <CardAmount
-                    label="Saldo a favor registrado"
-                    amount={formatBankAmount({
-                      currency,
-                      amount: creditBalance,
-                    })}
-                  />
-                  {limit && (
-                    <CardAmount
-                      label="Límite informado"
-                      amount={formatBankAmount({ currency, amount: limit })}
-                    />
-                  )}
-                </dl>
-              )}
-            </li>
-          ))}
-        </ul>
-        {plans.length > 0 && (
-          <details className="rounded-lg border p-3 text-sm">
-            <summary className="cursor-pointer font-semibold">
-              Compras en cuotas ({plans.length})
-            </summary>
-            <ul className="mt-2 divide-y">
-              {plans.map((plan) => {
-                const future = futureInstallmentPeriods(plan, today).length;
-                return (
-                  <li key={plan.id} className="py-2 wrap-anywhere">
-                    <a
-                      href={`/historial/movimientos/${plan.id}`}
-                      className="font-semibold underline"
-                    >
-                      {plan.concept}
-                    </a>
-                    <p>
-                      {plan.count} ×{" "}
-                      {formatBankAmount({
-                        currency: plan.currency,
-                        amount: plan.installmentAmount,
-                      })}{" "}
-                      · Total financiado{" "}
-                      {formatInstallmentTotal(plan, plan.currency)}
-                    </p>
-                    <p>
-                      De {formatInstallmentPeriod(plan.firstPeriod)} a{" "}
-                      {formatInstallmentPeriod(
-                        installmentPeriodAt(plan.firstPeriod, plan.count - 1),
-                      )}
-                    </p>
-                    <p>
-                      {future} futuras · Compromiso futuro{" "}
-                      {formatInstallmentTotal(plan, plan.currency, future)}
-                    </p>
-                    {plan.count > plan.activeCount && (
-                      <p>
-                        {plan.count - plan.activeCount} canceladas por el emisor
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        )}
-        {card.kind === "credit" && operate && (
-          <div className="flex flex-wrap gap-2">
-            {cyclesReady && (
-              <a className={button} href={`/tarjetas/${card.id}/resumen`}>
-                Resúmenes y ciclos
-              </a>
-            )}
-            {creditActions
-              .filter((action) => !card.archived || action !== "purchase")
-              .map((action) => (
-                <button
-                  key={action}
-                  type="button"
-                  className={button}
-                  disabled={editDisabled}
-                  onClick={(event) => operate(action, event.currentTarget)}
-                >
-                  {creditActionLabels[action]}
-                </button>
-              ))}
-          </div>
-        )}
-      </Card>
+      </div>
     </li>
   );
 }
 
-function CardAmount({ label, amount }: { label: string; amount: string }) {
+function InstallmentsPanel({
+  plans,
+  cards,
+  today,
+}: {
+  plans: InstallmentSummary[];
+  cards: CatalogCard[];
+  today: string;
+}) {
+  return (
+    <Panel
+      id="compras-en-cuotas"
+      title={`Compras en cuotas (${plans.length})`}
+      icon="calendar"
+    >
+      <ul className="gs-rows">
+        {plans.map((plan) => {
+          const future = futureInstallmentPeriods(plan, today).length;
+          return (
+            <li key={plan.id}>
+              <RowIcon name="cards" />
+              <div className="gs-row__main">
+                <a
+                  href={`/historial/movimientos/${plan.id}`}
+                  className="gs-row__title"
+                >
+                  {plan.concept}
+                </a>
+                <p className="gs-row__sub">
+                  {cards.find(({ id }) => id === plan.cardId)?.name}
+                </p>
+                <p className="gs-row__sub">
+                  {plan.count} ×{" "}
+                  {formatBankAmount({
+                    currency: plan.currency,
+                    amount: plan.installmentAmount,
+                  })}{" "}
+                  · Total financiado{" "}
+                  {formatInstallmentTotal(plan, plan.currency)}
+                </p>
+                <p className="gs-row__sub">
+                  De {formatInstallmentPeriod(plan.firstPeriod)} a{" "}
+                  {formatInstallmentPeriod(
+                    installmentPeriodAt(plan.firstPeriod, plan.count - 1),
+                  )}
+                </p>
+                <p className="gs-row__sub">
+                  {future} futuras · Compromiso futuro{" "}
+                  {formatInstallmentTotal(plan, plan.currency, future)}
+                </p>
+                {plan.count > plan.activeCount && (
+                  <p className="gs-row__sub">
+                    {plan.count - plan.activeCount} canceladas por el emisor
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
+function ArchivedPanel({
+  cards,
+  open,
+  cyclesReady,
+  editDisabled,
+  operate,
+}: {
+  cards: CatalogCard[];
+  open: boolean;
+  cyclesReady: boolean;
+  editDisabled: boolean;
+  operate?: (
+    card: CatalogCard,
+  ) => (action: CreditAction, from: HTMLElement) => void;
+}) {
+  return (
+    <details className="lab-panel" open={open || undefined}>
+      <summary className="lab-panel__title cursor-pointer">
+        Archivadas ({cards.length})
+      </summary>
+      <ul className="gs-rows">
+        {cards.map((card) => {
+          const run = card.kind === "credit" ? operate?.(card) : undefined;
+          return (
+            <li key={card.id} className="flex-wrap">
+              <RowIcon name="cards" />
+              <div className="gs-row__main">
+                <h3 className="gs-row__title">{card.name}</h3>
+                <p className="gs-row__sub">
+                  {cardKinds[card.kind]}
+                  {card.issuer && ` · ${card.issuer}`}
+                </p>
+                <ul aria-label="Monedas de la tarjeta" className="mt-1">
+                  {card.currencies.map(
+                    ({ currency, limit, debt, creditBalance }) => (
+                      <li key={currency} className="gs-row__sub">
+                        <span className="font-semibold">{currency}</span>
+                        {debt !== null && creditBalance !== null && (
+                          <dl className="grid gap-0.5">
+                            <ArchivedAmount
+                              label="Deuda registrada"
+                              amount={formatBankAmount({
+                                currency,
+                                amount: debt,
+                              })}
+                            />
+                            <ArchivedAmount
+                              label="Saldo a favor registrado"
+                              amount={formatBankAmount({
+                                currency,
+                                amount: creditBalance,
+                              })}
+                            />
+                            {limit && (
+                              <ArchivedAmount
+                                label="Límite informado"
+                                amount={formatBankAmount({
+                                  currency,
+                                  amount: limit,
+                                })}
+                              />
+                            )}
+                          </dl>
+                        )}
+                      </li>
+                    ),
+                  )}
+                </ul>
+                {run && (
+                  <div className="gs-actions mt-2">
+                    {cyclesReady && (
+                      <a
+                        href={`/tarjetas/${card.id}/resumen`}
+                        className="lab-link"
+                      >
+                        Resúmenes y ciclos
+                      </a>
+                    )}
+                    {(["payment", "adjustment"] as const).map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className={buttonClass("outline")}
+                        disabled={editDisabled}
+                        onClick={(event) => run(action, event.currentTarget)}
+                      >
+                        {creditActionLabels[action]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
+function ArchivedAmount({ label, amount }: { label: string; amount: string }) {
   return (
     <div className="flex flex-wrap justify-between gap-x-2">
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt>{label}</dt>
       <dd className="font-medium tabular-nums">{amount}</dd>
     </div>
   );
@@ -420,25 +578,28 @@ function CardEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2
-        id="titulo-editor-tarjeta"
-        ref={heading}
-        tabIndex={-1}
-        className="font-semibold"
-      >
-        {archive
+    <FormPanel
+      labelId="titulo-editor-tarjeta"
+      headingRef={heading}
+      title={
+        archive
           ? "Archivar tarjeta"
           : card
             ? "Editar tarjeta"
-            : "Agregar tarjeta"}
-      </h2>
+            : "Agregar tarjeta"
+      }
+      description={
+        card
+          ? undefined
+          : "Las tarjetas de crédito registran deuda por moneda; las de débito quedan vinculadas a Bancos."
+      }
+    >
       <form
         method="post"
         action="/api/cards"
         aria-labelledby="titulo-editor-tarjeta"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
         {archive ? (
           <p className="text-sm">
@@ -447,61 +608,49 @@ function CardEditor({
         ) : (
           <fieldset
             disabled={pending || uncertain}
-            className="grid min-w-0 gap-3 sm:grid-cols-2"
+            className="grid min-w-0 gap-4"
           >
-            <label className="grid gap-1 text-sm font-medium">
-              Nombre
-              <input
-                className={control}
-                name="name"
-                required
-                maxLength={100}
-                defaultValue={card?.name}
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Emisor (opcional)
-              <input
-                className={control}
-                name="issuer"
-                maxLength={100}
-                defaultValue={card?.issuer ?? ""}
-              />
-            </label>
-            {card ? (
-              <p className="text-sm">Tipo de tarjeta · {cardKinds[kind]}</p>
-            ) : (
-              <label className="grid gap-1 text-sm font-medium">
-                Tipo de tarjeta
-                <select
-                  className={control}
-                  value={kind}
-                  onChange={(event) => setKind(event.target.value as CardKind)}
-                >
-                  <option value="debit">Débito</option>
-                  <option value="credit">Crédito</option>
-                </select>
-              </label>
-            )}
-            <fieldset className="grid min-w-0 gap-2 rounded-lg border p-3 sm:col-span-2">
-              <legend className="px-1 text-sm font-medium">Monedas</legend>
-              {kind === "credit" && (
-                <p className="text-xs text-muted-foreground">
-                  Podés informar un límite por moneda con hasta cuatro
-                  decimales.
-                </p>
-              )}
-              {bankCurrencies.map((currency) => {
-                const checked = selected.includes(currency);
-                return (
-                  <div
-                    key={currency}
-                    className="grid min-w-0 gap-1 sm:grid-cols-2"
+            <div className="gs-form__grid">
+              <Field label="Nombre">
+                <Input
+                  name="name"
+                  required
+                  maxLength={100}
+                  defaultValue={card?.name}
+                />
+              </Field>
+              <Field label="Emisor (opcional)">
+                <Input
+                  name="issuer"
+                  maxLength={100}
+                  defaultValue={card?.issuer ?? ""}
+                />
+              </Field>
+              {card ? (
+                <p className="text-sm">Tipo de tarjeta · {cardKinds[kind]}</p>
+              ) : (
+                <Field label="Tipo de tarjeta">
+                  <Select
+                    value={kind}
+                    onChange={(event) =>
+                      setKind(event.target.value as CardKind)
+                    }
                   >
-                    <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <option value="debit">Débito</option>
+                    <option value="credit">Crédito</option>
+                  </Select>
+                </Field>
+              )}
+            </div>
+            <fieldset className="grid min-w-0 gap-2">
+              <legend className="ui-field__label">Monedas</legend>
+              <div className="gs-choice">
+                {bankCurrencies.map((currency) => {
+                  const checked = selected.includes(currency);
+                  return (
+                    <label key={currency}>
                       <input
                         type="checkbox"
-                        className="size-5"
                         checked={checked}
                         onChange={() =>
                           setSelected((values) =>
@@ -513,11 +662,18 @@ function CardEditor({
                       />
                       {currency}
                     </label>
-                    {kind === "credit" && checked && (
-                      <label className="grid gap-1 text-sm">
-                        Límite {currency} (opcional)
-                        <input
-                          className={control}
+                  );
+                })}
+              </div>
+            </fieldset>
+            {kind === "credit" &&
+              bankCurrencies
+                .filter((currency) => selected.includes(currency))
+                .map((currency) => (
+                  <FormSection key={currency} legend={currency}>
+                    <div className="gs-form__grid">
+                      <Field label={`Límite ${currency} (opcional)`}>
+                        <Input
                           name={`limit-${currency}`}
                           inputMode="decimal"
                           maxLength={22}
@@ -527,74 +683,61 @@ function CardEditor({
                               ?.limit?.replace(".", ",") ?? ""
                           }
                         />
-                      </label>
-                    )}
-                  </div>
-                );
-              })}
-            </fieldset>
+                      </Field>
+                      {creditReady && !card && (
+                        <Field label={`Deuda inicial ${currency}`}>
+                          <Input
+                            name={`debt-${currency}`}
+                            inputMode="decimal"
+                            maxLength={22}
+                          />
+                        </Field>
+                      )}
+                    </div>
+                  </FormSection>
+                ))}
             {creditReady &&
               !card &&
               kind === "credit" &&
               selected.length > 0 && (
-                <fieldset className="grid min-w-0 gap-2 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-2">
-                  <legend className="px-1 text-sm font-medium">
-                    Deuda inicial (opcional)
-                  </legend>
-                  <p className="text-xs text-muted-foreground sm:col-span-2">
-                    Ingresá la deuda existente a la fecha de referencia. Dejá
-                    vacío si no hay deuda en esa moneda.
-                  </p>
-                  <label className="grid gap-1 text-sm">
-                    Fecha de deuda inicial
-                    <input
-                      className={control}
+                <div className="gs-form__grid">
+                  <Field label="Fecha de deuda inicial">
+                    <Input
                       type="date"
                       name="openingOn"
                       max={today}
                       defaultValue={today}
                     />
-                  </label>
-                  {selected.map((currency) => (
-                    <label key={currency} className="grid gap-1 text-sm">
-                      Deuda inicial {currency}
-                      <input
-                        className={control}
-                        name={`debt-${currency}`}
-                        inputMode="decimal"
-                        maxLength={22}
-                      />
-                    </label>
-                  ))}
-                </fieldset>
+                  </Field>
+                </div>
               )}
+            {kind === "credit" && (
+              <p className="gs-hint">
+                Podés informar un límite por moneda con hasta cuatro decimales.
+              </p>
+            )}
+            {creditReady && !card && kind === "credit" && (
+              <p className="gs-hint">
+                Ingresá la deuda existente a la fecha de referencia. Dejá vacío
+                si no hay deuda en esa moneda.
+              </p>
+            )}
           </fieldset>
         )}
         <p role="alert" className={error ? "text-sm" : "sr-only"}>
           {error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {pending
-              ? "Guardando…"
-              : uncertain
-                ? "Reintentar guardado"
-                : archive
-                  ? "Confirmar archivo"
-                  : "Guardar tarjeta"}
-          </button>
-          <button
-            type="button"
-            className={button}
+        <FormFoot>
+          <Button
+            variant="ghost"
             disabled={pending || uncertain}
             onClick={() => close()}
           >
             Cancelar
-          </button>
+          </Button>
           {card && !archive && (
-            <button
-              type="button"
-              className={button}
+            <Button
+              className="gs-btn-danger"
               disabled={pending || uncertain}
               onClick={() => {
                 clearError();
@@ -602,10 +745,24 @@ function CardEditor({
               }}
             >
               Archivar tarjeta
-            </button>
+            </Button>
           )}
-        </div>
+          <Button
+            type="submit"
+            variant={archive ? "outline" : "primary"}
+            className={archive ? "gs-btn-danger" : undefined}
+            disabled={pending}
+          >
+            {pending
+              ? "Guardando…"
+              : uncertain
+                ? "Reintentar guardado"
+                : archive
+                  ? "Confirmar archivo"
+                  : "Guardar tarjeta"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }

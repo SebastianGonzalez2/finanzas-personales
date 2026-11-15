@@ -290,6 +290,7 @@ test("CA-027: registra EUR 50 como referencia y contabiliza USD 58 una vez", asy
     201,
   );
   await page.goto("/tarjetas");
+  await page.getByLabel(/^Más acciones de /).click();
   const register = page.getByRole("button", {
     name: "Registrar compra",
     exact: true,

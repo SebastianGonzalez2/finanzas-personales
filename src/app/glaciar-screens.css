@@ -1,0 +1,749 @@
+/* UI-05A — Kit de pantalla Glaciar (P-01, P-04, P-10). Portado de
+   src/app/prototipos/ui-05/_proto/proto.css con prefijo `gs-` y contenedor
+   `.glaciar-screen`. Solo presentación; sin `-webkit-backdrop-filter`. */
+@layer components {
+  /* ---------- Raíz de pantalla ---------- */
+  .glaciar-screen {
+    display: grid;
+    gap: 20px;
+  }
+
+  /* Paneles plegables (archivadas, cerrados): sin hueco al estar cerrados. */
+  .glaciar-screen details.lab-panel {
+    display: block;
+  }
+
+  .glaciar-screen details.lab-panel[open] > summary {
+    margin-bottom: 12px;
+  }
+
+  .glaciar-screen .f-pagehead {
+    padding-bottom: 4px;
+  }
+
+  .gs-desc {
+    max-width: 62ch;
+    margin-top: 8px;
+    color: var(--glaciar-muted);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .gs-back {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    gap: 4px;
+    color: var(--glaciar-muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .gs-back:hover {
+    color: var(--glaciar-text);
+  }
+
+  .gs-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ---------- Rejilla de 12 columnas (misma que Resumen) ---------- */
+  .gs-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  @media (min-width: 64rem) {
+    .gs-grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .gs-grid > * {
+      grid-column: span 12;
+    }
+
+    .gs-grid > .gs-span-4 {
+      grid-column: span 4;
+    }
+
+    .gs-grid > .gs-span-5 {
+      grid-column: span 5;
+    }
+
+    .gs-grid > .gs-span-6 {
+      grid-column: span 6;
+    }
+
+    .gs-grid > .gs-span-7 {
+      grid-column: span 7;
+    }
+
+    .gs-grid > .gs-span-8 {
+      grid-column: span 8;
+    }
+  }
+
+  /* M-05 — Carriles independientes (principal 8 + lateral 4) para paneles de
+     altura variable. Cada carril se apila por su cuenta, así que no quedan
+     huecos entre filas; el orden del DOM es el visual (carril principal y
+     después lateral). Por debajo de 80rem se apilan en una sola columna para
+     que las tablas del carril principal conserven ancho suficiente. */
+  @media (min-width: 80rem) {
+    .gs-grid > .gs-lane-main {
+      grid-column: span 8;
+    }
+
+    .gs-grid > .gs-lane-side {
+      grid-column: span 4;
+    }
+  }
+
+  .gs-stack {
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+  }
+
+  /* ---------- Indicadores (KPI) ---------- */
+  .gs-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  @media (min-width: 48rem) {
+    .gs-kpis {
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    }
+  }
+
+  .gs-kpi {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 18px;
+    border: 1px solid var(--glaciar-border);
+    border-radius: 16px;
+    background: var(--glaciar-glass-2);
+    box-shadow: inset 0 1px 0 var(--glaciar-highlight);
+    backdrop-filter: blur(var(--glaciar-blur-2)) saturate(140%);
+    animation: lab-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .gs-kpi--hero {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 18%, transparent);
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 1%) 45%),
+      var(--glaciar-glass-1);
+    backdrop-filter: blur(var(--glaciar-blur-1)) saturate(160%);
+  }
+
+  /* El brillo se recorta en su propia capa para que el popover pueda salir
+     de la tarjeta sin cortarse. */
+  .gs-kpi__glow {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .gs-kpi__glow::before {
+    position: absolute;
+    top: -60%;
+    right: -20%;
+    width: 70%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      var(--glaciar-glow-1),
+      var(--glaciar-glow-2) 45%,
+      transparent 68%
+    );
+    content: "";
+    filter: blur(20px);
+    pointer-events: none;
+  }
+
+  .gs-kpi:has(.gs-help__btn[aria-expanded="true"]) {
+    z-index: 5;
+  }
+
+  .gs-kpi__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .gs-kpi__value {
+    font-size: clamp(18px, 2.2vw, 24px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-kpi__value small {
+    display: block;
+    color: var(--glaciar-muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .gs-kpi__sub {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+  }
+
+  /* Estados semánticos (M-02): icono y valor con los tokens de .lab-tag; el
+     acento de borde es muy sutil y no hay resplandor exterior. */
+  .gs-kpi--good {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-good) 28%,
+      var(--glaciar-border)
+    );
+  }
+
+  .gs-kpi--warning {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-warning) 30%,
+      var(--glaciar-border)
+    );
+  }
+
+  .gs-kpi--critical {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-critical) 30%,
+      var(--glaciar-border)
+    );
+  }
+
+  .gs-kpi--good :is(.gs-kpi__label svg, .gs-kpi__value) {
+    color: var(--lab-good);
+  }
+
+  .gs-kpi--warning :is(.gs-kpi__label svg, .gs-kpi__value) {
+    color: var(--lab-warning);
+  }
+
+  .gs-kpi--critical :is(.gs-kpi__label svg, .gs-kpi__value) {
+    color: var(--lab-critical);
+  }
+
+  /* ---------- Botón «?» y popover (M-01) ---------- */
+  .gs-help {
+    display: inline-flex;
+  }
+
+  .gs-help__btn {
+    display: inline-grid;
+    width: 24px;
+    height: 24px;
+    margin: -4px 0;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--glaciar-muted);
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+
+  .gs-help__btn:hover,
+  .gs-help__btn[aria-expanded="true"] {
+    background: var(--glaciar-selected);
+    color: var(--glaciar-text);
+  }
+
+  .gs-help__pop {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: 12px;
+    background: var(--glaciar-solid);
+    box-shadow: var(--glaciar-shadow);
+    color: var(--glaciar-text);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.45;
+  }
+
+  @media (min-width: 48rem) {
+    .gs-help__pop {
+      width: max(100%, 260px);
+    }
+
+    .gs-kpi:nth-child(n + 3) .gs-help__pop {
+      right: 0;
+      left: auto;
+    }
+  }
+
+  /* ---------- Filas de lista ---------- */
+  .gs-rows {
+    display: grid;
+  }
+
+  .gs-rows > li {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--glaciar-border);
+  }
+
+  .gs-rows > li:first-child {
+    padding-top: 2px;
+  }
+
+  .gs-rows > li:last-child {
+    padding-bottom: 2px;
+    border-bottom: 0;
+  }
+
+  .gs-row__icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px solid var(--glaciar-border);
+    border-radius: 11px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--glaciar-muted);
+  }
+
+  .gs-row__icon--accent {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 20%, transparent);
+    background: color-mix(in srgb, var(--glaciar-accent) 12%, transparent);
+    color: var(--glaciar-accent);
+  }
+
+  .gs-row__main {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .gs-row__title {
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-row__sub {
+    margin-top: 2px;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-row__aside {
+    display: grid;
+    flex-shrink: 0;
+    justify-items: end;
+    gap: 4px;
+    max-width: 45%;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gs-row__amount {
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-row__amount.is-positive {
+    color: var(--amount-positive);
+  }
+
+  .gs-row__amount.is-negative {
+    color: var(--amount-negative);
+  }
+
+  /* ---------- Formularios (vidrio 3, casi opaco) ---------- */
+  .gs-form {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: var(--radius-panel);
+    background: var(--glaciar-glass-3);
+    box-shadow:
+      inset 0 1px 0 var(--glaciar-highlight),
+      var(--glaciar-shadow);
+    backdrop-filter: blur(var(--glaciar-blur-3));
+    animation: lab-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .gs-form__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .gs-form__title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .gs-form__grid {
+    display: grid;
+    gap: 14px 16px;
+  }
+
+  @media (min-width: 48rem) {
+    .gs-form__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gs-form__grid--3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .gs-form__full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .gs-form__section {
+    display: grid;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-form__section-title {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .gs-hint {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .gs-form__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-form__foot .gs-hint {
+    margin-right: auto;
+  }
+
+  .gs-choice {
+    display: grid;
+    gap: 8px;
+  }
+
+  @media (min-width: 48rem) {
+    .gs-choice {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+  }
+
+  .gs-choice label {
+    display: flex;
+    min-height: 44px;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--glaciar-border);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 2%);
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .gs-choice label:has(input:checked) {
+    border-color: color-mix(in srgb, var(--glaciar-accent) 45%, transparent);
+    background: var(--glaciar-selected);
+  }
+
+  .gs-choice input {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--glaciar-accent);
+  }
+
+  .gs-check {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+  }
+
+  .gs-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--glaciar-accent);
+  }
+
+  .ui-btn.gs-btn-danger {
+    border-color: color-mix(in srgb, var(--state-critical) 45%, transparent);
+    background: rgb(244 123 123 / 14%);
+    color: #ffd9d9;
+  }
+
+  .ui-btn.gs-btn-danger:hover:not(:disabled) {
+    background: rgb(244 123 123 / 22%);
+  }
+
+  /* ---------- Estados vacío y error ---------- */
+  .gs-empty {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 40px 16px;
+    text-align: center;
+  }
+
+  .gs-empty__icon {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    margin-bottom: 4px;
+    border: 1px solid color-mix(in srgb, var(--glaciar-accent) 22%, transparent);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--glaciar-accent) 10%, transparent);
+    color: var(--glaciar-accent);
+  }
+
+  .gs-empty__title {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .gs-empty p {
+    max-width: 46ch;
+    color: var(--glaciar-muted);
+    font-size: 14px;
+  }
+
+  .gs-empty .gs-actions {
+    justify-content: center;
+    margin-top: 6px;
+  }
+
+  /* ---------- Tarjetas dibujadas (escala de catálogo) ---------- */
+  .glaciar-screen .b-cards {
+    gap: 16px;
+  }
+
+  @media (min-width: 64rem) {
+    .glaciar-screen .gs-cards-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .glaciar-screen .b-card {
+    min-height: 196px;
+  }
+
+  .gs-card__kind {
+    padding: 2px 8px;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 999px;
+    color: rgb(255 255 255 / 85%);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .gs-card__issuer {
+    color: rgb(255 255 255 / 70%);
+    font-size: 12px;
+  }
+
+  .gs-card__limit {
+    color: rgb(255 255 255 / 75%);
+    font-size: 11px;
+  }
+
+  .gs-card--debit {
+    background: linear-gradient(
+      135deg,
+      rgb(120 140 160 / 45%),
+      rgb(60 75 90 / 45%) 60%,
+      rgb(20 26 34 / 60%)
+    );
+  }
+
+  .gs-card--archived {
+    opacity: 0.55;
+    filter: grayscale(0.6);
+  }
+
+  .gs-card__actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: auto;
+  }
+
+  @media (max-width: 39.99rem) {
+    .gs-card__actions {
+      flex-wrap: nowrap;
+    }
+
+    .gs-card__actions > a svg {
+      display: none;
+    }
+  }
+
+  .gs-card__actions a,
+  .gs-card__actions button {
+    white-space: nowrap;
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 10px;
+    border: 1px solid rgb(255 255 255 / 20%);
+    border-radius: 999px;
+    background: rgb(0 0 0 / 18%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .gs-card__actions a:hover,
+  .gs-card__actions button:hover {
+    background: rgb(0 0 0 / 30%);
+  }
+
+  /* Menú «Más acciones» (details nativo; Escape y foco del navegador). */
+  .gs-menu {
+    position: relative;
+  }
+
+  .gs-menu > summary {
+    display: inline-flex;
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(255 255 255 / 20%);
+    border-radius: 999px;
+    background: rgb(0 0 0 / 18%);
+    color: #fff;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .gs-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .glaciar-screen .b-card:has(.gs-menu[open]) {
+    z-index: 4;
+    overflow: visible;
+  }
+
+  .gs-menu__list {
+    position: absolute;
+    z-index: 5;
+    right: 0;
+    bottom: calc(100% + 6px);
+    display: grid;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: 14px;
+    background: var(--glaciar-solid);
+    box-shadow: var(--glaciar-shadow);
+  }
+
+  .gs-menu__list > :is(a, button) {
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    padding: 0 12px;
+    border-radius: 9px;
+    color: var(--glaciar-text);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .gs-menu__list > :is(a, button):hover {
+    background: var(--glaciar-hover);
+  }
+
+  .gs-menu--panel > summary {
+    border-color: var(--glaciar-border);
+    background: transparent;
+    color: var(--glaciar-muted);
+  }
+
+  .gs-menu--panel > summary:hover {
+    border-color: var(--glaciar-border-strong);
+    color: var(--glaciar-text);
+  }
+
+  .gs-menu--panel .gs-menu__list {
+    top: calc(100% + 6px);
+    bottom: auto;
+  }
+
+  .gs-card__actions .gs-menu__list > :is(a, button) {
+    display: flex;
+    min-height: 40px;
+    justify-content: flex-start;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--glaciar-text);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .gs-card__actions .gs-menu__list > :is(a, button):hover {
+    background: var(--glaciar-hover);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gs-form {
+      animation: none !important;
+    }
+  }
+}

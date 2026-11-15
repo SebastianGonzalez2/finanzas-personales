@@ -9,7 +9,7 @@ import { listCreditPurchaseOptions } from "@/server/credit-operations";
 import { creditOperationsReady } from "@/server/movements";
 import { CardCatalog } from "@/components/card-catalog";
 import { FinanceShell } from "@/components/finance-shell";
-import { Card } from "@/components/ui/card";
+import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
 import { cardsReady, listCards } from "@/server/cards";
 import { withGoogleOwner } from "@/server/google-auth";
 import { installmentsReady, listCardInstallments } from "@/server/installments";
@@ -27,6 +27,7 @@ export default async function CardsPage() {
     async (client, ownerId) => {
       if (!(await cardsReady(client)))
         return {
+          kind: "pending" as const,
           message:
             "El catálogo estará disponible cuando se actualice la base de datos.",
         };
@@ -69,38 +70,40 @@ export default async function CardsPage() {
       redirect("/auth/sign-in");
     return {
       cards: undefined,
+      kind: "error" as const,
       message: "No pudimos cargar tus tarjetas. Volvé a intentarlo.",
     };
   });
 
   return (
     <FinanceShell current="tarjetas">
-      <div className="grid gap-4">
-        <header>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Tarjetas
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Gestioná tus tarjetas de débito y crédito por moneda.
-          </p>
-        </header>
+      <Screen>
         {result.cards ? (
-          <>
-            {result.cyclesReady && (
-              <CardCycleAlerts alerts={result.alerts} today={today} />
-            )}
-            <CardCatalog {...result} cards={result.cards} today={today} />
-          </>
+          <CardCatalog
+            {...result}
+            cards={result.cards}
+            today={today}
+            aside={
+              result.cyclesReady ? (
+                <CardCycleAlerts alerts={result.alerts} today={today} />
+              ) : null
+            }
+          />
         ) : (
-          <Card className="p-4">
-            <p role="status">{result.message}</p>
-          </Card>
+          <>
+            <PageHead
+              eyebrow="Crédito"
+              title="Tarjetas"
+              description="Gestioná tus tarjetas de débito y crédito por moneda."
+            />
+            <PageNotice
+              tone={result.kind === "error" ? "critical" : "info"}
+              message={result.message}
+              retryHref={result.kind === "error" ? "/tarjetas" : undefined}
+            />
+          </>
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }
