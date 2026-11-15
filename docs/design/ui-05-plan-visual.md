@@ -83,16 +83,16 @@ Patrón común (**P-01**): encabezado con eyebrow del grupo, título, descripci�
 
 | ID | Propuesta | Tipo | Motivo |
 |---|---|---|---|
-| P-01 | Kit de pantalla común: `PageHead`, `Kpi`, `EmptyState`, `ErrorState`, `FormPanel`, `Review` + `Effects`, filas, línea de tiempo, acordeón, menú «Más acciones», zona de peligro. Pasaría a `src/components/glaciar/` y `src/app/glaciar-screens.css` (todo bajo `@layer components`). | Componente **global nuevo** (no modifica los existentes) | Coherencia entre 16 pantallas y PR más chicos |
+| P-01 | Kit de pantalla común: `PageHead`, `Kpi`, `EmptyState`, `ErrorState`, `FormPanel`, `Review` + `Effects`, filas, línea de tiempo, acordeón, menú «Más acciones», zona de peligro. Pasaría a `src/components/glaciar/` y `src/app/glaciar-screens.css` (todo bajo `@layer components`). | Componente **global nuevo** (no modifica los existentes) | Coherencia entre 16 pantallas y PR más chicos (**aplicada en UI-05A**) |
 | P-02 | Eyebrow = grupo del menú (General, Planificación, Crédito, Catálogos, Tu cuenta) | Visual | Orientación, igual que la fecha en Resumen |
 | P-03 | Paso de confirmación con «Qué cambia al confirmar» (efectos en Bancos, deuda, gastos) | Visual sobre textos existentes | Seguridad financiera: hace visible que un pago de tarjeta no duplica gasto, que el capital no es gasto, etc. |
-| P-04 | Menú «Más acciones» (`<details>`) en tarjetas y filas de presupuesto | Interacción nueva | Evitar 5 botones por tarjeta |
+| P-04 | Menú «Más acciones» (`<details>`) en tarjetas y filas de presupuesto | Interacción nueva | Evitar 5 botones por tarjeta (**aplicada en UI-05A**) |
 | P-05 | Fila de contadores de estado en Presupuestos (en rango / cerca / excedido / sin calcular) | **Dato derivado nuevo** (conteo de estados existentes) | Lectura rápida; se puede omitir |
 | P-06 | Recurrentes en lista + detalle (hoy cada serie se expande completa en una lista larga) | Reorganización | Menos saturación; mismas acciones |
 | P-07 | Estadísticas: filtro «Moneda de visualización» movido a «Más filtros» y por defecto la moneda del selector superior | **Cambio de comportamiento: decidir** | Hoy convive con el selector global (v9.46); conserva la opción «Por moneda original» |
 | P-08 | Descripciones nuevas en encabezados sin texto actual (Recurrentes, Deudas, Avisos, Etiquetas) | Textos | Coherencia; textos editables |
 | P-09 | Estados vacío con acción principal y texto explicativo en todos los módulos | Visual + textos | Hoy son frases sueltas |
-| P-10 | Botón destructivo (`ui05-btn-danger`) para archivar/eliminar/restaurar copia | Variante nueva de botón | Diferenciar acciones irreversibles |
+| P-10 | Botón destructivo (`ui05-btn-danger`) para archivar/eliminar/restaurar copia | Variante nueva de botón | Diferenciar acciones irreversibles (**aplicada en UI-05A**) |
 
 Los prototipos muestran algunas cifras derivadas solo como ejemplo (p. ej. «faltan N días», conteos): al implementar, **solo se muestran datos que la app ya calcula**; lo demás se consulta o se omite.
 
