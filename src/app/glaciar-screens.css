@@ -1292,6 +1292,174 @@
     list-style: disc;
   }
 
+  /* ---------- UI-05D · Estadísticas ---------- */
+  .gs-filterbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 12px;
+  }
+
+  @media (min-width: 64rem) {
+    .gs-filterbar {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    }
+  }
+
+  .gs-filterbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    grid-column: 1 / -1;
+  }
+
+  @media (min-width: 64rem) {
+    .gs-filterbar__actions {
+      grid-column: auto;
+    }
+  }
+
+  .gs-filterbar__more {
+    margin-top: 12px;
+  }
+
+  .gs-filterbar__more > summary {
+    display: inline-flex;
+    min-height: 44px;
+    cursor: pointer;
+    align-items: center;
+    gap: 8px;
+    color: var(--glaciar-text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .gs-filterbar__more[open] > summary {
+    margin-bottom: 8px;
+  }
+
+  .gs-filterbar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-viewtabs .ui-segment__option {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .gs-viewtabs .ui-segment__option[aria-current="page"] {
+    background: rgb(255 255 255 / 10%);
+    color: var(--glaciar-text);
+    font-weight: 700;
+  }
+
+  .gs-star[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--state-warning) 40%, transparent);
+    color: var(--state-warning);
+  }
+
+  .gs-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--glaciar-muted);
+    font-size: 13px;
+  }
+
+  .gs-crumbs a {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .gs-crumbs [aria-current] {
+    color: var(--glaciar-text);
+    font-weight: 600;
+  }
+
+  .gs-hbars {
+    display: grid;
+    gap: 14px;
+  }
+
+  .gs-hbars > li {
+    display: grid;
+    gap: 6px;
+  }
+
+  .gs-hbars__head {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .gs-hbars__track {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--glaciar-track);
+  }
+
+  .gs-hbars__track > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    animation: lab-fill 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  /* Tooltip por teclado/hover de los gráficos mensuales (sin JS). */
+  .gs-chart__value,
+  .gs-chart__band {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .gs-chart__band {
+    fill: var(--glaciar-selected);
+  }
+
+  .gs-chart__value {
+    fill: var(--glaciar-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  svg g:hover > .gs-chart__value,
+  svg g:focus-visible > .gs-chart__value,
+  svg g:hover > .gs-chart__band,
+  svg g:focus-visible > .gs-chart__band {
+    opacity: 1;
+  }
+
+  svg:has(g:focus-visible) g[tabindex]:not(:focus-visible) {
+    opacity: 0.55;
+  }
+
+  svg g[tabindex]:focus-visible {
+    outline: 2px solid var(--glaciar-text);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gs-hbars__track > span {
+      animation: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gs-form {
       animation: none !important;

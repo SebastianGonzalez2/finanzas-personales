@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Card } from "./ui/card";
+import { Icon, type IconName } from "./ui/icon";
+import { ChartLegend } from "./glaciar-summary/charts";
 import {
   amountUnits,
   chartScale,
@@ -86,6 +87,16 @@ function completeMonths(
   );
 }
 
+const chartIcons: Record<StatisticsChartId, IconName> = {
+  metrics: "stats",
+  "income-expense": "trendUp",
+  "expense-categories": "expense",
+  "income-categories": "income",
+  methods: "cards",
+  history: "calendar",
+  summary: "sparkle",
+};
+
 export function StatisticsChartCard({
   chart,
   favorite,
@@ -100,18 +111,25 @@ export function StatisticsChartCard({
   children: ReactNode;
 }) {
   return (
-    <Card id={`estadisticas-${chart}`} className="min-w-0 gap-4 p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold">{title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
+    <section
+      id={`estadisticas-${chart}`}
+      aria-labelledby={`estadisticas-${chart}-titulo`}
+      className="lab-panel min-w-0"
+    >
+      <header className="lab-panel__head">
+        <h2 id={`estadisticas-${chart}-titulo`} className="lab-panel__title">
+          <span className="lab-panel__icon" aria-hidden="true">
+            <Icon name={chartIcons[chart]} className="size-4" />
+          </span>
+          {title}
+        </h2>
         {favorite !== undefined && (
           <StatisticsFavoriteButton chart={chart} favorite={favorite} />
         )}
-      </div>
+      </header>
+      <p className="lab-muted text-sm">{description}</p>
       {children}
-    </Card>
+    </section>
   );
 }
 
@@ -122,26 +140,28 @@ type BarRow = {
   currency: Currency;
   href?: string;
   detail?: string;
+  tone?: "income" | "expense";
 };
 
 export function StatisticsBarList({
   rows,
   empty,
   label,
+  tone = "expense",
 }: {
   rows: BarRow[];
   empty: string;
   label: string;
+  tone?: "income" | "expense";
 }) {
-  if (!rows.length)
-    return <p className="text-sm text-muted-foreground">{empty}</p>;
+  if (!rows.length) return <p className="lab-muted text-sm">{empty}</p>;
   const widths = chartScale(rows.map(({ amount }) => amount));
   return (
-    <ul aria-label={label} className="grid gap-3">
+    <ul aria-label={label} className="gs-hbars">
       {rows.map((row, index) => (
-        <li key={row.key} className="grid gap-1">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className="min-w-0 wrap-anywhere text-sm font-medium">
+        <li key={row.key}>
+          <div className="gs-hbars__head">
+            <span className="min-w-0 wrap-anywhere font-medium">
               {row.href ? (
                 <Link
                   href={row.href}
@@ -153,22 +173,19 @@ export function StatisticsBarList({
                 row.label
               )}
             </span>
-            <span className="text-sm tabular-nums">
+            <span className="tabular-nums">
               {formatStatisticsAmount(row.amount, row.currency)}
             </span>
           </div>
-          <div
-            aria-hidden="true"
-            className="h-2 overflow-hidden rounded-full bg-muted"
-          >
-            <div
-              className="h-full rounded-full bg-primary"
-              style={{ width: `${widths[index]}%` }}
+          <div aria-hidden="true" className="gs-hbars__track">
+            <span
+              style={{
+                width: `${widths[index]}%`,
+                background: `var(--data-${row.tone ?? tone})`,
+              }}
             />
           </div>
-          {row.detail && (
-            <p className="text-xs text-muted-foreground">{row.detail}</p>
-          )}
+          {row.detail && <p className="lab-muted text-xs">{row.detail}</p>}
         </li>
       ))}
     </ul>
@@ -185,22 +202,20 @@ function ChartTable({
   rows: string[][];
 }) {
   return (
-    <details className="mt-2">
-      <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
-        Ver datos
-      </summary>
+    <details className="lab-table-toggle mt-2">
+      <summary>Ver datos</summary>
       <div
         role="region"
         aria-label={caption}
         tabIndex={0}
         className="overflow-x-auto"
       >
-        <table className="w-full min-w-80 text-left text-sm">
+        <table className="lab-mini-table w-full min-w-80 text-left">
           <caption className="sr-only">{caption}</caption>
           <thead>
-            <tr className="border-b">
+            <tr>
               {headings.map((heading) => (
-                <th key={heading} scope="col" className="py-2 pr-3 font-medium">
+                <th key={heading} scope="col">
                   {heading}
                 </th>
               ))}
@@ -208,12 +223,9 @@ function ChartTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.join("|")} className="border-b last:border-0">
+              <tr key={row.join("|")}>
                 {row.map((cell, index) => (
-                  <td
-                    key={`${index}-${cell}`}
-                    className="py-2 pr-3 tabular-nums"
-                  >
+                  <td key={`${index}-${cell}`} className="tabular-nums">
                     {cell}
                   </td>
                 ))}
@@ -269,7 +281,7 @@ export function StatisticsMonthlyChart({
   const rows = completeMonths(months, currency, range);
   if (!rows.length)
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="lab-muted text-sm">
         Sin datos para comparar en el período.
       </p>
     );
@@ -292,26 +304,12 @@ export function StatisticsMonthlyChart({
   const descriptionId = `statistics-monthly-${currency}-description`;
   return (
     <figure className="grid gap-2">
-      <div className="flex flex-wrap gap-4 text-sm" aria-label="Leyenda">
-        <span className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-3 rounded-sm bg-emerald-300"
-          />
-          Ingresos
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-3 rounded-sm bg-rose-300"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(135deg, transparent 0 2px, rgb(0 0 0 / 0.45) 2px 3px)",
-            }}
-          />
-          Gastos
-        </span>
-      </div>
+      <ChartLegend
+        items={[
+          { label: "Ingresos", color: "var(--data-income)" },
+          { label: "Gastos", color: "var(--data-expense)" },
+        ]}
+      />
       <ChartPlot
         labelledBy={`${titleId} ${descriptionId}`}
         width={width}
@@ -330,13 +328,13 @@ export function StatisticsMonthlyChart({
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width="6" height="6" className="fill-rose-300" />
+            <rect width="6" height="6" className="fill-expense" />
             <line
               x1="0"
               y1="0"
               x2="0"
               y2="6"
-              className="stroke-background"
+              stroke="var(--glaciar-bg, #0b1220)"
               strokeWidth="2"
             />
           </pattern>
@@ -346,7 +344,7 @@ export function StatisticsMonthlyChart({
           y1={height - bottom}
           x2={width - 12}
           y2={height - bottom}
-          className="stroke-border"
+          className="stroke-(--glaciar-border)"
         />
         {rows.map((row, index) => {
           const x = left + index * slot + slot / 2;
@@ -357,14 +355,14 @@ export function StatisticsMonthlyChart({
                 tabIndex={0}
                 role="img"
                 aria-label={`${row.label}: sin datos`}
-                className="outline-offset-4"
+                className="outline-none"
               >
                 <title>{row.label}: sin datos</title>
                 <text
                   x={x}
                   y={height - bottom - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[0.9375rem]"
+                  className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
                   Sin datos
                 </text>
@@ -372,7 +370,7 @@ export function StatisticsMonthlyChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[0.9375rem]"
+                  className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -387,15 +385,23 @@ export function StatisticsMonthlyChart({
               tabIndex={0}
               role="img"
               aria-label={groupLabel}
-              className="outline-offset-4"
+              className="outline-none"
             >
               <title>{groupLabel}</title>
+              <rect
+                className="gs-chart__band"
+                x={x - slot / 2}
+                y={top}
+                width={slot}
+                height={scaleHeight}
+                rx={6}
+              />
               <rect
                 x={x - bar - 2}
                 y={height - bottom - incomeHeight}
                 width={bar}
                 height={incomeHeight}
-                className="fill-emerald-300"
+                className="fill-income"
               />
               <rect
                 x={x + 2}
@@ -408,7 +414,7 @@ export function StatisticsMonthlyChart({
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[0.9375rem]"
+                className="fill-(--glaciar-muted) text-[0.9375rem]"
               >
                 {shortMonthLabel(row.period)}
               </text>
@@ -419,11 +425,24 @@ export function StatisticsMonthlyChart({
                     height - bottom - Math.max(incomeHeight, expenseHeight) - 5
                   }
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[0.9375rem]"
+                  className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
                   Incompleto
                 </text>
               )}
+              <text
+                className="gs-chart__value"
+                x={x}
+                y={top + 14}
+                textAnchor="middle"
+              >
+                <tspan x={x}>
+                  {formatStatisticsAmount(row.income, currency)}
+                </tspan>
+                <tspan x={x} dy="1.25em">
+                  {formatStatisticsAmount(row.expense, currency)}
+                </tspan>
+              </text>
             </g>
           );
         })}
@@ -458,7 +477,7 @@ export function StatisticsHistoryChart({
   const rows = completeMonths(months, currency, range);
   if (!rows.length)
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="lab-muted text-sm">
         Sin datos históricos para este período.
       </p>
     );
@@ -496,7 +515,7 @@ export function StatisticsHistoryChart({
           y1={middle}
           x2={width - 12}
           y2={middle}
-          className="stroke-border"
+          className="stroke-(--glaciar-border)"
         />
         {rows.map((row, index) => {
           const x = left + index * slot + slot / 2;
@@ -507,14 +526,14 @@ export function StatisticsHistoryChart({
                 tabIndex={0}
                 role="img"
                 aria-label={`${row.label}: sin datos`}
-                className="outline-offset-4"
+                className="outline-none"
               >
                 <title>{row.label}: sin datos</title>
                 <text
                   x={x}
                   y={middle - 6}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[0.9375rem]"
+                  className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
                   Sin datos
                 </text>
@@ -522,7 +541,7 @@ export function StatisticsHistoryChart({
                   x={x}
                   y={height - 12}
                   textAnchor="middle"
-                  className="fill-muted-foreground text-[0.9375rem]"
+                  className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
                   {shortMonthLabel(row.period)}
                 </text>
@@ -538,23 +557,44 @@ export function StatisticsHistoryChart({
               tabIndex={0}
               role="img"
               aria-label={label}
-              className="outline-offset-4"
+              className="outline-none"
             >
               <title>{label}</title>
+              <rect
+                className="gs-chart__band"
+                x={x - slot / 2}
+                y={top}
+                width={slot}
+                height={height - top - bottom}
+                rx={6}
+              />
               <rect
                 x={x - bar / 2}
                 y={positive ? middle - barHeight : middle}
                 width={bar}
                 height={barHeight}
-                className={positive ? "fill-emerald-300" : "fill-rose-300"}
+                className={positive ? "fill-income" : "fill-expense"}
               />
               <text
                 x={x}
                 y={height - 12}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[0.9375rem]"
+                className="fill-(--glaciar-muted) text-[0.9375rem]"
               >
                 {shortMonthLabel(row.period)}
+              </text>
+              <text
+                className="gs-chart__value"
+                x={x}
+                y={top + 14}
+                textAnchor="middle"
+              >
+                <tspan x={x}>
+                  {formatStatisticsAmount(row.income, currency)}
+                </tspan>
+                <tspan x={x} dy="1.25em">
+                  {formatStatisticsAmount(row.expense, currency)}
+                </tspan>
               </text>
             </g>
           );
@@ -618,6 +658,7 @@ export function StatisticsCategoryBars({
     }));
   return (
     <StatisticsBarList
+      tone={kind}
       rows={rows}
       empty="Sin categorías con movimientos en el período."
       label={`${kind === "expense" ? "Gastos" : "Ingresos"} por categoría en ${currency}`}
@@ -654,6 +695,7 @@ export function StatisticsMethodBars({
     }));
   return (
     <StatisticsBarList
+      tone={kind}
       rows={rows}
       empty="Sin medios de pago registrados en el período."
       label={`${kind === "expense" ? "Gastos" : "Ingresos"} por medio en ${currency}`}

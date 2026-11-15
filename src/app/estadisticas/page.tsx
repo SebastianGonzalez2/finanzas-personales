@@ -4,8 +4,13 @@ import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { StatisticsDashboard } from "@/components/statistics-dashboard";
 import { StatisticsFiltersForm } from "@/components/statistics-filters";
-import { Card } from "@/components/ui/card";
-import { historyButton } from "@/components/history-fields";
+import {
+  EmptyState,
+  PageHead,
+  PageNotice,
+  Screen,
+} from "@/components/glaciar/screen";
+import { buttonClass } from "@/components/ui/button";
 import { ExchangeRateDetails } from "@/components/exchange-rate-details";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import {
@@ -36,19 +41,19 @@ export default async function StatisticsPage({
   if ("error" in parsed)
     return (
       <FinanceShell current="estadisticas">
-        <Card className="items-start gap-3 p-4">
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Estadísticas
-          </h1>
-          <p role="alert">{parsed.error}</p>
-          <Link href="/estadisticas" className={historyButton}>
-            Volver a estadísticas
-          </Link>
-        </Card>
+        <Screen>
+          <PageHead eyebrow="General" title="Estadísticas" />
+          <section className="lab-panel">
+            <div className="b-notice b-notice--critical" role="alert">
+              <p className="min-w-0 font-medium">{parsed.error}</p>
+            </div>
+            <div className="gs-actions">
+              <Link href="/estadisticas" className={buttonClass("outline")}>
+                Volver a estadísticas
+              </Link>
+            </div>
+          </section>
+        </Screen>
       </FinanceShell>
     );
 
@@ -126,25 +131,26 @@ export default async function StatisticsPage({
   if (!data.ready)
     return (
       <FinanceShell current="estadisticas">
-        <div className="grid gap-4">
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Estadísticas
-          </h1>
-          <Card className="items-start gap-3 p-4">
-            <p role="status">
-              {"message" in data
-                ? data.message
-                : "Las estadísticas estarán disponibles cuando se actualice la base de datos."}
-            </p>
-            <Link href="/resumen" className={historyButton}>
+        <Screen>
+          <PageHead eyebrow="General" title="Estadísticas" />
+          {"message" in data ? (
+            <PageNotice
+              tone="critical"
+              message={data.message}
+              retryHref="/estadisticas"
+            />
+          ) : (
+            <PageNotice
+              tone="info"
+              message="Las estadísticas estarán disponibles cuando se actualice la base de datos."
+            />
+          )}
+          <div className="gs-actions">
+            <Link href="/resumen" className={buttonClass("outline")}>
               Volver al resumen
             </Link>
-          </Card>
-        </div>
+          </div>
+        </Screen>
       </FinanceShell>
     );
 
@@ -156,35 +162,32 @@ export default async function StatisticsPage({
 
   return (
     <FinanceShell current="estadisticas">
-      <div className="grid gap-4">
-        <header>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Estadísticas
-          </h1>
-        </header>
-        <nav
-          aria-label="Vistas de estadísticas"
-          className="flex flex-wrap gap-2"
-        >
-          <Link
-            href={`/estadisticas${favoriteSearch}`}
-            aria-current={view === "favoritos" ? "page" : undefined}
-            className={`${historyButton} ${view === "favoritos" ? "bg-muted font-bold" : ""}`}
-          >
-            Mis favoritos
-          </Link>
-          <Link
-            href={`/estadisticas${allSearch}`}
-            aria-current={view === "todas" ? "page" : undefined}
-            className={`${historyButton} ${view === "todas" ? "bg-muted font-bold" : ""}`}
-          >
-            Todas las estadísticas
-          </Link>
-        </nav>
+      <Screen>
+        <PageHead
+          eyebrow="General"
+          title="Estadísticas"
+          actions={
+            <nav
+              aria-label="Vistas de estadísticas"
+              className="ui-segment gs-viewtabs"
+            >
+              <Link
+                href={`/estadisticas${favoriteSearch}`}
+                aria-current={view === "favoritos" ? "page" : undefined}
+                className="ui-segment__option"
+              >
+                Mis favoritos
+              </Link>
+              <Link
+                href={`/estadisticas${allSearch}`}
+                aria-current={view === "todas" ? "page" : undefined}
+                className="ui-segment__option"
+              >
+                Todas las estadísticas
+              </Link>
+            </nav>
+          }
+        />
         <StatisticsFiltersForm
           key={statisticsSearch(filters)}
           filters={filters}
@@ -194,44 +197,51 @@ export default async function StatisticsPage({
           tags={data.tags}
         />
         {data.snapshot.fx ? (
-          <ExchangeRateDetails
-            target={data.snapshot.fx.target}
-            quotes={data.snapshot.fx.quotes}
-            missing={data.snapshot.fx.missingFlows}
-            missingPositions={data.snapshot.fx.missingPositions}
-          />
+          <section className="lab-panel lab-panel--dense">
+            <ExchangeRateDetails
+              target={data.snapshot.fx.target}
+              quotes={data.snapshot.fx.quotes}
+              missing={data.snapshot.fx.missingFlows}
+              missingPositions={data.snapshot.fx.missingPositions}
+            />
+          </section>
         ) : (
           filters.display !== "original" && (
-            <p role="status" className="text-sm text-muted-foreground">
-              La conversión no está disponible. Se muestran importes en su
-              moneda original.
-            </p>
+            <PageNotice
+              tone="info"
+              message="La conversión no está disponible. Se muestran importes en su moneda original."
+            />
           )
         )}
         {!data.favoritesReady && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Los favoritos estarán disponibles cuando se actualice la base de
-            datos. Mientras tanto podés explorar todas las estadísticas.
-          </p>
+          <PageNotice
+            tone="info"
+            message="Los favoritos estarán disponibles cuando se actualice la base de datos. Mientras tanto podés explorar todas las estadísticas."
+          />
         )}
         {view === "todas" &&
           data.favoritesReady &&
           data.favorites.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="lab-muted text-sm">
               Marcá con una estrella las estadísticas que querés ver al entrar.
             </p>
           )}
         {view === "favoritos" && data.favorites.length === 0 ? (
-          <Card className="items-start gap-3 p-4">
-            <h2 className="font-semibold">Mis favoritos</h2>
-            <p className="text-sm text-muted-foreground">
-              Todavía no elegiste estadísticas favoritas. Marcá una tarjeta con
-              la estrella para verla acá.
-            </p>
-            <Link href={`/estadisticas${allSearch}`} className={historyButton}>
-              Explorar estadísticas
-            </Link>
-          </Card>
+          <EmptyState
+            icon="stats"
+            title="Todavía no elegiste estadísticas favoritas"
+            labelId="favoritos-vacios"
+            actions={
+              <Link
+                href={`/estadisticas${allSearch}`}
+                className={buttonClass("primary")}
+              >
+                Explorar estadísticas
+              </Link>
+            }
+          >
+            Marcá una tarjeta con la estrella para verla acá.
+          </EmptyState>
         ) : (
           <StatisticsDashboard
             snapshot={data.snapshot}
@@ -244,7 +254,7 @@ export default async function StatisticsPage({
             }
           />
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }

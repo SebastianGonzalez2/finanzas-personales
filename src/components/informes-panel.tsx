@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { HistoryField, historyControl, historyPrimary } from "./history-fields";
-import { Card } from "./ui/card";
+import { FormFoot, FormPanel, FormSection } from "./glaciar/screen";
+import { buttonClass } from "./ui/button";
+import { Field, Input } from "./ui/field";
+import { Icon } from "./ui/icon";
 import { saveDownload } from "@/lib/export/download";
 import {
   EXPORT_FORMATS,
@@ -68,107 +70,106 @@ export function InformesPanel({
 
   const pending = state.kind === "pending";
   return (
-    <div className="grid gap-4">
-      <Card className="items-start gap-4 p-4 sm:p-5">
-        <h2 className="font-semibold">Exportar informe del período</h2>
-        <p className="text-sm text-muted-foreground">
-          Elegí las fechas y el formato. El resumen compara dos tramos dentro
-          del período seleccionado.
-        </p>
-        <form onSubmit={submit} className="grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <HistoryField label="Desde">
-              <input
-                type="date"
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-                className={historyControl}
-                required
-              />
-            </HistoryField>
-            <HistoryField label="Hasta">
-              <input
-                type="date"
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                className={historyControl}
-                required
-              />
-            </HistoryField>
-          </div>
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Formato</legend>
-            {EXPORT_FORMATS.map((option) => (
-              <label
-                key={option.id}
-                className="flex cursor-pointer items-start gap-2 text-sm"
-              >
-                <input
-                  type="radio"
-                  name="formato"
-                  value={option.id}
-                  checked={format === option.id}
-                  onChange={() => setFormat(option.id)}
-                  className="mt-1"
+    <div className="gs-grid">
+      <div className="gs-span-7">
+        <FormPanel
+          labelId="exportar"
+          title="Exportar informe del período"
+          description="Elegí las fechas y el formato. El resumen compara dos tramos dentro del período seleccionado."
+        >
+          <form onSubmit={submit} className="grid gap-4">
+            <div className="gs-form__grid">
+              <Field label="Desde">
+                <Input
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                  required
                 />
-                <span>
-                  <span className="font-medium">
-                    {option.label} (.{option.extension})
-                  </span>{" "}
-                  <span className="text-muted-foreground">
-                    {option.description}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <button
-            type="submit"
-            className={historyPrimary}
-            disabled={pending || !from || !to}
-          >
-            {pending
-              ? "Generando informe…"
-              : `Exportar ${exportFormat(format)?.label}`}
-          </button>
-        </form>
-        {state.kind === "error" || state.kind === "done" ? (
-          <p
-            role={state.kind === "error" ? "alert" : "status"}
-            className={
-              state.kind === "error"
-                ? "text-sm text-destructive"
-                : "text-sm text-muted-foreground"
-            }
-          >
-            {state.message}
-          </p>
-        ) : null}
-      </Card>
+              </Field>
+              <Field label="Hasta">
+                <Input
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                  required
+                />
+              </Field>
+            </div>
+            <FormSection legend="Formato">
+              <div className="gs-choice">
+                {EXPORT_FORMATS.map((option) => (
+                  <label key={option.id}>
+                    <input
+                      type="radio"
+                      name="formato"
+                      value={option.id}
+                      checked={format === option.id}
+                      onChange={() => setFormat(option.id)}
+                    />
+                    <span>
+                      <span className="font-medium">
+                        {option.label} (.{option.extension})
+                      </span>{" "}
+                      <span className="gs-hint">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </FormSection>
+            <FormFoot>
+              <button
+                type="submit"
+                className={buttonClass("primary")}
+                disabled={pending || !from || !to}
+              >
+                <Icon name="reports" className="size-4" />
+                {pending
+                  ? "Generando informe…"
+                  : `Exportar ${exportFormat(format)?.label}`}
+              </button>
+            </FormFoot>
+          </form>
+          {state.kind === "error" && (
+            <div className="b-notice b-notice--critical" role="alert">
+              <Icon name="alert" className="size-4.5 shrink-0" />
+              <p className="min-w-0 font-medium">{state.message}</p>
+            </div>
+          )}
+          {state.kind === "done" && (
+            <div className="b-notice b-notice--info" role="status">
+              <Icon name="info" className="size-4.5 shrink-0" />
+              <p className="min-w-0 font-medium">{state.message}</p>
+            </div>
+          )}
+        </FormPanel>
+      </div>
 
-      <Card className="items-start gap-3 p-4 sm:p-5">
-        <h2 className="font-semibold">Contenido del informe</h2>
-        <p className="text-sm text-muted-foreground">
+      <section
+        className="lab-panel gs-span-5"
+        aria-labelledby="contenido-informe"
+      >
+        <header className="lab-panel__head">
+          <h2 id="contenido-informe" className="lab-panel__title">
+            Contenido del informe
+          </h2>
+        </header>
+        <p className="lab-muted text-sm">
           Secciones y columnas incluidas en todos los formatos. Los importes se
           exportan como texto decimal exacto, sin redondeos.
         </p>
-        <ul className="grid w-full gap-3">
-          {REPORT_SECTIONS.map((section) => (
-            <li
-              key={section.id}
-              className="border-t pt-3 first:border-0 first:pt-0"
-            >
-              <p className="font-medium">{section.title}</p>
-              <p className="text-sm text-muted-foreground">
-                {section.description}
-              </p>
+        <div className="gs-accordion mt-3">
+          {REPORT_SECTIONS.map((section, index) => (
+            <details key={section.id} open={index === 0}>
+              <summary>{section.title}</summary>
+              <p className="lab-muted text-sm">{section.description}</p>
               <p className="mt-1 text-sm">
                 {section.columns.map((column) => column.label).join(" · ")}
               </p>
-            </li>
+            </details>
           ))}
-        </ul>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # UI-05 — Mejoras identificadas durante la revisión visual
 
-**Estado:** M-01, M-02 y M-03 **implementadas en prototipo** (rama `codex/UI-05-M01-03-mejoras-visuales`); **implementación en producción pendiente** (las pantallas reales `/fondos`, `/presupuestos` y `/ayuda` conservan el diseño anterior hasta UI-05C/UI-05H). **M-06 implementada en pantallas reales** (Resumen e Historial, rama `codex/UI-05-M06-colores-movimientos`) y en el prototipo de Recurrentes; el resto de prototipos y pantallas aún no reales queda pendiente (ver «Estado de implementación» en M-06). **M-05 implementada en prototipo** (Estadísticas, Mi cuenta y Fondos; rama `codex/UI-05-M05-layout`); la regla para producción queda documentada para UI-05D. M-04 pendiente.
+**Estado:** M-01, M-02 y M-03 **implementadas en prototipo** (rama `codex/UI-05-M01-03-mejoras-visuales`); **implementación en producción pendiente** (las pantallas reales `/fondos`, `/presupuestos` y `/ayuda` conservan el diseño anterior hasta UI-05C/UI-05H). **M-06 implementada en pantallas reales** (Resumen e Historial, rama `codex/UI-05-M06-colores-movimientos`) y en el prototipo de Recurrentes; el resto de prototipos y pantallas aún no reales queda pendiente (ver «Estado de implementación» en M-06). **M-05 implementada en prototipo** (Estadísticas, Mi cuenta y Fondos; rama `codex/UI-05-M05-layout`); **M-05 implementada en producción en Estadísticas (UI-05D)**: carriles en «Todas»; en «Mis favoritos» solo si respetan el orden guardado, si no una columna. M-04 pendiente.
 **Origen:** revisión visual del usuario, 15 de noviembre de 2026.
 **Diseño de referencia:** Glaciar.
 **PR de planificación:** #77 (UI-05-DESIGN). Este documento registra decisiones solicitadas por el usuario; no autoriza cambiar lógica financiera ni ampliar el alcance de la PR de planificación.
@@ -13,7 +13,7 @@
 | M-02 | Colores de estados de Presupuestos | Chat 1 | UI; conservar reglas de clasificación · **prototipo ✔ / producción pendiente** |
 | M-03 | Simplificar Ayuda | Chat 1 | UI; eliminar búsqueda y filtros · **prototipo ✔ / producción pendiente** |
 | M-04 | Ocultar cotización manual permanente en Presupuestos | Posterior (lógica financiera) | UI + manejo de errores y cotizaciones automáticas |
-| M-05 | Optimizar grid y espacios vacíos | Chat 3 | Revisión de composición y responsive · **prototipo ✔ / producción en UI-05D** |
+| M-05 | Optimizar grid y espacios vacíos | Chat 3 | Revisión de composición y responsive · **prototipo ✔ / producción ✔ (UI-05D)** |
 | M-06 | Diferenciar ingresos y egresos por colores | Chat 2 | UI transversal; mantener semántica contable · **real ✔ (Resumen, Historial) / prototipo ✔ (Recurrentes) / resto pendiente** |
 
 **Regla general:** aplicar solo cambios aprobados y pertinentes a la rama de implementación. Revisar `AGENTS.md`, la documentación de Glaciar y los componentes existentes. Reutilizar tokens y patrones, mantener accesibilidad y contraste, sin rehacer pantallas, alterar cálculos, migraciones, APIs, saldos o permisos. Las capturas y rutas de UI-05-DESIGN pueden ser prototipos: comprobar qué está implementado en las pantallas reales antes de actuar. La PR #77 solo contiene planificación/prototipos y no debería recibir cambios funcionales.
