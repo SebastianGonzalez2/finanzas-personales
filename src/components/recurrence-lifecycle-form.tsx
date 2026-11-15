@@ -47,7 +47,7 @@ export function RecurrenceLifecycleForm({
   }
 
   return (
-    <div className="grid justify-items-start gap-2">
+    <div className="gs-series__tools">
       <button
         type="button"
         className={paused ? historyButton : historyPrimary}
@@ -65,18 +65,16 @@ export function RecurrenceLifecycleForm({
               : "Pausar serie"}
       </button>
       {dueDay !== null && effectiveMonth && (
-        <details>
-          <summary className="cursor-pointer text-sm underline">
-            Editar día de vencimiento
-          </summary>
+        <details className="gs-inline-edit">
+          <summary>Editar día de vencimiento</summary>
           <form
-            className="mt-2 grid justify-items-start gap-2"
+            className="mt-2 grid max-w-md justify-items-start gap-3"
             onSubmit={updateDay}
           >
-            <label className="grid gap-1 text-sm">
-              Nuevo día de vencimiento
+            <label className="ui-field">
+              <span className="ui-field__label">Nuevo día de vencimiento</span>
               <input
-                className="w-24 rounded-md border bg-background px-3 py-2"
+                className="ui-control w-24"
                 name="dueDay"
                 type="number"
                 min={1}
@@ -88,7 +86,7 @@ export function RecurrenceLifecycleForm({
                 disabled={pending || uncertain}
               />
             </label>
-            <p className="text-sm">
+            <p className="gs-hint">
               Nuevo día a partir de {effectiveMonth.slice(5)}/
               {effectiveMonth.slice(0, 4)} en los próximos vencimientos de la
               serie.
@@ -104,12 +102,12 @@ export function RecurrenceLifecycleForm({
         </details>
       )}
       {saved && (
-        <p role="status" className="text-sm">
+        <p role="status" className="gs-hint basis-full">
           Cambios guardados.
         </p>
       )}
       {error && (
-        <p role="alert" className="text-sm">
+        <p role="alert" className="b-notice b-notice--critical basis-full">
           {error}
         </p>
       )}
