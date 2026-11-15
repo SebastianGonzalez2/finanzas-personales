@@ -94,17 +94,32 @@ test("F5-04: aplicar categoría, guardar el período y respetar el titular", asy
     await page.getByRole("button", { name: "Aplicar categoría" }).click();
     await expect(page.getByText("2 registros actualizados.")).toBeVisible();
 
+    // UI-04: los campos avanzados están en «Más filtros» (cerrado al entrar,
+    // como en el diseño aprobado) y los desplegables aplican al cambiar.
+    const more = page.getByRole("button", { name: /Más filtros/ });
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await more.click();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
     await page.getByLabel("Desde", { exact: true }).fill(today);
-    await page
-      .getByRole("combobox", { name: "Período", exact: true })
-      .selectOption("mes-actual");
+    const period = page.getByRole("combobox", {
+      name: "Período",
+      exact: true,
+    });
+    await period.selectOption("mes-actual");
+    await expect(page).toHaveURL(/period=mes-actual/);
+    await expect(page).not.toHaveURL(/from=/);
+    await expect(period).toBeFocused();
     await expect(page.getByLabel("Desde", { exact: true })).toBeDisabled();
-    await page.getByText("Más filtros", { exact: true }).click();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
     await page
       .getByRole("combobox", { name: "Categoría", exact: true })
       .selectOption(category);
+    await expect(page).toHaveURL(new RegExp(`category=${category}`));
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(page).toHaveURL(/period=mes-actual/);
+    await expect(
+      page.getByRole("list", { name: "Filtros activos" }),
+    ).toContainText("Alimentación sintética");
     await expect(
       page.getByRole("link", { name: /Compra sintética/ }),
     ).toHaveCount(2);
@@ -118,7 +133,7 @@ test("F5-04: aplicar categoría, guardar el período y respetar el titular", asy
 
     await page.goto(`/historial?period=mes-anterior&category=${category}`);
     await expect(
-      page.getByText("No hay registros que coincidan."),
+      page.getByText("No hay movimientos con estos filtros"),
     ).toBeVisible();
     await page.getByRole("button", { name: "Usar búsqueda actual" }).click();
     await page.getByRole("button", { name: "Reemplazar criterios" }).click();

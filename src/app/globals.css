@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./glaciar-summary.css";
+@import "./glaciar-history.css";
 
 /* UI-02 — Sistema visual «Ambient Glow + Glassmorphism», paleta Glaciar.
    Fuente de verdad: docs/design/ui-identidad-visual.md (§3 tokens, §4 reglas).
