@@ -138,11 +138,21 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     // Sin desborde horizontal; si falla, lista los elementos que se salen.
     expect(
       await page.evaluate(() => {
-        const { document, innerWidth } = globalThis;
+        const { document, innerWidth, getComputedStyle } = globalThis;
         if (document.documentElement.scrollWidth <= innerWidth) return [];
+        // Solo elementos que ningún contenedor con desplazamiento recorta.
+        const clipped = (element) => {
+          for (let parent = element.parentElement; parent;) {
+            if (getComputedStyle(parent).overflowX !== "visible") return true;
+            parent = parent.parentElement;
+          }
+          return false;
+        };
         return [...document.querySelectorAll("main *")]
           .filter(
-            (element) => element.getBoundingClientRect().right > innerWidth + 1,
+            (element) =>
+              element.getBoundingClientRect().right > innerWidth + 1 &&
+              !clipped(element),
           )
           .slice(0, 15)
           .map(
