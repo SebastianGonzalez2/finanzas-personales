@@ -14,7 +14,7 @@ export type ActionMenuItem = {
 };
 
 const interactive =
-  "a[href],button,input,select,textarea,summary,label,[tabindex],[contenteditable='true'],[role='button'],[role='menuitem']";
+  "a[href],button,input,select,textarea,summary,label,[tabindex]:not([tabindex='-1']),[contenteditable='true'],[role='button'],[role='menuitem']";
 
 export function ActionMenu({
   label,
@@ -35,17 +35,14 @@ export function ActionMenu({
       const target = event.target as Element | null;
       if (root.current?.contains(target as Node)) return;
       setOpen(false);
-      // Clic en otro control: el foco es suyo. Solo se restaura al disparador
-      // si se pulsó una zona sin control y el foco quedó en el documento.
+      // Clic en otro control: el foco es suyo. En una zona sin control (aunque
+      // el navegador enfoque un contenedor con tabindex -1) vuelve al
+      // disparador una vez resuelto el foco propio del clic.
       if (target?.closest?.(interactive)) return;
-      requestAnimationFrame(() => {
-        const active = document.activeElement;
-        if (
-          !active ||
-          active === document.body ||
-          active === document.documentElement
-        )
-          summary.current?.focus();
+      // `click` llega tras mousedown/mouseup, cuando el foco del clic ya se resolvió.
+      document.addEventListener("click", () => summary.current?.focus(), {
+        once: true,
+        capture: true,
       });
     };
     const onKey = (event: KeyboardEvent) => {
