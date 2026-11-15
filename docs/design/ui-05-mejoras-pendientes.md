@@ -39,7 +39,7 @@
 
 **Criterio de aceptación:** las cuatro tarjetas tienen ayuda consultable y comprensible, sin texto constante ni cambio en sus importes.
 
-**Estado (2026-11-15): implementado en prototipo; producción pendiente.** `HelpPopover` (`_proto/help-popover.tsx`) + prop `help` de `Kpi`. Abre al pulsar, cierra al pulsar fuera, al repulsar o con Escape (devuelve el foco al botón); `aria-expanded`, `aria-controls`, `role="note"`. Verificado en 1440 y 375 px sin desbordes.
+**Estado (2026-11-15): implementado en prototipo y en producción (`/fondos`, UI-05C; la moneda de la equivalencia ya es dinámica).** `HelpPopover` (`_proto/help-popover.tsx`) + prop `help` de `Kpi`. Abre al pulsar, cierra al pulsar fuera, al repulsar o con Escape (devuelve el foco al botón); `aria-expanded`, `aria-controls`, `role="note"`. Verificado en 1440 y 375 px sin desbordes.
 **Contraste con el código real** (`listBankAvailability` en `src/server/bank-balances.ts`; `/fondos` en `src/app/fondos/page.tsx`):
 - *Disponible libre* = saldo bancario calculado − suma de `reserved_amount` de los fondos, por moneda. **No descuenta obligaciones pendientes** (el copy no lo afirma) → texto confirmado, con «en tus cuentas bancarias» en lugar de «que tenés disponible».
 - *Equivalencia*: suma lo reservado de fondos **no cerrados**, convertido con cotizaciones de referencia; es referencia, no conversión. Discrepancias de copy corregidas solo en el texto: se añadió «activos» y «no convierte tu dinero». **Discrepancia señalada:** en la pantalla real la moneda de la equivalencia es la *moneda de visualización* elegida (por defecto, la preferida del titular), no siempre UYU; el prototipo muestra UYU. Al implementar en producción, hacer dinámico «en pesos uruguayos» según esa moneda.
@@ -60,7 +60,7 @@
 
 **Criterio de aceptación:** estados superiores y etiquetas de «Consumo del mes» utilizan los mismos colores semánticos, sin modificar recuentos.
 
-**Estado (2026-11-15): implementado en prototipo; producción pendiente.** Prop `tone` de `Kpi` con `--lab-good/warning/critical` (los mismos tokens que `.lab-tag` y `.lab-meter`): colorea icono y valor, borde con mezcla muy sutil (28–30 %), sin glow. «Sin calcular» queda neutro; recuentos y tamaños sin cambios (comprobado: color del valor idéntico al de las etiquetas).
+**Estado (2026-11-15): implementado en prototipo y en producción (`/presupuestos`, UI-05C: el estado se muestra en cada presupuesto; no hay fila de contadores porque P-05 no está aprobada).** Prop `tone` de `Kpi` con `--lab-good/warning/critical` (los mismos tokens que `.lab-tag` y `.lab-meter`): colorea icono y valor, borde con mezcla muy sutil (28–30 %), sin glow. «Sin calcular» queda neutro; recuentos y tamaños sin cambios (comprobado: color del valor idéntico al de las etiquetas).
 **Umbrales verificados** (`src/components/budget-catalog.tsx`): rojo desde 100 % (inclusive), ámbar desde 80 % hasta menos de 100 %, normal por debajo; no se modificaron. Nota: en el prototipo el texto «80 % o más» de «Cerca del límite» es correcto solo junto con «Excedidos»; no se tocó.
 
 ## M-03 — Simplificar la sección Ayuda

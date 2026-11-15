@@ -20,12 +20,12 @@ import {
   isContributionDay,
 } from "@/domain/scheduled-contributions";
 import { useFinancialCommand } from "./financial-command";
+import { buttonClass } from "./ui/button";
+import { Field, Input } from "./ui/field";
 
 const endpoint = "/api/funds/contributions";
-const button =
-  "min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60";
-const input =
-  "block min-h-11 w-full rounded-lg border bg-background px-3 text-base";
+const button = buttonClass("outline");
+const quiet = buttonClass("ghost");
 
 export function contributionStatus(period: ContributionPeriod) {
   if (contributionPending(period)) return "Pendiente";
@@ -44,7 +44,7 @@ export function ContributionNotice({ period }: { period: ContributionPeriod }) {
   };
   return (
     <>
-      <p className="font-medium">
+      <p className="font-semibold">
         {period.fundName} · {formatBankAmount(period)} · {period.scheduledOn}
       </p>
       {period.reason && <p>{reason[period.reason]}</p>}
@@ -73,7 +73,7 @@ function PeriodResolution({
   );
   const busy = pending || uncertain;
   return (
-    <div className="space-y-2">
+    <div className="gs-contrib__form">
       <p>
         Disponible actual{" "}
         {available === null
@@ -82,7 +82,7 @@ function PeriodResolution({
       </p>
       {action ? (
         <form
-          className="space-y-2"
+          className="gs-contrib__form"
           onSubmit={async (event) => {
             event.preventDefault();
             if (await send({ action, periodId: period.id })) {
@@ -96,8 +96,12 @@ function PeriodResolution({
               ? `Reservar ${formatBankAmount(period)} para la aportación del ${period.scheduledOn}.`
               : `Descartar la aportación del ${period.scheduledOn}.`}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <button type="submit" className={button} disabled={pending}>
+          <div className="gs-actions">
+            <button
+              type="submit"
+              className={buttonClass("primary")}
+              disabled={pending}
+            >
               {uncertain
                 ? "Reintentar envío"
                 : action === "complete"
@@ -106,7 +110,7 @@ function PeriodResolution({
             </button>
             <button
               type="button"
-              className={button}
+              className={quiet}
               disabled={busy}
               onClick={() => {
                 setAction(null);
@@ -118,7 +122,7 @@ function PeriodResolution({
           </div>
         </form>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="gs-actions">
           {!closed && (
             <button
               type="button"
@@ -130,7 +134,7 @@ function PeriodResolution({
           )}
           <button
             type="button"
-            className={button}
+            className={quiet}
             onClick={() => setAction("discard")}
           >
             Descartar aportación
@@ -205,7 +209,7 @@ function PlanEditor({
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="gs-contrib__form">
       {plan?.nextOn && displayedNextAmount && (
         <p>
           Próxima aportación{" "}
@@ -223,28 +227,24 @@ function PlanEditor({
         (fund.status === "active" || pausedByTarget || paused) &&
         (canConfigure ? (
           <form
-            className="grid gap-2"
+            className="gs-contrib__form"
             onSubmit={(event) => {
               event.preventDefault();
               void submit("configure");
             }}
           >
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label>
-                Importe mensual ({fund.currency})
-                <input
-                  className={input}
+            <div className="gs-form__grid">
+              <Field label={`Importe mensual (${fund.currency})`}>
+                <Input
                   required
                   inputMode="decimal"
                   value={amount}
                   disabled={busy}
                   onChange={(event) => setAmount(event.target.value)}
                 />
-              </label>
-              <label>
-                Día del mes
-                <input
-                  className={input}
+              </Field>
+              <Field label="Día del mes">
+                <Input
                   required
                   type="number"
                   min={1}
@@ -253,7 +253,7 @@ function PlanEditor({
                   disabled={busy}
                   onChange={(event) => setDay(event.target.value)}
                 />
-              </label>
+              </Field>
             </div>
             {editing && plan && (
               <p>
@@ -272,10 +272,10 @@ function PlanEditor({
                 . Primera fecha {preview}.
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="gs-actions">
               <button
                 type="submit"
-                className={button}
+                className={buttonClass("primary")}
                 disabled={pending || !preview}
               >
                 {uncertain
@@ -287,7 +287,7 @@ function PlanEditor({
               {editing && (
                 <button
                   type="button"
-                  className={button}
+                  className={quiet}
                   disabled={busy}
                   onClick={() => {
                     setEditing(false);
@@ -302,7 +302,7 @@ function PlanEditor({
             </div>
           </form>
         ) : paused && plan && nextAfterReactivation ? (
-          <div className="space-y-2">
+          <div className="gs-contrib__form">
             {reactivating ? (
               <>
                 <p>
@@ -317,10 +317,10 @@ function PlanEditor({
                   Se conservan las aportaciones pendientes. No se hará ninguna
                   reserva ahora.
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="gs-actions">
                   <button
                     type="button"
-                    className={button}
+                    className={buttonClass("primary")}
                     disabled={pending}
                     onClick={() => void submit("reactivate")}
                   >
@@ -328,7 +328,7 @@ function PlanEditor({
                   </button>
                   <button
                     type="button"
-                    className={button}
+                    className={quiet}
                     disabled={busy}
                     onClick={() => {
                       setReactivating(false);
@@ -350,12 +350,12 @@ function PlanEditor({
             )}
           </div>
         ) : pausing ? (
-          <div className="space-y-2">
+          <div className="gs-contrib__form">
             <p>Los períodos pendientes seguirán disponibles para resolver.</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="gs-actions">
               <button
                 type="button"
-                className={button}
+                className={buttonClass("primary")}
                 disabled={pending}
                 onClick={() => void submit("pause")}
               >
@@ -363,7 +363,7 @@ function PlanEditor({
               </button>
               <button
                 type="button"
-                className={button}
+                className={quiet}
                 disabled={busy}
                 onClick={() => {
                   setPausing(false);
@@ -375,7 +375,7 @@ function PlanEditor({
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="gs-actions">
             <button
               type="button"
               className={button}
@@ -385,7 +385,7 @@ function PlanEditor({
             </button>
             <button
               type="button"
-              className={button}
+              className={quiet}
               onClick={() => setPausing(true)}
             >
               Pausar aportaciones
@@ -427,17 +427,14 @@ export function FundContributions({
   const pending = periods.filter(contributionPending);
   const resolved = periods.filter((period) => !contributionPending(period));
   return (
-    <section
-      className="grid gap-3 border-t pt-3 text-sm"
-      aria-label={`Aportaciones de ${fund.name}`}
-    >
+    <section className="gs-contrib" aria-label={`Aportaciones de ${fund.name}`}>
       {pending.length > 0 && (
         <ul className="grid gap-2">
           {pending.map((period) => (
             <li
               key={period.id}
               id={`aporte-${period.id}`}
-              className="space-y-2 rounded-lg border border-amber-500/70 p-3"
+              className="gs-contrib__pending"
             >
               <ContributionNotice period={period} />
               <PeriodResolution
@@ -449,53 +446,57 @@ export function FundContributions({
           ))}
         </ul>
       )}
-      {fund.status !== "closed" && (
-        <details
-          id={`plan-${fund.id}`}
-          open={fund.status === "paused_target_reached" ? true : undefined}
-          className="space-y-2 scroll-mt-4"
-        >
-          <summary className="cursor-pointer font-semibold">
-            Aportaciones mensuales
-            {plan ? (plan.nextOn ? " · Activas" : " · Pausadas") : ""}
-          </summary>
-          <PlanEditor
-            key={plan?.version ?? 0}
-            fund={fund}
-            plan={plan}
-            today={today}
-          />
-        </details>
-      )}
-      {(resolved.length > 0 || changes.length > 0) && (
-        <details className="space-y-2">
-          <summary className="cursor-pointer font-semibold">
-            Historial de aportaciones
-          </summary>
-          {resolved.length > 0 && (
-            <ul className="space-y-1">
-              {resolved.map((period) => (
-                <li id={`aporte-${period.id}`} key={period.id}>
-                  {period.scheduledOn} · {formatBankAmount(period)} ·{" "}
-                  {contributionStatus(period)}
-                </li>
-              ))}
-            </ul>
-          )}
-          {changes.length > 0 && (
-            <ul className="space-y-1">
-              {changes.map((change) => (
-                <li key={change.id}>
-                  {change.changedOn} ·{" "}
-                  {change.action === "pause"
-                    ? "Programación pausada"
-                    : `${change.action === "reactivate" ? "Programación reactivada" : "Programación guardada"} · ${formatBankAmount({ currency: fund.currency, amount: change.amount })} el día ${change.preferredDay} desde ${change.effectiveOn}`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </details>
-      )}
+      <div className="gs-accordion">
+        {fund.status !== "closed" && (
+          <details
+            id={`plan-${fund.id}`}
+            open={fund.status === "paused_target_reached" ? true : undefined}
+            className="scroll-mt-4"
+          >
+            <summary>
+              Aportaciones mensuales
+              {plan ? (plan.nextOn ? " · Activas" : " · Pausadas") : ""}
+            </summary>
+            <div className="gs-accordion__body">
+              <PlanEditor
+                key={plan?.version ?? 0}
+                fund={fund}
+                plan={plan}
+                today={today}
+              />
+            </div>
+          </details>
+        )}
+        {(resolved.length > 0 || changes.length > 0) && (
+          <details>
+            <summary>Historial de aportaciones</summary>
+            <div className="gs-accordion__body">
+              {resolved.length > 0 && (
+                <ul className="gs-contrib__list">
+                  {resolved.map((period) => (
+                    <li id={`aporte-${period.id}`} key={period.id}>
+                      {period.scheduledOn} · {formatBankAmount(period)} ·{" "}
+                      {contributionStatus(period)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {changes.length > 0 && (
+                <ul className="gs-contrib__list">
+                  {changes.map((change) => (
+                    <li key={change.id}>
+                      {change.changedOn} ·{" "}
+                      {change.action === "pause"
+                        ? "Programación pausada"
+                        : `${change.action === "reactivate" ? "Programación reactivada" : "Programación guardada"} · ${formatBankAmount({ currency: fund.currency, amount: change.amount })} el día ${change.preferredDay} desde ${change.effectiveOn}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
     </section>
   );
 }
