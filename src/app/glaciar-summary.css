@@ -1120,15 +1120,12 @@
       var(--glaciar-glass-2);
   }
 
-  .glaciar-summary .lab-segment__option,
-  .glaciar-summary .lab-stepper__btn,
+  /* Medidas aprobadas en UI-01: pestañas y flechas de 32 px dentro de
+     barras de 40 px. El rótulo del mes y los enlaces de panel (texto de
+     20 px en el prototipo) llegan al mínimo de 24 px de CA-066. */
   .glaciar-summary .lab-stepper__label,
   .glaciar-summary .lab-link {
-    min-height: 44px;
-  }
-
-  .glaciar-summary .lab-stepper__btn {
-    min-width: 44px;
+    min-height: 24px;
   }
 
   .glaciar-summary .lab-tag {
