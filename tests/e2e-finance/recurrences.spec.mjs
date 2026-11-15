@@ -6,6 +6,13 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
+// UI-05E: «Nueva recurrencia» es un disclosure; se abre solo si está cerrado.
+async function openCreator(page) {
+  const creator = page.locator("details.gs-creator");
+  if (!(await creator.evaluate((node) => node.open)))
+    await creator.locator("summary").click();
+}
+
 test("F4-01: el primer período futuro se guarda sin pendientes y es privado", async ({
   page,
   context,
@@ -19,6 +26,7 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
   await expect(
     page.getByRole("heading", { name: "Recurrentes" }),
   ).toBeVisible();
+  await openCreator(page);
   await expect(page.getByLabel("Frecuencia")).toHaveValue("monthly");
   await expect(page.getByLabel("Comienza en")).toHaveValue(today);
   await page.getByLabel("Concepto").fill("Seguro sintético de enero");

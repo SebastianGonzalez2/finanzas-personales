@@ -1483,4 +1483,241 @@
       transition: none;
     }
   }
+
+  /* ---------- UI-05E — Recurrentes: lista + detalle (P-06) ---------- */
+
+  /* «Nueva recurrencia»: disclosure nativo (teclado y lector de pantalla sin
+     JavaScript); el resumen se ve como el botón primario del kit. */
+  .gs-creator {
+    display: grid;
+    gap: 16px;
+  }
+
+  .gs-creator > summary {
+    width: fit-content;
+    max-width: 100%;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .gs-creator > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* Lista seleccionable: toda la fila es el enlace (zona táctil completa). */
+  .gs-rows.gs-pick > li {
+    position: relative;
+    margin-inline: -10px;
+    padding: 12px 10px;
+    border-radius: 12px;
+  }
+
+  .gs-rows.gs-pick > li:hover {
+    background: color-mix(in srgb, var(--glaciar-selected) 55%, transparent);
+  }
+
+  .gs-rows.gs-pick > li[aria-current="true"] {
+    background: var(--glaciar-selected);
+  }
+
+  .gs-pick .gs-row__title a::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    content: "";
+  }
+
+  .gs-pick .gs-row__title a:focus-visible {
+    outline: none;
+  }
+
+  .gs-pick > li:has(a:focus-visible) {
+    outline: 2px solid var(--glaciar-focus);
+    outline-offset: -2px;
+  }
+
+  .gs-pick .gs-row__tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  /* En pantallas anchas la lista acompaña al detalle largo sin dejar hueco. */
+  @media (min-width: 64rem) {
+    .gs-sticky {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+  }
+
+  /* Detalle de la serie. */
+  .gs-series {
+    display: grid;
+    gap: 16px;
+    scroll-margin-top: 16px;
+  }
+
+  .gs-series__head {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+  }
+
+  .gs-series__title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-series__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 16px;
+  }
+
+  .gs-series__note {
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-series__section {
+    margin-top: 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* Línea de tiempo de períodos. */
+  .gs-timeline {
+    display: grid;
+  }
+
+  .gs-timeline > li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 12px;
+    padding-bottom: 20px;
+    scroll-margin-top: 16px;
+  }
+
+  .gs-timeline > li::before {
+    position: absolute;
+    top: 14px;
+    bottom: 0;
+    left: 7px;
+    width: 1px;
+    background: var(--glaciar-border-strong);
+    content: "";
+  }
+
+  .gs-timeline > li:last-child {
+    padding-bottom: 0;
+  }
+
+  .gs-timeline > li:last-child::before {
+    display: none;
+  }
+
+  .gs-timeline__dot {
+    width: 15px;
+    height: 15px;
+    margin-top: 3px;
+    border: 2px solid var(--glaciar-faint);
+    border-radius: 50%;
+    background: var(--glaciar-bg, transparent);
+  }
+
+  .gs-timeline__dot.is-good {
+    border-color: var(--state-good);
+  }
+
+  .gs-timeline__dot.is-warning {
+    border-color: var(--state-warning);
+  }
+
+  .gs-period {
+    display: grid;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .gs-period__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+
+  .gs-period__title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .gs-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 8px 16px;
+    font-size: 13px;
+  }
+
+  .gs-facts dt {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+  }
+
+  .gs-facts dd {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-linked {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .gs-linked a {
+    overflow-wrap: anywhere;
+  }
+
+  .gs-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .gs-inline-edit {
+    min-width: 0;
+  }
+
+  .gs-inline-edit > summary {
+    display: inline-flex;
+    min-height: 44px;
+    cursor: pointer;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .gs-inline-edit > summary:focus-visible {
+    border-radius: 6px;
+    outline: 2px solid var(--glaciar-focus);
+    outline-offset: 2px;
+  }
 }

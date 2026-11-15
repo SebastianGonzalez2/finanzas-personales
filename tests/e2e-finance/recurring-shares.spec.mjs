@@ -5,6 +5,13 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
+// UI-05E: «Nueva recurrencia» es un disclosure; se abre solo si está cerrado.
+async function openCreator(page) {
+  const creator = page.locator("details.gs-creator");
+  if (!(await creator.evaluate((node) => node.open)))
+    await creator.locator("summary").click();
+}
+
 test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   page,
   context,
@@ -22,6 +29,7 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   });
   expect(opening.status()).toBe(201);
   await page.goto("/recurrentes");
+  await openCreator(page);
   const creation = page.getByRole("form", { name: "Nueva recurrencia" });
   await creation.getByLabel("Concepto").fill("Alquiler compartido sintético");
   await creation.getByLabel("Comienza en").fill(previous);
@@ -30,11 +38,10 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await creation.getByLabel("Nombre de la persona 1").fill("Ana de prueba");
   await creation.getByLabel("Porcentaje de la persona 1").fill("50");
   await creation.getByRole("button", { name: "Guardar recurrencia" }).click();
-  const series = page.getByRole("listitem").filter({
-    has: page.getByRole("heading", {
-      name: "Alquiler compartido sintético",
-      exact: true,
-    }),
+  // P-06: el detalle de la serie seleccionada es una región con su concepto.
+  const series = page.getByRole("region", {
+    name: "Alquiler compartido sintético",
+    exact: true,
   });
   const past = series.getByRole("listitem").filter({
     has: page.getByRole("heading", { name: previous.slice(0, 7), exact: true }),
