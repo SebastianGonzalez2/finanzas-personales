@@ -432,6 +432,10 @@
     color: var(--amount-positive);
   }
 
+  .ui05-row__amount.is-negative {
+    color: var(--amount-negative);
+  }
+
   /* ---------- Formularios (vidrio 3, casi opaco) ---------- */
   .ui05-form {
     display: grid;

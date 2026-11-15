@@ -567,6 +567,10 @@
     color: var(--lab-income-ink);
   }
 
+  .lab-amount.is-negative {
+    color: var(--lab-expense-ink);
+  }
+
   .lab-amount.is-voided {
     color: var(--lab-faint);
     text-decoration: line-through;
@@ -1079,6 +1083,7 @@
     --lab-highlight: var(--glaciar-highlight);
     --lab-hover: var(--glaciar-hover);
     --lab-income-ink: var(--amount-positive);
+    --lab-expense-ink: var(--amount-negative);
     --lab-muted: var(--glaciar-muted);
     --lab-radius: var(--radius-panel);
     --lab-shadow: var(--glaciar-shadow);

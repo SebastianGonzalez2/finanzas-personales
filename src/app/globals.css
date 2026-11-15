@@ -32,6 +32,7 @@
   --color-warning: var(--state-warning);
   --color-critical: var(--state-critical);
   --color-positive: var(--amount-positive);
+  --color-negative: var(--amount-negative);
   --font-sans:
     var(--font-jakarta), system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius-panel: 20px;
@@ -87,6 +88,7 @@
   --state-warning: #f0b35a;
   --state-critical: #f47b7b;
   --amount-positive: #6fdcb8;
+  --amount-negative: var(--state-critical);
 
   /* Tokens semánticos que ya usan las pantallas actuales (transición a UI-05). */
   --background: #070a0d;
@@ -1252,4 +1254,13 @@
       display: none;
     }
   }
+}
+
+/* M-06: los tonos del importe se heredan hacia los textos internos. */
+.amount-tone.is-positive {
+  color: var(--amount-positive);
+}
+
+.amount-tone.is-negative {
+  color: var(--amount-negative);
 }
