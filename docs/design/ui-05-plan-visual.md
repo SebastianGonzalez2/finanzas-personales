@@ -12,7 +12,7 @@
 | Capturas 1440 px y 375 px | [`docs/design/ui-05/capturas/`](ui-05/capturas/) y la [página índice local](ui-05/index.html) (se abre con doble clic, sin servidor). |
 | Regenerar capturas | `scripts/capture-ui05-prototypes.mjs` (ver cabecera): usa solo el PostgreSQL local desechable de [testing](../testing.md#postgresql-desechable) y las sesiones sintéticas del arnés e2e; sin Google ni Neon. Con `--todos` captura todos los estados. |
 
-**Restricciones de los prototipos:** solo existen en `next dev` local (`_proto/access.ts`: cualquier build de producción o despliegue de Vercel responde 404); cada página exige sesión y titular en servidor (F6-02); datos ficticios; ningún botón guarda ni navega a datos reales (Resumen e Historial del menú llevan al prototipo UI-01). El selector de moneda y «Registrar movimiento» del shell no tienen efecto.
+**Restricciones de los prototipos:** cada página exige primero sesión y titular en servidor (F6-02: sin sesión, 307 al acceso como el resto de la app) y después solo se muestra en `next dev` local (`_proto/access.ts`: con sesión, cualquier build de producción o despliegue de Vercel responde 404); datos ficticios; ningún botón guarda ni navega a datos reales (Resumen e Historial del menú llevan al prototipo UI-01). El selector de moneda y «Registrar movimiento» del shell no tienen efecto.
 
 **Limitación de las capturas:** se tomaron en Chromium sin GPU y con movimiento reducido, por lo que el fondo es la **capa CSS de respaldo** (regla §4.4 de la guía), no las ondas WebGL. En un equipo con GPU el fondo es el mismo de Resumen e Historial. Al ser capturas de página completa, la capa fija del fondo cubre solo la primera pantalla (por eso se ve un corte de tono más abajo) y la barra flotante móvil aparece al pie; en el navegador ambos acompañan el desplazamiento.
 
@@ -116,7 +116,7 @@ Todos: solo presentación, `npm run check`, unitarias, e2e financieros en CI, re
 ## 7. Verificación de esta entrega
 
 - `tsc --noEmit`, ESLint y Prettier sobre los archivos nuevos; 240 pruebas unitarias (incluye F6-02 «toda página exige sesión» y el CSS de vidrio).
-- `next build` en una copia aislada: las rutas compilan y con `next start` responden **404** (`/prototipos/ui-05`, `/prototipos/ui-05/tarjetas`, `?estado=`).
+- `next build` en una copia aislada y `next start`: **sin sesión, 307 al acceso** (igual que `/resumen`; lo exige la e2e F6-02) y **con sesión sintética, 404** en `/prototipos/ui-05`, `/prototipos/ui-05/tarjetas` y `?estado=` (una página real, `/fondos`, responde 200). La primera versión decidía el 404 en el layout y la e2e F6-02 falló en CI; se corrigió moviendo la guarda a cada página, después de la verificación de sesión.
 - Capturas con `next dev` + sesión sintética sobre PostgreSQL 17.6 local desechable: las 108 vistas cargaron con sesión válida y sin errores; revisión visual del agente de Tarjetas, Estadísticas, Fondos, Recurrentes, Presupuestos y Mi cuenta (se corrigieron hueco de paneles plegables, variación de ingresos con flecha errónea, acciones de tarjeta en 375 px y aviso apilado).
 - No se ejecutaron e2e financieros (no hubo cambios en pantallas reales) ni pruebas con lector de pantalla.
 

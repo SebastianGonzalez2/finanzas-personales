@@ -20,6 +20,7 @@ import {
   HelpScreen,
   NoticesScreen,
 } from "../_proto/screens/support";
+import { uiPrototypesEnabled } from "../_proto/access";
 import { ProtoShell } from "../_proto/shell";
 import { protoScreens, type ProtoState } from "../_proto/screens";
 
@@ -56,6 +57,7 @@ export default async function PrototypeScreen(
   // Solo datos ficticios, pero se mantiene la regla F6-02: toda página exige
   // sesión y titular en servidor. La URL solo elige la pantalla y el estado.
   await requireGoogleOwnerPage();
+  if (!uiPrototypesEnabled()) notFound();
   const { pantalla } = await props.params;
   const { estado } = await props.searchParams;
   const screen = protoScreens.find(({ key }) => key === pantalla);

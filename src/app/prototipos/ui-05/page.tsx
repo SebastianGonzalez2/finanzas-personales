@@ -1,5 +1,7 @@
+import { notFound } from "next/navigation";
 import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 import { Icon } from "@/components/ui/icon";
+import { uiPrototypesEnabled } from "./_proto/access";
 import { PageHead, Screen } from "./_proto/kit";
 import { ProtoShell } from "./_proto/shell";
 import {
@@ -15,6 +17,7 @@ export const metadata = { title: "Índice | Prototipos UI-05" };
 // UI-05-DESIGN — Índice local para recorrer todas las propuestas.
 export default async function PrototypesIndex() {
   await requireGoogleOwnerPage();
+  if (!uiPrototypesEnabled()) notFound();
   const groups = Object.entries(tickets) as [Ticket, string][];
   return (
     <ProtoShell current="resumen">
