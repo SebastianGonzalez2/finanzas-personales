@@ -110,6 +110,7 @@ test("F3-05: autoriza dos fondos, registra un compromiso y paga solo la parte el
   await expect(linked).toContainText("Emergencias F3-05 · 400,00 UYU");
 
   await page.goto("/tarjetas");
+  await page.getByLabel(/^Más acciones de /).click();
   await page
     .getByRole("button", { name: "Registrar compra", exact: true })
     .click();

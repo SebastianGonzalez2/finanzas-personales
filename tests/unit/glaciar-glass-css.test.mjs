@@ -15,6 +15,7 @@ test("HOTFIX: el CSS del producto declara el vidrio solo sin prefijo", () => {
     "src/app/globals.css",
     "src/app/glaciar-summary.css",
     "src/app/glaciar-history.css",
+    "src/app/glaciar-screens.css",
   ]) {
     const css = read(file).replace(/@supports[^{]*\{/g, "");
     assert.doesNotMatch(

@@ -144,7 +144,9 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
 
     await page.goto("/tarjetas");
     await expect(page.getByText("2.000,00 UYU", { exact: true })).toBeVisible();
-    await page.getByText("Compras en cuotas (1)", { exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Compras en cuotas (1)" }),
+    ).toBeVisible();
     await expect(
       page.getByText(/2 futuras · Compromiso futuro 4.000,00 UYU/),
     ).toBeVisible();

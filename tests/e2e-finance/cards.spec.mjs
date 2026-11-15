@@ -34,7 +34,7 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
       page.getByRole("heading", { name: "Tarjetas", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText("Todavía no tenés tarjetas activas."),
+      page.getByRole("heading", { name: "Todavía no tenés tarjetas activas" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Agregar tarjeta" }).click();
     await expect(
@@ -123,12 +123,14 @@ test("F2-01: catálogo multimoneda, archivo, aislamiento e integridad financiera
       ).status(),
     ).toBe(409);
     await page.reload();
+    await page.getByLabel("Más acciones de Nombre actualizado").click();
     await page
       .getByRole("button", { name: "Editar Nombre actualizado" })
       .click();
     await page.getByLabel("Límite UYU (opcional)").fill("");
     await page.getByRole("button", { name: "Guardar tarjeta" }).click();
     await expect(page.getByText("Límite informado")).toHaveCount(0);
+    await page.getByLabel("Más acciones de Nombre actualizado").click();
     await page
       .getByRole("button", { name: "Editar Nombre actualizado" })
       .click();
