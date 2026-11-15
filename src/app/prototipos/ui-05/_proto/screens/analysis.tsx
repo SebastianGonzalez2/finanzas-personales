@@ -131,11 +131,19 @@ function StatPanel({
   );
 }
 
-function Delta({ good, children }: { good: boolean; children: ReactNode }) {
+function Delta({
+  good,
+  down,
+  children,
+}: {
+  good: boolean;
+  down?: boolean;
+  children: ReactNode;
+}) {
   return (
     <span className={`lab-delta ${good ? "is-good" : "is-bad"}`}>
       <Icon
-        name={good ? "trendUp" : "trendDown"}
+        name={down ? "trendDown" : "trendUp"}
         duotone={false}
         className="size-3.5"
       />
@@ -234,12 +242,20 @@ function Metrics() {
         <Kpi
           label="Ingresos"
           value={m("98000.00")}
-          extra={<Delta good>−12,7 % vs. octubre</Delta>}
+          extra={
+            <Delta good={false} down>
+              −12,7 % vs. octubre
+            </Delta>
+          }
         />
         <Kpi
           label="Gastos"
           value={m("52410.00")}
-          extra={<Delta good>−34,2 % vs. octubre</Delta>}
+          extra={
+            <Delta good down>
+              −34,2 % vs. octubre
+            </Delta>
+          }
         />
         <Kpi
           hero

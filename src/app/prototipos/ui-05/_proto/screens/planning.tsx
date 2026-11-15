@@ -738,13 +738,15 @@ export function BudgetsScreen({ state }: { state: ProtoState }) {
           </ul>
         </section>
         <div className="ui05-span-4 ui05-stack">
-          <div className="b-notice b-notice--info lab-panel">
-            <Icon name="info" className="size-4.5 shrink-0" />
-            <p className="min-w-0 text-sm">
-              El seguimiento se reinicia cada mes sin arrastrar sobrantes ni
-              excesos.
-            </p>
-          </div>
+          <section className="lab-panel" aria-label="Cómo funciona">
+            <div className="b-notice b-notice--info">
+              <Icon name="info" className="size-4.5 shrink-0" />
+              <p className="min-w-0 text-sm">
+                El seguimiento se reinicia cada mes sin arrastrar sobrantes ni
+                excesos.
+              </p>
+            </div>
+          </section>
           <section
             className="lab-panel"
             id="cotizacion"

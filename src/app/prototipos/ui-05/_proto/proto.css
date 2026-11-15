@@ -78,6 +78,15 @@
     gap: 20px;
   }
 
+  /* Paneles plegables (archivadas, cerrados): sin hueco al estar cerrados. */
+  .ui05 details.lab-panel {
+    display: block;
+  }
+
+  .ui05 details.lab-panel[open] > summary {
+    margin-bottom: 12px;
+  }
+
   .ui05 .f-pagehead {
     padding-bottom: 4px;
   }
@@ -723,8 +732,19 @@
     margin-top: auto;
   }
 
+  @media (max-width: 39.99rem) {
+    .ui05-card__actions {
+      flex-wrap: nowrap;
+    }
+
+    .ui05-card__actions > a svg {
+      display: none;
+    }
+  }
+
   .ui05-card__actions a,
   .ui05-card__actions button {
+    white-space: nowrap;
     display: inline-flex;
     min-height: 32px;
     align-items: center;

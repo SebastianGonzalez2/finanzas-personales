@@ -3,6 +3,7 @@ import console from "node:console";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { URL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 import prepareFinanceBrowserDatabase, {
@@ -41,7 +42,9 @@ const url = (role) =>
 async function waitForServer() {
   for (let attempt = 0; attempt < 180; attempt += 1) {
     try {
-      const response = await fetch(`${financeTestOrigin}/auth/sign-in`);
+      const response = await globalThis.fetch(
+        `${financeTestOrigin}/auth/sign-in`,
+      );
       if (response.ok) return;
     } catch {
       // Todavía compilando.
@@ -128,7 +131,13 @@ try {
           failed += 1;
           continue;
         }
-        await page.evaluate(() => document.fonts.ready);
+        // Solo para la imagen: sin el indicador de Next.js en desarrollo y con
+        // la barra flotante móvil al pie de la página completa.
+        await page.addStyleTag({
+          content:
+            "nextjs-portal{display:none!important}body{position:relative}.finance-dock{position:absolute!important}",
+        });
+        await page.evaluate(() => globalThis.document.fonts.ready);
         await delay(700);
         await page.screenshot({
           path: join(outDir, `${target.file}-${viewport.name}.jpg`),
