@@ -49,15 +49,18 @@ export function BudgetThresholdNotice({
   categoryName,
   percent,
   state,
+  className,
 }: {
   categoryName: string;
   percent: number;
   state: Exclude<BudgetAlertState, "ok">;
+  /** Reemplaza el color por defecto (p. ej. tokens semánticos Glaciar). */
+  className?: string;
 }) {
   return (
     <p
       role={state === "danger" ? "alert" : "status"}
-      className={noticeText[state]}
+      className={className ?? noticeText[state]}
     >
       {budgetAlertMessage(state, percent, categoryName)}
     </p>

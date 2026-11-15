@@ -986,6 +986,312 @@
     overflow-wrap: anywhere;
   }
 
+  /* ---------- UI-05C: Fondos de ahorro y Presupuestos ---------- */
+  .gs-tone--good {
+    color: var(--lab-good);
+  }
+
+  .gs-tone--warning {
+    color: var(--lab-warning);
+  }
+
+  .gs-tone--critical {
+    color: var(--lab-critical);
+  }
+
+  .gs-kpi__extra {
+    display: grid;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .gs-kpi__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 8px;
+  }
+
+  .gs-kpi__form .ui-field {
+    min-width: 0;
+    flex: 1 1 120px;
+  }
+
+  .gs-fund-list {
+    display: grid;
+    gap: 16px;
+  }
+
+  @media (min-width: 80rem) {
+    .gs-fund-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+  }
+
+  .gs-fund {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 14px;
+    scroll-margin-top: 16px;
+  }
+
+  .gs-fund__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .gs-fund__name {
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-fund__body {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .gs-fund__ring-empty {
+    display: grid;
+    width: 76px;
+    height: 76px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px dashed var(--glaciar-border-strong);
+    border-radius: 999px;
+    color: var(--glaciar-muted);
+  }
+
+  .gs-fund__amount {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-fund__meta {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gs-fund__text {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .gs-fund__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-fund__actions .gs-fund__spacer {
+    margin-left: auto;
+  }
+
+  .gs-fund--closed {
+    opacity: 0.92;
+  }
+
+  /* Aportaciones programadas dentro de cada fondo. */
+  .gs-contrib {
+    display: grid;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--glaciar-border);
+    font-size: 13px;
+  }
+
+  .gs-contrib__pending {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--lab-warning) 45%, transparent);
+    border-radius: 14px;
+    background: rgb(240 179 90 / 7%);
+  }
+
+  .gs-contrib__form {
+    display: grid;
+    gap: 10px;
+  }
+
+  .gs-contrib__list {
+    display: grid;
+    gap: 6px;
+    color: var(--glaciar-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gs-contrib__list li {
+    padding-left: 12px;
+    border-left: 2px solid var(--glaciar-border-strong);
+  }
+
+  .gs-contrib .gs-accordion__body {
+    color: var(--glaciar-text);
+    font-size: 13px;
+  }
+
+  .gs-accordion__body .gs-contrib__form + .gs-contrib__list {
+    margin-top: 4px;
+  }
+
+  /* Presupuestos: filas con barra de consumo, subcategorías y acciones. */
+  .gs-budgets {
+    display: grid;
+    gap: 0;
+  }
+
+  .gs-budget {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--glaciar-border);
+  }
+
+  .gs-budget:first-child {
+    padding-top: 2px;
+  }
+
+  .gs-budget:last-child {
+    padding-bottom: 2px;
+    border-bottom: 0;
+  }
+
+  .gs-budget--sub {
+    margin-left: 14px;
+    padding-left: 16px;
+    border-left: 1px solid var(--glaciar-border-strong);
+  }
+
+  .gs-budget__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+  }
+
+  .gs-budget__name {
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-budget__sub {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  .gs-budget__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gs-budget__pct {
+    font-weight: 700;
+  }
+
+  .gs-budget__lines {
+    display: grid;
+    gap: 2px;
+    color: var(--glaciar-muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .gs-budget__stats {
+    display: grid;
+    gap: 2px;
+  }
+
+  .gs-budget__foot dt {
+    color: var(--glaciar-muted);
+    font-size: 12px;
+  }
+
+  .gs-budget__foot dd {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-budget__foot dd .gs-budget__sep {
+    color: var(--glaciar-muted);
+    font-weight: 400;
+  }
+
+  .ui-field.gs-cat-field > label {
+    color: var(--glaciar-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .gs-budget__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .gs-budget__actions .ui-btn {
+    min-height: 36px;
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+
+  .gs-budget__alert {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .gs-budget__alert[data-state="danger"] {
+    color: var(--lab-critical);
+  }
+
+  .gs-budget__alert[data-state="warning"] {
+    color: var(--lab-warning);
+  }
+
+  .gs-confirm {
+    display: grid;
+    gap: 10px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-effects {
+    display: grid;
+    gap: 6px;
+    padding-left: 18px;
+    color: var(--glaciar-muted);
+    font-size: 13px;
+    line-height: 1.45;
+    list-style: disc;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gs-form {
       animation: none !important;

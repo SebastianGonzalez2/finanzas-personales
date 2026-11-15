@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -17,14 +18,19 @@ import {
 import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
 import { useFinancialCommand } from "./financial-command";
+import {
+  EmptyState,
+  FormFoot,
+  FormPanel,
+  PageHead,
+  PageNotice,
+  StateTag,
+} from "./glaciar/screen";
+import { Panel } from "./glaciar-summary/panel";
 import { BudgetThresholdNotice } from "./notices";
-import { Card } from "./ui/card";
-
-const button =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60";
-const primary = `${button} border-primary bg-primary text-primary-foreground hover:bg-primary/85`;
-const control =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
+import { Button } from "./ui/button";
+import { Field, Input, Select } from "./ui/field";
+import { Icon } from "./ui/icon";
 
 type Editor =
   | { action: "create" }
@@ -47,11 +53,82 @@ function monthOptions(today: string) {
   });
 }
 
+function shiftMonth(key: string, delta: number) {
+  const [year, month] = key.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  const label = monthFormat.format(new Date(Date.UTC(year, month - 1, 1)));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 function money(amount: string, currency: string) {
   return formatBankAmount({
     amount,
     currency: currency as "UYU" | "USD" | "EUR",
   });
+}
+
+const units = (amount: string) => {
+  const [whole, fraction = ""] = amount.split(".");
+  return BigInt(whole + fraction.padEnd(4, "0"));
+};
+
+// M-02 — Estados con los umbrales vigentes: rojo desde 100 % (inclusive),
+// ámbar desde 80 % hasta menos de 100 %, verde por debajo y neutro cuando el
+// consumo no se pudo calcular. Solo cambia la presentación.
+function budgetState(budget: Budget) {
+  const limit = units(budget.effectiveLimit);
+  const consumed = units(budget.progress?.consumed ?? "0");
+  const percent =
+    limit > BigInt(0) ? (consumed * BigInt(100)) / limit : BigInt(0);
+  const tone = !budget.progress
+    ? ("neutral" as const)
+    : percent >= BigInt(100)
+      ? ("critical" as const)
+      : percent >= BigInt(80)
+        ? ("warning" as const)
+        : ("good" as const);
+  const label = {
+    neutral: "Sin calcular",
+    critical: "Excedido",
+    warning: "Cerca del límite",
+    good: "En rango",
+  }[tone];
+  return { percent, tone, label };
+}
+
+/** Orden visual: cada subcategoría con presupuesto queda bajo su categoría. */
+function arrange(budgets: Budget[], categories: CatalogCategory[]) {
+  const parentOf = new Map(categories.map((c) => [c.id, c.parentId]));
+  const byCategory = new Map(budgets.map((b) => [b.categoryId, b]));
+  const ancestor = (budget: Budget) => {
+    const seen = new Set<string>();
+    let current = parentOf.get(budget.categoryId) ?? null;
+    while (current && !seen.has(current)) {
+      if (byCategory.has(current)) return current;
+      seen.add(current);
+      current = parentOf.get(current) ?? null;
+    }
+    return null;
+  };
+  const rows = budgets.map((budget) => ({ budget, parent: ancestor(budget) }));
+  const ordered: { budget: Budget; nested: boolean; isSub: boolean }[] = [];
+  const place = (parent: string | null, nested: boolean) => {
+    for (const row of rows.filter((item) => item.parent === parent)) {
+      ordered.push({
+        budget: row.budget,
+        nested,
+        isSub: !!parentOf.get(row.budget.categoryId),
+      });
+      place(row.budget.categoryId, true);
+    }
+  };
+  place(null, false);
+  return ordered;
 }
 
 export function BudgetCatalog({
@@ -75,6 +152,7 @@ export function BudgetCatalog({
   const budgeted = new Set(budgets.map(({ categoryId }) => categoryId));
   const historical = viewedMonth !== today.slice(0, 7);
   const editingDisabled = editor !== null || historical || refreshing;
+  const rows = arrange(budgets, categories);
 
   useEffect(() => {
     if (message && !refreshing) add.current?.focus();
@@ -96,43 +174,96 @@ export function BudgetCatalog({
     requestAnimationFrame(() => trigger.current?.focus());
   }
 
+  const previous = shiftMonth(viewedMonth, -1);
+  const next = shiftMonth(viewedMonth, 1);
+
   return (
     <>
-      <form method="get" className="flex flex-wrap items-end gap-2">
-        <label className="grid gap-1 text-sm font-medium">
-          Mes del presupuesto
-          <input
-            type="month"
-            name="month"
-            required
-            defaultValue={viewedMonth}
-            disabled={editor !== null}
-            className={control}
-          />
-        </label>
-        <button className={button} type="submit" disabled={editor !== null}>
-          Ver mes
-        </button>
-      </form>
+      <PageHead
+        eyebrow="Planificación"
+        title="Presupuestos"
+        description="Límites mensuales opcionales por categoría, sin arrastre de saldos."
+        actions={
+          <Button
+            ref={add}
+            variant="primary"
+            disabled={editingDisabled}
+            onClick={(event) =>
+              openEditor({ action: "create" }, event.currentTarget)
+            }
+          >
+            <Icon name="plus" duotone={false} className="size-4" />
+            Crear presupuesto
+          </Button>
+        }
+      />
+      <nav aria-label="Elegir mes" className="gs-nav">
+        <div className="lab-stepper">
+          {editor ? (
+            <button
+              type="button"
+              className="lab-stepper__btn"
+              aria-label="Mes anterior"
+              disabled
+            >
+              <Icon name="chevronLeft" duotone={false} className="size-4" />
+            </button>
+          ) : (
+            <Link
+              href={`/presupuestos?month=${previous}`}
+              className="lab-stepper__btn"
+              aria-label="Mes anterior"
+            >
+              <Icon name="chevronLeft" duotone={false} className="size-4" />
+            </Link>
+          )}
+          <span className="lab-stepper__label">
+            <Icon name="calendar" className="size-4" />
+            {monthLabel(viewedMonth)}
+          </span>
+          {editor ? (
+            <button
+              type="button"
+              className="lab-stepper__btn"
+              aria-label="Mes siguiente"
+              disabled
+            >
+              <Icon name="chevronRight" duotone={false} className="size-4" />
+            </button>
+          ) : (
+            <Link
+              href={`/presupuestos?month=${next}`}
+              className="lab-stepper__btn"
+              aria-label="Mes siguiente"
+            >
+              <Icon name="chevronRight" duotone={false} className="size-4" />
+            </Link>
+          )}
+        </div>
+        <form method="get" className="gs-kpi__form">
+          <Field label="Mes del presupuesto">
+            <Input
+              type="month"
+              name="month"
+              required
+              defaultValue={viewedMonth}
+              disabled={editor !== null}
+            />
+          </Field>
+          <Button type="submit" disabled={editor !== null}>
+            Ver mes
+          </Button>
+        </form>
+      </nav>
       {historical && (
-        <p className="text-sm">
-          Vista de otro mes. Para editar límites, volvé al mes actual.
-        </p>
+        <PageNotice
+          tone="info"
+          message="Vista de otro mes. Para editar límites, volvé al mes actual."
+        />
       )}
       <p role="status" className={message ? "text-sm" : "sr-only"}>
         {message}
       </p>
-      <button
-        ref={add}
-        type="button"
-        className={`${primary} justify-self-start`}
-        disabled={editingDisabled}
-        onClick={(event) =>
-          openEditor({ action: "create" }, event.currentTarget)
-        }
-      >
-        Crear presupuesto
-      </button>
       {editor?.action === "create" && (
         <BudgetEditor
           categories={categories}
@@ -158,48 +289,78 @@ export function BudgetCatalog({
       {editor?.action === "remove" && (
         <RemoveEditor budget={editor.budget} close={close} />
       )}
-      <section aria-labelledby="presupuestos-mes" className="grid gap-3">
-        <h2 id="presupuestos-mes" className="font-semibold">
-          Presupuestos de {viewedMonth}
-        </h2>
-        <p className="text-sm text-muted-foreground">
+      {budgets.length === 0 ? (
+        <EmptyState icon="budgets" title="Sin presupuestos en este mes">
+          Todavía no tenés presupuestos. Podés crear uno por categoría de gasto
+          cuando quieras; los avisos llegan al 80 % y al 100 % del límite.
+        </EmptyState>
+      ) : (
+        <div className="gs-grid">
+          <div className="gs-lane-main gs-stack">
+            <Panel
+              id="presupuestos-mes"
+              title="Presupuestos del mes"
+              icon="budgets"
+              action={
+                <span className="lab-muted text-xs">
+                  {monthLabel(viewedMonth)}
+                </span>
+              }
+            >
+              <ul className="gs-budgets">
+                {rows.map(({ budget, nested, isSub }) => (
+                  <BudgetEntry
+                    key={budget.id}
+                    budget={budget}
+                    options={options}
+                    nested={nested}
+                    isSub={isSub}
+                    disabled={editingDisabled}
+                    edit={(from) =>
+                      openEditor({ action: "edit", budget }, from)
+                    }
+                    except={(from) =>
+                      openEditor({ action: "exception", budget }, from)
+                    }
+                    remove={(from) =>
+                      openEditor({ action: "remove", budget }, from)
+                    }
+                  />
+                ))}
+              </ul>
+            </Panel>
+          </div>
+          <div className="gs-lane-side gs-stack">
+            <HowItWorks />
+            <QuoteEditor today={today} />
+          </div>
+        </div>
+      )}
+      {budgets.length === 0 && <QuoteEditor today={today} />}
+    </>
+  );
+}
+
+function HowItWorks() {
+  return (
+    <section className="lab-panel" aria-label="Cómo funcionan los presupuestos">
+      <div className="b-notice b-notice--info">
+        <Icon name="info" className="size-4.5 shrink-0" />
+        <p className="gs-notice-text">
           El seguimiento se reinicia cada mes sin arrastrar sobrantes ni
           excesos. Los gastos de subcategorías también consumen el límite de la
           categoría general.
         </p>
-        {budgets.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Todavía no tenés presupuestos. Podés crear uno por categoría de
-            gasto cuando quieras.
-          </p>
-        ) : (
-          <ul className="grid gap-3 xl:grid-cols-2">
-            {budgets.map((budget) => (
-              <BudgetEntry
-                key={budget.id}
-                budget={budget}
-                options={options}
-                disabled={editingDisabled}
-                edit={(from) => openEditor({ action: "edit", budget }, from)}
-                except={(from) =>
-                  openEditor({ action: "exception", budget }, from)
-                }
-                remove={(from) =>
-                  openEditor({ action: "remove", budget }, from)
-                }
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-      <QuoteEditor today={today} />
-    </>
+      </div>
+    </section>
   );
 }
 
 function BudgetEntry({
   budget,
   options,
+  nested,
+  isSub,
   disabled,
   edit,
   except,
@@ -207,137 +368,123 @@ function BudgetEntry({
 }: {
   budget: Budget;
   options: { key: string; label: string }[];
+  nested?: boolean;
+  isSub?: boolean;
   disabled?: boolean;
   edit: (from: HTMLButtonElement) => void;
   except: (from: HTMLButtonElement) => void;
   remove: (from: HTMLButtonElement) => void;
 }) {
-  const units = (amount: string) => {
-    const [whole, fraction = ""] = amount.split(".");
-    return BigInt(whole + fraction.padEnd(4, "0"));
-  };
-  const limit = units(budget.effectiveLimit);
-  const consumed = units(budget.progress?.consumed ?? "0");
-  const percent =
-    limit > BigInt(0) ? (consumed * BigInt(100)) / limit : BigInt(0);
+  const { percent, tone, label } = budgetState(budget);
   const fill = Number(percent > BigInt(100) ? BigInt(100) : percent);
-  const bar =
-    percent >= BigInt(100)
-      ? "bg-red-600"
-      : percent >= BigInt(80)
-        ? "bg-amber-500"
-        : "bg-primary";
   const exceptionMonth = budget.exception
     ? (options.find(({ key }) => key === budget.exception?.month)?.label ??
       budget.exception.month)
     : null;
   return (
-    <li className="min-w-0">
-      <Card className="gap-3 p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold wrap-anywhere">
-              {budget.categoryName}
-            </h3>
-            <p className="text-sm text-muted-foreground">{budget.currency}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={button}
-              disabled={disabled}
-              aria-label={`Editar el presupuesto de ${budget.categoryName}`}
-              onClick={(event) => edit(event.currentTarget)}
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              className={button}
-              disabled={disabled}
-              aria-label={`Cambiar el límite solo un mes en ${budget.categoryName}`}
-              onClick={(event) => except(event.currentTarget)}
-            >
-              Solo un mes
-            </button>
-            <button
-              type="button"
-              className={button}
-              disabled={disabled}
-              aria-label={`Quitar el presupuesto de ${budget.categoryName}`}
-              onClick={(event) => remove(event.currentTarget)}
-            >
-              Quitar
-            </button>
-          </div>
+    <li className={`gs-budget ${nested ? "gs-budget--sub" : ""}`}>
+      <div className="gs-budget__head">
+        <div className="min-w-0">
+          <h3 className="gs-budget__name">
+            {budget.categoryName}
+            {isSub && <span className="gs-budget__sub"> · subcategoría</span>}
+          </h3>
+          <p className="lab-muted text-xs">{budget.currency}</p>
         </div>
-        <div className="grid gap-1">
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={fill}
-            aria-label={`Consumo de ${budget.categoryName}`}
-          >
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${bar}`}
-                style={{ width: `${fill}%` }}
-              />
-            </div>
-          </div>
-          <dl className="grid gap-1 text-sm">
-            <div className="flex flex-wrap justify-between gap-x-2">
-              <dt className="text-muted-foreground">Consumo del mes</dt>
-              <dd className="font-medium tabular-nums">
-                {budget.progress
-                  ? `${money(budget.progress.consumed, budget.currency)} de ${money(budget.effectiveLimit, budget.currency)} (${percent}%)`
-                  : "Falta cotización: consumo sin calcular"}
-              </dd>
-            </div>
-            <div className="flex flex-wrap justify-between gap-x-2">
-              <dt className="text-muted-foreground">Límite habitual</dt>
-              <dd className="font-medium tabular-nums">
-                {money(budget.monthlyLimit, budget.currency)}
-              </dd>
-            </div>
-          </dl>
-          {!budget.progress && (
-            <p className="text-sm">
-              Agregá una cotización manual para las monedas de tus gastos, con
-              fecha anterior o igual al gasto. En cuotas se usa la fecha de
-              registro de la compra.
-            </p>
-          )}
-          {budget.references.map((ref, index) => (
-            <p className="text-xs text-muted-foreground" key={index}>
-              Referencia {ref.source} del {ref.date}: 1 {ref.fromCurrency} ={" "}
-              {ref.rate} {budget.currency}.
-            </p>
-          ))}
-          <p className="text-sm text-muted-foreground">
-            Límite efectivo del mes siguiente:{" "}
-            {budget.nextLimit
-              ? money(budget.nextLimit.amount, budget.nextLimit.currency)
-              : "Sin presupuesto"}
-            .
+        <StateTag tone={tone}>{label}</StateTag>
+      </div>
+      {budget.progress && (
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={fill}
+          aria-valuetext={`${percent} % del límite`}
+          aria-label={`Consumo de ${budget.categoryName}`}
+          className={`lab-meter lab-meter--${tone}`}
+        >
+          <span style={{ width: `${fill}%` }} />
+        </div>
+      )}
+      <dl className="gs-budget__stats text-sm">
+        <div className="gs-budget__foot">
+          <dt>Consumo del mes</dt>
+          <dd className={tone === "neutral" ? "" : `gs-tone--${tone}`}>
+            {budget.progress
+              ? `${money(budget.progress.consumed, budget.currency)} de ${money(budget.effectiveLimit, budget.currency)} (${percent}%)`
+              : "Falta cotización: consumo sin calcular"}
+          </dd>
+        </div>
+        <div className="gs-budget__foot">
+          <dt>Límite habitual</dt>
+          <dd className="tabular-nums">
+            {money(budget.monthlyLimit, budget.currency)}
+          </dd>
+        </div>
+      </dl>
+      <div className="gs-budget__lines">
+        {!budget.progress && (
+          <p>
+            Agregá una cotización manual para las monedas de tus gastos, con
+            fecha anterior o igual al gasto. En cuotas se usa la fecha de
+            registro de la compra.
           </p>
-          {budget.exception && (
-            <p className="text-sm wrap-anywhere">
-              Excepción para {exceptionMonth}:{" "}
-              <strong>{money(budget.exception.limit, budget.currency)}</strong>.
-              El mes siguiente vuelve automáticamente al límite habitual.
-            </p>
-          )}
-          {percent >= BigInt(80) && (
-            <BudgetThresholdNotice
-              categoryName={budget.categoryName}
-              percent={Number(percent)}
-              state={percent >= BigInt(100) ? "danger" : "warning"}
-            />
-          )}
-        </div>
-      </Card>
+        )}
+        {budget.references.map((ref, index) => (
+          <p key={index}>
+            Referencia {ref.source} del {ref.date}: 1 {ref.fromCurrency} ={" "}
+            {ref.rate} {budget.currency}.
+          </p>
+        ))}
+        <p>
+          Límite efectivo del mes siguiente:{" "}
+          {budget.nextLimit
+            ? money(budget.nextLimit.amount, budget.nextLimit.currency)
+            : "Sin presupuesto"}
+          .
+        </p>
+        {budget.exception && (
+          <p className="wrap-anywhere">
+            Excepción para {exceptionMonth}:{" "}
+            <strong>{money(budget.exception.limit, budget.currency)}</strong>.
+            El mes siguiente vuelve automáticamente al límite habitual.
+          </p>
+        )}
+      </div>
+      {percent >= BigInt(80) && (
+        <BudgetThresholdNotice
+          categoryName={budget.categoryName}
+          percent={Number(percent)}
+          state={percent >= BigInt(100) ? "danger" : "warning"}
+          className={`gs-budget__alert ${percent >= BigInt(100) ? "gs-tone--critical" : "gs-tone--warning"}`}
+        />
+      )}
+      <div className="gs-budget__actions">
+        <Button
+          variant="outline"
+          disabled={disabled}
+          aria-label={`Editar el presupuesto de ${budget.categoryName}`}
+          onClick={(event) => edit(event.currentTarget)}
+        >
+          Editar
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={disabled}
+          aria-label={`Cambiar el límite solo un mes en ${budget.categoryName}`}
+          onClick={(event) => except(event.currentTarget)}
+        >
+          Solo un mes
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={disabled}
+          aria-label={`Quitar el presupuesto de ${budget.categoryName}`}
+          onClick={(event) => remove(event.currentTarget)}
+        >
+          Quitar
+        </Button>
+      </div>
     </li>
   );
 }
@@ -411,66 +558,73 @@ function BudgetEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2 ref={heading} tabIndex={-1} className="font-semibold">
-        {budget
+    <FormPanel
+      labelId="titulo-editor-presupuesto"
+      headingRef={heading}
+      title={
+        budget
           ? `Editar presupuesto · ${budget.categoryName}`
-          : "Crear presupuesto"}
-      </h2>
+          : "Crear presupuesto"
+      }
+      description={
+        budget
+          ? undefined
+          : "El límite rige desde este mes. Los gastos de subcategorías también consumen el límite de la categoría general."
+      }
+    >
       <form
         method="post"
         action="/api/budgets"
+        aria-labelledby="titulo-editor-presupuesto"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
-        {budget ? (
-          <p className="text-sm">
-            Categoría: <strong>{budget.categoryName}</strong>
-          </p>
-        ) : (
-          <CategorySelect
-            kind="expense"
-            categories={categories}
-            excludedIds={budgeted}
-            controlClassName={control}
-            labelClassName="grid gap-1 text-sm font-medium"
-            labelText="Categoría de gasto"
-            name="category"
-            optional={false}
-          />
-        )}
-        <label className="grid gap-1 text-sm font-medium">
-          Moneda del límite
-          <select
-            className={control}
-            name="currency"
-            defaultValue={budget?.currency ?? "UYU"}
-            onChange={(event) =>
-              setPreviewCurrency(event.target.value as Budget["currency"])
-            }
-            disabled={pending || uncertain}
-          >
-            {bankCurrencies.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm font-medium">
-          Límite mensual
-          <input
-            className={control}
-            name="amount"
-            inputMode="decimal"
-            maxLength={21}
-            required
-            defaultValue={budget?.monthlyLimit}
-            disabled={pending || uncertain}
-            onChange={(event) => setPreviewAmount(event.target.value)}
-          />
-        </label>
-        <p className="text-sm text-muted-foreground">
+        <div className="gs-form__grid gs-form__grid--3">
+          {budget ? (
+            <p className="self-end text-sm">
+              Categoría: <strong>{budget.categoryName}</strong>
+            </p>
+          ) : (
+            <CategorySelect
+              kind="expense"
+              categories={categories}
+              excludedIds={budgeted}
+              controlClassName="ui-control"
+              labelClassName="ui-field gs-cat-field"
+              labelText="Categoría de gasto"
+              name="category"
+              optional={false}
+            />
+          )}
+          <Field label="Moneda del límite">
+            <Select
+              name="currency"
+              defaultValue={budget?.currency ?? "UYU"}
+              onChange={(event) =>
+                setPreviewCurrency(event.target.value as Budget["currency"])
+              }
+              disabled={pending || uncertain}
+            >
+              {bankCurrencies.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Límite mensual">
+            <Input
+              name="amount"
+              inputMode="decimal"
+              maxLength={21}
+              required
+              defaultValue={budget?.monthlyLimit}
+              disabled={pending || uncertain}
+              onChange={(event) => setPreviewAmount(event.target.value)}
+            />
+          </Field>
+        </div>
+        <p className="gs-hint">
           Al editar el importe o la moneda, el nuevo límite rige desde este mes
           en adelante; los meses anteriores conservan su valor histórico. No
           convertimos automáticamente el importe anterior.
@@ -499,17 +653,9 @@ function BudgetEditor({
         <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
           {validation || error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {pending
-              ? "Guardando…"
-              : uncertain
-                ? "Reintentar guardado"
-                : "Guardar"}
-          </button>
-          <button
-            type="button"
-            className={button}
+        <FormFoot>
+          <Button
+            variant="ghost"
             disabled={pending || uncertain}
             onClick={() => {
               clearError();
@@ -517,10 +663,17 @@ function BudgetEditor({
             }}
           >
             Cancelar
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending
+              ? "Guardando…"
+              : uncertain
+                ? "Reintentar guardado"
+                : "Guardar"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }
 
@@ -570,64 +723,61 @@ function QuoteEditor({ today }: { today: string }) {
     }
   }
   return (
-    <details className="rounded-lg border p-4">
-      <summary className="cursor-pointer font-semibold">
+    <details className="lab-panel" id="cotizacion">
+      <summary className="lab-panel__title cursor-pointer">
         Cotización manual para presupuestos
       </summary>
-      <p className="my-3 text-sm text-muted-foreground">
+      <p className="lab-muted my-3 text-sm">
         Indicá cuánto vale una unidad de la moneda de origen en la moneda del
         presupuesto. Solo se utiliza para equivalencias; no mueve dinero. No
         reemplaza referencias ya utilizadas.
       </p>
-      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-        <fieldset disabled={pending || uncertain} className="contents">
-          <label className="grid gap-1 text-sm">
-            Moneda de origen
-            <select name="fromCurrency" defaultValue="USD" className={control}>
+      <form onSubmit={submit} className="grid gap-4">
+        <fieldset
+          disabled={pending || uncertain}
+          className="gs-form__grid min-w-0"
+        >
+          <Field label="Moneda de origen">
+            <Select name="fromCurrency" defaultValue="USD">
               {bankCurrencies.map((c) => (
                 <option key={c}>{c}</option>
               ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            Moneda de destino
-            <select name="toCurrency" defaultValue="UYU" className={control}>
+            </Select>
+          </Field>
+          <Field label="Moneda de destino">
+            <Select name="toCurrency" defaultValue="UYU">
               {bankCurrencies.map((c) => (
                 <option key={c}>{c}</option>
               ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            Tasa de referencia
-            <input
-              name="rate"
-              required
-              inputMode="decimal"
-              maxLength={17}
-              className={control}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            Fecha de cotización
-            <input
+            </Select>
+          </Field>
+          <Field label="Tasa de referencia">
+            <Input name="rate" required inputMode="decimal" maxLength={17} />
+          </Field>
+          <Field label="Fecha de cotización">
+            <Input
               name="effectiveOn"
               required
               type="date"
               defaultValue={today}
               max={today}
-              className={control}
             />
-          </label>
+          </Field>
         </fieldset>
         <p role="alert">{validation || error}</p>
         <p role="status">{message}</p>
-        <button className={primary} disabled={pending} type="submit">
+        <Button
+          type="submit"
+          variant="primary"
+          className="self-start"
+          disabled={pending}
+        >
           {pending
             ? "Guardando…"
             : uncertain
               ? "Reintentar cotización"
               : "Guardar cotización manual"}
-        </button>
+        </Button>
       </form>
     </details>
   );
@@ -677,44 +827,44 @@ function ExceptionEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2 ref={heading} tabIndex={-1} className="font-semibold">
-        Cambiar límite solo un mes · {budget.categoryName}
-      </h2>
+    <FormPanel
+      labelId="titulo-excepcion-presupuesto"
+      headingRef={heading}
+      title={`Cambiar límite solo un mes · ${budget.categoryName}`}
+    >
       <form
         method="post"
         action="/api/budgets"
+        aria-labelledby="titulo-excepcion-presupuesto"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
-        <label className="grid gap-1 text-sm font-medium">
-          Mes de la excepción
-          <select
-            className={control}
-            name="month"
-            defaultValue={budget.exception?.month ?? options[0].key}
-            disabled={pending || uncertain}
-          >
-            {options.map(({ key, label }) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm font-medium">
-          Límite solo para ese mes ({budget.currency})
-          <input
-            className={control}
-            name="amount"
-            inputMode="decimal"
-            maxLength={21}
-            required
-            defaultValue={budget.exception?.limit ?? budget.monthlyLimit}
-            disabled={pending || uncertain}
-          />
-        </label>
-        <p className="text-sm text-muted-foreground">
+        <div className="gs-form__grid">
+          <Field label="Mes de la excepción">
+            <Select
+              name="month"
+              defaultValue={budget.exception?.month ?? options[0].key}
+              disabled={pending || uncertain}
+            >
+              {options.map(({ key, label }) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={`Límite solo para ese mes (${budget.currency})`}>
+            <Input
+              name="amount"
+              inputMode="decimal"
+              maxLength={21}
+              required
+              defaultValue={budget.exception?.limit ?? budget.monthlyLimit}
+              disabled={pending || uncertain}
+            />
+          </Field>
+        </div>
+        <p className="gs-hint">
           El límite habitual de {money(budget.monthlyLimit, budget.currency)}{" "}
           queda intacto y vuelve automáticamente al mes siguiente, sin arrastrar
           cambios a meses históricos.
@@ -722,17 +872,9 @@ function ExceptionEditor({
         <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
           {validation || error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {pending
-              ? "Guardando…"
-              : uncertain
-                ? "Reintentar guardado"
-                : "Guardar"}
-          </button>
-          <button
-            type="button"
-            className={button}
+        <FormFoot>
+          <Button
+            variant="ghost"
             disabled={pending || uncertain}
             onClick={() => {
               clearError();
@@ -740,10 +882,17 @@ function ExceptionEditor({
             }}
           >
             Cancelar
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending
+              ? "Guardando…"
+              : uncertain
+                ? "Reintentar guardado"
+                : "Guardar"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }
 
@@ -775,17 +924,19 @@ function RemoveEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2 ref={heading} tabIndex={-1} className="font-semibold">
-        Quitar presupuesto · {budget.categoryName}
-      </h2>
+    <FormPanel
+      labelId="titulo-quitar-presupuesto"
+      headingRef={heading}
+      title={`Quitar presupuesto · ${budget.categoryName}`}
+    >
       <form
         method="post"
         action="/api/budgets"
+        aria-labelledby="titulo-quitar-presupuesto"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
-        <p className="text-sm wrap-anywhere">
+        <p className="gs-confirm">
           Se quita el límite de {money(budget.monthlyLimit, budget.currency)}{" "}
           mensuales para {budget.categoryName}. No se modifican gastos, saldos
           ni movimientos.
@@ -793,17 +944,9 @@ function RemoveEditor({
         <p role="alert" className={error ? "text-sm" : "sr-only"}>
           {error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {pending
-              ? "Quitando…"
-              : uncertain
-                ? "Reintentar envío"
-                : "Confirmar"}
-          </button>
-          <button
-            type="button"
-            className={button}
+        <FormFoot>
+          <Button
+            variant="ghost"
             disabled={pending || uncertain}
             onClick={() => {
               clearError();
@@ -811,9 +954,21 @@ function RemoveEditor({
             }}
           >
             Cancelar
-          </button>
-        </div>
+          </Button>
+          <Button
+            type="submit"
+            variant="outline"
+            className="gs-btn-danger"
+            disabled={pending}
+          >
+            {pending
+              ? "Quitando…"
+              : uncertain
+                ? "Reintentar envío"
+                : "Confirmar"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }

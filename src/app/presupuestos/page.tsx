@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { BudgetCatalog } from "@/components/budget-catalog";
-import { Card } from "@/components/ui/card";
+import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { listCatalogCategories } from "@/server/categories";
 import { budgetsReady, listBudgets } from "@/server/budgets";
@@ -44,24 +44,13 @@ export default async function BudgetsPage({
       redirect("/auth/sign-in");
     return {
       message: "No pudimos cargar tus presupuestos. Volvé a intentarlo.",
+      retry: true,
     };
   });
 
   return (
     <FinanceShell current="presupuestos">
-      <div className="grid gap-4">
-        <header>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Presupuestos
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Límites mensuales opcionales por categoría, sin arrastre de saldos.
-          </p>
-        </header>
+      <Screen>
         {"budgets" in result && result.budgets ? (
           <BudgetCatalog
             budgets={result.budgets}
@@ -70,11 +59,20 @@ export default async function BudgetsPage({
             viewedMonth={month}
           />
         ) : (
-          <Card className="p-4">
-            <p role="status">{result.message}</p>
-          </Card>
+          <>
+            <PageHead
+              eyebrow="Planificación"
+              title="Presupuestos"
+              description="Límites mensuales opcionales por categoría, sin arrastre de saldos."
+            />
+            <PageNotice
+              tone={"retry" in result ? "critical" : "info"}
+              message={result.message}
+              retryHref={"retry" in result ? "/presupuestos" : undefined}
+            />
+          </>
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }

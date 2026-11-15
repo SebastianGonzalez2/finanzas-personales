@@ -34,13 +34,17 @@ import { useFinancialCommand } from "./financial-command";
 import { coverageDecimal, coverageUnits } from "@/domain/fund-coverage";
 import { FundContributions } from "./fund-contributions";
 import { FundTargetMessage } from "./fund-target-notice";
-import { Card } from "./ui/card";
-
-const button =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60";
-const primary = `${button} border-primary bg-primary text-primary-foreground hover:bg-primary/85`;
-const control =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 text-base";
+import {
+  EmptyState,
+  FormFoot,
+  FormPanel,
+  PageHead,
+  StateTag,
+} from "./glaciar/screen";
+import { ProgressRing } from "./glaciar-summary/charts";
+import { Button } from "./ui/button";
+import { Field, Input, Select } from "./ui/field";
+import { Icon } from "./ui/icon";
 
 type FundAction = FundMovement["action"];
 type Editor =
@@ -58,27 +62,48 @@ const movementLabels = {
   },
 };
 
+function movementEffects(action: FundAction, currency: string) {
+  const effects = {
+    reserve: `Baja el disponible libre en ${currency} y sube lo reservado en el fondo.`,
+    release: `Sube el disponible libre en ${currency} y baja lo reservado en el fondo.`,
+    transfer: `Mueve lo reservado de un fondo a otro en ${currency}; el disponible libre no cambia.`,
+  };
+  return [
+    effects[action],
+    "Tu saldo en Bancos no cambia.",
+    "No se registra como gasto ni ingreso.",
+  ];
+}
+
 function formatFundAmount(fund: SavingsFund, amount: string) {
   return formatBankAmount({ currency: fund.currency, amount });
 }
 
-/** Exact remainders and percents computed on the four-digit transport scale. */
+/** Exact percent on the four-digit transport scale, or null without target. */
+function targetPercent(fund: SavingsFund) {
+  const target = fund.targetAmount;
+  if (!target) return null;
+  const units = (amount: string) => BigInt(amount.replace(".", ""));
+  return Number((units(fund.reservedAmount) * BigInt(100)) / units(target));
+}
+
+function statusTone(fund: SavingsFund, today: string) {
+  if (fund.status === "active") return "good" as const;
+  if (fund.status === "paused_target_reached")
+    return fundTargetNotices(fund, today).reached
+      ? ("good" as const)
+      : ("warning" as const);
+  return "neutral" as const;
+}
+
+/** Exact remainders computed on the four-digit transport scale. */
 function TargetProgress({ fund, today }: { fund: SavingsFund; today: string }) {
   const target = fund.targetAmount;
   const remaining = targetRemainder(fund);
   if (!target || remaining === null) return null;
-  const units = (amount: string) => BigInt(amount.replace(".", ""));
-  const reached = units(remaining) <= BigInt(0);
-  const percent = (
-    (units(fund.reservedAmount) * BigInt(100)) /
-    units(target)
-  ).toString();
+  const reached = BigInt(remaining.replace(".", "")) <= BigInt(0);
   return (
-    <div className="grid gap-1 text-sm">
-      <div className="flex flex-wrap justify-between gap-x-2">
-        <span className="text-muted-foreground">Progreso</span>
-        <span className="font-medium tabular-nums">{percent} %</span>
-      </div>
+    <div className="gs-fund__text">
       {reached ? (
         <p className="font-medium">Meta alcanzada.</p>
       ) : (
@@ -99,7 +124,7 @@ function TargetProgress({ fund, today }: { fund: SavingsFund; today: string }) {
             );
             return (
               saving && (
-                <p className="text-muted-foreground">
+                <p className="lab-muted">
                   Ahorro mensual orientativo: {formatFundAmount(fund, saving)}{" "}
                   hasta {fund.targetDate}.
                 </p>
@@ -118,6 +143,7 @@ export function SavingsFundCatalog({
   contributions,
   lifecycleReady,
   today,
+  kpis,
 }: {
   funds: SavingsFund[];
   closures: FundClosureRecord[];
@@ -129,6 +155,7 @@ export function SavingsFundCatalog({
   } | null;
   lifecycleReady: boolean;
   today: string;
+  kpis?: ReactNode;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -185,45 +212,34 @@ export function SavingsFundCatalog({
 
   return (
     <>
+      <PageHead
+        eyebrow="Planificación"
+        title="Fondos de ahorro"
+        description="Organizá reservas virtuales por moneda sin mover el saldo bancario."
+        actions={
+          <Button
+            ref={add}
+            variant="primary"
+            disabled={editor !== null}
+            onClick={(event) =>
+              openEditor({ action: "edit" }, event.currentTarget)
+            }
+          >
+            <Icon name="plus" duotone={false} className="size-4" />
+            Agregar fondo
+          </Button>
+        }
+      />
+      {kpis}
       <p role="status" className={message ? "text-sm" : "sr-only"}>
         {message}
       </p>
-      {availability ? (
-        <Card className="gap-2 p-4">
-          <h2 className="font-semibold">Disponible libre por moneda</h2>
-          <dl className="grid gap-2 sm:grid-cols-3">
-            {bankCurrencies.map((currency) => {
-              const balance = availability.find(
-                (entry) => entry.currency === currency,
-              );
-              return (
-                <div key={currency} className="text-sm">
-                  <dt className="text-muted-foreground">{currency}</dt>
-                  <dd className="font-medium tabular-nums">
-                    {balance
-                      ? formatBankAmount(balance)
-                      : "Sin saldo bancario configurado"}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </Card>
-      ) : (
-        <p className="text-sm text-muted-foreground">
+      {!availability && (
+        <p className="lab-muted text-sm">
           Las operaciones de reserva estarán disponibles cuando se actualice la
           base de datos.
         </p>
       )}
-      <button
-        ref={add}
-        type="button"
-        className={`${primary} justify-self-start`}
-        disabled={editor !== null}
-        onClick={(event) => openEditor({ action: "edit" }, event.currentTarget)}
-      >
-        Agregar fondo
-      </button>
       {editor?.action === "edit" && (
         <FundEditor
           fund={editor.fund}
@@ -246,19 +262,22 @@ export function SavingsFundCatalog({
           close={close}
         />
       )}
-      <section aria-labelledby="fondos-abiertos" className="grid gap-3">
-        <h2 id="fondos-abiertos" className="font-semibold">
-          Fondos de ahorro
+      <section aria-labelledby="fondos-abiertos" className="gs-stack">
+        <h2 id="fondos-abiertos" className="lab-panel__title">
+          Tus fondos
+          <span className="lab-tag lab-tag--neutral">{open.length}</span>
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="gs-hint">
           Una reserva virtual no mueve Bancos ni crea gastos o ingresos.
         </p>
         {open.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Todavía no tenés fondos de ahorro.
-          </p>
+          <EmptyState icon="funds" title="Sin fondos de ahorro todavía">
+            Todavía no tenés fondos de ahorro. Un fondo separa una parte de tu
+            disponible para una meta; es una reserva virtual que no mueve Bancos
+            ni crea gastos o ingresos.
+          </EmptyState>
         ) : (
-          <ul className="grid gap-3 xl:grid-cols-2">
+          <ul className="gs-fund-list">
             {open.map((fund) => (
               <FundEntry
                 key={fund.id}
@@ -298,11 +317,11 @@ export function SavingsFundCatalog({
         )}
       </section>
       {closed.length > 0 && (
-        <details className="rounded-lg border p-4">
-          <summary className="cursor-pointer font-semibold">
+        <details className="lab-panel">
+          <summary className="lab-panel__title cursor-pointer">
             Fondos cerrados ({closed.length})
           </summary>
-          <ul className="mt-3 grid gap-3 xl:grid-cols-2">
+          <ul className="gs-fund-list">
             {closed.map((fund) => (
               <FundEntry
                 key={fund.id}
@@ -342,124 +361,124 @@ function FundEntry({
   children?: ReactNode;
 }) {
   const { pausedByTarget, reached, overdue } = fundTargetNotices(fund, today);
+  const percent = targetPercent(fund);
+  const editable =
+    !!edit &&
+    (fund.status === "active" ||
+      fund.status === "paused_manual" ||
+      fund.status === "paused_target_reached");
+  const isClosed = fund.status === "closed";
   return (
-    <li id={`fondo-${fund.id}`} className="min-w-0 scroll-mt-4">
-      <Card className="gap-3 p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold wrap-anywhere">{fund.name}</h3>
-            <p className="text-sm text-muted-foreground">{fund.currency}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border px-2 py-1 text-xs font-medium">
-              {fundStatuses[fund.status]}
-            </span>
-            {edit &&
-              (fund.status === "active" ||
-                fund.status === "paused_manual" ||
-                fund.status === "paused_target_reached") && (
-                <button
-                  type="button"
-                  disabled={editDisabled}
-                  className={button}
-                  aria-label={`Editar ${fund.name}`}
-                  onClick={(event) => edit(event.currentTarget)}
-                >
-                  Editar
-                </button>
-              )}
-          </div>
+    <li
+      id={`fondo-${fund.id}`}
+      className={`lab-panel gs-fund ${isClosed ? "gs-fund--closed" : ""}`}
+    >
+      <div className="gs-fund__head">
+        <div className="min-w-0">
+          <h3 className="gs-fund__name">{fund.name}</h3>
+          <p className="lab-muted text-xs">{fund.currency}</p>
         </div>
-        <dl className="grid gap-1 text-sm">
-          <div className="flex flex-wrap justify-between gap-x-2">
-            <dt className="text-muted-foreground">Reservado</dt>
-            <dd className="font-medium tabular-nums">
-              {formatBankAmount({
-                currency: fund.currency,
-                amount: fund.reservedAmount,
-              })}
-            </dd>
-          </div>
-          {fund.committedAmount &&
-            coverageUnits(fund.committedAmount) > BigInt(0) && (
-              <>
-                <div className="flex flex-wrap justify-between gap-x-2">
-                  <dt className="text-muted-foreground">
-                    Comprometido con tarjeta
-                  </dt>
-                  <dd>
-                    {formatBankAmount({
-                      currency: fund.currency,
-                      amount: fund.committedAmount,
-                    })}
-                  </dd>
-                </div>
-                <div className="flex flex-wrap justify-between gap-x-2">
-                  <dt className="text-muted-foreground">
-                    Reserva sin comprometer
-                  </dt>
-                  <dd>
-                    {formatBankAmount({
-                      currency: fund.currency,
-                      amount: coverageDecimal(
-                        coverageUnits(fund.reservedAmount) -
-                          coverageUnits(fund.committedAmount),
-                      ),
-                    })}
-                  </dd>
-                </div>
-              </>
-            )}
-          {fund.targetAmount && (
-            <div className="flex flex-wrap justify-between gap-x-2">
-              <dt className="text-muted-foreground">Meta</dt>
-              <dd className="font-medium tabular-nums">
+        <StateTag tone={isClosed ? "neutral" : statusTone(fund, today)}>
+          {fundStatuses[fund.status]}
+        </StateTag>
+      </div>
+      <div className="gs-fund__body">
+        {percent !== null ? (
+          <ProgressRing
+            value={Math.min(100, percent) / 100}
+            color={reached ? "var(--lab-good)" : "var(--lab-accent)"}
+            size={76}
+            stroke={7}
+          >
+            <span className="sr-only">Progreso </span>
+            {percent} %
+          </ProgressRing>
+        ) : (
+          <span className="gs-fund__ring-empty" aria-hidden="true">
+            <Icon name="funds" className="size-6" />
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="lab-muted text-xs font-semibold">Reservado</p>
+          <p className="gs-fund__amount">
+            {formatBankAmount({
+              currency: fund.currency,
+              amount: fund.reservedAmount,
+            })}
+          </p>
+          <p className="gs-fund__meta">
+            {fund.targetAmount
+              ? `Meta ${formatFundAmount(fund, fund.targetAmount)}`
+              : "Sin meta"}
+            {fund.targetDate && ` · Fecha objetivo ${fund.targetDate}`}
+          </p>
+        </div>
+      </div>
+      {fund.committedAmount &&
+        coverageUnits(fund.committedAmount) > BigInt(0) && (
+          <dl className="gs-review">
+            <div>
+              <dt>Comprometido con tarjeta</dt>
+              <dd>
                 {formatBankAmount({
                   currency: fund.currency,
-                  amount: fund.targetAmount,
+                  amount: fund.committedAmount,
                 })}
               </dd>
             </div>
-          )}
-          {fund.targetDate && (
-            <div className="flex flex-wrap justify-between gap-x-2">
-              <dt className="text-muted-foreground">Fecha objetivo</dt>
-              <dd className="font-medium tabular-nums">{fund.targetDate}</dd>
+            <div>
+              <dt>Reserva sin comprometer</dt>
+              <dd>
+                {formatBankAmount({
+                  currency: fund.currency,
+                  amount: coverageDecimal(
+                    coverageUnits(fund.reservedAmount) -
+                      coverageUnits(fund.committedAmount),
+                  ),
+                })}
+              </dd>
+            </div>
+          </dl>
+        )}
+      {!isClosed && (
+        <>
+          <TargetProgress fund={fund} today={today} />
+          {pausedByTarget && (
+            <div className="gs-fund__text">
+              <FundTargetMessage fund={fund} today={today} kind="pause" />
             </div>
           )}
-        </dl>
-        {fund.status !== "closed" && (
-          <>
-            <TargetProgress fund={fund} today={today} />
-            {pausedByTarget && (
-              <FundTargetMessage fund={fund} today={today} kind="pause" />
-            )}
-            {edit && (reached || overdue) && (
-              <button
-                type="button"
-                className={`${reached ? primary : button} justify-self-start`}
-                disabled={editDisabled}
-                onClick={(event) => edit(event.currentTarget)}
-              >
-                {reached ? "Aumentar meta" : "Revisar meta y fecha"}
-              </button>
-            )}
-          </>
-        )}
-        {fund.reservedAmount === "0.0000" && fund.status !== "closed" && (
-          <p className="text-sm text-muted-foreground">
-            Sin dinero reservado todavía.
-          </p>
-        )}
-        {move && (
-          <div className="flex flex-wrap gap-2">
-            {(["reserve", "release", "transfer"] as const).map((action) => {
+          {edit && (reached || overdue) && (
+            <Button
+              variant={reached ? "primary" : "outline"}
+              className="self-start"
+              disabled={editDisabled}
+              onClick={(event) => edit(event.currentTarget)}
+            >
+              {reached ? "Aumentar meta" : "Revisar meta y fecha"}
+            </Button>
+          )}
+        </>
+      )}
+      {fund.reservedAmount === "0.0000" && !isClosed && (
+        <p className="lab-muted text-sm">Sin dinero reservado todavía.</p>
+      )}
+      {closure && (
+        <p className="gs-fund__text">
+          Cerrado el {closure.closedOn}. Se liberaron{" "}
+          {formatFundAmount(fund, closure.amount)} al disponible libre.
+        </p>
+      )}
+      {children}
+      {(move || editable) && (
+        <div className="gs-fund__actions">
+          {move &&
+            (["reserve", "release", "transfer"] as const).map((action) => {
               const { action: label, origin } = movementLabels[action];
               return (
-                <button
+                <Button
                   key={action}
-                  type="button"
-                  className={button}
+                  variant={action === "reserve" ? "outline" : "ghost"}
                   aria-label={`${label} ${origin} ${fund.name}`}
                   disabled={
                     editDisabled ||
@@ -470,29 +489,31 @@ function FundEntry({
                   onClick={(event) => move(action, event.currentTarget)}
                 >
                   {label}
-                </button>
+                </Button>
               );
             })}
-            {closeFund && (
-              <button
-                type="button"
-                className={button}
-                disabled={editDisabled}
-                onClick={(event) => closeFund(event.currentTarget)}
-              >
-                Cerrar fondo
-              </button>
-            )}
-          </div>
-        )}
-        {closure && (
-          <p className="text-sm">
-            Cerrado el {closure.closedOn}. Se liberaron{" "}
-            {formatFundAmount(fund, closure.amount)} al disponible libre.
-          </p>
-        )}
-        {children}
-      </Card>
+          {editable && (
+            <Button
+              variant="ghost"
+              className="gs-fund__spacer"
+              disabled={editDisabled}
+              aria-label={`Editar ${fund.name}`}
+              onClick={(event) => edit(event.currentTarget)}
+            >
+              Editar
+            </Button>
+          )}
+          {move && closeFund && (
+            <Button
+              variant="ghost"
+              disabled={editDisabled}
+              onClick={(event) => closeFund(event.currentTarget)}
+            >
+              Cerrar fondo
+            </Button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -513,17 +534,13 @@ function FundClosure({
     "POST",
   );
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2
-        id="titulo-cierre-fondo"
-        ref={heading}
-        tabIndex={-1}
-        className="font-semibold"
-      >
-        Cerrar fondo · {fund.name}
-      </h2>
+    <FormPanel
+      labelId="titulo-cierre-fondo"
+      headingRef={heading}
+      title={`Cerrar fondo · ${fund.name}`}
+    >
       <form
-        className="grid gap-3 text-sm"
+        className="gs-confirm"
         aria-labelledby="titulo-cierre-fondo"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -550,7 +567,7 @@ function FundClosure({
         </p>
         <p>Aportaciones pendientes que se descartarán: {periods.length}.</p>
         {periods.length > 0 && (
-          <ul className="list-disc pl-5">
+          <ul className="gs-effects">
             {periods.map((period) => (
               <li key={period.id}>
                 {period.scheduledOn} · {formatBankAmount(period)}
@@ -558,26 +575,29 @@ function FundClosure({
             ))}
           </ul>
         )}
+        <ul className="gs-effects">
+          <li>Tu saldo en Bancos no cambia.</li>
+          <li>No se registra como gasto ni ingreso.</li>
+        </ul>
         {error && (
           <p role="alert" className="text-destructive">
             {error}
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {uncertain ? "Reintentar guardado" : "Confirmar cierre"}
-          </button>
-          <button
-            type="button"
-            className={button}
+        <FormFoot>
+          <Button
+            variant="ghost"
             disabled={pending || uncertain}
             onClick={() => close()}
           >
             Cancelar
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {uncertain ? "Reintentar guardado" : "Confirmar cierre"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }
 
@@ -642,48 +662,34 @@ function FundMovementEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2
-        id="titulo-operacion-fondo"
-        ref={heading}
-        tabIndex={-1}
-        className="font-semibold"
-      >
-        {reviewing
+    <FormPanel
+      labelId="titulo-operacion-fondo"
+      headingRef={heading}
+      title={
+        reviewing
           ? `Confirmar ${label.toLowerCase()}`
-          : `${label} · ${fund.name}`}
-      </h2>
+          : `${label} · ${fund.name}`
+      }
+      description="Una reserva virtual no mueve Bancos ni crea gastos o ingresos."
+    >
       <form
         method="post"
         action="/api/funds"
         aria-labelledby="titulo-operacion-fondo"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
         <fieldset
           hidden={reviewing}
           disabled={reviewing}
-          className={reviewing ? "hidden" : "grid min-w-0 gap-3 sm:grid-cols-2"}
+          className={reviewing ? "hidden" : "gs-form__grid min-w-0"}
         >
-          <label className="grid gap-1 text-sm font-medium">
-            Importe ({fund.currency})
-            <input
-              className={control}
-              name="amount"
-              inputMode="decimal"
-              maxLength={21}
-              required
-            />
-          </label>
+          <Field label={`Importe (${fund.currency})`}>
+            <Input name="amount" inputMode="decimal" maxLength={21} required />
+          </Field>
           {action === "transfer" && (
-            <label className="grid gap-1 text-sm font-medium">
-              Fondo de destino
-              <select
-                className={control}
-                name="destination"
-                required
-                defaultValue=""
-              >
+            <Field label="Fondo de destino">
+              <Select name="destination" required defaultValue="">
                 <option value="" disabled>
                   Elegí un fondo
                 </option>
@@ -692,47 +698,54 @@ function FundMovementEditor({
                     {name}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
         </fieldset>
         {review && (
-          <p className="text-sm wrap-anywhere">
-            {label}{" "}
-            <strong>
-              {formatBankAmount({
-                amount: review.amount,
-                currency: fund.currency,
-              })}
-            </strong>
-            {` ${origin} `}
-            <strong>{fund.name}</strong>
-            {review.destination && (
-              <>
-                {" "}
-                hacia <strong>{review.destination.name}</strong>
-              </>
-            )}
-            .
-          </p>
+          <div className="gs-confirm">
+            <p className="wrap-anywhere">
+              {label}{" "}
+              <strong>
+                {formatBankAmount({
+                  amount: review.amount,
+                  currency: fund.currency,
+                })}
+              </strong>
+              {` ${origin} `}
+              <strong>{fund.name}</strong>
+              {review.destination && (
+                <>
+                  {" "}
+                  hacia <strong>{review.destination.name}</strong>
+                </>
+              )}
+              .
+            </p>
+            <ul className="gs-effects">
+              {movementEffects(action, fund.currency).map((effect) => (
+                <li key={effect}>{effect}</li>
+              ))}
+            </ul>
+          </div>
         )}
         <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
           {validation || error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
-            {pending
-              ? "Guardando…"
-              : uncertain
-                ? "Reintentar guardado"
-                : review
-                  ? "Confirmar operación"
-                  : "Revisar operación"}
-          </button>
+        <FormFoot>
+          <span className="gs-hint">
+            {review ? "Paso 2 de 2 · Confirmar" : "Paso 1 de 2 · Revisar"}
+          </span>
+          <Button
+            variant="ghost"
+            disabled={pending || uncertain}
+            onClick={() => close()}
+          >
+            Cancelar
+          </Button>
           {review && (
-            <button
-              type="button"
-              className={button}
+            <Button
+              variant="ghost"
               disabled={pending || uncertain}
               onClick={() => {
                 clearError();
@@ -740,19 +753,20 @@ function FundMovementEditor({
               }}
             >
               Modificar
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className={button}
-            disabled={pending || uncertain}
-            onClick={() => close()}
-          >
-            Cancelar
-          </button>
-        </div>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending
+              ? "Guardando…"
+              : uncertain
+                ? "Reintentar guardado"
+                : review
+                  ? "Confirmar operación"
+                  : "Revisar operación"}
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }
 
@@ -814,63 +828,59 @@ function FundEditor({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2
-        id="titulo-editor-fondo"
-        ref={heading}
-        tabIndex={-1}
-        className="font-semibold"
-      >
-        {fund ? "Editar fondo" : "Agregar fondo"}
-      </h2>
+    <FormPanel
+      labelId="titulo-editor-fondo"
+      headingRef={heading}
+      title={fund ? "Editar fondo" : "Agregar fondo"}
+      description={
+        fund
+          ? undefined
+          : "Cada fondo tiene una sola moneda. Podés agregar una meta y una fecha objetivo cuando quieras."
+      }
+    >
       <form
         method="post"
         action="/api/funds"
         aria-labelledby="titulo-editor-fondo"
         onSubmit={submit}
-        className="grid gap-3"
+        className="grid gap-4"
       >
         <fieldset
           disabled={pending || uncertain}
-          className="grid min-w-0 gap-3 sm:grid-cols-2"
+          className="gs-form__grid min-w-0"
         >
-          <label className="grid gap-1 text-sm font-medium">
-            Nombre
-            <input
-              className={control}
+          <Field label="Nombre">
+            <Input
               name="name"
               required
               maxLength={100}
               defaultValue={fund?.name}
             />
-          </label>
+          </Field>
           {fund ? (
             <p className="self-end text-sm">
               Moneda · {fund.currency} (no se modifica)
             </p>
           ) : (
-            <label className="grid gap-1 text-sm font-medium">
-              Moneda
-              <select className={control} name="currency" defaultValue="UYU">
+            <Field label="Moneda">
+              <Select name="currency" defaultValue="UYU">
                 {bankCurrencies.map((currency) => (
                   <option key={currency} value={currency}>
                     {currency}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
           {fund &&
             (reached ? (
-              <p className="text-sm sm:col-span-2">
+              <p className="gs-form__full text-sm">
                 {fundStatuses[fund.status]}. Reactivar las aportaciones
                 automáticas es una decisión expresa desde el aviso.
               </p>
             ) : (
-              <label className="grid gap-1 text-sm font-medium sm:col-span-2">
-                Estado
-                <select
-                  className={control}
+              <Field label="Estado" className="gs-form__full">
+                <Select
                   value={status}
                   onChange={(event) =>
                     setStatus(event.target.value as EditableFundStatus)
@@ -878,32 +888,28 @@ function FundEditor({
                 >
                   <option value="active">Activo</option>
                   <option value="paused_manual">Pausado</option>
-                </select>
-              </label>
+                </Select>
+              </Field>
             ))}
           {fund && lifecycleReady && (
             <>
-              <label className="grid gap-1 text-sm font-medium">
-                Meta ({fund.currency}, opcional)
-                <input
-                  className={control}
+              <Field label={`Meta (${fund.currency}, opcional)`}>
+                <Input
                   name="targetAmount"
                   inputMode="decimal"
                   maxLength={21}
                   defaultValue={fund.targetAmount ?? ""}
                   placeholder="Sin meta"
                 />
-              </label>
-              <label className="grid gap-1 text-sm font-medium">
-                Fecha objetivo (opcional)
-                <input
-                  className={control}
+              </Field>
+              <Field label="Fecha objetivo (opcional)">
+                <Input
                   name="targetDate"
                   type="date"
                   defaultValue={fund.targetDate ?? ""}
                 />
-              </label>
-              <p className="text-sm text-muted-foreground sm:col-span-2">
+              </Field>
+              <p className="gs-hint gs-form__full">
                 Dejalos vacíos para quitar la meta o la fecha. Cambiarlos no
                 mueve dinero ni altera las reservas.
               </p>
@@ -913,8 +919,15 @@ function FundEditor({
         <p role="alert" className={validation || error ? "text-sm" : "sr-only"}>
           {validation || error}
         </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className={primary} disabled={pending}>
+        <FormFoot>
+          <Button
+            variant="ghost"
+            disabled={pending || uncertain}
+            onClick={() => close()}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
             {pending
               ? "Guardando…"
               : uncertain
@@ -922,17 +935,9 @@ function FundEditor({
                 : fund
                   ? "Guardar fondo"
                   : "Crear fondo"}
-          </button>
-          <button
-            type="button"
-            className={button}
-            disabled={pending || uncertain}
-            onClick={() => close()}
-          >
-            Cancelar
-          </button>
-        </div>
+          </Button>
+        </FormFoot>
       </form>
-    </Card>
+    </FormPanel>
   );
 }
