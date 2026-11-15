@@ -245,6 +245,21 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
       );
     expect(animationSeconds).toBeLessThan(0.001);
     await expect(page.locator(".finance-shell [data-ambient]")).toHaveCount(2);
+    // HOTFIX: el vidrio aprobado sobrevive a la minificación en Chromium.
+    for (const surface of [
+      panel("Gastos del mes"),
+      panel("Flujo de los últimos seis meses"),
+      page.locator(
+        testInfo.project.name === "chromium-mobile"
+          ? ".finance-dock"
+          : ".finance-sidebar",
+      ),
+    ])
+      expect(
+        await surface.evaluate(
+          (element) => globalThis.getComputedStyle(element).backdropFilter,
+        ),
+      ).toMatch(/blur\(\d+px\)/);
     await flow.getByText("Ver como tabla", { exact: true }).click();
     await heading("Resumen financiero").focus();
     await page.screenshot({
