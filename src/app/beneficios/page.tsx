@@ -5,7 +5,8 @@ import {
   BankBenefitRecord,
 } from "@/components/bank-benefit-form";
 import { FinanceShell } from "@/components/finance-shell";
-import { Card } from "@/components/ui/card";
+import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
+import { Icon } from "@/components/ui/icon";
 import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
 import { bankBenefitsReady } from "@/server/bank-benefit-schema";
 import { listBankBenefits } from "@/server/bank-benefits";
@@ -52,47 +53,55 @@ export default async function BankBenefitsPage() {
 
   return (
     <FinanceShell current="beneficios">
-      <div className="grid max-w-3xl gap-4">
-        <header>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Beneficios bancarios
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cashback y bonificaciones acreditados por el banco que no están
-            ligados a una compra concreta.
-          </p>
-        </header>
+      <Screen>
+        <PageHead
+          eyebrow="Crédito"
+          title="Beneficios bancarios"
+          description="Cashback y bonificaciones acreditados por el banco que no están ligados a una compra concreta."
+        />
         {!data && (
-          <Card className="items-start p-4">
-            <p role="status">No pudimos cargar los beneficios bancarios.</p>
-          </Card>
+          <PageNotice
+            tone="critical"
+            message="No pudimos cargar los beneficios bancarios."
+            retryHref="/beneficios"
+          />
         )}
         {data && !data.ready && (
-          <Card className="items-start p-4">
-            <p role="status">
-              Actualizá la base de datos para registrar beneficios bancarios.
-            </p>
-          </Card>
+          <PageNotice
+            tone="info"
+            message="Actualizá la base de datos para registrar beneficios bancarios."
+          />
         )}
         {data?.ready && (
-          <>
-            <Card className="items-stretch p-4">
+          <div className="gs-grid">
+            <div className="gs-span-7">
               <BankBenefitForm
                 cards={data.cards}
                 today={data.today}
                 bankCurrenciesReady={[...data.configured]}
               />
-            </Card>
-            <Card className="items-stretch gap-2 p-4">
-              <h2 className="font-semibold">Beneficios registrados</h2>
+            </div>
+            <section
+              className="lab-panel gs-span-5"
+              aria-labelledby="beneficios-registrados"
+            >
+              <header className="lab-panel__head">
+                <h2 id="beneficios-registrados" className="lab-panel__title">
+                  <span className="lab-panel__icon">
+                    <Icon name="benefits" className="size-4.5" />
+                  </span>
+                  Beneficios registrados
+                </h2>
+                <span className="lab-tag lab-tag--neutral">
+                  {data.entries.length}
+                </span>
+              </header>
               {data.entries.length === 0 ? (
-                <p className="text-sm">Todavía no registraste beneficios.</p>
+                <p className="lab-muted py-6 text-center text-sm">
+                  Todavía no registraste beneficios.
+                </p>
               ) : (
-                <ul className="divide-y" aria-label="Beneficios registrados">
+                <ul className="gs-rows" aria-label="Beneficios registrados">
                   {data.entries.map((entry) => (
                     <li key={entry.id}>
                       <BankBenefitRecord entry={entry} link />
@@ -100,10 +109,10 @@ export default async function BankBenefitsPage() {
                   ))}
                 </ul>
               )}
-            </Card>
-          </>
+            </section>
+          </div>
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }
