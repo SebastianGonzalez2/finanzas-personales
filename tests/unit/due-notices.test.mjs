@@ -125,6 +125,30 @@ test("F4-05: período recurrente con fecha cierta pendiente genera un aviso úni
   assert.match(partial.amount, /Importe pendiente: 3\.000,00 UYU/);
 });
 
+test("UI-05E: el aviso recurrente enlaza a la serie que lo originó", () => {
+  const input = {
+    concept: "Alquiler",
+    currency: "UYU",
+    index: 3,
+    key: "2026-11",
+    dueOn: "2026-11-20",
+    status: "expected",
+    referenceAmount: "12000.0000",
+    remaining: "12000.0000",
+    today,
+  };
+  const first = "1c4e0a13-2b5f-4b3f-8e2b-4a3c6d7e8f02";
+  const second = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
+  assert.equal(
+    recurrenceDueNotice({ ...input, seriesId: first }).href,
+    `/recurrentes?serie=${first}`,
+  );
+  assert.equal(
+    recurrenceDueNotice({ ...input, seriesId: second }).href,
+    `/recurrentes?serie=${second}`,
+  );
+});
+
 test("F4-05: períodos resueltos o fuera de la ventana no generan avisos", () => {
   const base = {
     seriesId: "1c4e0a13-2b5f-4b3f-8e2b-4a3c6d7e8f02",

@@ -140,7 +140,7 @@ export function recurrenceDueNotice(
         ? `Importe ${input.status === "partial" ? "pendiente" : "de referencia"}: ${formatBankAmount({ amount, currency: input.currency })}`
         : null,
     level: "warning",
-    href: "/recurrentes",
+    href: `/recurrentes?serie=${encodeURIComponent(input.seriesId)}`,
     linkLabel: "Ver recurrentes",
   };
 }

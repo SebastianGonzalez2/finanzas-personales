@@ -87,7 +87,10 @@ test.describe("Calendario de Montevideo", () => {
     await expect(notice).toHaveCount(1);
     await expect(notice.getByRole("status")).toContainText("ya pasó");
     await expect(notice).not.toContainText(/Importe|300,00/);
-    await notice.getByRole("link", { name: "Ver recurrentes" }).click();
+    const link = notice.getByRole("link", { name: "Ver recurrentes" });
+    await expect(link).toHaveAttribute("href", `/recurrentes?serie=${id}`);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`/recurrentes\\?serie=${id}`));
     const period = page.locator(`#periodo-${id}-0`);
     await expect(period).toContainText(firstPeriod.slice(0, 7));
     await expect(period).toContainText("Pago parcial");
