@@ -36,7 +36,7 @@ Todas las páginas ya están dentro del shell Glaciar de UI-02 (`FinanceShell`),
 | Comercios y contactos | `/catalogo` | Catálogo privado, agregar, archivar, unificar duplicados con vista previa, gastos por comercio del mes | `name-catalog` (349 l.) + página | normal, vacío, error | Media | Baja-media |
 | Etiquetas | `/etiquetas` (desde Historial) | Crear, renombrar, archivar/restaurar | `tag-catalog` | normal, vacío, no disponible | Baja | Baja |
 | Avisos | `/avisos` | Tarjetas, deudas, recurrentes, presupuestos (80/100 %), metas de fondos, aportaciones, push opcional, resueltos | página (263 l.), `due-notices`, `notices`, `card-push-preference` | normal, sin avisos, error | Media | Baja: push con estados del navegador |
-| Ayuda | `/ayuda` | Buscador, «Ir a», 16 secciones de preguntas (`domain/ayuda.ts`), repetir tutorial | `ayuda-faq` | normal, búsqueda, sin resultados | Baja | Baja (UI-06 cambia el tutorial) |
+| Ayuda | `/ayuda` | 16 secciones de preguntas (`domain/ayuda.ts`) sin buscador ni filtros (M-03), repetir tutorial | `ayuda-faq` | normal | Baja | Baja (UI-06 cambia el tutorial) |
 | Mi cuenta | `/account` | Cuenta Google conectada y cierre de sesión, descargar copia (con contraseña opcional), verificar y restaurar copia, eliminar cuenta | `google-access`, `account-backup` (292 l.), `account-deletion` | normal, restaurar, eliminar, errores | Media | Alta: acciones destructivas |
 
 No se encontraron más pantallas pendientes: `/historial/[source]/[id]` pertenece a Historial (UI-04) y `/auth/sign-in` ya tiene el fondo de UI-02.
@@ -72,7 +72,7 @@ Patrón común (**P-01**): encabezado con eyebrow del grupo, título, descripci�
 - **Beneficios (F):** formulario con destino elegible y paso de confirmación con efectos; lista de beneficios (anulados tachados).
 - **Catálogos (G):** Categorías en árbol (gastos con color fijo de datos, ingresos, archivadas); Comercios con alta en línea, lista con tipo y alias, unificación con vista previa y tabla «Gastos por comercio»; Etiquetas como chips con acciones.
 - **Avisos (H):** grupos por módulo en paneles con contador, avisos con tono e icono y acción directa; lateral con deudas, recurrentes, avisos al celular y resueltos.
-- **Ayuda (H):** buscador grande, píldoras «Ir a», secciones en acordeón en dos columnas, coincidencias resaltadas, «Volver a ver tutorial» como acción del encabezado.
+- **Ayuda (H):** sin buscador ni filtros (M-03): secciones en acordeón en dos columnas equilibradas, «Volver a ver tutorial» como acción del encabezado.
 - **Mi cuenta (H):** cuenta conectada, copias de seguridad en acordeón (restaurar con aviso y casilla de confirmación) y zona de peligro diferenciada para eliminar la cuenta.
 
 ## 4. Prototipos creados
@@ -109,7 +109,7 @@ La provisional de 5 tickets se divide en 8: Tarjetas y Resumen de ciclo concentr
 | **UI-05E** Recurrentes | `/recurrentes` | Kit, `.lab-kind`, línea de tiempo | Lista + detalle (P-06), formularios de período | A; P-06 | Vínculos con movimientos; períodos compartidos | `recurrences`, `recurrence-settlements`, `recurring-shares`, `recurrence-*` unitarias | Mismas acciones y estados de período | **Codex (Sol Medium) · medio-alto** |
 | **UI-05F** Deudas y Beneficios | `/deudas`, `/deudas/[id]`, `/beneficios` | Kit, línea de tiempo | Columnas, detalle, confirmación con efectos | A | Capital vs. intereses; anulación | `loans`, `shared-expenses`, `bank-benefits` | Capital no es ingreso/gasto; beneficio una sola vez | **Sonnet · medio** |
 | **UI-05G** Catálogos | `/categorias`, `/catalogo`, `/etiquetas` | Kit, chips | Árbol, unificación | A | Archivar/restaurar | `categories`, `catalog`, `classification` | Archivados ocultos en formularios, visibles en historial | **Sonnet · bajo-medio** |
-| **UI-05H** Avisos, Ayuda y Mi cuenta | `/avisos`, `/ayuda`, `/account` | Kit, `.b-notice`, acordeón | Grupos de avisos, buscador, zona de peligro | A; coordinar con UI-06 (Ayuda/tutorial) | Restaurar/eliminar cuenta; push | `notices`, `card-push`, `account-deletion`, `ayuda`, `tutorial`, `security-f6-02` | Confirmaciones destructivas intactas; push con todos sus estados | **Sonnet · medio** (Opus si se cambia el flujo de borrado) |
+| **UI-05H** Avisos, Ayuda y Mi cuenta | `/avisos`, `/ayuda`, `/account` | Kit, `.b-notice`, acordeón | Grupos de avisos, zona de peligro | A; coordinar con UI-06 (Ayuda/tutorial) | Restaurar/eliminar cuenta; push | `notices`, `card-push`, `account-deletion`, `ayuda`, `tutorial`, `security-f6-02` | Confirmaciones destructivas intactas; push con todos sus estados | **Sonnet · medio** (Opus si se cambia el flujo de borrado) |
 
 Todos: solo presentación, `npm run check`, unitarias, e2e financieros en CI, revisión visual en 1440 y 375 px, `prefers-reduced-motion` y foco visible. Al terminar UI-05H se pueden retirar los prototipos `ui-05` (junto con `/prototipos/ui` en UI-06).
 
