@@ -137,7 +137,9 @@ function FundCard({
         <Icon name="recurring" duotone={false} className="size-3.5 shrink-0" />
         {fund.plan}
       </p>
-      <div className="ui05-actions">
+      {/* M-05: acciones al pie, como en Tarjetas, para que las fichas de una
+          misma fila alineen sus botones en vez de dejar el hueco debajo. */}
+      <div className="ui05-actions mt-auto">
         <a
           href={protoHref("fondos", "operacion")}
           className={buttonClass("outline")}

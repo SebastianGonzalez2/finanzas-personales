@@ -350,9 +350,11 @@ export function AccountScreen({ state }: { state: ProtoState }) {
   return (
     <Screen>
       <PageHead eyebrow="Tu cuenta" title="Mi cuenta" />
-      <div className="ui05-grid">
+      {/* M-05: una sola columna (cuenta → copias → eliminar). La fila 5/7
+          dejaba un hueco bajo «Tu cuenta» y la acción destructiva sigue al final. */}
+      <div className="ui05-stack">
         <section
-          className="lab-panel c-feature ui05-span-5"
+          className="lab-panel c-feature"
           aria-labelledby="cuenta-conectada"
         >
           <header className="lab-panel__head">
@@ -378,7 +380,7 @@ export function AccountScreen({ state }: { state: ProtoState }) {
             Cerrar sesión
           </button>
         </section>
-        <section className="lab-panel ui05-span-7" aria-labelledby="copias">
+        <section className="lab-panel" aria-labelledby="copias">
           <h2 id="copias" className="lab-panel__title">
             <span className="lab-panel__icon">
               <Icon name="reports" className="size-4.5" />
@@ -453,10 +455,7 @@ export function AccountScreen({ state }: { state: ProtoState }) {
             </details>
           </div>
         </section>
-        <section
-          className="ui05-danger ui05-span-12"
-          aria-labelledby="eliminar"
-        >
+        <section className="ui05-danger" aria-labelledby="eliminar">
           <h2 id="eliminar" className="ui05-danger__title">
             <Icon name="alert" className="size-4.5" />
             Eliminar cuenta
