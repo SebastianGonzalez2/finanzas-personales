@@ -497,7 +497,7 @@ test("F1-08 CA-001/006: A/B, dos sesiones de A, reintentos, conciliación y audi
         `/historial?q=${encodeURIComponent(privateConcept)}`,
       );
       await expect(
-        actorPage.getByText("No hay registros que coincidan."),
+        actorPage.getByText("No hay movimientos con estos filtros"),
       ).toBeVisible();
     }
     const forgedOwner = await payload(

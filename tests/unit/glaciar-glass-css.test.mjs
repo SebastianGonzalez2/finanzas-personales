@@ -11,7 +11,11 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 // dejaban los paneles, el riel y el dock sin vidrio. El compilador ya agrega
 // el prefijo de Safari a partir de la declaración estándar.
 test("HOTFIX: el CSS del producto declara el vidrio solo sin prefijo", () => {
-  for (const file of ["src/app/globals.css", "src/app/glaciar-summary.css"]) {
+  for (const file of [
+    "src/app/globals.css",
+    "src/app/glaciar-summary.css",
+    "src/app/glaciar-history.css",
+  ]) {
     const css = read(file).replace(/@supports[^{]*\{/g, "");
     assert.doesNotMatch(
       css,

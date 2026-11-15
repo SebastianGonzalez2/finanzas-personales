@@ -75,6 +75,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
     const { id } = await response.json();
 
     await page.goto("/historial");
+    await page.getByRole("button", { name: /Más filtros/ }).click();
     await page.getByText("Filtrar por etiquetas", { exact: true }).click();
     await page.getByRole("checkbox", { name: "Italia" }).check();
     await page.getByRole("checkbox", { name: "Vacaciones" }).check();
