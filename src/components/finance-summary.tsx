@@ -14,7 +14,6 @@ import type { CatalogCategory } from "@/domain/categories";
 import type { FundSource } from "@/domain/fund-coverage";
 import type { CatalogCard } from "@/domain/cards";
 import {
-  formatInstallmentPeriod,
   installmentPeriodAt,
   isInstallmentPeriod,
   type MonthlyInstallment,
@@ -42,10 +41,39 @@ import {
 } from "./glaciar-summary/summary-panels";
 import { TransferButton } from "./glaciar-summary/transfer-button";
 
-const fullDate = new Intl.DateTimeFormat("es-UY", {
-  dateStyle: "full",
+// Rótulos con el formato aprobado en UI-01: «Sábado 14 de noviembre» y
+// «Noviembre 2026» (solo presentación; el mes sigue saliendo de `period`).
+const dayParts = new Intl.DateTimeFormat("es-UY", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
   timeZone: "UTC",
 });
+const monthParts = new Intl.DateTimeFormat("es-UY", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function part(parts: Intl.DateTimeFormatPart[], type: string) {
+  return parts.find((item) => item.type === type)?.value ?? "";
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toLocaleUpperCase("es") + text.slice(1);
+}
+
+function headerDate(iso: string) {
+  const parts = dayParts.formatToParts(new Date(`${iso}T12:00:00Z`));
+  return capitalize(
+    `${part(parts, "weekday")} ${part(parts, "day")} de ${part(parts, "month")}`,
+  );
+}
+
+function headerMonth(period: string) {
+  const parts = monthParts.formatToParts(new Date(`${period}-01T12:00:00Z`));
+  return capitalize(`${part(parts, "month")} ${part(parts, "year")}`);
+}
 
 export function FinanceSummary({
   balances,
@@ -140,9 +168,7 @@ export function FinanceSummary({
         <div>
           <p className="c-eyebrow">
             <span className="c-eyebrow__line" aria-hidden="true" />
-            <time dateTime={today}>
-              {fullDate.format(new Date(`${today}T12:00:00Z`))}
-            </time>
+            <time dateTime={today}>{headerDate(today)}</time>
           </p>
           <h1 id="titulo-pagina" tabIndex={-1} className="f-title">
             Resumen financiero
@@ -153,9 +179,7 @@ export function FinanceSummary({
           <details className="relative">
             <summary className="lab-stepper__label cursor-pointer list-none">
               <Icon name="calendar" className="size-4" />
-              <span className="first-letter:uppercase">
-                {formatInstallmentPeriod(period)}
-              </span>
+              <span>{headerMonth(period)}</span>
               <span className="sr-only"> · Elegir otro mes</span>
             </summary>
             <form
