@@ -12,14 +12,12 @@ import {
   savedFilterNeedsReview,
   type SavedFilter,
 } from "@/domain/history-filters";
-import { Card } from "./ui/card";
+import { Panel } from "./glaciar-summary/panel";
 
-const primary =
-  "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
-const secondary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
-const control =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
+// UI-04: estilo Glaciar (vidrio de panel y controles del Historial).
+const primary = "ui-btn ui-btn--primary";
+const secondary = "ui-btn ui-btn--ghost";
+const control = "lab-input";
 
 // Filtros guardados del historial (v9.47, DECISIÓN 1A): se guarda la
 // combinación de criterios, nunca una lista de resultados. Al aplicarlos se
@@ -147,17 +145,18 @@ export function SavedHistoryFilters({
   }
 
   return (
-    <Card className="gap-3 p-4 sm:p-5">
-      <h2 className="font-semibold">Filtros guardados</h2>
+    <Panel title="Filtros guardados" icon="filter">
       {canSave && (
-        <form
-          method="post"
-          onSubmit={saveCurrent}
-          className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end"
-        >
-          <label className="grid gap-1 text-sm font-medium">
-            Guardar la búsqueda actual como
+        <form method="post" onSubmit={saveCurrent} className="lab-saved__form">
+          <div className="lab-field">
+            <label
+              htmlFor="filtro-guardado-nombre"
+              className="lab-field__label"
+            >
+              Guardar la búsqueda actual como
+            </label>
             <input
+              id="filtro-guardado-nombre"
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={savedFilterNameLimit}
@@ -165,19 +164,16 @@ export function SavedHistoryFilters({
               placeholder="Ej. Ropa mes actual"
               className={control}
             />
-          </label>
+          </div>
           <button type="submit" disabled={pending} className={primary}>
             {pending ? "Guardando…" : "Guardar filtro"}
           </button>
         </form>
       )}
       {saved.length > 0 ? (
-        <ul className="grid gap-2">
+        <ul className="lab-saved" aria-label="Filtros guardados">
           {saved.map((entry) => (
-            <li
-              key={entry.id}
-              className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
-            >
+            <li key={entry.id} className="lab-saved__item">
               {editing === entry.id ? (
                 <form
                   method="post"
@@ -191,7 +187,7 @@ export function SavedHistoryFilters({
                     required
                     autoFocus
                     aria-label="Nuevo nombre del filtro"
-                    className={`${control} min-w-0 flex-1`}
+                    className={`${control} min-w-0 flex-1 basis-48`}
                   />
                   <button type="submit" disabled={pending} className={primary}>
                     Guardar
@@ -210,7 +206,7 @@ export function SavedHistoryFilters({
                   <span className="min-w-0 flex-1">
                     <a
                       href={`/historial${historySearch(entry.criteria)}#titulo-pagina`}
-                      className="block truncate font-medium underline-offset-2 hover:underline"
+                      className="lab-link min-h-6 max-w-full text-sm wrap-anywhere"
                     >
                       {entry.name}
                     </a>
@@ -219,7 +215,7 @@ export function SavedHistoryFilters({
                       categories,
                       tags,
                     ) && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="lab-muted block text-xs">
                         Un criterio cambió y requiere revisión.
                       </span>
                     )}
@@ -233,7 +229,7 @@ export function SavedHistoryFilters({
                           archived &&
                           entry.criteria.tags?.split(",").includes(id),
                       )) && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="lab-muted block text-xs">
                         Incluye un criterio archivado. El filtro sigue
                         disponible.
                       </span>
@@ -300,17 +296,21 @@ export function SavedHistoryFilters({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <p className="lab-muted text-sm">
           Guardá combinaciones de criterios que usás seguido para aplicarlas con
           un toque. Se guardan con tu cuenta y no se mezclan con otros usuarios.
         </p>
       )}
-      {notice && <p role="status">{notice}</p>}
+      {notice && (
+        <p role="status" className="text-sm">
+          {notice}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-sm">
           {error}
         </p>
       )}
-    </Card>
+    </Panel>
   );
 }

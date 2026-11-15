@@ -1062,7 +1062,8 @@
 @layer components {
   /* The approved widgets are shared with UI-01. Product colors and surfaces
      resolve to the Glaciar tokens already provided by the shell. */
-  .glaciar-summary {
+  .glaciar-summary,
+  .glaciar-history {
     --lab-accent: var(--glaciar-accent);
     --lab-bg: var(--glaciar-bg);
     --lab-blur-1: var(--glaciar-blur-1);

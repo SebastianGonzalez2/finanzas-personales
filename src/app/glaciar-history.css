@@ -1,0 +1,743 @@
+/* UI-04 — Historial Glaciar. Portado de la sección «Historial» de
+   src/app/prototipos/ui/_lab/lab.css (UI-01, diseño aprobado). Todo queda
+   bajo `.glaciar-history` para no alterar el Resumen ni otras pantallas; los
+   tokens `--lab-*` se resuelven a los Glaciar en glaciar-summary.css.
+   Agregados respecto del prototipo, necesarios para la app real: selección
+   masiva, paginación, gestión de filtros guardados y campos avanzados que
+   el prototipo no tenía (importes, fechas, comercio y etiquetas). */
+@layer components {
+  .glaciar-history {
+    --lab-blur-3: var(--glaciar-blur-3);
+    --lab-glass-3: var(--glaciar-glass-3);
+    --lab-selected: var(--glaciar-selected);
+    display: grid;
+    gap: 20px;
+  }
+
+  /* Tablas y formularios: vidrio casi opaco (nivel 3). */
+  .glaciar-history .lab-panel--dense {
+    gap: 0;
+    padding: 0;
+    background: var(--lab-glass-3);
+    backdrop-filter: blur(var(--lab-blur-3));
+  }
+
+  .glaciar-history .f-pagehead {
+    padding-bottom: 8px;
+  }
+
+  .glaciar-history [aria-busy="true"] .lab-table-wrap {
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+  }
+
+  /* ───────────────────────── Barra de filtros ───────────────────────── */
+  .glaciar-history .lab-mx__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--lab-border);
+  }
+
+  .glaciar-history .lab-mx__more-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px 20px 16px;
+    border-bottom: 1px solid var(--lab-border);
+    background: rgb(255 255 255 / 2%);
+  }
+
+  .glaciar-history .lab-mx__more-panel[hidden] {
+    display: none;
+  }
+
+  .glaciar-history .lab-mx__more {
+    position: relative;
+    min-height: 40px;
+  }
+
+  .glaciar-history .lab-mx__more-foot {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+  }
+
+  .glaciar-history .lab-search {
+    display: flex;
+    min-height: 40px;
+    min-width: min(100%, 280px);
+    flex: 1 1 280px;
+    align-items: center;
+    /* La lupa (botón de 26 px) queda en la misma posición que el icono del
+       prototipo (12 px) y el texto empieza a 38 px, como allí. */
+    gap: 4px;
+    padding: 0 12px 0 8px;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 10px;
+    background: rgb(0 0 0 / 20%);
+    color: var(--lab-muted);
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .glaciar-history .lab-search:focus-within {
+    border-color: color-mix(in srgb, var(--lab-accent) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lab-accent) 18%, transparent);
+  }
+
+  /* La lupa del prototipo también envía la búsqueda (teclado y táctil). */
+  .glaciar-history .lab-search__submit {
+    display: grid;
+    width: 26px;
+    height: 32px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 8px;
+    color: var(--lab-muted);
+    cursor: pointer;
+  }
+
+  .glaciar-history .lab-search__submit:hover {
+    color: var(--lab-text);
+  }
+
+  .glaciar-history .lab-search label {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-self: stretch;
+  }
+
+  .glaciar-history .lab-search input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--lab-text);
+    font-size: 14px;
+    outline: none;
+  }
+
+  .glaciar-history .lab-search input::placeholder {
+    color: var(--lab-faint);
+  }
+
+  .glaciar-history .lab-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .glaciar-history .lab-field__label {
+    color: var(--lab-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .glaciar-history .lab-select {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .glaciar-history :is(.lab-select select, .lab-input) {
+    min-height: 40px;
+    min-width: 148px;
+    padding: 0 36px 0 12px;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 10px;
+    background: rgb(0 0 0 / 20%);
+    color: var(--lab-text);
+    font-size: 14px;
+    appearance: none;
+    cursor: pointer;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .glaciar-history input.lab-input {
+    width: 100%;
+    padding-right: 12px;
+    cursor: text;
+  }
+
+  .glaciar-history .lab-input::placeholder {
+    color: var(--lab-faint);
+  }
+
+  .glaciar-history .lab-input:disabled,
+  .glaciar-history .lab-select select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .glaciar-history :is(.lab-select select, .lab-input):hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--lab-accent) 40%, transparent);
+  }
+
+  .glaciar-history :is(.lab-select select, .lab-input):focus-visible {
+    border-color: color-mix(in srgb, var(--lab-accent) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lab-accent) 18%, transparent);
+  }
+
+  .glaciar-history .lab-select svg {
+    position: absolute;
+    right: 12px;
+    color: var(--lab-muted);
+    pointer-events: none;
+  }
+
+  .glaciar-history .lab-mx__tags {
+    min-width: min(100%, 280px);
+    flex: 1 1 280px;
+  }
+
+  .glaciar-history .lab-mx__tags details {
+    border-color: var(--lab-border-strong);
+    background: rgb(0 0 0 / 20%);
+  }
+
+  /* ───────────────────────── Resumen y chips ───────────────────────── */
+  .glaciar-history .lab-mx__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 16px 20px 8px;
+  }
+
+  .glaciar-history .lab-mx__title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .glaciar-history .lab-mx__select-all {
+    display: inline-flex;
+    min-height: 24px;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    color: var(--lab-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .glaciar-history .lab-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .glaciar-history .lab-chip {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 999px;
+    background: var(--lab-selected);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .glaciar-history .lab-chip:hover {
+    border-color: color-mix(in srgb, var(--lab-accent) 50%, transparent);
+  }
+
+  .glaciar-history .lab-mx__summary .lab-link {
+    min-height: 28px;
+  }
+
+  .glaciar-history .lab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lab-accent);
+  }
+
+  .glaciar-history .lab-mx__messages:empty {
+    display: none;
+  }
+
+  .glaciar-history .lab-mx__messages {
+    padding: 0 20px 8px;
+    font-size: 13px;
+  }
+
+  /* ───────────────────────── Selección masiva ───────────────────────── */
+  .glaciar-history .lab-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    margin: 4px 20px 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 12px;
+    background: var(--lab-selected);
+  }
+
+  .glaciar-history .lab-bulk__count {
+    margin-right: auto;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .glaciar-history .lab-bulk__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .glaciar-history .lab-check {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .glaciar-history .lab-check:hover {
+    background: var(--lab-hover);
+  }
+
+  .glaciar-history .lab-check input,
+  .glaciar-history .lab-mx__select-all input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--lab-accent);
+    cursor: pointer;
+  }
+
+  /* ───────────────────────── Tabla ───────────────────────── */
+  .glaciar-history .lab-table-wrap {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+    padding: 0 8px 8px;
+  }
+
+  .glaciar-history .lab-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+  }
+
+  .glaciar-history .lab-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--lab-border-strong);
+    background: color-mix(in srgb, var(--lab-bg) 94%, transparent);
+    color: var(--lab-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .glaciar-history .lab-table thead th.lab-th-check {
+    width: 44px;
+    padding-right: 0;
+  }
+
+  /* Objetivos de 24 px (CA-066) sin agrandar filas ni encabezados: el
+     margen negativo conserva el alto de maquetación del prototipo. */
+  .glaciar-history .lab-sort {
+    display: inline-flex;
+    min-height: 24px;
+    margin-block: -2.5px;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  .glaciar-history .lab-sort:hover {
+    color: var(--lab-text);
+  }
+
+  .glaciar-history th[aria-sort="ascending"] .lab-sort,
+  .glaciar-history th[aria-sort="descending"] .lab-sort {
+    color: var(--lab-text);
+  }
+
+  .glaciar-history .lab-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--lab-border);
+    vertical-align: middle;
+  }
+
+  .glaciar-history .lab-table td.lab-td-check {
+    width: 44px;
+    padding-right: 0;
+  }
+
+  .glaciar-history .lab-table tbody tr {
+    transition: background 0.15s;
+  }
+
+  .glaciar-history .lab-table tbody tr:hover {
+    background: var(--lab-hover);
+  }
+
+  .glaciar-history .lab-table tbody tr.is-selected {
+    background: var(--lab-selected);
+  }
+
+  .glaciar-history .lab-table tbody tr.is-voided .lab-td-concept__title {
+    color: var(--lab-faint);
+  }
+
+  .glaciar-history .lab-td-date {
+    color: var(--lab-muted);
+    white-space: nowrap;
+  }
+
+  .glaciar-history .lab-td-concept {
+    display: flex;
+    min-width: 220px;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .glaciar-history .lab-td-concept__title {
+    display: inline-flex;
+    min-height: 24px;
+    margin-block: -1.5px;
+    align-items: center;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .glaciar-history a.lab-td-concept__title:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .glaciar-history .lab-td-concept__sub {
+    display: block;
+    color: var(--lab-muted);
+    font-size: 12px;
+  }
+
+  .glaciar-history .lab-td-category,
+  .glaciar-history .lab-td-method {
+    color: var(--lab-muted);
+    font-size: 13px;
+  }
+
+  .glaciar-history .lab-td-amount {
+    text-align: right;
+  }
+
+  .glaciar-history .lab-kind--neutral {
+    background: rgb(255 255 255 / 5%);
+    color: var(--lab-muted);
+  }
+
+  .glaciar-history .lab-amount__line {
+    color: inherit;
+  }
+
+  .glaciar-history .lab-amount__note {
+    color: var(--lab-muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .glaciar-history .lab-status {
+    display: inline-flex;
+    min-height: 22px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border: 1px solid var(--lab-border);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .glaciar-history .lab-status--confirmed {
+    color: var(--lab-muted);
+  }
+
+  .glaciar-history .lab-status--pending {
+    border-color: rgb(240 179 90 / 30%);
+    color: var(--lab-warning);
+  }
+
+  .glaciar-history .lab-status--corrected {
+    border-color: color-mix(in srgb, var(--lab-accent) 30%, transparent);
+    color: var(--lab-accent);
+  }
+
+  .glaciar-history .lab-status--voided {
+    color: var(--lab-faint);
+  }
+
+  .glaciar-history .lab-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 16px;
+    color: var(--lab-muted);
+    text-align: center;
+  }
+
+  .glaciar-history .lab-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 20px 16px;
+  }
+
+  /* ───────────────────────── Filtros guardados ───────────────────────── */
+  .glaciar-history .lab-saved {
+    display: grid;
+    gap: 8px;
+  }
+
+  .glaciar-history .lab-saved__item {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--lab-border);
+    border-radius: 12px;
+    background: rgb(0 0 0 / 14%);
+  }
+
+  .glaciar-history .lab-saved__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .glaciar-history .lab-saved__form .lab-field {
+    min-width: min(100%, 260px);
+    flex: 1 1 260px;
+  }
+
+  /* Táctil: 16 px evita el zoom automático de iOS al enfocar un campo. */
+  @media (pointer: coarse) {
+    .glaciar-history :is(.lab-search input, .lab-select select, .lab-input) {
+      font-size: 16px;
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .glaciar-history .lab-mx__toolbar {
+      padding: 16px;
+    }
+
+    .glaciar-history .lab-mx__more-panel {
+      padding: 12px 16px 16px;
+    }
+
+    .glaciar-history :is(.lab-mx__toolbar, .lab-mx__more-panel) > .lab-field {
+      flex: 1 1 140px;
+    }
+
+    .glaciar-history .lab-select {
+      width: 100%;
+    }
+
+    .glaciar-history .lab-select select {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .glaciar-history .lab-mx__summary {
+      padding: 16px 16px 8px;
+    }
+
+    .glaciar-history .lab-mx__messages {
+      padding: 0 16px 8px;
+    }
+
+    .glaciar-history .lab-bulk {
+      margin: 4px 16px 8px;
+    }
+
+    .glaciar-history .lab-bulk__actions,
+    .glaciar-history .lab-bulk__actions .lab-select {
+      width: 100%;
+    }
+
+    .glaciar-history .lab-bulk__actions .ui-btn {
+      flex: 1 1 auto;
+    }
+
+    .glaciar-history .lab-table-wrap {
+      max-height: none;
+      padding: 0 16px 8px;
+    }
+
+    /* El prototipo ocultaba todo el encabezado en móvil y sus botones de
+       orden quedaban enfocables pero invisibles. Aquí solo se ocultan los
+       encabezados sin orden; Fecha e Importe quedan como una barra breve. */
+    .glaciar-history .lab-table thead,
+    .glaciar-history .lab-table thead tr {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .glaciar-history .lab-table thead tr {
+      width: 100%;
+      padding: 0 0 8px;
+      border-bottom: 1px solid var(--lab-border);
+    }
+
+    .glaciar-history .lab-table thead th {
+      position: static;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+
+    .glaciar-history .lab-table thead th:not([aria-sort]) {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .glaciar-history .lab-table thead .lab-sort {
+      min-height: 32px;
+      margin-block: 0;
+      padding: 0 10px;
+      border: 1px solid var(--lab-border);
+      border-radius: 999px;
+    }
+
+    .glaciar-history .lab-table thead th[aria-sort="ascending"] .lab-sort,
+    .glaciar-history .lab-table thead th[aria-sort="descending"] .lab-sort {
+      border-color: var(--lab-border-strong);
+      background: var(--lab-selected);
+    }
+
+    .glaciar-history .lab-table,
+    .glaciar-history .lab-table tbody {
+      display: block;
+    }
+
+    .glaciar-history .lab-table tbody tr {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        "concept concept concept amount"
+        "date category method status";
+      align-items: center;
+      gap: 8px 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--lab-border);
+    }
+
+    /* Con selección masiva, la casilla va en el hueco de 44 px bajo el
+       icono de tipo (a la izquierda de la fecha): la fila conserva la
+       grilla del prototipo. */
+    .glaciar-history .lab-table.has-selection tbody tr {
+      position: relative;
+    }
+
+    .glaciar-history .lab-table td,
+    .glaciar-history .lab-table td.lab-td-check {
+      width: auto;
+      padding: 0;
+      border: 0;
+    }
+
+    .glaciar-history .lab-table td.lab-td-check {
+      position: absolute;
+      bottom: 7px;
+      left: 2px;
+    }
+
+    .glaciar-history .lab-td-concept {
+      grid-area: concept;
+      min-width: 0;
+    }
+
+    .glaciar-history .lab-td-amount {
+      grid-area: amount;
+      align-self: start;
+      max-width: 46vw;
+    }
+
+    .glaciar-history .lab-td-amount .lab-amount {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    .glaciar-history .lab-td-date {
+      grid-area: date;
+      padding-left: 44px !important;
+      font-size: 12px;
+    }
+
+    .glaciar-history .lab-td-category {
+      grid-area: category;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .glaciar-history .lab-td-method {
+      grid-area: method;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .glaciar-history .lab-td-status {
+      grid-area: status;
+    }
+
+    .glaciar-history .lab-pager {
+      padding: 8px 16px 16px;
+    }
+
+    .glaciar-history .lab-pager .ui-btn {
+      flex: 1 1 auto;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .glaciar-history .lab-select select,
+    .glaciar-history .lab-input,
+    .glaciar-history .lab-search,
+    .glaciar-history .lab-chip,
+    .glaciar-history .lab-status {
+      border: 1px solid CanvasText;
+    }
+  }
+}
