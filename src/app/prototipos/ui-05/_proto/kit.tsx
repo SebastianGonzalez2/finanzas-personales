@@ -3,6 +3,7 @@ import { formatBankAmount } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
 import { buttonClass } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { HelpPopover } from "./help-popover";
 
 // UI-05-DESIGN — Piezas de pantalla propuestas (P-01). Componen las clases
 // aprobadas de Resumen/Historial (`.f-pagehead`, `.c-eyebrow`, `.f-title`,
@@ -59,6 +60,8 @@ export function Kpi({
   icon,
   hero,
   extra,
+  tone,
+  help,
 }: {
   label: ReactNode;
   value: ReactNode;
@@ -66,12 +69,20 @@ export function Kpi({
   icon?: IconName;
   hero?: boolean;
   extra?: ReactNode;
+  /** Estado semántico (M-02): colorea icono y valor con los tokens de `.lab-tag`. */
+  tone?: "good" | "warning" | "critical";
+  /** Explicación breve en un popover «?» junto al título (M-01). */
+  help?: { label: string; text: string };
 }) {
   return (
-    <div className={`ui05-kpi ${hero ? "ui05-kpi--hero" : ""}`}>
+    <div
+      className={`ui05-kpi ${hero ? "ui05-kpi--hero" : ""} ${tone ? `ui05-kpi--${tone}` : ""}`}
+    >
+      {hero && <span className="ui05-kpi__glow" aria-hidden="true" />}
       <p className="ui05-kpi__label">
         {icon && <Icon name={icon} className="size-4" />}
         {label}
+        {help && <HelpPopover label={help.label}>{help.text}</HelpPopover>}
       </p>
       <p className="ui05-kpi__value">{value}</p>
       {sub && <p className="ui05-kpi__sub">{sub}</p>}

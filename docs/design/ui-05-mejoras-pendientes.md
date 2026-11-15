@@ -1,6 +1,6 @@
 # UI-05 — Mejoras identificadas durante la revisión visual
 
-**Estado:** pendientes de implementación y verificación.
+**Estado:** M-01, M-02 y M-03 **implementadas en prototipo** (rama `codex/UI-05-M01-03-mejoras-visuales`); **implementación en producción pendiente** (las pantallas reales `/fondos`, `/presupuestos` y `/ayuda` conservan el diseño anterior hasta UI-05C/UI-05H). M-04, M-05 y M-06 pendientes.
 **Origen:** revisión visual del usuario, 15 de noviembre de 2026.
 **Diseño de referencia:** Glaciar.
 **PR de planificación:** #77 (UI-05-DESIGN). Este documento registra decisiones solicitadas por el usuario; no autoriza cambiar lógica financiera ni ampliar el alcance de la PR de planificación.
@@ -9,9 +9,9 @@
 
 | ID | Mejora | Grupo recomendado | Alcance |
 | --- | --- | --- | --- |
-| M-01 | Tooltips explicativos en Fondos de ahorro | Chat 1 | UI; verificar semántica de indicadores |
-| M-02 | Colores de estados de Presupuestos | Chat 1 | UI; conservar reglas de clasificación |
-| M-03 | Simplificar Ayuda | Chat 1 | UI; eliminar búsqueda y filtros |
+| M-01 | Tooltips explicativos en Fondos de ahorro | Chat 1 | UI; verificar semántica de indicadores · **prototipo ✔ / producción pendiente** |
+| M-02 | Colores de estados de Presupuestos | Chat 1 | UI; conservar reglas de clasificación · **prototipo ✔ / producción pendiente** |
+| M-03 | Simplificar Ayuda | Chat 1 | UI; eliminar búsqueda y filtros · **prototipo ✔ / producción pendiente** |
 | M-04 | Ocultar cotización manual permanente en Presupuestos | Posterior (lógica financiera) | UI + manejo de errores y cotizaciones automáticas |
 | M-05 | Optimizar grid y espacios vacíos | Chat 3 | Revisión de composición y responsive |
 | M-06 | Diferenciar ingresos y egresos por colores | Chat 2 | UI transversal; mantener semántica contable |
@@ -39,6 +39,11 @@
 
 **Criterio de aceptación:** las cuatro tarjetas tienen ayuda consultable y comprensible, sin texto constante ni cambio en sus importes.
 
+**Estado (2026-11-15): implementado en prototipo; producción pendiente.** `HelpPopover` (`_proto/help-popover.tsx`) + prop `help` de `Kpi`. Abre al pulsar, cierra al pulsar fuera, al repulsar o con Escape (devuelve el foco al botón); `aria-expanded`, `aria-controls`, `role="note"`. Verificado en 1440 y 375 px sin desbordes.
+**Contraste con el código real** (`listBankAvailability` en `src/server/bank-balances.ts`; `/fondos` en `src/app/fondos/page.tsx`):
+- *Disponible libre* = saldo bancario calculado − suma de `reserved_amount` de los fondos, por moneda. **No descuenta obligaciones pendientes** (el copy no lo afirma) → texto confirmado, con «en tus cuentas bancarias» en lugar de «que tenés disponible».
+- *Equivalencia*: suma lo reservado de fondos **no cerrados**, convertido con cotizaciones de referencia; es referencia, no conversión. Discrepancias de copy corregidas solo en el texto: se añadió «activos» y «no convierte tu dinero». **Discrepancia señalada:** en la pantalla real la moneda de la equivalencia es la *moneda de visualización* elegida (por defecto, la preferida del titular), no siempre UYU; el prototipo muestra UYU. Al implementar en producción, hacer dinámico «en pesos uruguayos» según esa moneda.
+
 ## M-02 — Colores de estado en tarjetas de Presupuestos
 
 **Objetivo:** identificar rápidamente el estado de los presupuestos con el mismo lenguaje visual usado en «Consumo del mes».
@@ -55,6 +60,9 @@
 
 **Criterio de aceptación:** estados superiores y etiquetas de «Consumo del mes» utilizan los mismos colores semánticos, sin modificar recuentos.
 
+**Estado (2026-11-15): implementado en prototipo; producción pendiente.** Prop `tone` de `Kpi` con `--lab-good/warning/critical` (los mismos tokens que `.lab-tag` y `.lab-meter`): colorea icono y valor, borde con mezcla muy sutil (28–30 %), sin glow. «Sin calcular» queda neutro; recuentos y tamaños sin cambios (comprobado: color del valor idéntico al de las etiquetas).
+**Umbrales verificados** (`src/components/budget-catalog.tsx`): rojo desde 100 % (inclusive), ámbar desde 80 % hasta menos de 100 %, normal por debajo; no se modificaron. Nota: en el prototipo el texto «80 % o más» de «Cerca del límite» es correcto solo junto con «Excedidos»; no se tocó.
+
 ## M-03 — Simplificar la sección Ayuda
 
 **Objetivo:** dejar solo las preguntas frecuentes, reduciendo espacios vacíos y elementos que no aportan valor.
@@ -67,6 +75,8 @@
 - Situar las tarjetas de preguntas frecuentes directamente debajo del encabezado, con espaciado compacto y responsive.
 
 **Criterio de aceptación:** no hay buscador, filtros ni contenedores vacíos; todas las preguntas siguen accesibles y funcionan los acordeones y el tutorial.
+
+**Estado (2026-11-15): implementado en prototipo; producción pendiente.** Eliminados buscador, contenedor, píldoras «Ir a», resaltado y el estado `busqueda` del prototipo. El prototipo ahora muestra las 16 secciones (57 preguntas) en dos columnas independientes y equilibradas (3047 px / 3414 px) para evitar huecos; una columna en móvil. Acordeones y «Volver a ver tutorial» verificados. Las capturas de `docs/design/ui-05/capturas` (incluida `15-ayuda-busqueda`) son anteriores a este cambio y no se regeneraron.
 
 ## M-04 — Cotización manual en Presupuestos (posponer respecto de Chat 1)
 

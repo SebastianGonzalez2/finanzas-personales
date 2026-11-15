@@ -17,7 +17,6 @@ export type ProtoState =
   | "sin-favoritos"
   | "periodo"
   | "unificar"
-  | "busqueda"
   | "restaurar"
   | "eliminar";
 
@@ -34,7 +33,6 @@ export const stateLabel: Record<ProtoState, string> = {
   "sin-favoritos": "Sin favoritos",
   periodo: "Período",
   unificar: "Unificar",
-  busqueda: "Búsqueda",
   restaurar: "Restaurar copia",
   eliminar: "Eliminar cuenta",
 };
@@ -207,8 +205,8 @@ export const protoScreens: ProtoScreen[] = [
     route: "/ayuda",
     destination: "ayuda",
     ticket: "H",
-    states: ["normal", "busqueda"],
-    summary: "Buscador, índice de secciones, preguntas frecuentes y tutorial.",
+    states: ["normal"],
+    summary: "Preguntas frecuentes por temática con acordeones y tutorial.",
   },
   {
     key: "cuenta",
