@@ -19,16 +19,26 @@ import type { CatalogCategory } from "@/domain/categories";
 import type { loadCardCycle } from "@/server/card-cycles";
 import { CreditOperationForm } from "./credit-operation-form";
 import { useFinancialCommand } from "./financial-command";
+import { Kpi, StateTag } from "./glaciar/screen";
 import {
   HistoryField,
   historyButton,
   historyControl,
   historyPrimary,
 } from "./history-fields";
-import { Card } from "./ui/card";
+import { Button } from "./ui/button";
+import { Icon } from "./ui/icon";
 
 type Cycle = Awaited<ReturnType<typeof loadCardCycle>>;
 type CyclePurchase = Cycle["purchases"][number];
+
+function dueSourceLabel(source: string | null) {
+  return source === "official"
+    ? "oficial"
+    : source === "exception"
+      ? "informado para el ciclo"
+      : "estimado";
+}
 
 export function CardCycleDetail({
   card,
@@ -41,6 +51,7 @@ export function CardCycleDetail({
   categories,
   purchases,
   openPayment,
+  refunds,
 }: {
   card: CatalogCard;
   cycle: Cycle;
@@ -52,6 +63,7 @@ export function CardCycleDetail({
   categories: CatalogCategory[];
   purchases: CreditPurchaseOption[];
   openPayment: boolean;
+  refunds?: ReactNode;
 }) {
   const router = useRouter();
   const [operation, setOperation] = useState<{
@@ -66,19 +78,113 @@ export function CardCycleDetail({
       remaining && /[1-9]/.test(remaining) ? [[currency, remaining]] : [],
     ),
   );
+  const money = (currency: Currency, value: string | null | undefined) =>
+    value == null ? "Sin datos" : formatBankAmount({ amount: value, currency });
+  const positionOf = (currency: Currency) =>
+    card.currencies.find((row) => row.currency === currency);
+  const closingOn = summaries.find((summary) => summary.closingOn)?.closingOn;
+  const dueDates = [
+    ...new Set(summaries.flatMap(({ dueOn }) => (dueOn ? [dueOn] : []))),
+  ];
+  const singleDue = summaries.find(({ dueOn }) => dueOn);
+  const toReview = cycle.purchases.length;
+  const reviewPurchases = review
+    ? cycle.purchases.filter((purchase) => purchase.currency === review)
+    : [];
 
   return (
     <>
-      <p role="status" className={message ? "text-sm" : "sr-only"}>
-        {message}
-      </p>
+      <div
+        role="status"
+        className={message ? "b-notice b-notice--info" : "sr-only"}
+      >
+        {message && <Icon name="info" className="size-4.5 shrink-0" />}
+        <p className={message ? "gs-notice-text" : undefined}>{message}</p>
+      </div>
+      <div className="gs-kpis gs-kpis--fill">
+        <Kpi
+          icon="calendar"
+          label="Cierre"
+          value={closingOn ? formatBankReference(closingOn) : "Sin fecha"}
+          sub={closingOn ? (dates.closingOn ? "Excepcional" : "Habitual") : ""}
+        />
+        <Kpi
+          icon="clock"
+          label="Vencimiento"
+          value={
+            dueDates.length === 1 && singleDue?.dueOn
+              ? formatBankReference(singleDue.dueOn)
+              : dueDates.length === 0
+                ? "Sin fecha"
+                : "Según moneda"
+          }
+          sub={
+            dueDates.length === 1 && singleDue
+              ? capitalize(dueSourceLabel(singleDue.dueSource))
+              : dueDates.length > 1
+                ? summaries
+                    .filter(({ dueOn }) => dueOn)
+                    .map(
+                      ({ currency, dueOn }) =>
+                        `${currency} ${formatBankReference(dueOn as string)}`,
+                    )
+                    .join(" · ")
+                : ""
+          }
+        />
+        <Kpi
+          icon="debts"
+          label="Deuda total registrada"
+          value={
+            <span className="gs-kpi__lines">
+              {summaries.map(({ currency }) => (
+                <span key={currency} className="block">
+                  {money(currency, positionOf(currency)?.debt)}
+                </span>
+              ))}
+            </span>
+          }
+        />
+        <Kpi
+          icon="check"
+          label="Pagos del ciclo"
+          value={
+            <span className="gs-kpi__lines">
+              {summaries.map(({ currency, paid }) => (
+                <span key={currency} className="block">
+                  {money(currency, paid)}
+                </span>
+              ))}
+            </span>
+          }
+        />
+        <Kpi
+          icon="search"
+          label="Compras por revisar"
+          value={String(toReview)}
+          sub="Compras y cuotas de este ciclo"
+        />
+      </div>
+      <div className="gs-actions">
+        <Button
+          variant="primary"
+          disabled={operation !== null}
+          onClick={() => setOperation({ action: "payment" })}
+        >
+          Registrar pago del ciclo
+        </Button>
+        <span className="gs-hint">
+          El pago reduce la deuda de la tarjeta y tu saldo en Bancos. No se
+          registra como un gasto nuevo.
+        </span>
+      </div>
       {operation && (
-        <Card className="gap-3 p-4 sm:p-5">
+        <div className="gs-form">
           {operation.action === "payment" &&
             summaries
               .filter(({ currency }) => suggestions[currency])
               .map(({ currency, statement }) => (
-                <p key={currency} className="text-sm">
+                <p key={currency} className="gs-hint">
                   Sugerencia{" "}
                   {statement.officialAmount === null
                     ? "estimada"
@@ -115,17 +221,9 @@ export function CardCycleDetail({
               }
             }}
           />
-        </Card>
+        </div>
       )}
-      <button
-        type="button"
-        className={`${historyButton} justify-self-start`}
-        disabled={operation !== null}
-        onClick={() => setOperation({ action: "payment" })}
-      >
-        Registrar pago del ciclo
-      </button>
-      <div className="grid items-start gap-3 xl:grid-cols-2">
+      <div className="gs-grid">
         {summaries.map(
           ({
             currency,
@@ -141,17 +239,44 @@ export function CardCycleDetail({
             difference,
           }) => {
             const different = difference !== null && /[1-9]/.test(difference);
-            const position = card.currencies.find(
-              (row) => row.currency === currency,
-            );
+            const position = positionOf(currency);
             const amount = (value: string | null | undefined) =>
-              value == null
-                ? "Sin datos"
-                : formatBankAmount({ amount: value, currency });
+              money(currency, value);
+            const pending = remaining !== null && /[1-9]/.test(remaining);
             return (
-              <Card key={currency} className="gap-3 p-4 sm:p-5">
-                <h2 className="font-semibold">Resumen en {currency}</h2>
-                <dl className="grid gap-2 text-sm">
+              <section
+                key={currency}
+                className={`lab-panel c-feature ${summaries.length > 1 ? "gs-span-6" : ""}`}
+                aria-labelledby={`resumen-${currency}`}
+              >
+                <header className="lab-panel__head">
+                  <h2 id={`resumen-${currency}`} className="lab-panel__title">
+                    <span className="lab-panel__icon">
+                      <Icon name="cards" className="size-4.5" />
+                    </span>
+                    Resumen en {currency}
+                  </h2>
+                  {different ? (
+                    <StateTag tone="warning">Diferencia pendiente</StateTag>
+                  ) : minimumCovered ? (
+                    <StateTag tone="good">Mínimo cubierto</StateTag>
+                  ) : remaining !== null ? (
+                    <StateTag tone={pending ? "warning" : "good"}>
+                      {pending ? "Pago pendiente" : "Sin saldo pendiente"}
+                    </StateTag>
+                  ) : null}
+                </header>
+                {remaining !== null && (
+                  <div className="gs-figure">
+                    <p className="gs-figure__label">
+                      {statement.officialAmount === null
+                        ? "Remanente estimado"
+                        : "Remanente del resumen"}
+                    </p>
+                    <p className="gs-figure__value">{amount(remaining)}</p>
+                  </div>
+                )}
+                <dl className="gs-review">
                   <Fact
                     label="Cierre"
                     value={
@@ -164,7 +289,7 @@ export function CardCycleDetail({
                     label="Vencimiento"
                     value={
                       dueOn
-                        ? `${formatBankReference(dueOn)} (${dueSource === "official" ? "oficial" : dueSource === "exception" ? "informado para el ciclo" : "estimado"})`
+                        ? `${formatBankReference(dueOn)} (${dueSourceLabel(dueSource)})`
                         : "Sin fecha"
                     }
                   />
@@ -202,36 +327,33 @@ export function CardCycleDetail({
                     label="Pagos registrados en el ciclo"
                     value={amount(paid)}
                   />
-                  {remaining !== null && (
-                    <Fact
-                      label={
-                        statement.officialAmount === null
-                          ? "Remanente estimado"
-                          : "Remanente del resumen"
-                      }
-                      value={amount(remaining)}
-                    />
-                  )}
                 </dl>
                 {minimumCovered && (
-                  <p className="text-sm font-medium">
-                    Mínimo cubierto según tus pagos registrados. El emisor puede
-                    aplicar cargos sobre el remanente.
-                  </p>
+                  <div className="b-notice b-notice--info">
+                    <Icon name="check" className="size-4.5 shrink-0" />
+                    <p className="gs-notice-text font-medium">
+                      Mínimo cubierto según tus pagos registrados. El emisor
+                      puede aplicar cargos sobre el remanente.
+                    </p>
+                  </div>
                 )}
                 {different && (
-                  <p className="rounded-lg border p-3 text-sm">
-                    Diferencia pendiente de revisión ·{" "}
-                    {difference.startsWith("-") ? "" : "+"}
-                    {amount(difference)}. Compará tus compras con el resumen del
-                    emisor.
-                  </p>
+                  <div className="b-notice b-notice--warning">
+                    <Icon name="alert" className="size-4.5 shrink-0" />
+                    <p className="gs-notice-text">
+                      Diferencia pendiente de revisión ·{" "}
+                      {difference.startsWith("-") ? "" : "+"}
+                      {amount(difference)}. Compará tus compras con el resumen
+                      del emisor.
+                    </p>
+                  </div>
                 )}
-                <div className="flex flex-wrap gap-2">
+                <div className="gs-actions">
                   <button
                     type="button"
                     className={historyButton}
                     aria-expanded={review === currency}
+                    aria-controls={`compras-${currency}`}
                     onClick={() =>
                       setReview(review === currency ? null : currency)
                     }
@@ -253,7 +375,7 @@ export function CardCycleDetail({
                   {different && (
                     <button
                       type="button"
-                      className={historyButton}
+                      className="ui-btn ui-btn--ghost min-h-11 px-3 py-2"
                       onClick={() => {
                         setReview(null);
                         setMessage(
@@ -265,170 +387,192 @@ export function CardCycleDetail({
                     </button>
                   )}
                 </div>
-                {review === currency && (
-                  <section
-                    aria-label={`Compras del ciclo en ${currency}`}
-                    className="grid gap-2 border-t pt-3"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      El emisor puede contabilizar compras cerca del cierre en
-                      otro resumen.
-                    </p>
-                    {!card.archived && (
-                      <button
-                        type="button"
-                        className={`${historyButton} justify-self-start`}
-                        disabled={operation !== null}
-                        onClick={() =>
-                          setOperation({ action: "purchase", currency })
-                        }
+                <div className="gs-accordion">
+                  <details>
+                    <summary>Editar resumen oficial</summary>
+                    <div className="gs-accordion__body">
+                      <CycleForm
+                        label={`Guardar resumen ${currency}`}
+                        target={{
+                          scope: "statement",
+                          cardId: card.id,
+                          period,
+                          currency,
+                          version: statement.version,
+                        }}
                       >
-                        Registrar compra real
-                      </button>
-                    )}
-                    {cycle.purchases.filter(
-                      (purchase) => purchase.currency === currency,
-                    ).length === 0 ? (
-                      <p className="text-sm">
-                        No hay compras o cuotas identificadas para revisar.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-2">
-                        {cycle.purchases
-                          .filter((purchase) => purchase.currency === currency)
-                          .map((purchase) => (
-                            <PurchaseAssignment
-                              key={`${purchase.id}:${purchase.ordinal}`}
-                              cardId={card.id}
-                              purchase={purchase}
-                            />
-                          ))}
-                      </ul>
-                    )}
-                  </section>
-                )}
-                <details className="rounded-lg border p-3">
-                  <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold">
-                    Editar resumen oficial
-                  </summary>
-                  <CycleForm
-                    label={`Guardar resumen ${currency}`}
-                    target={{
-                      scope: "statement",
-                      cardId: card.id,
-                      period,
-                      currency,
-                      version: statement.version,
-                    }}
-                  >
-                    <MoneyField
-                      label={`Total oficial en ${currency}`}
-                      name="officialAmount"
-                      value={statement.officialAmount}
-                    />
-                    <MoneyField
-                      label={`Mínimo oficial en ${currency}`}
-                      name="minimumAmount"
-                      value={statement.minimumAmount}
-                    />
-                    <DateField
-                      label={`Vencimiento oficial en ${currency}`}
-                      name="dueOn"
-                      value={statement.dueOn}
-                      min={`${period}-01`}
-                    />
-                  </CycleForm>
-                </details>
-              </Card>
+                        <MoneyField
+                          label={`Total oficial en ${currency}`}
+                          name="officialAmount"
+                          value={statement.officialAmount}
+                        />
+                        <MoneyField
+                          label={`Mínimo oficial en ${currency}`}
+                          name="minimumAmount"
+                          value={statement.minimumAmount}
+                        />
+                        <DateField
+                          label={`Vencimiento oficial en ${currency}`}
+                          name="dueOn"
+                          value={statement.dueOn}
+                          min={`${period}-01`}
+                        />
+                      </CycleForm>
+                    </div>
+                  </details>
+                </div>
+              </section>
             );
           },
         )}
       </div>
-      <p className="text-sm text-muted-foreground">
+      <p className="gs-hint">
         Los importes estimados pueden omitir cargos o compras del emisor. Cada
         cuota parte de su mes de registro en el plan.
       </p>
-      <Card className="gap-3 p-4 sm:p-5">
-        <details>
-          <summary className="min-h-11 cursor-pointer py-2.5 font-semibold">
-            Fechas excepcionales del ciclo
-          </summary>
-          <p className="text-sm text-muted-foreground">
-            Dejá el campo vacío para volver a la fecha habitual. El vencimiento
-            oficial de cada moneda tiene prioridad.
+      {review && (
+        <section
+          id={`compras-${review}`}
+          aria-label={`Compras del ciclo en ${review}`}
+          className="lab-panel"
+        >
+          <header className="lab-panel__head">
+            <h2 className="lab-panel__title">
+              <span className="lab-panel__icon">
+                <Icon name="search" duotone={false} className="size-4" />
+              </span>
+              Revisar mis compras · {review}
+            </h2>
+          </header>
+          <p className="gs-hint">
+            El emisor puede contabilizar compras cerca del cierre en otro
+            resumen.
           </p>
-          <CycleForm
-            label="Guardar fechas del ciclo"
-            target={{
-              scope: "dates",
-              cardId: card.id,
-              period,
-              version: dates.version,
-            }}
-          >
-            <DateField
-              label="Cierre excepcional"
-              name="closingOn"
-              value={dates.closingOn}
-              min={`${period}-01`}
-            />
-            <DateField
-              label="Vencimiento excepcional"
-              name="dueOn"
-              value={dates.dueOn}
-              min={`${period}-01`}
-            />
-          </CycleForm>
-        </details>
-        <details>
-          <summary className="min-h-11 cursor-pointer py-2.5 font-semibold">
-            Calendario habitual de la tarjeta
-          </summary>
-          <p className="text-sm text-muted-foreground">
-            El cierre y vencimiento son opcionales. En meses cortos se usa el
-            último día disponible.
-          </p>
-          <CycleForm
-            label="Guardar calendario habitual"
-            target={{
-              scope: "schedule",
-              cardId: card.id,
-              version: schedule.version,
-            }}
-          >
-            <DayField
-              label="Día habitual de cierre"
-              name="closingDay"
-              value={schedule.closingDay}
-            />
-            <DayField
-              label="Día habitual de vencimiento"
-              name="dueDay"
-              value={schedule.dueDay}
-            />
-            <HistoryField label="Días de anticipación del aviso">
-              <input
-                className={historyControl}
-                name="leadDays"
-                type="number"
-                min="0"
-                max="365"
-                required
-                defaultValue={schedule.leadDays}
-              />
-            </HistoryField>
-          </CycleForm>
-        </details>
-      </Card>
+          {!card.archived && (
+            <div className="gs-actions">
+              <button
+                type="button"
+                className={historyButton}
+                disabled={operation !== null}
+                onClick={() =>
+                  setOperation({ action: "purchase", currency: review })
+                }
+              >
+                Registrar compra real
+              </button>
+            </div>
+          )}
+          {reviewPurchases.length === 0 ? (
+            <p className="gs-notice-text">
+              No hay compras o cuotas identificadas para revisar.
+            </p>
+          ) : (
+            <ul>
+              {reviewPurchases.map((purchase) => (
+                <PurchaseAssignment
+                  key={`${purchase.id}:${purchase.ordinal}`}
+                  cardId={card.id}
+                  purchase={purchase}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      <section className="lab-panel" aria-labelledby="fechas-calendario">
+        <h2 id="fechas-calendario" className="lab-panel__title">
+          <span className="lab-panel__icon">
+            <Icon name="calendar" className="size-4.5" />
+          </span>
+          Fechas, calendario y reintegros
+        </h2>
+        <div className="gs-accordion">
+          <details>
+            <summary>Fechas excepcionales del ciclo</summary>
+            <div className="gs-accordion__body">
+              <p>
+                Dejá el campo vacío para volver a la fecha habitual. El
+                vencimiento oficial de cada moneda tiene prioridad.
+              </p>
+              <CycleForm
+                label="Guardar fechas del ciclo"
+                target={{
+                  scope: "dates",
+                  cardId: card.id,
+                  period,
+                  version: dates.version,
+                }}
+              >
+                <DateField
+                  label="Cierre excepcional"
+                  name="closingOn"
+                  value={dates.closingOn}
+                  min={`${period}-01`}
+                />
+                <DateField
+                  label="Vencimiento excepcional"
+                  name="dueOn"
+                  value={dates.dueOn}
+                  min={`${period}-01`}
+                />
+              </CycleForm>
+            </div>
+          </details>
+          <details>
+            <summary>Calendario habitual de la tarjeta</summary>
+            <div className="gs-accordion__body">
+              <p>
+                El cierre y vencimiento son opcionales. En meses cortos se usa
+                el último día disponible.
+              </p>
+              <CycleForm
+                label="Guardar calendario habitual"
+                target={{
+                  scope: "schedule",
+                  cardId: card.id,
+                  version: schedule.version,
+                }}
+              >
+                <DayField
+                  label="Día habitual de cierre"
+                  name="closingDay"
+                  value={schedule.closingDay}
+                />
+                <DayField
+                  label="Día habitual de vencimiento"
+                  name="dueDay"
+                  value={schedule.dueDay}
+                />
+                <HistoryField label="Días de anticipación del aviso">
+                  <input
+                    className={historyControl}
+                    name="leadDays"
+                    type="number"
+                    min="0"
+                    max="365"
+                    required
+                    defaultValue={schedule.leadDays}
+                  />
+                </HistoryField>
+              </CycleForm>
+            </div>
+          </details>
+          {refunds}
+        </div>
+      </section>
     </>
   );
 }
 
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-wrap justify-between gap-x-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{value}</dd>
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>
   );
 }
@@ -513,66 +657,72 @@ function PurchaseAssignment({
   const { id, ordinal, currency, assignment, period, estimatedPeriod } =
     purchase;
   return (
-    <li className="rounded-lg border p-3 text-sm wrap-anywhere">
-      <a
-        className="font-semibold underline"
-        href={`/historial/movimientos/${id}`}
-      >
-        {purchase.concept}
-      </a>
-      <p>
+    <li className="gs-purchase">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <a
+          className="lab-link font-semibold"
+          href={`/historial/movimientos/${id}`}
+        >
+          {purchase.concept}
+        </a>
+        <span className="font-semibold tabular-nums">
+          {formatBankAmount(purchase)}
+        </span>
+      </div>
+      <p className="lab-muted">
         {ordinal > 0 && `Cuota ${ordinal} · `}
-        {formatBankAmount(purchase)} · Compra del{" "}
-        {formatBankReference(purchase.effectiveOn)}
+        Compra del {formatBankReference(purchase.effectiveOn)}
       </p>
-      <p>
+      <p className="lab-muted">
         {period
           ? `${assignment.assignedPeriod ? "Ciclo elegido" : "Ciclo estimado"} · ${formatInstallmentPeriod(period)}`
           : "Sin ciclo estimado"}
       </p>
-      <details className="mt-2">
-        <summary className="min-h-11 cursor-pointer py-2.5 font-medium">
-          Cambiar resumen
-        </summary>
-        <p className="text-muted-foreground">
-          Dejá el mes vacío para volver a{" "}
-          {estimatedPeriod
-            ? `la estimación de ${formatInstallmentPeriod(estimatedPeriod)}`
-            : "la regla habitual"}
-          .
-        </p>
-        <CycleForm
-          label="Guardar asignación"
-          target={{
-            scope: "assignment",
-            cardId,
-            purchaseId: id,
-            ordinal,
-            currency,
-            version: assignment.version,
-          }}
-        >
-          <HistoryField label="Ciclo informado por el emisor">
-            <input
-              className={historyControl}
-              name="assignedPeriod"
-              type="month"
-              min="0001-01"
-              max="9999-12"
-              defaultValue={assignment.assignedPeriod ?? ""}
-            />
-          </HistoryField>
-          <label className="flex min-h-11 items-center gap-2 text-sm">
-            <input
-              name="reviewed"
-              type="checkbox"
-              className="size-5 shrink-0"
-            />
-            Si ya hay un resumen oficial o pagos, revisé el ciclo y confirmo el
-            cambio de estimación.
-          </label>
-        </CycleForm>
-      </details>
+      <div className="gs-accordion">
+        <details>
+          <summary>Cambiar resumen</summary>
+          <div className="gs-accordion__body">
+            <p>
+              Dejá el mes vacío para volver a{" "}
+              {estimatedPeriod
+                ? `la estimación de ${formatInstallmentPeriod(estimatedPeriod)}`
+                : "la regla habitual"}
+              .
+            </p>
+            <CycleForm
+              label="Guardar asignación"
+              target={{
+                scope: "assignment",
+                cardId,
+                purchaseId: id,
+                ordinal,
+                currency,
+                version: assignment.version,
+              }}
+            >
+              <HistoryField label="Ciclo informado por el emisor">
+                <input
+                  className={historyControl}
+                  name="assignedPeriod"
+                  type="month"
+                  min="0001-01"
+                  max="9999-12"
+                  defaultValue={assignment.assignedPeriod ?? ""}
+                />
+              </HistoryField>
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  name="reviewed"
+                  type="checkbox"
+                  className="size-5 shrink-0"
+                />
+                Si ya hay un resumen oficial o pagos, revisé el ciclo y confirmo
+                el cambio de estimación.
+              </label>
+            </CycleForm>
+          </div>
+        </details>
+      </div>
     </li>
   );
 }
@@ -597,7 +747,7 @@ function CycleForm({
       method="post"
       action="/api/cards/cycles"
       aria-label={label}
-      className="mt-2 grid gap-2"
+      className="grid gap-3 text-[color:var(--glaciar-text)]"
       onSubmit={async (event) => {
         event.preventDefault();
         const fields = Object.fromEntries(new FormData(event.currentTarget));
@@ -623,20 +773,22 @@ function CycleForm({
       }}
     >
       <fieldset
-        className="grid min-w-0 gap-2 sm:grid-cols-2"
+        className="gs-form__grid min-w-0"
         disabled={pending || uncertain}
       >
         {children}
       </fieldset>
       {error && (
-        <p role="alert" className="text-sm">
-          {error}
-        </p>
+        <div role="alert" className="b-notice b-notice--critical">
+          <Icon name="alert" className="size-4.5 shrink-0" />
+          <p className="gs-notice-text">{error}</p>
+        </div>
       )}
       {saved && !error && (
-        <p role="status" className="text-sm">
-          Cambios guardados.
-        </p>
+        <div role="status" className="b-notice b-notice--info">
+          <Icon name="check" className="size-4.5 shrink-0" />
+          <p className="gs-notice-text">Cambios guardados.</p>
+        </div>
       )}
       <button
         type="submit"

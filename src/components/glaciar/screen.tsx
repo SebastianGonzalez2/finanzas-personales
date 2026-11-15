@@ -216,3 +216,21 @@ export function FormSection({
     </fieldset>
   );
 }
+
+// UI-05B — Etiqueta de estado (icono + texto: el color nunca es la única señal).
+export function StateTag({
+  tone,
+  children,
+}: {
+  tone: "good" | "warning" | "critical" | "neutral";
+  children: ReactNode;
+}) {
+  const icon: IconName =
+    tone === "good" ? "check" : tone === "neutral" ? "dot" : "alert";
+  return (
+    <span className={`lab-tag lab-tag--${tone}`}>
+      <Icon name={icon} duotone={false} className="size-3" />
+      {children}
+    </span>
+  );
+}

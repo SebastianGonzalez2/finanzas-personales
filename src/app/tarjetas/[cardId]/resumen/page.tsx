@@ -4,6 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import { CardCycleDetail } from "@/components/card-cycle-detail";
 import { ReturnCreditForm } from "@/components/refund-form";
 import { FinanceShell } from "@/components/finance-shell";
+import { PageHead, Screen } from "@/components/glaciar/screen";
+import {
+  HistoryField,
+  historyButton,
+  historyControl,
+} from "@/components/history-fields";
+import { Icon } from "@/components/ui/icon";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import {
   formatInstallmentPeriod,
@@ -65,90 +72,96 @@ export default async function StatementPage({
   if (!result) notFound();
   const previous = installmentPeriodAt(period, -1);
   const next = installmentPeriodAt(period, 1);
+  const refunds = result.card.currencies.map(
+    ({ currency, creditBalance }) =>
+      creditBalance &&
+      /[1-9]/.test(creditBalance) &&
+      result.banks.includes(currency) && (
+        <ReturnCreditForm
+          key={currency}
+          cardId={result.card.id}
+          currency={currency}
+          balance={creditBalance}
+          today={today}
+        />
+      ),
+  );
   return (
     <FinanceShell current="tarjetas">
-      <div className="grid gap-4">
-        <header className="grid gap-1">
-          <a
-            href="/tarjetas"
-            className="inline-flex min-h-11 items-center justify-self-start text-sm underline"
-          >
-            Volver a Tarjetas
-          </a>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold wrap-anywhere"
-          >
-            Resumen de {result.card.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Ciclo de cierre de {formatInstallmentPeriod(period)}
-          </p>
-        </header>
-        <nav
-          aria-label="Elegir ciclo"
-          className="flex flex-wrap items-center gap-x-4 gap-y-2"
-        >
-          {isInstallmentPeriod(previous) && (
-            <a
-              className="inline-flex min-h-11 items-center underline"
-              href={`?ciclo=${previous}`}
-            >
-              Ciclo anterior
-            </a>
-          )}
-          {isInstallmentPeriod(next) && (
-            <a
-              className="inline-flex min-h-11 items-center underline"
-              href={`?ciclo=${next}`}
-            >
-              Ciclo siguiente
-            </a>
-          )}
-          <form method="get" className="flex flex-wrap items-end gap-2">
-            <label className="grid gap-1 text-sm">
-              Mes de cierre
-              <input
-                name="ciclo"
-                type="month"
-                min="0001-01"
-                max="9999-12"
-                required
-                defaultValue={period}
-                className="min-h-11 rounded-lg border px-2"
-              />
-            </label>
-            <button
-              type="submit"
-              className="min-h-11 rounded-lg border px-3 text-sm"
-            >
-              Ver ciclo
-            </button>
-          </form>
-        </nav>
-        {result.card.currencies.map(
-          ({ currency, creditBalance }) =>
-            creditBalance &&
-            /[1-9]/.test(creditBalance) &&
-            result.banks.includes(currency) && (
-              <ReturnCreditForm
-                key={currency}
-                cardId={result.card.id}
-                currency={currency}
-                balance={creditBalance}
-                today={today}
-              />
-            ),
-        )}
+      <Screen>
+        <a href="/tarjetas" className="gs-back">
+          <Icon name="chevronLeft" duotone={false} className="size-4" />
+          Volver a Tarjetas
+        </a>
+        <PageHead
+          eyebrow={`Ciclo de cierre de ${formatInstallmentPeriod(period)}`}
+          title={`Resumen de ${result.card.name}`}
+          actions={
+            <nav aria-label="Elegir ciclo" className="gs-nav">
+              <div className="lab-stepper">
+                {isInstallmentPeriod(previous) ? (
+                  <a
+                    className="lab-stepper__btn"
+                    href={`?ciclo=${previous}`}
+                    aria-label="Ciclo anterior"
+                  >
+                    <Icon
+                      name="chevronLeft"
+                      duotone={false}
+                      className="size-4"
+                    />
+                  </a>
+                ) : (
+                  <span className="lab-stepper__btn" aria-hidden="true" />
+                )}
+                <span className="lab-stepper__label">
+                  <Icon name="calendar" className="size-4" />
+                  {formatInstallmentPeriod(period)}
+                </span>
+                {isInstallmentPeriod(next) ? (
+                  <a
+                    className="lab-stepper__btn"
+                    href={`?ciclo=${next}`}
+                    aria-label="Ciclo siguiente"
+                  >
+                    <Icon
+                      name="chevronRight"
+                      duotone={false}
+                      className="size-4"
+                    />
+                  </a>
+                ) : (
+                  <span className="lab-stepper__btn" aria-hidden="true" />
+                )}
+              </div>
+              <form method="get" className="gs-actions items-end">
+                <HistoryField label="Mes de cierre">
+                  <input
+                    name="ciclo"
+                    type="month"
+                    min="0001-01"
+                    max="9999-12"
+                    required
+                    defaultValue={period}
+                    className={historyControl}
+                  />
+                </HistoryField>
+                <button type="submit" className={historyButton}>
+                  Ver ciclo
+                </button>
+              </form>
+            </nav>
+          }
+        />
         <CardCycleDetail
           key={`${period}:${accion === "pago"}`}
           {...result}
           period={period}
           today={today}
           openPayment={accion === "pago"}
+          refunds={refunds}
         />
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }
