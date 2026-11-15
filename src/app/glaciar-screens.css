@@ -1293,6 +1293,20 @@
   }
 
   /* ---------- UI-05D · Estadísticas ---------- */
+  .gs-kpi .lab-delta {
+    display: flex;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    border-radius: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .gs-kpi .gs-kpi__value {
+    overflow-wrap: anywhere;
+  }
+
   .gs-filterbar {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
