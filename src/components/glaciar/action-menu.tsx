@@ -13,6 +13,9 @@ export type ActionMenuItem = {
   onSelect: (trigger: HTMLElement) => void;
 };
 
+const interactive =
+  "a[href],button,input,select,textarea,summary,label,[tabindex],[contenteditable='true'],[role='button'],[role='menuitem']";
+
 export function ActionMenu({
   label,
   items,
@@ -29,7 +32,21 @@ export function ActionMenu({
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Element | null;
+      if (root.current?.contains(target as Node)) return;
+      setOpen(false);
+      // Clic en otro control: el foco es suyo. Solo se restaura al disparador
+      // si se pulsó una zona sin control y el foco quedó en el documento.
+      if (target?.closest?.(interactive)) return;
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (
+          !active ||
+          active === document.body ||
+          active === document.documentElement
+        )
+          summary.current?.focus();
+      });
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
