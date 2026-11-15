@@ -335,13 +335,35 @@ export function FundsScreen({ state }: { state: ProtoState }) {
         label="Equivalencia del total reservado"
         value={<>≈ {m("199540.00")}</>}
         sub="Cotizaciones de referencia · no convierte tu dinero"
+        help={{
+          label: "Ayuda: Equivalencia del total reservado",
+          text: "Es el valor aproximado en pesos uruguayos de todo el dinero reservado en tus fondos de ahorro activos, incluyendo pesos, dólares y euros. Se calcula con las cotizaciones de referencia; no convierte tu dinero.",
+        }}
       />
-      <Kpi label="Disponible libre · UYU" value={m("54310.00")} />
-      <Kpi label="Disponible libre · USD" value={m("1240.00", "USD")} />
+      <Kpi
+        label="Disponible libre · UYU"
+        value={m("54310.00")}
+        help={{
+          label: "Ayuda: Disponible libre en pesos uruguayos",
+          text: "Es el dinero en pesos uruguayos que tenés en tus cuentas bancarias y que no está reservado en ningún fondo de ahorro.",
+        }}
+      />
+      <Kpi
+        label="Disponible libre · USD"
+        value={m("1240.00", "USD")}
+        help={{
+          label: "Ayuda: Disponible libre en dólares",
+          text: "Es el dinero en dólares que tenés en tus cuentas bancarias y que no está reservado en ningún fondo de ahorro.",
+        }}
+      />
       <Kpi
         label="Disponible libre · EUR"
         value="Sin saldo bancario"
         sub="Configurá el saldo en Resumen"
+        help={{
+          label: "Ayuda: Disponible libre en euros",
+          text: "Es el dinero en euros que tenés en tus cuentas bancarias y que no está reservado en ningún fondo de ahorro.",
+        }}
       />
     </div>
   );
@@ -707,9 +729,27 @@ export function BudgetsScreen({ state }: { state: ProtoState }) {
         className="ui05-kpis"
         aria-label="Estado de los presupuestos del mes"
       >
-        <Kpi icon="check" label="En rango" value="3" sub="presupuestos" />
-        <Kpi icon="alert" label="Cerca del límite" value="2" sub="80 % o más" />
-        <Kpi icon="alert" label="Excedidos" value="1" sub="100 % o más" />
+        <Kpi
+          tone="good"
+          icon="check"
+          label="En rango"
+          value="3"
+          sub="presupuestos"
+        />
+        <Kpi
+          tone="warning"
+          icon="alert"
+          label="Cerca del límite"
+          value="2"
+          sub="80 % o más"
+        />
+        <Kpi
+          tone="critical"
+          icon="alert"
+          label="Excedidos"
+          value="1"
+          sub="100 % o más"
+        />
         <Kpi
           icon="info"
           label="Sin calcular"

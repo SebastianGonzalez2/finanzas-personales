@@ -183,7 +183,6 @@
     min-width: 0;
     flex-direction: column;
     gap: 6px;
-    overflow: hidden;
     padding: 16px 18px;
     border: 1px solid var(--glaciar-border);
     border-radius: 16px;
@@ -201,7 +200,17 @@
     backdrop-filter: blur(var(--glaciar-blur-1)) saturate(160%);
   }
 
-  .ui05-kpi--hero::before {
+  /* El brillo se recorta en su propia capa para que el popover pueda salir
+     de la tarjeta sin cortarse. */
+  .ui05-kpi__glow {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .ui05-kpi__glow::before {
     position: absolute;
     top: -60%;
     right: -20%;
@@ -217,6 +226,10 @@
     content: "";
     filter: blur(20px);
     pointer-events: none;
+  }
+
+  .ui05-kpi:has(.ui05-help__btn[aria-expanded="true"]) {
+    z-index: 5;
   }
 
   .ui05-kpi__label {
@@ -248,6 +261,96 @@
   .ui05-kpi__sub {
     color: var(--glaciar-muted);
     font-size: 12px;
+  }
+
+  /* Estados semánticos (M-02): icono y valor con los tokens de .lab-tag; el
+     acento de borde es muy sutil y no hay resplandor exterior. */
+  .ui05-kpi--good {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-good) 28%,
+      var(--glaciar-border)
+    );
+  }
+
+  .ui05-kpi--warning {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-warning) 30%,
+      var(--glaciar-border)
+    );
+  }
+
+  .ui05-kpi--critical {
+    border-color: color-mix(
+      in srgb,
+      var(--lab-critical) 30%,
+      var(--glaciar-border)
+    );
+  }
+
+  .ui05-kpi--good :is(.ui05-kpi__label svg, .ui05-kpi__value) {
+    color: var(--lab-good);
+  }
+
+  .ui05-kpi--warning :is(.ui05-kpi__label svg, .ui05-kpi__value) {
+    color: var(--lab-warning);
+  }
+
+  .ui05-kpi--critical :is(.ui05-kpi__label svg, .ui05-kpi__value) {
+    color: var(--lab-critical);
+  }
+
+  /* ---------- Botón «?» y popover (M-01) ---------- */
+  .ui05-help {
+    display: inline-flex;
+  }
+
+  .ui05-help__btn {
+    display: inline-grid;
+    width: 24px;
+    height: 24px;
+    margin: -4px 0;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--glaciar-muted);
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+
+  .ui05-help__btn:hover,
+  .ui05-help__btn[aria-expanded="true"] {
+    background: var(--glaciar-selected);
+    color: var(--glaciar-text);
+  }
+
+  .ui05-help__pop {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: 12px;
+    background: var(--glaciar-solid);
+    box-shadow: var(--glaciar-shadow);
+    color: var(--glaciar-text);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.45;
+  }
+
+  @media (min-width: 48rem) {
+    .ui05-help__pop {
+      width: max(100%, 260px);
+    }
+
+    .ui05-kpi:nth-child(n + 3) .ui05-help__pop {
+      right: 0;
+      left: auto;
+    }
   }
 
   /* ---------- Filas de lista ---------- */
@@ -1135,10 +1238,6 @@
 
   .ui05-rows--select > li[aria-current="true"] {
     background: var(--glaciar-selected);
-  }
-
-  .ui05-search-lg {
-    min-height: 48px;
   }
 
   /* ---------- Índice de prototipos ---------- */

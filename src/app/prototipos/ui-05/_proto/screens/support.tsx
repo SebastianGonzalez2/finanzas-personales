@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
-import {
-  ayudaGroups,
-  countAyudaEntries,
-  filterAyudaGroups,
-} from "@/domain/ayuda";
+import { ayudaGroups } from "@/domain/ayuda";
 import { buttonClass } from "@/components/ui/button";
-import { Field, Input, SearchField } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { EmptyState, ErrorState, PageHead, Screen, m } from "../kit";
 import { protoHref, type ProtoState } from "../screens";
@@ -271,23 +267,22 @@ export function NoticesScreen({ state }: { state: ProtoState }) {
 
 /* ================================== Ayuda ================================== */
 
-function highlight(text: string, query: string) {
-  if (!query) return text;
-  const index = text.toLowerCase().indexOf(query.toLowerCase());
-  if (index < 0) return text;
-  return (
-    <>
-      {text.slice(0, index)}
-      <mark>{text.slice(index, index + query.length)}</mark>
-      {text.slice(index + query.length)}
-    </>
-  );
+/** Reparte los grupos en dos columnas con un total de preguntas similar. */
+function splitGroups<T extends { entries: readonly unknown[] }>(groups: T[]) {
+  const total = groups.reduce((sum, group) => sum + group.entries.length, 0);
+  const left: T[] = [];
+  const right: T[] = [];
+  let acc = 0;
+  for (const group of groups) {
+    // El grupo va a la izquierda mientras su punto medio no pase la mitad.
+    (acc + group.entries.length / 2 <= total / 2 ? left : right).push(group);
+    acc += group.entries.length;
+  }
+  return [left, right] as const;
 }
 
-export function HelpScreen({ state }: { state: ProtoState }) {
-  const query = state === "busqueda" ? "cuotas" : "";
-  const groups = filterAyudaGroups(query, ayudaGroups);
-  const shown = query ? groups : groups.slice(0, 4);
+export function HelpScreen() {
+  const columns = splitGroups([...ayudaGroups]);
   return (
     <Screen>
       <PageHead
@@ -301,75 +296,50 @@ export function HelpScreen({ state }: { state: ProtoState }) {
           </a>
         }
       />
-      <section className="lab-panel" aria-label="Buscar en la ayuda">
-        <SearchField
-          aria-label="Buscar en la ayuda"
-          placeholder="Ej.: cuotas, devolución, copia de seguridad"
-          defaultValue={query}
-          className="ui05-search-lg"
-        />
-        <nav aria-label="Ir a" className="ui05-pills">
-          {ayudaGroups.map((group) => (
-            <a key={group.id} href={`#${group.id}`}>
-              {group.title}
-            </a>
-          ))}
-        </nav>
-        {query && (
-          <p className="lab-muted text-sm" role="status">
-            {countAyudaEntries(groups)} respuestas para «{query}»
-          </p>
-        )}
-      </section>
       <div className="ui05-grid">
-        {shown.map((group) => (
-          <section
-            key={group.id}
-            id={group.id}
-            className="lab-panel ui05-span-6"
-            aria-labelledby={`g-${group.id}`}
-          >
-            <h2 id={`g-${group.id}`} className="lab-panel__title">
-              {group.title}
-            </h2>
-            <div className="ui05-accordion">
-              {group.entries.map((entry, index) => (
-                <details
-                  key={entry.question}
-                  open={Boolean(query) || index === 0}
-                >
-                  <summary>
-                    {highlight(entry.question, query)}
-                    <Icon
-                      name="chevronDown"
-                      duotone={false}
-                      className="size-4"
-                    />
-                  </summary>
-                  <div className="ui05-accordion__body">
-                    <p>{highlight(entry.answer, query)}</p>
-                    {entry.links && (
-                      <p className="ui05-pills">
-                        {entry.links.map((link) => (
-                          <a key={link.href} href="#">
-                            {link.label}
-                          </a>
-                        ))}
-                      </p>
-                    )}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </section>
+        {columns.map((groups, column) => (
+          <div key={column} className="ui05-span-6 ui05-stack">
+            {groups.map((group) => (
+              <section
+                key={group.id}
+                id={group.id}
+                className="lab-panel"
+                aria-labelledby={`g-${group.id}`}
+              >
+                <h2 id={`g-${group.id}`} className="lab-panel__title">
+                  {group.title}
+                </h2>
+                <div className="ui05-accordion">
+                  {group.entries.map((entry, index) => (
+                    <details key={entry.question} open={index === 0}>
+                      <summary>
+                        {entry.question}
+                        <Icon
+                          name="chevronDown"
+                          duotone={false}
+                          className="size-4"
+                        />
+                      </summary>
+                      <div className="ui05-accordion__body">
+                        <p>{entry.answer}</p>
+                        {entry.links && (
+                          <p className="ui05-pills">
+                            {entry.links.map((link) => (
+                              <a key={link.href} href="#">
+                                {link.label}
+                              </a>
+                            ))}
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         ))}
       </div>
-      {!query && (
-        <p className="lab-muted text-center text-xs">
-          El prototipo muestra 4 de {ayudaGroups.length} secciones; la pantalla
-          real muestra todas.
-        </p>
-      )}
     </Screen>
   );
 }
