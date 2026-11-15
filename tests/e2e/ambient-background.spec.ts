@@ -3,9 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 // HOTFIX — Fondo ambiental Glaciar. Las capturas visuales usan movimiento
 // reducido; esta prueba verifica el movimiento por separado:
 // - con GPU y movimiento permitido las ondas y la luz del medio se animan;
-// - con movimiento reducido o WebGL por software queda un fotograma fijo de
-//   las mismas ondas (sin dibujo continuo: así corre CI sin GPU);
-// - sin WebGL queda la capa CSS.
+// - con GPU y movimiento reducido queda un fotograma fijo de las mismas ondas;
+// - con WebGL por software (así corre CI) o sin WebGL queda la capa CSS, sin
+//   dibujar el shader.
 // En CI (Chromium sin GPU, SwiftShader) la GPU se simula quitando la marca
 // de software. Con una GPU real (`--project` local con `channel: chromium`)
 // la prueba usa la detección real.
@@ -126,21 +126,22 @@ test("HOTFIX: con movimiento reducido queda un fotograma fijo de las ondas", asy
   expect(errors).toEqual([]);
 });
 
-test("HOTFIX: con WebGL por software no hay dibujo continuo", async ({
+test("HOTFIX: con WebGL por software no se dibuja el shader", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const errors = await open(page, "software");
   for (const layer of await waves(page).all())
-    await expect(layer).toHaveAttribute("data-render", "still");
-  await expect.poll(() => ready(page)).toEqual(["true", "true"]);
+    await expect(layer).toHaveAttribute("data-render", "css");
   await expect(page.locator(".ambient-glow")).toHaveAttribute(
     "data-motion",
     "static",
   );
   await page.waitForTimeout(1500);
   const motion = await frames(page);
-  expect(motion.draws).toBe(0);
+  // Ni un cuadro: en CPU, crear el contexto y compilar ya bloquea la página.
+  expect(await draws(page)).toBe(0);
+  expect(await ready(page)).toEqual([null, null]);
   expect(motion.changed).toBe(false);
   expect(await glow(page)).toBe("none");
   expect(errors).toEqual([]);

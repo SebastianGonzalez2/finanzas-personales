@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   ambientRender,
   classifyWebgl,
+  softwareByName,
   type AmbientRender,
   type WebglSupport,
 } from "./ambient-render";
@@ -13,10 +14,10 @@ import {
 // tenue que deriva despacio. Siempre hay una capa CSS estática debajo del
 // lienzo (sin WebGL, mientras carga o con el contexto perdido). El shader se
 // dibuja a la mitad de la resolución, a 30 fps como máximo, y se detiene con
-// la pestaña oculta o fuera de la vista. Con `prefers-reduced-motion` o WebGL
-// por software queda un fotograma fijo de las mismas ondas (ver
-// `ambient-render.ts`). Solo decoración: `aria-hidden`, sin datos ni
-// almacenamiento.
+// la pestaña oculta o fuera de la vista. Con GPU y `prefers-reduced-motion`
+// queda un fotograma fijo de las mismas ondas; con WebGL por software o sin
+// WebGL, la capa CSS (ver `ambient-render.ts`). Solo decoración:
+// `aria-hidden`, sin datos ni almacenamiento.
 
 const vertex = `attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0.0,1.0);}`;
 
@@ -109,12 +110,14 @@ function probeWebgl(): WebglSupport {
       : "";
     release(gl);
     // Chromium y Firefox devuelven `null` con esta opción cuando solo pueden
-    // ofrecer WebGL por software.
-    const fast = gl
-      ? document
-          .createElement("canvas")
-          .getContext("webgl", { failIfMajorPerformanceCaveat: true })
-      : null;
+    // ofrecer WebGL por software. Si el nombre ya lo delata, no hace falta un
+    // segundo contexto (cada uno cuesta en CPU sin GPU).
+    const fast =
+      gl && !softwareByName(renderer)
+        ? document
+            .createElement("canvas")
+            .getContext("webgl", { failIfMajorPerformanceCaveat: true })
+        : null;
     release(fast);
     webglSupport = classifyWebgl({
       context: gl !== null,
@@ -169,8 +172,6 @@ function AmbientWaves({
   useEffect(() => {
     const element = canvas.current;
     if (!element || !enabled) return;
-    // Sin `failIfMajorPerformanceCaveat`: la capacidad ya se midió una vez y,
-    // con WebGL por software, se dibuja un solo fotograma fijo.
     const gl = element.getContext("webgl", {
       alpha: false,
       antialias: false,
@@ -178,8 +179,9 @@ function AmbientWaves({
       stencil: false,
       powerPreference: "low-power",
       preserveDrawingBuffer: false,
+      failIfMajorPerformanceCaveat: true,
     });
-    if (!gl) return; // Sin WebGL: queda la capa CSS.
+    if (!gl) return; // Sin WebGL acelerado: queda la capa CSS.
 
     const vs = compile(gl, gl.VERTEX_SHADER, vertex);
     const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);

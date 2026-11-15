@@ -3,11 +3,13 @@
 // nunca depende de dónde se compiló la aplicación.
 //
 // - «accelerated»: WebGL con GPU. Las ondas y la luz del medio se animan como
-//   en el prototipo aprobado, salvo con movimiento reducido.
+//   en el prototipo aprobado; con movimiento reducido queda un fotograma fijo
+//   de las mismas ondas.
 // - «software»: WebGL rasterizado en CPU (SwiftShader en Chromium sin GPU o en
-//   CI, llvmpipe, WARP, aceleración desactivada). Animar recalcula cada vidrio
-//   en CPU en cada cuadro, así que se dibuja un único fotograma fijo de las
-//   mismas ondas: el aspecto aprobado, sin costo continuo.
+//   CI, llvmpipe, WARP, aceleración desactivada). Ni siquiera un fotograma es
+//   barato: crear el contexto y compilar el shader bloquean ~300 ms el hilo
+//   principal en cada carga (medido en Chromium sin GPU), y animar recalcula
+//   cada vidrio en CPU. Queda la capa CSS estática.
 // - «unavailable»: sin WebGL; queda la capa CSS estática.
 export type WebglSupport = "accelerated" | "software" | "unavailable";
 
@@ -41,6 +43,11 @@ export function ambientRender(
   support: WebglSupport,
   reducedMotion: boolean,
 ): AmbientRender {
-  if (support === "unavailable") return "css";
-  return support === "accelerated" && !reducedMotion ? "animated" : "still";
+  if (support !== "accelerated") return "css";
+  return reducedMotion ? "still" : "animated";
+}
+
+/** El nombre del renderizador ya delata WebGL por software. */
+export function softwareByName(renderer: string) {
+  return softwareRenderer.test(renderer);
 }

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   ambientRender,
   classifyWebgl,
+  softwareByName,
 } from "../../src/components/ambient-render.ts";
 
 const gpu =
@@ -20,7 +21,7 @@ test("HOTFIX: WebGL con GPU se considera acelerado y anima las ondas", () => {
   assert.equal(ambientRender("accelerated", false), "animated");
 });
 
-test("HOTFIX: WebGL por software dibuja un fotograma fijo, no se apaga", () => {
+test("HOTFIX: WebGL por software usa la capa CSS (sin costo de CPU)", () => {
   for (const renderer of [
     swiftshader,
     "llvmpipe (LLVM 15.0.7, 256 bits)",
@@ -36,8 +37,10 @@ test("HOTFIX: WebGL por software dibuja un fotograma fijo, no se apaga", () => {
     classifyWebgl({ context: true, withoutCaveat: false, renderer: gpu }),
     "software",
   );
-  assert.equal(ambientRender("software", false), "still");
-  assert.equal(ambientRender("software", true), "still");
+  assert.equal(ambientRender("software", false), "css");
+  assert.equal(ambientRender("software", true), "css");
+  assert.equal(softwareByName(swiftshader), true);
+  assert.equal(softwareByName(gpu), false);
 });
 
 test("HOTFIX: movimiento reducido conserva el fotograma fijo de las ondas", () => {
