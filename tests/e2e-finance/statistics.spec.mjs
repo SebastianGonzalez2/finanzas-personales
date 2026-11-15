@@ -135,13 +135,22 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
         .locator("figcaption")
         .filter({ hasText: "Patrimonio registrado · UYU" }),
     ).toBeVisible();
+    // Sin desborde horizontal; si falla, lista los elementos que se salen.
     expect(
-      await page.evaluate(
-        () =>
-          globalThis.document.documentElement.scrollWidth <=
-          globalThis.innerWidth,
-      ),
-    ).toBe(true);
+      await page.evaluate(() => {
+        const { document, innerWidth } = globalThis;
+        if (document.documentElement.scrollWidth <= innerWidth) return [];
+        return [...document.querySelectorAll("main *")]
+          .filter(
+            (element) => element.getBoundingClientRect().right > innerWidth + 1,
+          )
+          .slice(0, 15)
+          .map(
+            (element) =>
+              `${element.tagName}.${String(element.className?.baseVal ?? element.className).slice(0, 60)} ${Math.round(element.getBoundingClientRect().right)}/${innerWidth}`,
+          );
+      }),
+    ).toEqual([]);
 
     await page
       .getByRole("link", { name: "Compras sintéticas", exact: true })
