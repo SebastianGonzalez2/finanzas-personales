@@ -1747,4 +1747,24 @@
   .gs-benefit .gs-actions {
     margin-top: 2px;
   }
+
+  /* La fila completa (texto, importe y estado) es el enlace. */
+  .gs-row__link {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .gs-row__link::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    content: "";
+  }
+
+  .gs-row__link:focus-visible {
+    outline: none;
+  }
 }

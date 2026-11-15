@@ -64,42 +64,42 @@ function LoanColumn({
             ].filter(Boolean);
             return (
               <li key={loan.id}>
-                <div className="gs-row__main">
-                  <p className="gs-row__title">
-                    <Link href={`/deudas/${loan.id}`}>{loan.concept}</Link>
-                  </p>
-                  {detail.length > 0 && (
-                    <p className="gs-row__sub">{detail.join(" · ")}</p>
-                  )}
-                  {loan.installmentLoan && loan.installmentAmount && (
-                    <p className="gs-row__sub">
-                      Cuota habitual{" "}
+                <Link href={`/deudas/${loan.id}`} className="gs-row__link">
+                  <div className="gs-row__main">
+                    <p className="gs-row__title">{loan.concept}</p>
+                    {detail.length > 0 && (
+                      <p className="gs-row__sub">{detail.join(" · ")}</p>
+                    )}
+                    {loan.installmentLoan && loan.installmentAmount && (
+                      <p className="gs-row__sub">
+                        Cuota habitual{" "}
+                        {formatBankAmount({
+                          currency: loan.currency,
+                          amount: loan.installmentAmount,
+                        })}
+                        {loan.frequency &&
+                          ` · ${loanFrequencies[loan.frequency]}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="gs-row__aside">
+                    <span className="gs-row__amount">
                       {formatBankAmount({
                         currency: loan.currency,
-                        amount: loan.installmentAmount,
+                        amount: loan.outstanding,
                       })}
-                      {loan.frequency &&
-                        ` · ${loanFrequencies[loan.frequency]}`}
-                    </p>
-                  )}
-                </div>
-                <div className="gs-row__aside">
-                  <span className="gs-row__amount">
-                    {formatBankAmount({
-                      currency: loan.currency,
-                      amount: loan.outstanding,
-                    })}
-                  </span>
-                  {loan.needsReconciliation ? (
-                    <StateTag tone="warning">
-                      Pendiente de conciliación
-                    </StateTag>
-                  ) : settled ? (
-                    <StateTag tone="good">Saldada</StateTag>
-                  ) : (
-                    <StateTag tone="neutral">Pendiente</StateTag>
-                  )}
-                </div>
+                    </span>
+                    {loan.needsReconciliation ? (
+                      <StateTag tone="warning">
+                        Pendiente de conciliación
+                      </StateTag>
+                    ) : settled ? (
+                      <StateTag tone="good">Saldada</StateTag>
+                    ) : (
+                      <StateTag tone="neutral">Pendiente</StateTag>
+                    )}
+                  </div>
+                </Link>
               </li>
             );
           })}
