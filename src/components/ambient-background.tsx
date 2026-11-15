@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  ambientRender,
+  classifyWebgl,
+  type AmbientRender,
+  type WebglSupport,
+} from "./ambient-render";
 
 // UI-02 — Fondo ambiental Glaciar (guía §2–§4, prototipo `_lab/ambient.tsx`):
 // ondas de luz WebGL arriba y al final de la página y, en el medio, luz difusa
 // tenue que deriva despacio. Siempre hay una capa CSS estática debajo del
-// lienzo (sin WebGL, mientras carga, con el contexto perdido o con movimiento
-// reducido). El shader se dibuja a la mitad de la resolución, a 30 fps como
-// máximo, y se detiene con la pestaña oculta, fuera de la vista o con
-// `prefers-reduced-motion` (queda un fotograma fijo). Solo decoración:
-// `aria-hidden`, sin datos ni almacenamiento.
+// lienzo (sin WebGL, mientras carga o con el contexto perdido). El shader se
+// dibuja a la mitad de la resolución, a 30 fps como máximo, y se detiene con
+// la pestaña oculta o fuera de la vista. Con `prefers-reduced-motion` o WebGL
+// por software queda un fotograma fijo de las mismas ondas (ver
+// `ambient-render.ts`). Solo decoración: `aria-hidden`, sin datos ni
+// almacenamiento.
 
 const vertex = `attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0.0,1.0);}`;
 
@@ -86,38 +93,49 @@ function useReducedMotion() {
   );
 }
 
-// Sin aceleración gráfica (WebGL por software, GPU bloqueada o equipos muy
-// limitados) el shader y la deriva de la luz recalculan cada vidrio en CPU en
-// cada cuadro. En ese caso el fondo usa la alternativa estática (guía §4.4–5).
-let hardwareWebgl: boolean | undefined;
+let webglSupport: WebglSupport | undefined;
 
-// Rasterizadores por software que no siempre declaran la penalización de
-// rendimiento (p. ej. SwiftShader en Chromium sin GPU, llvmpipe en Linux).
-const softwareRenderer = /swiftshader|llvmpipe|softpipe|software|basic render/i;
+function release(gl: WebGLRenderingContext | null) {
+  gl?.getExtension("WEBGL_lose_context")?.loseContext();
+}
 
-function probeHardwareWebgl() {
-  if (hardwareWebgl !== undefined) return hardwareWebgl;
+function probeWebgl(): WebglSupport {
+  if (webglSupport !== undefined) return webglSupport;
   try {
-    const gl = document.createElement("canvas").getContext("webgl", {
-      failIfMajorPerformanceCaveat: true,
-    });
+    const gl = document.createElement("canvas").getContext("webgl");
     const info = gl?.getExtension("WEBGL_debug_renderer_info");
     const renderer = info
       ? String(gl?.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? "")
       : "";
-    hardwareWebgl = gl !== null && !softwareRenderer.test(renderer);
-    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    release(gl);
+    // Chromium y Firefox devuelven `null` con esta opción cuando solo pueden
+    // ofrecer WebGL por software.
+    const fast = gl
+      ? document
+          .createElement("canvas")
+          .getContext("webgl", { failIfMajorPerformanceCaveat: true })
+      : null;
+    release(fast);
+    webglSupport = classifyWebgl({
+      context: gl !== null,
+      withoutCaveat: fast !== null,
+      renderer,
+    });
   } catch {
-    hardwareWebgl = false;
+    webglSupport = "unavailable";
   }
-  return hardwareWebgl;
+  return webglSupport;
 }
 
 const noSubscription = () => () => {};
 
-/** `true` si hay WebGL con aceleración (en servidor: alternativa estática). */
-function useHardwareWebgl() {
-  return useSyncExternalStore(noSubscription, probeHardwareWebgl, () => false);
+/** Capacidad WebGL del navegador (en servidor: alternativa CSS). */
+function useWebglSupport() {
+  return useSyncExternalStore(
+    noSubscription,
+    probeWebgl,
+    (): WebglSupport => "unavailable",
+  );
 }
 
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
@@ -134,23 +152,25 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 
 function AmbientWaves({
   position,
-  animate,
-  enabled,
+  render,
   scale = 0.5,
 }: {
   /** «bottom» dibuja las ondas invertidas para el final de la página. */
   position: "top" | "bottom";
-  animate: boolean;
-  /** `false`: no se crea contexto WebGL y queda la capa CSS estática. */
-  enabled: boolean;
+  /** «css»: no se crea contexto WebGL y queda la capa CSS estática. */
+  render: AmbientRender;
   /** Fracción de la resolución CSS que se renderiza (la luz difusa tolera poca). */
   scale?: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const animate = render === "animated";
+  const enabled = render !== "css";
 
   useEffect(() => {
     const element = canvas.current;
     if (!element || !enabled) return;
+    // Sin `failIfMajorPerformanceCaveat`: la capacidad ya se midió una vez y,
+    // con WebGL por software, se dibuja un solo fotograma fijo.
     const gl = element.getContext("webgl", {
       alpha: false,
       antialias: false,
@@ -158,9 +178,8 @@ function AmbientWaves({
       stencil: false,
       powerPreference: "low-power",
       preserveDrawingBuffer: false,
-      failIfMajorPerformanceCaveat: true,
     });
-    if (!gl) return; // Sin WebGL acelerado: queda la capa CSS.
+    if (!gl) return; // Sin WebGL: queda la capa CSS.
 
     const vs = compile(gl, gl.VERTEX_SHADER, vertex);
     const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
@@ -282,6 +301,7 @@ function AmbientWaves({
     <div
       aria-hidden="true"
       data-ambient={position}
+      data-render={render}
       className={`ambient${position === "bottom" ? " ambient--bottom" : ""}`}
     >
       <canvas ref={canvas} className="ambient__canvas" />
@@ -291,7 +311,12 @@ function AmbientWaves({
 
 export function AmbientBackground() {
   const reduced = useReducedMotion();
-  const accelerated = useHardwareWebgl();
+  const support = useWebglSupport();
+  const render = ambientRender(support, reduced);
+  // La luz del medio deriva solo con GPU: por software, cada cuadro vuelve a
+  // desenfocar en CPU todos los vidrios. El CSS la detiene además con
+  // movimiento reducido o con la pestaña oculta.
+  const accelerated = support === "accelerated";
 
   // Con la pestaña oculta también se detiene la deriva CSS de la luz del medio.
   useEffect(() => {
@@ -320,12 +345,8 @@ export function AmbientBackground() {
         <span />
         <span />
       </div>
-      <AmbientWaves position="top" animate={!reduced} enabled={accelerated} />
-      <AmbientWaves
-        position="bottom"
-        animate={!reduced}
-        enabled={accelerated}
-      />
+      <AmbientWaves position="top" render={render} />
+      <AmbientWaves position="bottom" render={render} />
       <div className="ambient-grain" aria-hidden="true" />
     </>
   );
