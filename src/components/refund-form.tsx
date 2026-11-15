@@ -520,12 +520,10 @@ export function ReturnCreditForm({
   );
   const [saved, setSaved] = useState("");
   return (
-    <details className="rounded-lg border p-3">
-      <summary className="cursor-pointer font-semibold">
-        Registrar reintegro a Bancos en {currency}
-      </summary>
+    <details>
+      <summary>Registrar reintegro a Bancos en {currency}</summary>
       <form
-        className="mt-3 grid gap-3"
+        className="gs-accordion__body"
         onSubmit={async (event) => {
           event.preventDefault();
           const element = event.currentTarget;
