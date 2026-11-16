@@ -139,9 +139,19 @@ test("F6-06: móvil resalta el botón del menú y no hay desbordes", async ({
   const menu = await page
     .getByRole("button", { name: "Abrir navegación" })
     .boundingBox();
-  const box = await highlight.boundingBox();
-  expect(box.x).toBeLessThanOrEqual(menu.x);
-  expect(box.y).toBeLessThanOrEqual(menu.y);
+  // El recuadro se anima desde el paso anterior (UI-06): se espera a que
+  // abarque el botón del menú en lugar de medirlo a mitad de la transición.
+  await expect
+    .poll(async () => {
+      const box = await highlight.boundingBox();
+      return (
+        box.x <= menu.x &&
+        box.y <= menu.y &&
+        box.x + box.width >= menu.x + menu.width &&
+        box.y + box.height >= menu.y + menu.height
+      );
+    })
+    .toBe(true);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,
