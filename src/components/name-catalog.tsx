@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   catalogKinds,
@@ -12,14 +12,10 @@ import {
   type MerchantMergePreview,
 } from "@/domain/catalog";
 import { connectionAwareMessage } from "./connection";
-import { Card } from "./ui/card";
-
-const primary =
-  "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
-const secondary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border px-2 text-sm hover:bg-accent disabled:opacity-60";
-const control =
-  "block min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base";
+import { FormFoot, FormPanel, RowIcon, StateTag } from "./glaciar/screen";
+import { buttonClass } from "./ui/button";
+import { Field, Input, Select } from "./ui/field";
+import { Icon } from "./ui/icon";
 
 // Catálogo privado de comercios y contactos con archivado reversible (v9.45):
 // lo archivado deja de sugerirse en movimientos nuevos pero sigue listado aquí,
@@ -27,9 +23,11 @@ const control =
 export function NameCatalog({
   entries,
   contactId,
+  children,
 }: {
   entries: CatalogEntry[];
   contactId?: string;
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -154,17 +152,21 @@ export function NameCatalog({
       <li
         key={entry.id}
         id={entry.kind === "person" ? `contacto-${entry.id}` : undefined}
-        className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
       >
-        <span className="min-w-0">
-          <span className="block truncate font-medium">{entry.name}</span>
-          <span className="text-xs text-muted-foreground">
-            {catalogKinds[entry.kind]}
-          </span>
-        </span>
+        <RowIcon name={entry.kind === "person" ? "account" : "merchants"} />
+        <div className="gs-row__main">
+          <p
+            className={`gs-row__title ${entry.archived ? "text-[var(--glaciar-faint)]" : ""}`}
+          >
+            {entry.name}
+          </p>
+          <p className="gs-row__sub">{catalogKinds[entry.kind]}</p>
+        </div>
+        {entry.archived && <StateTag tone="neutral">Archivado</StateTag>}
         <button
           type="button"
-          className={secondary}
+          aria-label={`${entry.archived ? "Restaurar" : "Archivar"} ${entry.name}`}
+          className={buttonClass("ghost")}
           disabled={pending}
           onClick={() => toggle(entry)}
         >
@@ -174,176 +176,200 @@ export function NameCatalog({
     );
   }
 
+  const canMerge =
+    merchants.length > 1 && merchants.some((entry) => !entry.archived);
+
   return (
-    <div className="grid gap-4">
-      <Card className="grid gap-3 p-4">
-        <form method="post" onSubmit={create} className="grid gap-3">
-          <h2 className="text-base font-semibold">Agregar al catálogo</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-medium">
-              Tipo
-              <select
+    <>
+      {canMerge && (
+        <details className="gs-creator" open={Boolean(preview) || undefined}>
+          <summary className={buttonClass("outline")}>
+            <Icon name="merchants" duotone={false} className="size-4" />
+            Unificar comercios
+          </summary>
+          <FormPanel
+            labelId="form-unificar"
+            title="Unificar comercios"
+            description="El duplicado queda como alias del que se conserva. Los movimientos existentes no cambian de importe."
+          >
+            <form onSubmit={loadPreview} className="grid gap-4">
+              <div className="gs-form__grid">
+                <Field label="Comercio duplicado">
+                  <Select
+                    value={sourceId}
+                    onChange={(event) => {
+                      setSourceId(event.target.value);
+                      setPreview(null);
+                    }}
+                    required
+                    disabled={pending}
+                  >
+                    <option value="">Elegí el duplicado</option>
+                    {merchants.map(({ id, name, archived }) => (
+                      <option key={id} value={id} disabled={id === targetId}>
+                        {name}
+                        {archived ? " (archivado)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Comercio que se conserva">
+                  <Select
+                    value={targetId}
+                    onChange={(event) => {
+                      setTargetId(event.target.value);
+                      setPreview(null);
+                    }}
+                    required
+                    disabled={pending}
+                  >
+                    <option value="">Elegí el nombre que se conserva</option>
+                    {merchants
+                      .filter((entry) => !entry.archived)
+                      .map(({ id, name }) => (
+                        <option key={id} value={id} disabled={id === sourceId}>
+                          {name}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+              </div>
+              <FormFoot>
+                <button
+                  type="submit"
+                  disabled={pending || !sourceId || !targetId}
+                  className={buttonClass("outline")}
+                >
+                  Ver vista previa
+                </button>
+              </FormFoot>
+            </form>
+            {preview && (
+              <div className="grid gap-3">
+                <p role="status" className="gs-hint">
+                  <strong>{preview.target.name}</strong> quedará asociado a{" "}
+                  {preview.movementCount}{" "}
+                  {preview.movementCount === 1 ? "movimiento" : "movimientos"}.{" "}
+                  <strong>{preview.source.name}</strong> quedará como alias.
+                </p>
+                <FormFoot>
+                  <button
+                    type="button"
+                    onClick={() => setPreview(null)}
+                    disabled={pending}
+                    className={buttonClass("ghost")}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmMerge}
+                    disabled={pending}
+                    className={buttonClass("primary")}
+                  >
+                    Confirmar unificación
+                  </button>
+                </FormFoot>
+              </div>
+            )}
+          </FormPanel>
+        </details>
+      )}
+      {notice && (
+        <p role="status" className="gs-hint">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="gs-hint">
+          {error}
+        </p>
+      )}
+      <div className="gs-grid">
+        <section
+          className={`lab-panel ${children ? "gs-span-7" : ""}`}
+          aria-labelledby="catalogo-lista"
+        >
+          <header className="lab-panel__head">
+            <h2 id="catalogo-lista" className="lab-panel__title">
+              <span className="lab-panel__icon">
+                <Icon name="merchants" className="size-4.5" />
+              </span>
+              Catálogo
+            </h2>
+            <span className="lab-tag lab-tag--neutral">
+              {active.length} activos · {archived.length} archivados
+            </span>
+          </header>
+          <form
+            method="post"
+            onSubmit={create}
+            className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end"
+          >
+            <Field label="Nombre">
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={
+                  kind === "person" ? personNameLimit : catalogNameLimit
+                }
+                placeholder="Agregar comercio o contacto"
+                required
+              />
+            </Field>
+            <Field label="Tipo">
+              <Select
                 value={kind}
                 onChange={(event) => setKind(event.target.value as CatalogKind)}
-                className={control}
               >
                 {Object.entries(catalogKinds).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Nombre
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={
-                  kind === "person" ? personNameLimit : catalogNameLimit
-                }
-                required
-                className={control}
-              />
-            </label>
-          </div>
-          <p className="text-sm text-muted-foreground">
+              </Select>
+            </Field>
+            <button
+              type="submit"
+              disabled={pending}
+              className={buttonClass("primary")}
+            >
+              {pending ? "Guardando…" : "Agregar"}
+            </button>
+          </form>
+          <p className="gs-hint">
             Los nombres que ingresás al guardar gastos o deudas también se
             agregan al catálogo.
           </p>
-          <button
-            type="submit"
-            disabled={pending}
-            className={`${primary} justify-self-start`}
-          >
-            {pending ? "Guardando…" : "Agregar"}
-          </button>
-        </form>
-      </Card>
-      {merchants.length > 1 && merchants.some((entry) => !entry.archived) && (
-        <Card className="grid gap-3 p-4">
-          <h2 className="text-base font-semibold">Unificar comercios</h2>
-          <form onSubmit={loadPreview} className="grid gap-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-medium">
-                Comercio duplicado
-                <select
-                  value={sourceId}
-                  onChange={(event) => {
-                    setSourceId(event.target.value);
-                    setPreview(null);
-                  }}
-                  required
-                  disabled={pending}
-                  className={control}
-                >
-                  <option value="">Elegí el duplicado</option>
-                  {merchants.map(({ id, name, archived }) => (
-                    <option key={id} value={id} disabled={id === targetId}>
-                      {name}
-                      {archived ? " (archivado)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm font-medium">
-                Comercio que se conserva
-                <select
-                  value={targetId}
-                  onChange={(event) => {
-                    setTargetId(event.target.value);
-                    setPreview(null);
-                  }}
-                  required
-                  disabled={pending}
-                  className={control}
-                >
-                  <option value="">Elegí el nombre que se conserva</option>
-                  {merchants
-                    .filter((entry) => !entry.archived)
-                    .map(({ id, name }) => (
-                      <option key={id} value={id} disabled={id === sourceId}>
-                        {name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </div>
-            <button
-              type="submit"
-              disabled={pending || !sourceId || !targetId}
-              className={`${secondary} justify-self-start`}
-            >
-              Ver vista previa
-            </button>
-          </form>
-          {preview && (
-            <div className="grid gap-2 rounded-lg border p-3 text-sm">
-              <p role="status">
-                <strong>{preview.target.name}</strong> quedará asociado a{" "}
-                {preview.movementCount}{" "}
-                {preview.movementCount === 1 ? "movimiento" : "movimientos"}.{" "}
-                <strong>{preview.source.name}</strong> quedará como alias.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={confirmMerge}
-                  disabled={pending}
-                  className={primary}
-                >
-                  Confirmar unificación
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreview(null)}
-                  disabled={pending}
-                  className={secondary}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-      {notice && <p role="status">{notice}</p>}
-      {error && (
-        <p role="alert" className="text-sm">
-          {error}
-        </p>
-      )}
-      <Card className="grid gap-3 p-4">
-        <h2 className="text-base font-semibold">
-          Activos ({active.length} · {archived.length} archivados)
-        </h2>
-        {active.length ? (
-          <ul className="grid gap-2">{active.map(row)}</ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Todavía no hay comercios ni contactos en tu catálogo.
-          </p>
-        )}
-        {archived.length > 0 && (
-          <details
-            open={
-              archived.some(
-                ({ id, kind }) => id === contactId && kind === "person",
-              ) || undefined
-            }
-          >
-            <summary className="min-h-11 cursor-pointer text-sm font-semibold">
-              Archivados ({archived.length})
-            </summary>
-            <p className="mt-2 text-sm text-muted-foreground">
-              No se sugieren para movimientos nuevos, pero siguen referidos en
-              gastos, préstamos y estadísticas históricos. Archivar un contacto
-              no cancela deudas activas.
+          {active.length ? (
+            <ul className="gs-rows">{active.map(row)}</ul>
+          ) : (
+            <p className="lab-muted py-6 text-center text-sm">
+              Todavía no hay comercios ni contactos en tu catálogo.
             </p>
-            <ul className="mt-2 grid gap-2">{archived.map(row)}</ul>
-          </details>
-        )}
-      </Card>
-    </div>
+          )}
+          {archived.length > 0 && (
+            <details
+              open={
+                archived.some(
+                  ({ id, kind }) => id === contactId && kind === "person",
+                ) || undefined
+              }
+            >
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold">
+                Archivados ({archived.length})
+              </summary>
+              <p className="gs-hint mb-2">
+                No se sugieren para movimientos nuevos, pero siguen referidos en
+                gastos, préstamos y estadísticas históricos. Archivar un
+                contacto no cancela deudas activas.
+              </p>
+              <ul className="gs-rows">{archived.map(row)}</ul>
+            </details>
+          )}
+        </section>
+        {children && <div className="gs-span-5">{children}</div>}
+      </div>
+    </>
   );
 }

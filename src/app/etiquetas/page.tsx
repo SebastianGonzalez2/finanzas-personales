@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
+import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
+import { Icon } from "@/components/ui/icon";
 import { TagCatalog } from "@/components/tag-catalog";
 import { classificationReady, listTags } from "@/server/classification";
 import { withGoogleOwner } from "@/server/google-auth";
@@ -22,21 +24,25 @@ export default async function TagsPage() {
   });
   return (
     <FinanceShell current="historial">
-      <div className="grid gap-4">
-        <Link href="/historial" className="w-fit text-sm underline">
+      <Screen>
+        <Link className="gs-back" href="/historial">
+          <Icon name="chevronLeft" duotone={false} className="size-4" />
           Volver al historial
         </Link>
-        <h1 id="titulo-pagina" tabIndex={-1} className="text-2xl font-semibold">
-          Etiquetas
-        </h1>
+        <PageHead
+          eyebrow="Catálogos"
+          title="Etiquetas"
+          description="Creá, renombrá y archivá las etiquetas que usás para clasificar movimientos."
+        />
         {tags ? (
           <TagCatalog tags={tags} />
         ) : (
-          <p role="status">
-            Las etiquetas no están disponibles en este momento.
-          </p>
+          <PageNotice
+            tone="info"
+            message="Las etiquetas no están disponibles en este momento."
+          />
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }

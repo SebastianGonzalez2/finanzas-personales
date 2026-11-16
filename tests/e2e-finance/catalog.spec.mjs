@@ -50,6 +50,7 @@ test("F5-03: autocompletar, unificar y consultar las compras de un comercio", as
     const { id } = await first.json();
 
     await page.goto("/catalogo");
+    await page.locator("summary", { hasText: "Unificar comercios" }).click();
     await page
       .getByLabel("Comercio duplicado")
       .selectOption({ label: "Tda. Ing." });

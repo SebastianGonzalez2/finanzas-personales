@@ -4,30 +4,42 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { MovementTag } from "@/domain/classification";
 import { useFinancialCommand } from "./financial-command";
-import {
-  HistoryField,
-  historyButton,
-  historyControl,
-  historyPrimary,
-} from "./history-fields";
-import { Card } from "./ui/card";
+import { StateTag } from "./glaciar/screen";
+import { buttonClass } from "./ui/button";
+import { Field, Input } from "./ui/field";
+import { Icon } from "./ui/icon";
 
 export function TagCatalog({ tags }: { tags: MovementTag[] }) {
   return (
-    <div className="grid gap-4">
-      <TagForm />
-      {tags.length > 0 && (
-        <Card className="gap-2 p-4">
-          <h2 className="font-semibold">Mis etiquetas</h2>
-          <ul className="divide-y">
+    <div className="gs-grid">
+      <section className="lab-panel gs-span-8" aria-labelledby="mis-etiquetas">
+        <header className="lab-panel__head">
+          <h2 id="mis-etiquetas" className="lab-panel__title">
+            <span className="lab-panel__icon">
+              <Icon name="categories" className="size-4.5" />
+            </span>
+            Mis etiquetas
+          </h2>
+          {tags.length > 0 && (
+            <span className="lab-tag lab-tag--neutral">{tags.length}</span>
+          )}
+        </header>
+        <TagForm />
+        {tags.length > 0 ? (
+          <ul className="gs-rows">
             {tags.map((tag) => (
-              <li key={`${tag.id}-${tag.version}`} className="py-3">
+              <li key={`${tag.id}-${tag.version}`}>
                 <TagForm tag={tag} />
               </li>
             ))}
           </ul>
-        </Card>
-      )}
+        ) : (
+          <p className="lab-muted py-6 text-center text-sm">
+            Todavía no creaste etiquetas. También podés crearlas al clasificar
+            un movimiento.
+          </p>
+        )}
+      </section>
     </div>
   );
 }
@@ -65,37 +77,34 @@ function TagForm({ tag }: { tag?: MovementTag }) {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className={tag ? "grid gap-2" : "grid gap-2 rounded-xl border p-4"}
-    >
+    <form onSubmit={submit} className="grid min-w-0 flex-1 gap-2">
       <fieldset
         disabled={pending || uncertain}
-        className="flex flex-wrap items-end gap-2"
+        className="flex min-w-0 flex-wrap items-end gap-2"
       >
-        <div className="min-w-0 flex-1">
-          <HistoryField
-            label={
-              tag
-                ? tag.archived
-                  ? "Etiqueta archivada"
-                  : "Nombre de la etiqueta"
-                : "Nueva etiqueta"
-            }
-          >
-            <input
-              name="name"
-              maxLength={60}
-              defaultValue={tag?.name}
-              className={historyControl}
-              required
-            />
-          </HistoryField>
-        </div>
+        <Field
+          className="min-w-0 flex-1"
+          label={
+            tag
+              ? tag.archived
+                ? "Etiqueta archivada"
+                : "Nombre de la etiqueta"
+              : "Nueva etiqueta"
+          }
+        >
+          <Input
+            name="name"
+            maxLength={60}
+            defaultValue={tag?.name}
+            placeholder={tag ? undefined : "Ej.: vacaciones"}
+            required
+          />
+        </Field>
+        {tag?.archived && <StateTag tone="neutral">Archivada</StateTag>}
         <button
           value={tag ? "rename" : "create"}
           type="submit"
-          className={tag ? historyButton : historyPrimary}
+          className={buttonClass(tag ? "outline" : "primary")}
         >
           {tag ? "Renombrar" : "Crear etiqueta"}
         </button>
@@ -104,7 +113,7 @@ function TagForm({ tag }: { tag?: MovementTag }) {
             value={tag.archived ? "restore" : "archive"}
             type="submit"
             formNoValidate
-            className={historyButton}
+            className={buttonClass("ghost")}
           >
             {tag.archived ? "Restaurar" : "Archivar"}
           </button>
@@ -114,18 +123,18 @@ function TagForm({ tag }: { tag?: MovementTag }) {
         <button
           type="submit"
           formNoValidate
-          className={`${historyButton} justify-self-start`}
+          className={buttonClass("outline", "justify-self-start")}
         >
           Reintentar guardado
         </button>
       )}
       {error && (
-        <p role="alert" className="text-sm">
+        <p role="alert" className="gs-hint">
           {error}
         </p>
       )}
       {saved && (
-        <p role="status" className="text-sm">
+        <p role="status" className="gs-hint">
           Etiqueta guardada.
         </p>
       )}
