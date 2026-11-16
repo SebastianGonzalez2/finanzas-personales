@@ -1,0 +1,52 @@
+# Sondeo sin credenciales de https://finanzas-personales-uy.vercel.app (2026-11-16, despliegue 31f12ee)
+GET / -> 307 /resumen | public, max-age=0, must-revalidate | 7069B
+GET /resumen -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7721B
+GET /historial -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7590B
+GET /tarjetas -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7586B
+GET /fondos -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7598B
+GET /presupuestos -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7602B
+GET /estadisticas -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7602B
+GET /informes -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7586B
+GET /deudas -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7602B
+GET /recurrentes -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7598B
+GET /beneficios -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7614B
+GET /catalogo -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7612B
+GET /categorias -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7594B
+GET /etiquetas -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7590B
+GET /avisos -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7578B
+GET /ayuda -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7574B
+GET /account -> 307 /auth/sign-in | private, no-cache, no-store, max-age=0, must-revalidate | 7586B
+GET /auth/sign-in -> 200  | private, no-cache, no-store, max-age=0, must-revalidate | 13700B
+GET /api/account -> 401  | private, no-store | 27B
+GET /api/account/backup -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/bank-balances -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/bank-balances/adjustments -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/bank-benefits -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/budgets -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/cards -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/cards/cycles -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/cards/operations -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/catalog -> 401  | private, no-store | 49B
+GET /api/categories -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/classification -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/cron/card-push -> 401  | private, no-store | 0B
+GET /api/cron/contributions -> 401  | private, no-store | 0B
+GET /api/display-currency -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/export -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/funds -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/funds/contributions -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/history-filters -> 401  | private, no-store | 49B
+GET /api/loans -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/manual-exchange-rate -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/movements -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/recurrences -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/refunds -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/shared-expenses -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/statistics-favorites -> 405  | public, max-age=0, must-revalidate | 0B
+GET /api/auth/get-session -> 404  | private, no-store | 43B
+GET /api/auth/sign-out -> 404  | private, no-store | 43B
+POST /api/movements -> 403  | private, no-store | 36B
+POST /api/movements -> 400  | private, no-store | 31B
+POST /api/auth/sign-out -> 200  | private, no-store | 16B
+
+respuestas 200 distintas de /auth/sign-in o con claves financieras: []
