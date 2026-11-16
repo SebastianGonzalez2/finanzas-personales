@@ -49,7 +49,7 @@ export default async function NoticesPage() {
     headers: await headers(),
   });
   const dates = await withGoogleOwner(request, (client, ownerId) =>
-    budgetReferenceDates(client, ownerId, month),
+    budgetReferenceDates(client, ownerId, month, today),
   ).catch(() => []);
   await refreshOwnerReferences(request, dates, today).catch(() => undefined);
 

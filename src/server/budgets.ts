@@ -7,13 +7,16 @@ import {
   type Budget,
   type BudgetCommand,
 } from "../domain/budgets.ts";
-import { type FxKey } from "../domain/exchange-rates.ts";
+import { type FxQuote } from "../domain/exchange-rates.ts";
 import { budgetAlerts } from "../domain/notices.ts";
 import {
   exchangeRatesReady,
+  type HistoricalFxKey,
+  liveQuotes,
   pendingHistoricalDates,
   prepareHistoricalQuotes,
 } from "./exchange-rates.ts";
+import { monthlyInstallmentFxReady } from "./installments.ts";
 import { resolveMovementCategory } from "./movements.ts";
 
 export async function budgetsReady(client: pg.PoolClient) {
@@ -188,17 +191,21 @@ async function budgetFxKeys(
   client: pg.PoolClient,
   ownerId: string,
   month: string,
+  monthlyFx: boolean,
 ) {
-  const { rows } = await client.query<FxKey & { target: Budget["currency"] }>(
+  const { rows } = await client.query<
+    HistoricalFxKey & { target: Budget["currency"] }
+  >(
     `${budgetTree}
-    SELECT DISTINCT x.reference_on::text AS date, x.currency AS base, l.currency AS target
+    SELECT DISTINCT x.reference_on::text AS date, x.currency AS base, l.currency AS target,
+      ${monthlyFx ? "x.monthly_fx" : "false"} AS monthly
       FROM finance.budget_limits b
       CROSS JOIN LATERAL (${limitFor("$2::date")}) l
       JOIN tree t ON t.ancestor = b.category_id
       JOIN finance.budget_expenses x ON x.owner_id = b.owner_id AND x.category_id = t.id
       LEFT JOIN finance.budget_rates saved ON
         (saved.owner_id,saved.event_id,saved.from_currency,saved.to_currency) = (x.owner_id,x.event_id,x.currency,l.currency)
-     WHERE b.owner_id = $1 AND l.action <> 'remove' AND x.currency <> l.currency AND saved.quote_id IS NULL
+     WHERE b.owner_id = $1 AND l.action <> 'remove' AND x.currency <> l.currency AND (${monthlyFx ? "x.monthly_fx OR " : ""}saved.quote_id IS NULL)
        AND x.effective_on >= $2::date AND x.effective_on < $2::date + interval '1 month'
      ORDER BY target, date, base`,
     [ownerId, `${month}-01`],
@@ -210,15 +217,29 @@ export async function budgetReferenceDates(
   client: pg.PoolClient,
   ownerId: string,
   month: string,
+  today: string,
 ) {
   if (!(await budgetsReady(client)) || !(await exchangeRatesReady(client)))
     return [];
-  const dates: string[] = [];
-  for (const [target, keys] of await budgetFxKeys(client, ownerId, month))
-    dates.push(
-      ...(await pendingHistoricalDates(client, ownerId, keys, target)),
-    );
-  return dates;
+  const dates = new Set<string>();
+  const monthlyFx = await monthlyInstallmentFxReady(client);
+  for (const [target, keys] of await budgetFxKeys(
+    client,
+    ownerId,
+    month,
+    monthlyFx,
+  )) {
+    if (keys.some(({ monthly, date }) => monthly && date > today))
+      dates.add(today);
+    for (const date of await pendingHistoricalDates(
+      client,
+      ownerId,
+      keys.filter(({ date }) => date <= today),
+      target,
+    ))
+      dates.add(date);
+  }
+  return [...dates];
 }
 
 export async function listBudgets(
@@ -231,9 +252,27 @@ export async function listBudgets(
     throw new Error("Mes inválido");
   await lockBudgets(client, ownerId);
   const fx = await exchangeRatesReady(client);
-  if (fx)
-    for (const [target, keys] of await budgetFxKeys(client, ownerId, month))
+  const monthlyFx = fx && (await monthlyInstallmentFxReady(client));
+  const estimates: FxQuote[] = [];
+  if (fx) {
+    for (const [target, keys] of await budgetFxKeys(
+      client,
+      ownerId,
+      month,
+      monthlyFx,
+    )) {
       await prepareHistoricalQuotes(client, ownerId, keys, target, today);
+      const future = keys.filter(
+        ({ date, monthly }) => monthly && date > today,
+      );
+      const quotes = await liveQuotes(
+        client,
+        future.map(({ base }) => ({ base, date: today })),
+        target,
+      );
+      estimates.push(...quotes.values());
+    }
+  }
   // Fill missing snapshots only. A manually supplied historical quote may
   // resolve a missing conversion, but cannot replace a previously used quote.
   await client.query(
@@ -241,12 +280,17 @@ export async function listBudgets(
     SELECT DISTINCT ON (x.event_id,x.currency,q.to_currency) x.owner_id,x.event_id,x.currency,q.to_currency,q.id,x.reference_on
       FROM finance.budget_expenses x JOIN finance.budget_quotes q ON q.owner_id=x.owner_id AND q.from_currency=x.currency AND q.effective_on<=x.reference_on
      WHERE x.owner_id=$1 AND x.effective_on>=$2::date AND x.effective_on<$2::date+interval '1 month'
+       ${monthlyFx ? "AND NOT x.monthly_fx" : ""}
        ${
          fx
            ? `AND NOT EXISTS (
          SELECT 1 FROM finance.fx_valuations v
           WHERE (v.owner_id,v.effective_on,v.base_currency,v.quote_currency) =
             (x.owner_id,x.reference_on,x.currency,q.to_currency)
+       ) AND NOT EXISTS (
+         SELECT 1 FROM finance.fx_reference_rates market
+          WHERE (market.base_currency,market.quote_currency) = (x.currency,q.to_currency)
+            AND market.observed_on <= x.reference_on
        )`
            : ""
        }
@@ -254,7 +298,10 @@ export async function listBudgets(
     ON CONFLICT DO NOTHING`,
     [ownerId, `${month}-01`],
   );
-  return readBudgets(client, ownerId, month);
+  return readBudgets(client, ownerId, month, undefined, undefined, {
+    today,
+    estimates,
+  });
 }
 
 // Export reads only previously captured rates. Listing budgets can also
@@ -265,9 +312,26 @@ export async function readBudgets(
   month: string,
   from?: string,
   to?: string,
+  provisional?: { today: string; estimates: FxQuote[] },
 ): Promise<Budget[]> {
   const fx = await exchangeRatesReady(client);
-  const rate = fx ? "coalesce(q.rate,v.manual_rate,market.rate)" : "q.rate";
+  const monthlyFx = fx && (await monthlyInstallmentFxReady(client));
+  const future = monthlyFx
+    ? "x.monthly_fx AND x.reference_on > $6::date"
+    : "false";
+  const sourced = (pinned: string, legacy: string, estimate: string) => {
+    if (!fx) return legacy;
+    if (!monthlyFx) return `coalesce(${legacy},${pinned})`;
+    return `CASE WHEN ${future} THEN ${estimate}
+      WHEN x.monthly_fx THEN ${pinned} ELSE coalesce(${legacy},${pinned}) END`;
+  };
+  const rate = sourced(
+    "coalesce(v.manual_rate,market.rate)",
+    "q.rate",
+    "estimate.rate",
+  );
+  const date = sourced("v.observed_on", "q.effective_on", "estimate.observed");
+  const source = sourced("v.source", "q.source", "estimate.source");
   const { rows } = await client.query<Budget>(
     `${budgetTree}
     SELECT b.id,b.category_id AS "categoryId",c.name AS "categoryName",l.currency,
@@ -284,8 +348,8 @@ export async function readBudgets(
           count(*) FILTER (WHERE x.currency<>l.currency AND ${rate} IS NULL) AS missing,
           jsonb_agg(DISTINCT jsonb_build_object(
             'fromCurrency',x.currency,'rate',(${rate})::text,
-            'date',(${fx ? "coalesce(q.effective_on,v.observed_on)" : "q.effective_on"})::text,
-            'source',${fx ? "coalesce(q.source,v.source)" : "q.source"}
+            'date',(${date})::text,
+            'source',${source},'provisional',${future}
           )) FILTER (WHERE ${rate} IS NOT NULL) AS refs
           FROM finance.budget_expenses x JOIN tree t ON t.id=x.category_id AND t.ancestor=b.category_id
           LEFT JOIN finance.budget_rates r ON (r.owner_id,r.event_id,r.from_currency,r.to_currency)=(x.owner_id,x.event_id,x.currency,l.currency)
@@ -299,11 +363,30 @@ export async function readBudgets(
               (v.base_currency,v.quote_currency,v.observed_on,v.reference_source)`
               : ""
           }
+          ${
+            monthlyFx
+              ? `LEFT JOIN jsonb_to_recordset($7::jsonb)
+            AS estimate(base finance.currency, target finance.currency, rate numeric, observed date, source text)
+            ON (estimate.base,estimate.target) = (x.currency,l.currency) AND ${future}`
+              : ""
+          }
          WHERE x.owner_id=$1 AND x.effective_on>=$2::date AND x.effective_on<$2::date+interval '1 month'
            AND ($4::date IS NULL OR x.effective_on >= $4) AND ($5::date IS NULL OR x.effective_on <= $5)
       ) cons ON true
      WHERE b.owner_id=$1 AND l.action<>'remove' ORDER BY c.name,b.id`,
-    [ownerId, `${month}-01`, month, from ?? null, to ?? null],
+    [
+      ownerId,
+      `${month}-01`,
+      month,
+      from ?? null,
+      to ?? null,
+      ...(monthlyFx
+        ? [
+            provisional?.today ?? bankReferenceToday(),
+            JSON.stringify(provisional?.estimates ?? []),
+          ]
+        : []),
+    ],
   );
   return rows;
 }

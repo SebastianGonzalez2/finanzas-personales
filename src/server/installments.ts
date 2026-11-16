@@ -20,6 +20,15 @@ export async function installmentsReady(client: pg.PoolClient) {
   return row.ready;
 }
 
+export async function monthlyInstallmentFxReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM pg_attribute
+      WHERE attrelid = to_regclass('finance.installment_plans')
+        AND attname = 'monthly_fx' AND NOT attisdropped) AS ready`,
+  );
+  return rows[0].ready;
+}
+
 const versionFields = `p.version, p.installment_amount::text AS "installmentAmount",
   p.installment_count AS count, p.active_count AS "activeCount",
   to_char(p.first_period, 'YYYY-MM') AS "firstPeriod", p.change_type AS change,
@@ -90,10 +99,14 @@ export async function insertInstallmentVersion(
   plan: InstallmentTerms &
     Pick<InstallmentVersion, "version" | "activeCount" | "change">,
 ) {
+  // Mark only the initial version, and only from a writer that understands
+  // the monthly policy. Older runtimes can still write during a staged rollout.
+  const monthlyFx =
+    plan.version === 1 && (await monthlyInstallmentFxReady(client));
   await client.query(
     `INSERT INTO finance.installment_plans
-     (owner_id, event_id, currency, version, installment_amount, installment_count, active_count, first_period, change_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+     (owner_id, event_id, currency, version, installment_amount, installment_count, active_count, first_period, change_type${monthlyFx ? ", monthly_fx" : ""})
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9${monthlyFx ? ", true" : ""})`,
     [
       ownerId,
       eventId,

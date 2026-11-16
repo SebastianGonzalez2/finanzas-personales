@@ -44,7 +44,9 @@ export function budgetAlerts(budgets: Budget[], month: string): BudgetAlert[] {
   return budgets
     .map((budget) => {
       const percent =
-        budget.progress && budget.progress.month === month
+        budget.progress &&
+        budget.progress.month === month &&
+        !budget.references.some(({ provisional }) => provisional)
           ? budgetAlertPercent(budget.progress.consumed, budget.effectiveLimit)
           : null;
       return { budget, state: budgetAlertState(percent), percent };

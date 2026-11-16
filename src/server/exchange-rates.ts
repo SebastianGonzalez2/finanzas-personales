@@ -38,14 +38,18 @@ export async function saveDisplayCurrency(
   );
 }
 
-const inputKeys = `jsonb_to_recordset($1::jsonb) AS k(date date, base finance.currency, target finance.currency)`;
+export type HistoricalFxKey = FxKey & { monthly?: boolean };
 
-function quoteInputs(keys: FxKey[], target: Currency) {
-  return [
-    ...new Map(
-      keys.filter((key) => key.base !== target).map((key) => [fxKey(key), key]),
-    ).values(),
-  ].map((key) => ({ ...key, target }));
+const inputKeys = `jsonb_to_recordset($1::jsonb) AS k(date date, base finance.currency, target finance.currency, monthly boolean)`;
+
+function quoteInputs(keys: HistoricalFxKey[], target: Currency) {
+  const inputs = new Map<string, HistoricalFxKey>();
+  for (const key of keys) {
+    const id = fxKey(key);
+    if (key.base !== target && (key.monthly || !inputs.has(id)))
+      inputs.set(id, key);
+  }
+  return [...inputs.values()].map((key) => ({ ...key, target }));
 }
 
 export async function pinnedQuotes(
@@ -207,12 +211,14 @@ CROSS JOIN LATERAL (
 export async function prepareHistoricalQuotes(
   client: pg.PoolClient,
   ownerId: string,
-  keys: FxKey[],
+  keys: HistoricalFxKey[],
   target: Currency,
   today: string,
 ) {
-  const eligible = quoteInputs(keys, target).filter(
-    ({ date }) => date <= today,
+  const dates = keys.filter(({ date }) => date <= today);
+  const pinned = await pinnedQuotes(client, ownerId, dates, target);
+  const eligible = quoteInputs(dates, target).filter(
+    (key) => !pinned.has(fxKey(key)),
   );
   if (!eligible.length) return;
   await client.query(
@@ -224,6 +230,30 @@ export async function prepareHistoricalQuotes(
       ORDER BY k.date, k.base
      ON CONFLICT DO NOTHING`,
     [JSON.stringify(eligible), ownerId],
+  );
+  const monthly = eligible.filter((key) => key.monthly);
+  if (!monthly.length) return;
+  // A manual monthly fallback belongs to the first day of that month. Store
+  // it in the same owner/date/pair valuation used by both readers.
+  await client.query(
+    `INSERT INTO finance.fx_valuations
+       (owner_id, effective_on, base_currency, quote_currency, observed_on, source, manual_rate)
+     SELECT $2, k.date, k.base, k.target, k.date, 'manual', q.rate
+       FROM ${inputKeys}
+       JOIN finance.fx_reference_refreshes s
+         ON s.year = extract(year FROM k.date)::int AND s.retry_at > now()
+       JOIN LATERAL (
+         SELECT rate FROM finance.budget_quotes
+          WHERE (owner_id, from_currency, to_currency, effective_on) = ($2, k.base, k.target, k.date)
+          ORDER BY recorded_at DESC, id DESC LIMIT 1
+       ) q ON true
+      WHERE NOT EXISTS (
+        SELECT 1 FROM finance.fx_reference_rates r
+         WHERE (r.base_currency, r.quote_currency) = (k.base, k.target) AND r.observed_on <= k.date
+      )
+      ORDER BY k.date, k.base
+     ON CONFLICT DO NOTHING`,
+    [JSON.stringify(monthly), ownerId],
   );
 }
 

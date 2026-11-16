@@ -381,6 +381,7 @@ function BudgetEntry({
     ? (options.find(({ key }) => key === budget.exception?.month)?.label ??
       budget.exception.month)
     : null;
+  const estimated = budget.references.some(({ provisional }) => provisional);
   return (
     <li className={`gs-budget ${nested ? "gs-budget--sub" : ""}`}>
       <div className="gs-budget__head">
@@ -408,7 +409,7 @@ function BudgetEntry({
       )}
       <dl className="gs-budget__stats text-sm">
         <div className="gs-budget__foot">
-          <dt>Consumo del mes</dt>
+          <dt>{estimated ? "Consumo estimado del mes" : "Consumo del mes"}</dt>
           <dd className={tone === "neutral" ? "" : `gs-tone--${tone}`}>
             {budget.progress
               ? `${money(budget.progress.consumed, budget.currency)} de ${money(budget.effectiveLimit, budget.currency)} (${percent}%)`
@@ -425,15 +426,15 @@ function BudgetEntry({
       <div className="gs-budget__lines">
         {!budget.progress && (
           <p>
-            Agregá una cotización manual para las monedas de tus gastos, con
-            fecha anterior o igual al gasto. En cuotas se usa la fecha de
-            registro de la compra.
+            Podés ingresar una cotización manual cuando falte una referencia
+            automática. Para cuotas nuevas, usá el primer día del mes de
+            imputación.
           </p>
         )}
         {budget.references.map((ref, index) => (
           <p key={index}>
-            Referencia {ref.source} del {ref.date}: 1 {ref.fromCurrency} ={" "}
-            {ref.rate} {budget.currency}.
+            {ref.provisional ? "Estimación" : "Referencia"} {ref.source} del{" "}
+            {ref.date}: 1 {ref.fromCurrency} = {ref.rate} {budget.currency}.
           </p>
         ))}
         <p>
@@ -451,7 +452,7 @@ function BudgetEntry({
           </p>
         )}
       </div>
-      {percent >= BigInt(80) && (
+      {!estimated && percent >= BigInt(80) && (
         <BudgetThresholdNotice
           categoryName={budget.categoryName}
           percent={Number(percent)}

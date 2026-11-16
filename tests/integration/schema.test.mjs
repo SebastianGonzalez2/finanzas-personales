@@ -94,6 +94,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0036_F6-02_authorize_account_backup.sql",
       "0037_F5-08_delete_account.sql",
       "0038_CA-027_purchase_original_amount.sql",
+      "0039_FIX-FX_installment_monthly_reference.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -153,6 +154,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       authorizedBackup,
       deletion,
       purchaseOriginalAmount,
+      installmentMonthlyReference,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -511,14 +513,56 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
         [migration.version, migration.sha256],
       );
     }
+    await assert.rejects(
+      migrateInTransaction(client, purchaseOriginalAmount.sha256),
+    );
+    await client.query(purchaseOriginalAmount.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [purchaseOriginalAmount.version, purchaseOriginalAmount.sha256],
+    );
+
+    await setOwnerContext(client, "legacy-fixture");
+    await client.query(
+      `INSERT INTO finance.budget_quotes(owner_id,id,from_currency,to_currency,rate,effective_on,source)
+       VALUES ('legacy-fixture',$1,'UYU','USD',0.025,'2026-01-01','manual')`,
+      [randomUUID()],
+    );
+    const legacyPlan = await saveCreditOperation(client, "legacy-fixture", {
+      ...purchaseCommand,
+      idempotencyKey: randomUUID(),
+      amount: "50.0000",
+      plan: { installmentAmount: "25.0000", count: 2, firstPeriod: "2026-02" },
+    });
+    assert.equal(legacyPlan.status, "created");
+    const legacyQuote = () =>
+      client.query(
+        "SELECT quote_id,reference_on::text FROM finance.budget_rates WHERE owner_id='legacy-fixture' AND event_id=$1",
+        [legacyPlan.id],
+      );
+    const before = await legacyQuote();
+    assert.equal(before.rowCount, 1);
+    await client.query("RESET ROLE");
     assert.deepEqual(
-      await migrateInTransaction(client, purchaseOriginalAmount.sha256),
-      [purchaseOriginalAmount.version],
+      await migrateInTransaction(client, installmentMonthlyReference.sha256),
+      [installmentMonthlyReference.version],
     );
     assert.deepEqual(
-      await migrateInTransaction(client, purchaseOriginalAmount.sha256),
+      await migrateInTransaction(client, installmentMonthlyReference.sha256),
       [],
     );
+    await setOwnerContext(client, "legacy-fixture");
+    assert.deepEqual((await legacyQuote()).rows, before.rows);
+    assert.deepEqual(
+      (
+        await client.query(
+          "SELECT monthly_fx,installment_amount::text FROM finance.installment_plans WHERE owner_id='legacy-fixture' AND event_id=$1",
+          [legacyPlan.id],
+        )
+      ).rows,
+      [{ monthly_fx: false, installment_amount: "25.0000" }],
+    );
+    await client.query("RESET ROLE");
     assert.equal(
       (
         await client.query(
@@ -607,10 +651,14 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
     assert.deepEqual(
       (
         await client.query(
-          "SELECT id, amount::text, installment_ordinal FROM finance.credit_expenses",
+          "SELECT id, amount::text, installment_ordinal FROM finance.credit_expenses ORDER BY effective_on, installment_ordinal",
         )
       ).rows,
-      [{ id: purchase.id, amount: "17.0001", installment_ordinal: null }],
+      [
+        { id: purchase.id, amount: "17.0001", installment_ordinal: null },
+        { id: legacyPlan.id, amount: "25.0000", installment_ordinal: 1 },
+        { id: legacyPlan.id, amount: "25.0000", installment_ordinal: 2 },
+      ],
     );
     assert.equal(
       (

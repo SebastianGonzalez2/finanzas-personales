@@ -137,6 +137,12 @@ no cierra Auth, F0 ni autoriza despliegues o F1.
 
 **La analítica se implementa desde el inicio de manera básica para probar invariantes**, pero su catálogo completo de gráficos se concentra aquí; no posponer los tests contables hasta F5.
 
+### Corrección FIX-FX
+
+| Ticket | Alcance | Referencias |
+| --- | --- | --- |
+| FIX-FX | Cotización automática en Presupuestos, referencia mensual reproducible para nuevas cuotas y cobertura de períodos completos en Estadísticas. | RF-031/032/044/046; CA-042/043/059/060. [Cotizaciones](50-cotizaciones-f5-06.md). |
+
 ## F6 — Integración, seguridad, accesibilidad y preparación del uso real
 
 | Ticket | Entrega | Validación |
