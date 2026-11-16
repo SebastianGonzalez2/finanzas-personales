@@ -163,7 +163,7 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
                 amount: limit,
                 idempotencyKey: randomUUID(),
               },
-              phase1,
+              "2024-12-15",
             )
           ).status,
           "created",
