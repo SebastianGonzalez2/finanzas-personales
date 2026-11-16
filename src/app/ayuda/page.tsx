@@ -1,5 +1,8 @@
 import { AyudaFaq } from "@/components/ayuda-faq";
 import { FinanceShell } from "@/components/finance-shell";
+import { PageHead, Screen } from "@/components/glaciar/screen";
+import { buttonClass } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { ayudaGroups } from "@/domain/ayuda";
 import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 
@@ -10,32 +13,20 @@ export default async function AyudaPage() {
 
   return (
     <FinanceShell current="ayuda">
-      <div className="grid max-w-3xl gap-4">
-        <header className="grid gap-1">
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Ayuda
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Preguntas frecuentes sobre las funciones de la aplicación.
-          </p>
-          <p className="text-sm">
-            <a
-              href="/resumen?tutorial=1"
-              className="inline-flex min-h-11 items-center underline underline-offset-2"
-            >
+      <Screen>
+        <PageHead
+          eyebrow="Tu cuenta"
+          title="Ayuda"
+          description="Preguntas frecuentes sobre las funciones de la aplicación. El tutorial es un recorrido introductorio de cinco pasos."
+          actions={
+            <a href="/resumen?tutorial=1" className={buttonClass("outline")}>
+              <Icon name="sparkle" duotone={false} className="size-4" />
               Volver a ver tutorial
-            </a>{" "}
-            <span className="text-muted-foreground">
-              (recorrido introductorio de cinco pasos)
-            </span>
-          </p>
-        </header>
+            </a>
+          }
+        />
         <AyudaFaq groups={ayudaGroups} />
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }

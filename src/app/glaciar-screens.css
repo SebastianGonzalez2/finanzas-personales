@@ -1803,4 +1803,34 @@
     flex-shrink: 0;
     border-radius: 3px;
   }
+
+  /* ---------- UI-05H · Avisos, Ayuda y Mi cuenta ---------- */
+  .gs-divided > * + * {
+    padding-top: 18px;
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-danger {
+    display: grid;
+    gap: 14px;
+    padding: 20px;
+    border: 1px solid color-mix(in srgb, var(--state-critical) 35%, transparent);
+    border-radius: var(--radius-panel);
+    background:
+      radial-gradient(
+        80% 120% at 100% 0%,
+        rgb(244 123 123 / 8%),
+        transparent 60%
+      ),
+      var(--glaciar-glass-3);
+  }
+
+  .gs-danger__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--state-critical);
+    font-size: 15px;
+    font-weight: 700;
+  }
 }

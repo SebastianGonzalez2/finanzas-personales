@@ -1,4 +1,5 @@
-import { NoticeCard, type NoticeLevel } from "./notices";
+import { NoticeCard, NoticeGroup, type NoticeLevel } from "./notices";
+import type { IconName } from "./ui/icon";
 
 // F4-05: interfaz y textos del centro de avisos por vencimientos ciertos
 // (RF-037/038; CA-049; §11.1). Los avisos solo informan según registros de la
@@ -8,11 +9,13 @@ import { NoticeCard, type NoticeLevel } from "./notices";
 export function DueNoticeList({
   headingId,
   title,
+  icon,
   notices,
   emptyText,
 }: {
   headingId: string;
   title: string;
+  icon: IconName;
   notices: {
     key: string;
     title: string;
@@ -25,14 +28,16 @@ export function DueNoticeList({
   emptyText: string;
 }) {
   return (
-    <section aria-labelledby={headingId} className="grid gap-2">
-      <h2 id={headingId} className="font-semibold">
-        {title}
-      </h2>
+    <NoticeGroup
+      id={headingId}
+      title={title}
+      icon={icon}
+      count={notices.length}
+    >
       {notices.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{emptyText}</p>
+        <p className="lab-muted text-sm">{emptyText}</p>
       ) : (
-        <ul className="grid gap-2">
+        <ul className="b-notices">
           {notices.map((notice) => (
             <li key={notice.key}>
               <NoticeCard
@@ -41,13 +46,15 @@ export function DueNoticeList({
                 linkLabel={notice.linkLabel}
               >
                 <p className="font-medium">{notice.title}</p>
-                <p role="status">{notice.timing}</p>
-                {notice.amount && <p>{notice.amount}</p>}
+                <p role="status" className="lab-muted">
+                  {notice.timing}
+                </p>
+                {notice.amount && <p className="lab-muted">{notice.amount}</p>}
               </NoticeCard>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </NoticeGroup>
   );
 }

@@ -4,7 +4,17 @@ import { FinanceShell } from "@/components/finance-shell";
 import { CardCycleAlerts } from "@/components/card-cycle-alerts";
 import { ContributionNotice } from "@/components/fund-contributions";
 import { FundTargetMessage } from "@/components/fund-target-notice";
-import { BudgetThresholdNotice, NoticeCard } from "@/components/notices";
+import {
+  BudgetThresholdNotice,
+  NoticeCard,
+  NoticeGroup,
+} from "@/components/notices";
+import {
+  EmptyState,
+  PageHead,
+  PageNotice,
+  Screen,
+} from "@/components/glaciar/screen";
 import { DueNoticeList } from "@/components/due-notices";
 import { PushPreference } from "@/components/card-push-preference";
 import { bankReferenceToday } from "@/domain/bank-balances";
@@ -101,163 +111,188 @@ export default async function NoticesPage() {
 
   return (
     <FinanceShell current="avisos">
-      <section className="grid gap-4">
-        <h1 id="titulo-pagina" tabIndex={-1} className="text-2xl font-semibold">
-          Avisos
-        </h1>
+      <Screen>
+        <PageHead
+          eyebrow="Tu cuenta"
+          title="Avisos"
+          description="Vencimientos, presupuestos y metas según tus registros."
+        />
         {!result && (
-          <p role="status">No pudimos cargar tus avisos. Volvé a intentarlo.</p>
+          <PageNotice
+            tone="critical"
+            message="No pudimos cargar tus avisos. Volvé a intentarlo."
+            retryHref="/avisos"
+          />
         )}
         {result && (
-          <>
-            {cardAlerts.length > 0 && (
-              <CardCycleAlerts alerts={cardAlerts} today={today} />
-            )}
-            <DueNoticeList
-              headingId="avisos-deudas"
-              title="Deudas y préstamos"
-              notices={debtNotices}
-              emptyText="No hay vencimientos de deudas dentro de los próximos días según tus registros."
-            />
-            <DueNoticeList
-              headingId="avisos-recurrentes"
-              title="Recurrentes"
-              notices={recurrenceNotices}
-              emptyText="No hay vencimientos de recurrentes dentro de los próximos días según tu configuración."
-            />
-            {thresholdAlerts.length > 0 && (
-              <section
-                aria-labelledby="avisos-presupuestos"
-                className="grid gap-2"
-              >
-                <h2 id="avisos-presupuestos" className="font-semibold">
-                  Presupuestos
-                </h2>
-                <ul className="grid gap-2">
-                  {thresholdAlerts.map(
-                    ({
-                      budgetId,
-                      categoryName,
-                      currency,
-                      threshold,
-                      percent,
-                    }) => (
-                      <li key={`${budgetId}-${threshold}`}>
+          <div className="gs-grid">
+            <div className="gs-stack gs-lane-main">
+              {quiet && (
+                <EmptyState icon="check" title="Todo al día">
+                  No tenés avisos nuevos. Te avisamos acá cuando se acerque un
+                  vencimiento, un presupuesto llegue al 80 % o una aportación
+                  quede pendiente.
+                </EmptyState>
+              )}
+              {cardAlerts.length > 0 && (
+                <CardCycleAlerts alerts={cardAlerts} today={today} />
+              )}
+              {thresholdAlerts.length > 0 && (
+                <NoticeGroup
+                  id="avisos-presupuestos"
+                  title="Presupuestos"
+                  icon="budgets"
+                  count={thresholdAlerts.length}
+                >
+                  <ul className="b-notices">
+                    {thresholdAlerts.map(
+                      ({
+                        budgetId,
+                        categoryName,
+                        currency,
+                        threshold,
+                        percent,
+                      }) => (
+                        <li key={`${budgetId}-${threshold}`}>
+                          <NoticeCard
+                            level={threshold === 100 ? "danger" : "warning"}
+                            href="/presupuestos"
+                            linkLabel="Ver presupuestos"
+                          >
+                            <p className="font-medium">
+                              {categoryName} · {currency}
+                            </p>
+                            <BudgetThresholdNotice
+                              categoryName={categoryName}
+                              percent={percent}
+                              state={threshold === 100 ? "danger" : "warning"}
+                            />
+                          </NoticeCard>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </NoticeGroup>
+              )}
+              {pending.length > 0 && (
+                <NoticeGroup
+                  id="avisos-aportaciones"
+                  title="Aportaciones"
+                  icon="funds"
+                  count={pending.length}
+                >
+                  <ul className="b-notices">
+                    {pending.map((period) => (
+                      <li key={period.id}>
                         <NoticeCard
-                          level={threshold === 100 ? "danger" : "warning"}
-                          href="/presupuestos"
-                          linkLabel="Ver presupuestos"
+                          level="warning"
+                          href={`/fondos#aporte-${period.id}`}
+                          linkLabel={`Ver aportación de ${period.fundName}`}
                         >
-                          <p className="font-medium">
-                            {categoryName} · {currency}
-                          </p>
-                          <BudgetThresholdNotice
-                            categoryName={categoryName}
-                            percent={percent}
-                            state={threshold === 100 ? "danger" : "warning"}
-                          />
+                          <ContributionNotice period={period} />
                         </NoticeCard>
                       </li>
-                    ),
-                  )}
-                </ul>
-              </section>
-            )}
-            {goals.length > 0 && (
-              <section aria-labelledby="avisos-metas" className="grid gap-2">
-                <h2 id="avisos-metas" className="font-semibold">
-                  Metas de fondos
-                </h2>
-                <ul className="grid gap-2">
-                  {goals.map(({ fund, pausedByTarget, reached, overdue }) => (
-                    <li key={fund.id} className="grid gap-2">
-                      {pausedByTarget && (
-                        <NoticeCard
-                          level="warning"
-                          href={`/fondos#${reached ? "fondo" : "plan"}-${fund.id}`}
-                          linkLabel={
-                            reached
-                              ? "Aumentar meta"
-                              : planIds.has(fund.id)
-                                ? "Reactivar aportaciones"
-                                : "Programar aportaciones"
-                          }
-                        >
-                          <FundTargetMessage
-                            fund={fund}
-                            today={today}
-                            kind="pause"
-                          />
-                        </NoticeCard>
-                      )}
-                      {overdue && (
-                        <NoticeCard
-                          level="warning"
-                          href={`/fondos#fondo-${fund.id}`}
-                          linkLabel="Revisar meta, fecha y aportaciones"
-                        >
-                          <p className="font-medium">
-                            {fund.name} · {fund.currency}
-                          </p>
-                          <FundTargetMessage
-                            fund={fund}
-                            today={today}
-                            kind="deadline"
-                          />
-                        </NoticeCard>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {pending.length > 0 && (
-              <section
-                aria-labelledby="avisos-aportaciones"
-                className="grid gap-2"
-              >
-                <h2 id="avisos-aportaciones" className="font-semibold">
-                  Aportaciones
-                </h2>
-                <ul className="grid gap-2">
-                  {pending.map((period) => (
-                    <li key={period.id}>
-                      <NoticeCard
-                        level="warning"
-                        href={`/fondos#aporte-${period.id}`}
-                        linkLabel={`Ver aportación de ${period.fundName}`}
-                      >
-                        <ContributionNotice period={period} />
-                      </NoticeCard>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {quiet && <p>No tenés avisos nuevos.</p>}
-            <PushPreference
-              storageReady={result.pushReady}
-              publicKey={
-                result.pushReady ? (cardPushConfig()?.publicKey ?? null) : null
-              }
-            />
-            {resolved.length > 0 && (
-              <details className="space-y-3 rounded-lg border p-4">
-                <summary className="cursor-pointer font-semibold">
-                  Avisos resueltos
-                </summary>
-                <ul className="grid gap-3 text-sm">
-                  {resolved.map((period) => (
-                    <li key={period.id}>
-                      <ContributionNotice period={period} />
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </>
+                    ))}
+                  </ul>
+                </NoticeGroup>
+              )}
+              {goals.length > 0 && (
+                <NoticeGroup
+                  id="avisos-metas"
+                  title="Metas de fondos"
+                  icon="funds"
+                  count={goals.length}
+                >
+                  <ul className="b-notices">
+                    {goals.map(({ fund, pausedByTarget, reached, overdue }) => (
+                      <li key={fund.id} className="grid gap-2">
+                        {pausedByTarget && (
+                          <NoticeCard
+                            level="warning"
+                            href={`/fondos#${reached ? "fondo" : "plan"}-${fund.id}`}
+                            linkLabel={
+                              reached
+                                ? "Aumentar meta"
+                                : planIds.has(fund.id)
+                                  ? "Reactivar aportaciones"
+                                  : "Programar aportaciones"
+                            }
+                          >
+                            <FundTargetMessage
+                              fund={fund}
+                              today={today}
+                              kind="pause"
+                            />
+                          </NoticeCard>
+                        )}
+                        {overdue && (
+                          <NoticeCard
+                            level="warning"
+                            href={`/fondos#fondo-${fund.id}`}
+                            linkLabel="Revisar meta, fecha y aportaciones"
+                          >
+                            <p className="font-medium">
+                              {fund.name} · {fund.currency}
+                            </p>
+                            <FundTargetMessage
+                              fund={fund}
+                              today={today}
+                              kind="deadline"
+                            />
+                          </NoticeCard>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </NoticeGroup>
+              )}
+            </div>
+            <div className="gs-stack gs-lane-side">
+              <DueNoticeList
+                headingId="avisos-deudas"
+                title="Deudas y préstamos"
+                icon="debts"
+                notices={debtNotices}
+                emptyText="No hay vencimientos de deudas dentro de los próximos días según tus registros."
+              />
+              <DueNoticeList
+                headingId="avisos-recurrentes"
+                title="Recurrentes"
+                icon="recurring"
+                notices={recurrenceNotices}
+                emptyText="No hay vencimientos de recurrentes dentro de los próximos días según tu configuración."
+              />
+              <PushPreference
+                storageReady={result.pushReady}
+                publicKey={
+                  result.pushReady
+                    ? (cardPushConfig()?.publicKey ?? null)
+                    : null
+                }
+              />
+              {resolved.length > 0 && (
+                <details className="lab-panel">
+                  <summary className="lab-panel__title cursor-pointer list-none">
+                    <span>Avisos resueltos</span>
+                    <span className="lab-tag lab-tag--neutral">
+                      {resolved.length}
+                    </span>
+                  </summary>
+                  <ul className="gs-rows text-sm">
+                    {resolved.map((period) => (
+                      <li key={period.id} className="lab-muted">
+                        <div className="grid min-w-0 gap-1 wrap-anywhere">
+                          <ContributionNotice period={period} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          </div>
         )}
-      </section>
+      </Screen>
     </FinanceShell>
   );
 }
