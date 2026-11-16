@@ -340,17 +340,6 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
     ])
       await expect(main).not.toContainText(privateText);
 
-    await page.goto("/prototipos/ui/final");
-    await expect(heading("Resumen financiero")).toBeVisible();
-    expect(
-      await page.evaluate(
-        () => globalThis.document.documentElement.scrollWidth,
-      ),
-    ).toBeLessThanOrEqual(width);
-    await page.screenshot({
-      path: testInfo.outputPath("prototipo-glaciar.png"),
-      fullPage: true,
-    });
     expect(errors).toEqual([]);
   } finally {
     await other.close();

@@ -1,0 +1,162 @@
+/* UI-06 — Tutorial introductorio Glaciar: foco sobre el elemento real, flecha
+   de orientación y tarjeta. Portado del prototipo UI-01 (`lab-tour`) con los
+   tokens Glaciar. Solo presentación; el tutorial no es modal y la página
+   debajo sigue accesible (el foco y la flecha usan `pointer-events: none`). */
+@layer components {
+  .intro-tour__spot {
+    position: fixed;
+    z-index: 40;
+    border-radius: 14px;
+    box-shadow:
+      0 0 0 2px var(--glaciar-accent),
+      0 0 0 100vmax rgb(1 4 8 / 55%);
+    pointer-events: none;
+    transition:
+      top 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      height 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .intro-tour__arrow {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    width: 100vw;
+    height: 100vh;
+    overflow: visible;
+    color: var(--glaciar-accent);
+    pointer-events: none;
+  }
+
+  .intro-tour__path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: intro-tour-draw 0.5s 0.15s cubic-bezier(0.2, 0.7, 0.2, 1)
+      forwards;
+  }
+
+  @keyframes intro-tour-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Posición por defecto (antes de medir): abajo, en todo el ancho en móvil. */
+  .intro-tour__card {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 50;
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--glaciar-border-strong);
+    border-radius: 18px;
+    background: var(--glaciar-solid);
+    color: var(--glaciar-text);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 85%);
+    backdrop-filter: blur(16px);
+    outline: none;
+    transition:
+      top 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+      left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  @media (min-width: 40rem) {
+    .intro-tour__card {
+      left: auto;
+      width: 340px;
+      right: 24px;
+      bottom: 24px;
+    }
+  }
+
+  /* Con posición calculada (estilo en línea) la tarjeta se ubica por arriba/izquierda. */
+  .intro-tour__card[style*="top"] {
+    right: auto;
+    bottom: auto;
+  }
+
+  .intro-tour__count {
+    color: var(--glaciar-accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .intro-tour__title {
+    margin-top: 2px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .intro-tour__text {
+    color: var(--glaciar-muted);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .intro-tour__dots {
+    display: flex;
+    gap: 4px;
+  }
+
+  .intro-tour__dots span {
+    height: 4px;
+    flex: 1;
+    border-radius: 999px;
+    background: var(--glaciar-track);
+  }
+
+  .intro-tour__dots span.is-done {
+    background: var(--glaciar-accent);
+  }
+
+  .intro-tour__link {
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: 8px;
+    color: var(--glaciar-muted);
+    font-size: 14px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .intro-tour__link:hover {
+    color: var(--glaciar-text);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intro-tour__spot,
+    .intro-tour__card {
+      transition: none;
+    }
+
+    .intro-tour__path {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .intro-tour__spot {
+      outline: 2px solid Highlight;
+    }
+
+    .intro-tour__arrow {
+      color: Highlight;
+    }
+
+    .intro-tour__card {
+      border: 1px solid CanvasText;
+      background: Canvas;
+    }
+  }
+}

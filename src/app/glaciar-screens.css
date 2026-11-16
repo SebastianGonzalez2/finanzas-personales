@@ -1,5 +1,5 @@
 /* UI-05A — Kit de pantalla Glaciar (P-01, P-04, P-10). Portado de
-   src/app/prototipos/ui-05/_proto/proto.css con prefijo `gs-` y contenedor
+   el prototipo UI-05 (retirado en UI-06) con prefijo `gs-` y contenedor
    `.glaciar-screen`. Solo presentación; sin `-webkit-backdrop-filter`. */
 @layer components {
   /* ---------- Raíz de pantalla ---------- */

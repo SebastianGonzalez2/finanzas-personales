@@ -1,7 +1,8 @@
 "use client";
 
-// F6-06: tutorial introductorio no modal. Solo orienta; destaca elementos
-// reales del shell y de Resumen sin bloquear la navegación ni ejecutar nada.
+// F6-06 + UI-06: tutorial introductorio no modal. Solo orienta; destaca
+// elementos reales del shell y de Resumen y los señala con una flecha, sin
+// bloquear la navegación ni ejecutar nada.
 // Preferencia de interfaz únicamente: localStorage (completado / no volver a
 // mostrar) y sessionStorage (omitido en esta pestaña). Sin datos financieros.
 
@@ -16,9 +17,16 @@ import {
 } from "@/domain/tutorial";
 
 const skipKey = `${tutorialStorageKey}:omitido`;
-const pad = 6;
+const pad = 8;
+const gap = 28;
+const cardWidth = 340;
 
-type Box = { top: number; left: number; width: number; height: number };
+type Rect = { top: number; left: number; width: number; height: number };
+type Layout = {
+  box: Rect | null;
+  card: { top: number; left: number; width: number } | null;
+  arrow: string | null;
+};
 
 function read(storage: () => Storage, key: string) {
   try {
@@ -36,24 +44,101 @@ function write(storage: () => Storage, key: string, value: string) {
   }
 }
 
+/** Primer elemento visible entre los selectores candidatos. */
 function visibleTarget(selectors: readonly string[]) {
   for (const selector of selectors) {
-    const element = document.querySelector<HTMLElement>(selector);
-    if (!element) continue;
-    const rect = element.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) return element;
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return element;
+    }
   }
   return null;
 }
 
-const button = "min-h-11 rounded-lg px-3 text-sm font-semibold";
-const textButton =
-  "min-h-11 rounded-lg px-2 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground";
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), Math.max(min, max));
+
+/** Ubica la tarjeta junto al elemento y traza una flecha curva hacia él. */
+function computeLayout(target: HTMLElement | null, cardHeight: number): Layout {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const mobile = vw < 640;
+  const width = mobile ? vw - 24 : cardWidth;
+  const bottomCard = {
+    top: vh - cardHeight - (mobile ? 12 : 24),
+    left: mobile ? 12 : vw - width - 24,
+    width,
+  };
+  if (!target) return { box: null, card: bottomCard, arrow: null };
+
+  const r = target.getBoundingClientRect();
+  const top = Math.max(r.top - pad, 4);
+  const left = Math.max(r.left - pad, 4);
+  const box = {
+    top,
+    left,
+    width: Math.min(r.width + pad * 2, vw - 4 - left),
+    height: Math.min(r.height + pad * 2, vh - 4 - top),
+  };
+  const cx = clamp(r.left + r.width / 2, 8, vw - 8);
+  const cy = clamp(r.top + r.height / 2, 8, vh - 8);
+  const boxBottom = box.top + box.height;
+
+  let card: { top: number; left: number; width: number };
+  let start: [number, number];
+  let end: [number, number];
+
+  if (mobile) {
+    // La tarjeta ocupa el ancho; sube si el elemento está en la mitad inferior
+    // (barra flotante) para no taparlo.
+    const onTop = r.top > vh / 2;
+    card = { top: onTop ? 12 : bottomCard.top, left: 12, width };
+    start = [
+      clamp(cx, 40, vw - 40),
+      onTop ? card.top + cardHeight + 6 : card.top - 6,
+    ];
+    end = [cx, onTop ? box.top - 6 : boxBottom + 6];
+  } else if (boxBottom + gap + cardHeight < vh - 16) {
+    // Debajo del elemento.
+    const x = clamp(cx - width / 2 + 60, 16, vw - width - 16);
+    card = { top: boxBottom + gap, left: x, width };
+    start = [clamp(cx, x + 28, x + width - 28), card.top - 6];
+    end = [cx, boxBottom + 4];
+  } else if (box.top - gap - cardHeight > 56) {
+    // Encima del elemento.
+    const x = clamp(cx - width / 2 + 60, 16, vw - width - 16);
+    card = { top: box.top - gap - cardHeight, left: x, width };
+    start = [clamp(cx, x + 28, x + width - 28), card.top + cardHeight + 6];
+    end = [cx, box.top - 4];
+  } else {
+    // Al costado (elementos altos como el riel lateral).
+    const right = box.left + box.width + gap;
+    const x =
+      right + width < vw - 16 ? right : Math.max(16, box.left - gap - width);
+    const y = clamp(cy - cardHeight / 2, 16, vh - cardHeight - 16);
+    card = { top: y, left: x, width };
+    const onRight = x >= box.left + box.width;
+    start = [
+      onRight ? x - 6 : x + width + 6,
+      clamp(cy, y + 28, y + cardHeight - 28),
+    ];
+    end = [onRight ? box.left + box.width + 4 : box.left - 4, cy];
+  }
+
+  const [sx, sy] = start;
+  const [ex, ey] = end;
+  const bend = Math.abs(ex - sx) < 24 ? 36 : 0;
+  const control = [(sx + ex) / 2 + bend, (sy + ey) / 2 - (bend ? 0 : 24)];
+  return {
+    box,
+    card,
+    arrow: `M${sx},${sy} Q${control[0]},${control[1]} ${ex},${ey}`,
+  };
+}
 
 export function IntroTour() {
   const [step, setStep] = useState<number | null>(null);
-  const [box, setBox] = useState<Box | null>(null);
-  const [cardOnTop, setCardOnTop] = useState(false);
+  const [layout, setLayout] = useState<Layout | null>(null);
   const card = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -86,7 +171,7 @@ export function IntroTour() {
     if (status === "skipped") write(() => window.sessionStorage, skipKey, "1");
     else write(() => window.localStorage, tutorialStorageKey, status);
     setStep(null);
-    setBox(null);
+    setLayout(null);
     const previous = returnFocus.current;
     (previous && previous !== document.body && previous.isConnected
       ? previous
@@ -98,51 +183,32 @@ export function IntroTour() {
   useEffect(() => {
     if (step === null) return;
     const targets = tutorialSteps[step].targets;
-    // En móvil la tarjeta ocupa el ancho inferior; en escritorio queda a un lado.
-    const room = () =>
-      window.innerWidth < 640
-        ? window.innerHeight - (card.current?.offsetHeight ?? 0) - 24
-        : window.innerHeight - 8;
 
     const target = visibleTarget(targets);
     if (target?.closest(".finance-sidebar, .finance-dock")) {
       // El riel y la barra móvil son fijos (el riel, con desplazamiento propio).
       target.scrollIntoView({ block: "nearest" });
     } else if (target) {
+      // Deja sitio a la tarjeta: abajo en móvil, y en escritorio debajo o
+      // encima del elemento.
       const { top, bottom } = target.getBoundingClientRect();
-      if (top < 72 || bottom > room()) window.scrollBy(0, top - 72);
+      const room =
+        window.innerWidth < 640
+          ? window.innerHeight * 0.5
+          : window.innerHeight - 260;
+      if (top < 96 || bottom > room) window.scrollBy(0, top - 140);
     }
 
     function measure() {
-      const element = visibleTarget(targets);
-      if (!element) {
-        setCardOnTop(false);
-        return setBox(null);
-      }
-      const rect = element.getBoundingClientRect();
-      // UI-02: en móvil, si el elemento está abajo (barra flotante), la tarjeta
-      // sube para no taparlo.
-      const onTop =
-        window.innerWidth < 640 && rect.top > window.innerHeight / 2;
-      setCardOnTop(onTop);
-      const top = Math.max(rect.top - pad, 4);
-      const bottom = Math.min(
-        rect.bottom + pad,
-        onTop ? window.innerHeight - 4 : room(),
-      );
-      if (bottom - top < 24) return setBox(null);
-      setBox({
-        top,
-        left: Math.max(rect.left - pad, 4),
-        width: Math.min(rect.width + pad * 2, window.innerWidth - 8),
-        height: bottom - top,
-      });
+      const height = card.current?.offsetHeight ?? 200;
+      setLayout(computeLayout(visibleTarget(targets), height));
     }
 
-    measure();
+    const frame = requestAnimationFrame(measure);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, { passive: true });
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure);
     };
@@ -151,7 +217,7 @@ export function IntroTour() {
   const opened = step !== null;
   useEffect(() => {
     if (!opened) return;
-    card.current?.focus();
+    card.current?.focus({ preventScroll: true });
     function onKeyDown(event: KeyboardEvent) {
       // El cajón de navegación modal gestiona su propio Escape.
       if (event.key !== "Escape" || document.querySelector("dialog[open]"))
@@ -168,28 +234,61 @@ export function IntroTour() {
 
   return (
     <>
-      {box && (
+      {layout?.box && (
         <div
           aria-hidden="true"
           data-testid="tutorial-highlight"
-          className="pointer-events-none fixed z-40 rounded-xl ring-2 ring-ring"
-          style={{ ...box, boxShadow: "0 0 0 100vmax rgb(0 0 0 / 40%)" }}
+          className="intro-tour__spot"
+          style={{ ...layout.box }}
         />
+      )}
+      {layout?.arrow && (
+        <svg aria-hidden="true" className="intro-tour__arrow">
+          <defs>
+            <marker
+              id="intro-tour-head"
+              viewBox="0 0 10 10"
+              refX="7"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path
+                d="M1,1 L9,5 L1,9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </marker>
+          </defs>
+          <path
+            key={step}
+            d={layout.arrow}
+            pathLength={1}
+            markerEnd="url(#intro-tour-head)"
+            className="intro-tour__path"
+          />
+        </svg>
       )}
       <div
         ref={card}
         role="dialog"
         aria-modal="false"
         aria-label="Tutorial introductorio"
+        aria-describedby="tutorial-texto"
         tabIndex={-1}
-        className={`fixed inset-x-3 z-50 grid gap-3 rounded-2xl border border-border-strong bg-solid p-4 text-card-foreground shadow-lg outline-none sm:inset-x-auto sm:top-auto sm:right-4 sm:bottom-4 sm:w-[24rem] ${cardOnTop ? "top-3" : "bottom-3"}`}
+        className="intro-tour__card"
+        style={layout?.card ? { ...layout.card } : undefined}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <p className="text-xs text-muted-foreground">
+          <div>
+            <p className="intro-tour__count">
               Paso {step + 1} de {tutorialSteps.length}
             </p>
-            <h2 id="tutorial-titulo" className="text-base font-semibold">
+            <h2 id="tutorial-titulo" className="intro-tour__title">
               {current.title}
             </h2>
           </div>
@@ -202,21 +301,21 @@ export function IntroTour() {
             <FinanceIcon name="close" />
           </button>
         </div>
-        <p id="tutorial-texto" aria-live="polite" className="text-sm">
+        <p id="tutorial-texto" aria-live="polite" className="intro-tour__text">
           {current.text}
         </p>
-        <div aria-hidden="true" className="flex gap-1.5">
+        <div aria-hidden="true" className="intro-tour__dots">
           {tutorialSteps.map((item, index) => (
             <span
               key={item.id}
-              className={`h-1.5 flex-1 rounded-full ${index <= step ? "bg-primary" : "bg-muted"}`}
+              className={index <= step ? "is-done" : undefined}
             />
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            className={`${button} border aria-disabled:opacity-50`}
+            className="ui-btn ui-btn--outline aria-disabled:opacity-50"
             aria-disabled={step === 0}
             onClick={() => step > 0 && setStep(step - 1)}
           >
@@ -224,7 +323,7 @@ export function IntroTour() {
           </button>
           <button
             type="button"
-            className={`${button} flex-1 bg-primary text-primary-foreground`}
+            className="ui-btn ui-btn--primary ml-auto"
             onClick={() => (last ? close("completed") : setStep(step + 1))}
           >
             {last ? "Finalizar" : "Siguiente"}
@@ -233,14 +332,14 @@ export function IntroTour() {
         <div className="-mb-1 flex flex-wrap justify-between gap-x-3">
           <button
             type="button"
-            className={textButton}
+            className="intro-tour__link"
             onClick={() => close("skipped")}
           >
             Omitir
           </button>
           <button
             type="button"
-            className={textButton}
+            className="intro-tour__link"
             onClick={() => close("hidden")}
           >
             No volver a mostrar

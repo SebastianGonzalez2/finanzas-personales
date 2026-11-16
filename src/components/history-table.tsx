@@ -8,7 +8,7 @@ import { historyAmountTones } from "./history-entry";
 import { Icon, type IconName } from "./ui/icon";
 
 // UI-04: piezas de la tabla del Historial portadas de
-// src/app/prototipos/ui/_lab/movements.tsx (diseño aprobado en UI-01). Solo
+// el laboratorio UI-01 (retirado en UI-06; diseño aprobado). Solo
 // presentan los datos que entrega el servidor: no recalculan importes.
 
 type Tone = "income" | "expense" | "neutral";

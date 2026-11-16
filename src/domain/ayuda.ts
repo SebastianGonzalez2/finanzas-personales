@@ -84,6 +84,12 @@ export const ayudaGroups: readonly AyudaGroup[] = [
         links: [{ href: "/resumen", label: "Resumen" }],
       },
       {
+        question: "¿Para qué sirve el selector UYU / USD / EUR de arriba?",
+        answer:
+          "Elige la moneda en la que se muestran los totales y estadísticas de toda la aplicación, usando cotizaciones de referencia. No convierte ni mueve tu dinero, y los movimientos conservan su moneda original. Tu elección se recuerda en tu cuenta.",
+        links: [{ href: "/resumen", label: "Resumen" }],
+      },
+      {
         question: "¿Cómo paso dinero de una moneda a otra?",
         answer:
           "En Historial, «+ Nueva transacción» con tipo «Cambio de moneda»: cargá los dos importes reales, el que sale y el que entra. No se cuenta como gasto ni como ingreso.",

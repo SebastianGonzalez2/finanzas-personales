@@ -36,8 +36,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-UI-01 (laboratorio visual en `/prototipos/ui`, sin dependencias npm nuevas)
-carga mediante `next/font/google` las tipografías Geist, Plus Jakarta Sans e
-Instrument Serif, todas bajo SIL Open Font License 1.1
-(https://openfontlicense.org). Next.js las descarga en la compilación y las
-sirve desde el propio dominio; no hay solicitudes a Google en tiempo de uso.
+La identidad visual Glaciar (UI-02 en adelante, sin dependencias npm nuevas)
+carga mediante `next/font/google` la tipografía Plus Jakarta Sans, bajo SIL
+Open Font License 1.1 (https://openfontlicense.org). Next.js la descarga en la
+compilación y la sirve desde el propio dominio; no hay solicitudes a Google en
+tiempo de uso. (El laboratorio UI-01 de `/prototipos/ui`, que además cargaba
+Geist e Instrument Serif, se retiró en UI-06.)

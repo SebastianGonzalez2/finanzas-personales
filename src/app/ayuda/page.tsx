@@ -17,7 +17,7 @@ export default async function AyudaPage() {
         <PageHead
           eyebrow="Tu cuenta"
           title="Ayuda"
-          description="Preguntas frecuentes sobre las funciones de la aplicación. El tutorial es un recorrido introductorio de cinco pasos."
+          description="Preguntas frecuentes sobre las funciones de la aplicación. El tutorial es un recorrido introductorio de ocho pasos."
           actions={
             <a href="/resumen?tutorial=1" className={buttonClass("outline")}>
               <Icon name="sparkle" duotone={false} className="size-4" />

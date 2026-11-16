@@ -27,17 +27,18 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
   const tour = page.getByRole("dialog", { name: "Tutorial introductorio" });
   await expect(tour).toBeVisible();
   await expect(tour).toBeFocused();
-  await expect(tour).toContainText("Paso 1 de 5");
+  await expect(tour).toContainText("Paso 1 de 8");
   await expect(tour.getByRole("button", { name: "Anterior" })).toHaveAttribute(
     "aria-disabled",
     "true",
   );
 
   await tour.getByRole("button", { name: "Siguiente" }).click();
-  await expect(tour).toContainText("Paso 2 de 5");
+  await expect(tour).toContainText("Paso 2 de 8");
+  await expect(tour).toContainText("Moneda de toda la app");
   await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
   await tour.getByRole("button", { name: "Anterior" }).click();
-  await expect(tour).toContainText("Paso 1 de 5");
+  await expect(tour).toContainText("Paso 1 de 8");
 
   // La navegación sigue disponible mientras el tutorial está abierto.
   await expect(
@@ -46,9 +47,10 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
       .getByRole("link", { name: "Historial", exact: true }),
   ).toBeEnabled();
 
-  for (let step = 0; step < 4; step += 1)
+  for (let step = 0; step < 7; step += 1)
     await tour.getByRole("button", { name: /Siguiente/ }).click();
-  await expect(tour).toContainText("Paso 5 de 5");
+  await expect(tour).toContainText("Paso 8 de 8");
+  await expect(tour).toContainText("Ayuda cuando la necesites");
   await tour.getByRole("button", { name: "Finalizar" }).click();
   await expect(tour).toBeHidden();
   expect(await preference(page)).toBe("completed");
@@ -129,7 +131,8 @@ test("F6-06: móvil resalta el botón del menú y no hay desbordes", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/resumen");
   const tour = page.getByRole("dialog", { name: "Tutorial introductorio" });
-  await tour.getByRole("button", { name: "Siguiente" }).click();
+  for (let step = 0; step < 6; step += 1)
+    await tour.getByRole("button", { name: "Siguiente" }).click();
   await expect(tour).toContainText("Menú de secciones");
   const highlight = page.getByTestId("tutorial-highlight");
   await expect(highlight).toBeVisible();

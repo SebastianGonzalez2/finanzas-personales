@@ -9,7 +9,7 @@ import {
   type WebglSupport,
 } from "./ambient-render";
 
-// UI-02 — Fondo ambiental Glaciar (guía §2–§4, prototipo `_lab/ambient.tsx`):
+// UI-02 — Fondo ambiental Glaciar (guía §2–§4, prototipo UI-01 retirado en UI-06):
 // ondas de luz WebGL arriba y al final de la página y, en el medio, luz difusa
 // tenue que deriva despacio. Siempre hay una capa CSS estática debajo del
 // lienzo (sin WebGL, mientras carga o con el contexto perdido). El shader se
@@ -65,7 +65,7 @@ void main(){
 
 type Rgb = readonly [number, number, number];
 
-// Paleta Glaciar del shader (guía §3, `_lab/palettes.ts`).
+// Paleta Glaciar del shader (guía §3).
 const glaciar = {
   base: [0.027, 0.035, 0.047] as Rgb,
   bands: [
