@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthField, DateInput } from "./ui/date-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,7 +10,11 @@ import {
   useTransition,
   type FormEvent,
 } from "react";
-import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import {
+  bankCurrencies,
+  formatBankAmount,
+  formatBankReference,
+} from "@/domain/bank-balances";
 import {
   parseBudgetAmount,
   parseBudgetCommand,
@@ -38,7 +43,7 @@ type Editor =
   | { action: "exception"; budget: Budget }
   | { action: "remove"; budget: Budget };
 
-const monthFormat = new Intl.DateTimeFormat("es", {
+const monthFormat = new Intl.DateTimeFormat("es-UY", {
   month: "long",
   year: "numeric",
   timeZone: "UTC",
@@ -241,15 +246,13 @@ export function BudgetCatalog({
           )}
         </div>
         <form method="get" className="gs-kpi__form">
-          <Field label="Mes del presupuesto">
-            <Input
-              type="month"
-              name="month"
-              required
-              defaultValue={viewedMonth}
-              disabled={editor !== null}
-            />
-          </Field>
+          <MonthField
+            label="Mes del presupuesto"
+            name="month"
+            required
+            defaultValue={viewedMonth}
+            disabled={editor !== null}
+          />
           <Button type="submit" disabled={editor !== null}>
             Ver mes
           </Button>
@@ -312,7 +315,6 @@ export function BudgetCatalog({
                   <BudgetEntry
                     key={budget.id}
                     budget={budget}
-                    options={options}
                     nested={nested}
                     isSub={isSub}
                     disabled={editingDisabled}
@@ -358,7 +360,6 @@ function HowItWorks() {
 
 function BudgetEntry({
   budget,
-  options,
   nested,
   isSub,
   disabled,
@@ -367,7 +368,6 @@ function BudgetEntry({
   remove,
 }: {
   budget: Budget;
-  options: { key: string; label: string }[];
   nested?: boolean;
   isSub?: boolean;
   disabled?: boolean;
@@ -377,10 +377,6 @@ function BudgetEntry({
 }) {
   const { percent, tone, label } = budgetState(budget);
   const fill = Number(percent > BigInt(100) ? BigInt(100) : percent);
-  const exceptionMonth = budget.exception
-    ? (options.find(({ key }) => key === budget.exception?.month)?.label ??
-      budget.exception.month)
-    : null;
   const estimated = budget.references.some(({ provisional }) => provisional);
   return (
     <li className={`gs-budget ${nested ? "gs-budget--sub" : ""}`}>
@@ -436,7 +432,8 @@ function BudgetEntry({
         {budget.references.map((ref, index) => (
           <p key={index}>
             {ref.provisional ? "Estimación" : "Referencia"} {ref.source} del{" "}
-            {ref.date}: 1 {ref.fromCurrency} = {ref.rate} {budget.currency}.
+            {formatBankReference(ref.date)}: 1 {ref.fromCurrency} = {ref.rate}{" "}
+            {budget.currency}.
           </p>
         ))}
         <p>
@@ -448,7 +445,7 @@ function BudgetEntry({
         </p>
         {budget.exception && (
           <p className="wrap-anywhere">
-            Excepción para {exceptionMonth}:{" "}
+            Excepción para {monthLabel(budget.exception.month)}:{" "}
             <strong>{money(budget.exception.limit, budget.currency)}</strong>.
             El mes siguiente vuelve automáticamente al límite habitual.
           </p>
@@ -758,10 +755,9 @@ function QuoteEditor({ today }: { today: string }) {
             <Input name="rate" required inputMode="decimal" maxLength={17} />
           </Field>
           <Field label="Fecha de cotización">
-            <Input
+            <DateInput
               name="effectiveOn"
               required
-              type="date"
               defaultValue={today}
               max={today}
             />

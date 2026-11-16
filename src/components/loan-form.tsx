@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
@@ -348,8 +349,7 @@ export function LoanForm({
           />
         )}
         <Field label={cash ? "Fecha efectiva" : "Fecha del registro"}>
-          <Input
-            type="date"
+          <DateInput
             name="effectiveOn"
             min={loan?.effectiveOn}
             max={today}
@@ -360,7 +360,7 @@ export function LoanForm({
         {!loan && (
           <>
             <Field label="Vencimiento conocido (opcional)">
-              <Input type="date" name="dueOn" max="9999-12-31" />
+              <DateInput name="dueOn" max="9999-12-31" />
             </Field>
             <Field label="Avisar con esta antelación (días)">
               <Input

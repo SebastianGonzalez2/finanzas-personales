@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { adjustmentNoteLimit } from "@/domain/bank-balances";
@@ -109,9 +110,8 @@ export function BalanceAdjustmentForm({
               </label>
               <label className="block space-y-1">
                 <span>Fecha de referencia</span>
-                <input
+                <DateInput
                   name="asOfDate"
-                  type="date"
                   required
                   defaultValue={today}
                   min={firstDate}

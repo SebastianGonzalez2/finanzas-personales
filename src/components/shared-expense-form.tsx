@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthField, DateInput } from "./ui/date-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -298,10 +299,9 @@ export function SharedExpenseForm({
               </Field>
             </div>
             <Field label="Fecha del gasto">
-              <input
+              <DateInput
                 name="effectiveOn"
                 className={historyControl}
-                type="date"
                 max={today}
                 defaultValue={today}
                 required
@@ -343,15 +343,12 @@ export function SharedExpenseForm({
                         required
                       />
                     </Field>
-                    <Field label="Mes de la primera cuota">
-                      <input
-                        name="firstPeriod"
-                        className={historyControl}
-                        type="month"
-                        defaultValue={today.slice(0, 7)}
-                        required
-                      />
-                    </Field>
+                    <MonthField
+                      label="Mes de la primera cuota"
+                      name="firstPeriod"
+                      defaultValue={today.slice(0, 7)}
+                      required
+                    />
                     <Field label="Cargo confirmado por el emisor">
                       <input
                         name="cardAmount"
@@ -377,7 +374,7 @@ export function SharedExpenseForm({
               className={historyControl}
             />
             <Field label="Fecha prevista de devolución (opcional)">
-              <input name="dueOn" className={historyControl} type="date" />
+              <DateInput name="dueOn" className={historyControl} />
             </Field>
             <p className="text-sm text-muted-foreground">
               Se registra el gasto completo y la deuda. Bancos cambia cuando
@@ -426,11 +423,7 @@ export function SharedExpenseForm({
                   />
                 </Field>
                 <Field label="Fecha prevista de cobro (opcional)">
-                  <input
-                    name={`due-${key}`}
-                    className={historyControl}
-                    type="date"
-                  />
+                  <DateInput name={`due-${key}`} className={historyControl} />
                 </Field>
                 {friends.length > 1 && (
                   <button

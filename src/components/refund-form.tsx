@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -386,8 +387,7 @@ export function PurchaseRefundPanel({
                       : "Fecha de confirmación"
                 }
               >
-                <input
-                  type="date"
+                <DateInput
                   name="effectiveOn"
                   className={historyControl}
                   min={purchase.effectiveOn}
@@ -555,8 +555,7 @@ export function ReturnCreditForm({
             <AmountInput name="amount" required />
           </HistoryField>
           <HistoryField label="Fecha de acreditación">
-            <input
-              type="date"
+            <DateInput
               className={historyControl}
               name="effectiveOn"
               max={today}

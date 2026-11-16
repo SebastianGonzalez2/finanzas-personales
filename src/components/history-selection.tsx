@@ -45,7 +45,6 @@ export function HistorySelection({
   categories,
   tags,
   enabled,
-  year,
   paged,
   periodLabel,
   chips,
@@ -57,7 +56,6 @@ export function HistorySelection({
   categories: { id: string; name: string; kind: "income" | "expense" }[];
   tags: { id: string; name: string }[];
   enabled: boolean;
-  year: string;
   paged: boolean;
   periodLabel: string;
   chips: HistoryChip[];
@@ -415,7 +413,7 @@ export function HistorySelection({
                       </td>
                     )}
                     <td className="lab-td-date tabular-nums">
-                      <HistoryDate iso={entry.effectiveOn} year={year} />
+                      <HistoryDate iso={entry.effectiveOn} />
                     </td>
                     <td className="lab-td-concept">
                       <KindBadge kind={entry.kind} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRef, useState, type ReactNode } from "react";
 import { bankCurrencies } from "@/domain/bank-balances";
 import {
@@ -107,17 +108,29 @@ function SelectField({
 function InputField({
   id,
   label,
+  localizedDate,
   ...input
-}: { id: string; label: string } & Omit<
+}: {
+  id: string;
+  label: string;
+  name: string;
+  defaultValue?: string;
+  disabled?: boolean;
+  localizedDate?: boolean;
+} & Pick<
   React.ComponentProps<"input">,
-  "id" | "className"
+  "inputMode" | "maxLength" | "autoComplete" | "placeholder"
 >) {
   return (
     <div className="lab-field">
       <label htmlFor={id} className="lab-field__label">
         {label}
       </label>
-      <input id={id} className="lab-input" {...input} />
+      {localizedDate ? (
+        <DateInput id={id} className="lab-input" {...input} />
+      ) : (
+        <input id={id} className="lab-input" {...input} />
+      )}
     </div>
   );
 }
@@ -390,7 +403,7 @@ function HistoryFilterForm({
           id="historial-from"
           label="Desde"
           name="from"
-          type="date"
+          localizedDate
           defaultValue={values.from}
           disabled={Boolean(period)}
         />
@@ -398,7 +411,7 @@ function HistoryFilterForm({
           id="historial-to"
           label="Hasta"
           name="to"
-          type="date"
+          localizedDate
           defaultValue={values.to}
           disabled={Boolean(period)}
         />

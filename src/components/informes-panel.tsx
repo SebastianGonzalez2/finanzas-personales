@@ -1,9 +1,10 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useState, type FormEvent } from "react";
 import { FormFoot, FormPanel, FormSection } from "./glaciar/screen";
 import { buttonClass } from "./ui/button";
-import { Field, Input } from "./ui/field";
+import { Field } from "./ui/field";
 import { Icon } from "./ui/icon";
 import { saveDownload } from "@/lib/export/download";
 import {
@@ -80,20 +81,10 @@ export function InformesPanel({
           <form onSubmit={submit} className="grid gap-4">
             <div className="gs-form__grid">
               <Field label="Desde">
-                <Input
-                  type="date"
-                  value={from}
-                  onChange={(event) => setFrom(event.target.value)}
-                  required
-                />
+                <DateInput value={from} onValueChange={setFrom} required />
               </Field>
               <Field label="Hasta">
-                <Input
-                  type="date"
-                  value={to}
-                  onChange={(event) => setTo(event.target.value)}
-                  required
-                />
+                <DateInput value={to} onValueChange={setTo} required />
               </Field>
             </div>
             <FormSection legend="Formato">

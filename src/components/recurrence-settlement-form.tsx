@@ -1,5 +1,7 @@
 "use client";
 
+import { recurrencePeriodLabel } from "@/lib/recurrence-period-label";
+import { MonthField, DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
@@ -301,7 +303,7 @@ export function RecurrenceSettlementForm({
       method="post"
       action={endpoint}
       onSubmit={submit}
-      aria-label={`Confirmación para ${period.key}`}
+      aria-label={`Confirmación para ${recurrencePeriodLabel(period.key)}`}
     >
       <fieldset
         className="grid gap-3"
@@ -318,14 +320,13 @@ export function RecurrenceSettlementForm({
                     : "Fecha real de pago"
               }
             >
-              <input
+              <DateInput
                 className={historyControl}
-                type="date"
                 required
                 value={date}
                 max={today}
-                onChange={(e) => {
-                  setDate(e.target.value);
+                onValueChange={(iso) => {
+                  setDate(iso);
                   setEvents(null);
                   setSelected("");
                   setLookupError("");
@@ -408,17 +409,15 @@ export function RecurrenceSettlementForm({
                     <HistoryField label="Importe de cada cuota">
                       <AmountInput name="installmentAmount" required />
                     </HistoryField>
-                    <HistoryField label="Mes de la primera cuota">
-                      <input
-                        className={historyControl}
-                        name="firstPeriod"
-                        type="month"
-                        min="0001-01"
-                        max="9999-12"
-                        defaultValue={date.slice(0, 7)}
-                        required
-                      />
-                    </HistoryField>
+                    <MonthField
+                      label="Mes de la primera cuota"
+                      variant="history"
+                      name="firstPeriod"
+                      min="0001-01"
+                      max="9999-12"
+                      defaultValue={date.slice(0, 7)}
+                      required
+                    />
                   </>
                 )}
               </>
@@ -504,7 +503,7 @@ export function RecurrenceSettlementForm({
                         )
                       }
                     />
-                    {key}
+                    {recurrencePeriodLabel(key)}
                   </label>
                 ))}
               </div>
@@ -637,11 +636,15 @@ function PeriodAmounts({
   return (
     <fieldset className="grid gap-2 rounded-md border p-2">
       {split && (
-        <legend className="px-1 text-sm font-medium">{period.key}</legend>
+        <legend className="px-1 text-sm font-medium">
+          {recurrencePeriodLabel(period.key)}
+        </legend>
       )}
       <div className="grid gap-2 sm:grid-cols-2">
         {split && (
-          <HistoryField label={`Importe asignado a ${period.key}`}>
+          <HistoryField
+            label={`Importe asignado a ${recurrencePeriodLabel(period.key)}`}
+          >
             <AmountInput
               name={`allocation-${period.index}`}
               required

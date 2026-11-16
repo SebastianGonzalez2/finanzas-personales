@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import {
   useEffect,
   useRef,
@@ -140,7 +141,7 @@ export function BankBalanceRow({
                     dateTime={balance.asOfDate}
                     title={formatBankReference(balance.asOfDate)}
                   >
-                    {formatBankReference(balance.asOfDate).slice(0, 5)}
+                    {formatBankReference(balance.asOfDate)}
                   </time>
                 </span>
               </p>
@@ -228,10 +229,9 @@ export function BankBalanceRow({
               <label htmlFor={`${prefix}-fecha`} className="block text-sm">
                 Fecha de referencia
               </label>
-              <input
+              <DateInput
                 id={`${prefix}-fecha`}
                 name="asOfDate"
-                type="date"
                 required
                 defaultValue={today}
                 max={today}

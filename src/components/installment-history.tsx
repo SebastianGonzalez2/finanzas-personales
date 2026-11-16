@@ -1,4 +1,4 @@
-import { formatBankAmount } from "@/domain/bank-balances";
+import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import {
   formatInstallmentPeriod,
   formatInstallmentTotal,
@@ -84,7 +84,8 @@ export function InstallmentHistory({
           {versions.map((version) => (
             <li key={version.version} className="py-2 wrap-anywhere">
               <p>
-                {version.recordedOn} · {changes[version.change]}
+                {formatBankReference(version.recordedOn.slice(0, 10))}
+                {version.recordedOn.slice(10)} · {changes[version.change]}
               </p>
               <p>
                 Desde {formatInstallmentPeriod(version.firstPeriod)} ·{" "}

@@ -1,5 +1,7 @@
 "use client";
 
+import { recurrencePeriodLabel } from "@/lib/recurrence-period-label";
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { bankCurrencies, formatBankReference } from "@/domain/bank-balances";
@@ -146,19 +148,17 @@ export function RecurrenceForm({
           </Select>
         </Field>
         <Field label="Comienza en">
-          <Input
-            type="date"
+          <DateInput
             value={firstPeriod}
             min="0001-01-01"
             max="9999-12-31"
             required
-            onChange={(event) => setFirstPeriod(event.target.value)}
+            onValueChange={setFirstPeriod}
           />
         </Field>
         <Field label="Finaliza el (opcional)">
-          <Input
+          <DateInput
             name="endDate"
-            type="date"
             min={firstPeriod || "0001-01-01"}
             max="9999-12-31"
           />
@@ -203,7 +203,7 @@ export function RecurrenceForm({
       </fieldset>
       {first && (
         <p className="gs-hint">
-          Primer período {first.key} ·{" "}
+          Primer período {recurrencePeriodLabel(first.key)} ·{" "}
           {dateMode === "exact" ? "Vence" : "Comienza"} el{" "}
           {formatBankReference(firstPeriod)}
         </p>

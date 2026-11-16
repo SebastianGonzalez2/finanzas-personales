@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -296,9 +297,8 @@ export function BankBenefitForm({
               </Select>
             </Field>
             <Field label="Fecha de acreditación">
-              <Input
+              <DateInput
                 name="effectiveOn"
-                type="date"
                 defaultValue={today}
                 max={today}
                 required

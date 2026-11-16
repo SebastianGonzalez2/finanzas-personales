@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import { firstContributionDate } from "../../src/domain/scheduled-contributions.ts";
 import {
   financeBrowserFixtures,
@@ -41,7 +44,7 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
   await page.getByLabel("Día del mes").fill("31");
   await expect(
     page.getByText(
-      `Desde el próximo mes 1.000,00 UYU. Primera fecha ${firstContributionDate(today, 31)}.`,
+      `Desde el próximo mes 1.000,00 UYU. Primera fecha ${formatBankReference(firstContributionDate(today, 31))}.`,
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Activar aportaciones" }).click();
@@ -74,7 +77,9 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
     page.getByText("No había suficiente dinero disponible."),
   ).toHaveCount(1);
   await expect(
-    page.getByText(`Vacaciones F3-03 · 1.000,00 UYU · ${today}`),
+    page.getByText(
+      `Vacaciones F3-03 · 1.000,00 UYU · ${formatBankReference(today)}`,
+    ),
   ).toBeVisible();
   const notice = page.getByRole("link", {
     name: "Ver aportación de Vacaciones F3-03",
@@ -97,7 +102,9 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
   await notice.click();
   await page.getByRole("button", { name: "Completar aportación" }).click();
   await expect(
-    page.getByText(`Reservar 1.000,00 UYU para la aportación del ${today}.`),
+    page.getByText(
+      `Reservar 1.000,00 UYU para la aportación del ${formatBankReference(today)}.`,
+    ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Confirmar aportación" }).click();
   await expect(
@@ -143,7 +150,9 @@ test("F3-03: programación, aviso sin duplicados y confirmación manual entre se
   await page.goto("/avisos");
   await expect(page.getByText("No tenés avisos nuevos.")).toBeVisible();
   await page.getByText("Avisos resueltos", { exact: true }).click();
-  await expect(page.getByText(`Completada el ${today}`)).toBeVisible();
+  await expect(
+    page.getByText(`Completada el ${formatBankReference(today)}`),
+  ).toBeVisible();
   await page.goto("/resumen");
   await expect(
     page.getByRole("list", { name: "Saldos bancarios por moneda" }),

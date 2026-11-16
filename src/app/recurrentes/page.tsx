@@ -1,3 +1,4 @@
+import { recurrencePeriodLabel } from "@/lib/recurrence-period-label";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -434,7 +435,7 @@ function SeriesDetail({
         <div>
           <dt>Primer período</dt>
           <dd>
-            {series.first.key} · Comienza el{" "}
+            {recurrencePeriodLabel(series.first.key)} · Comienza el{" "}
             {formatBankReference(series.firstPeriod)}
           </dd>
         </div>
@@ -490,7 +491,7 @@ function SeriesDetail({
           <div>
             <dt>Último período previsto</dt>
             <dd>
-              {series.latest.key} ·{" "}
+              {recurrencePeriodLabel(series.latest.key)} ·{" "}
               {series.kind === "income"
                 ? "Sin cobro confirmado"
                 : "Sin pago confirmado"}
@@ -590,7 +591,9 @@ function PeriodSummary({
   return (
     <>
       <div className="gs-period__head">
-        <h4 className="gs-period__title">{period.key}</h4>
+        <h4 className="gs-period__title">
+          {recurrencePeriodLabel(period.key)}
+        </h4>
         <StateTag tone={periodTones[period.status]}>
           {periodLabels(kind)[period.status]}
         </StateTag>

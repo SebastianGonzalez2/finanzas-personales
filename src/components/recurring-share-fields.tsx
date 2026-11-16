@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useId, useRef, useState } from "react";
 import type { Currency } from "@/domain/money";
 import { conceptLimit } from "@/domain/movements";
@@ -198,10 +199,9 @@ export function RecurringPaymentSplitFields({
           <HistoryField
             label={`Fecha prevista de cobro ${index + 1} (opcional)`}
           >
-            <input
+            <DateInput
               className={historyControl}
               name="split-due-on"
-              type="date"
               min="0001-01-01"
               max="9999-12-31"
             />

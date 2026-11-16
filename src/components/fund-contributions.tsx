@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { formatBankAmount } from "@/domain/bank-balances";
+import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import {
   contributionPending,
   type ContributionChange,
@@ -29,11 +29,14 @@ const quiet = buttonClass("ghost");
 
 export function contributionStatus(period: ContributionPeriod) {
   if (contributionPending(period)) return "Pendiente";
+  const date = period.resolvedOn
+    ? ` el ${formatBankReference(period.resolvedOn)}`
+    : "";
   if (period.resolution === "target_final")
-    return `Aportación final para completar meta · Completada el ${period.resolvedOn}`;
+    return `Aportación final para completar meta · Completada${date}`;
   if (period.resolution === "fund_closed")
-    return `Descartada por cierre del fondo el ${period.resolvedOn}`;
-  return `${period.status === "completed" ? "Completada" : "Descartada"} el ${period.resolvedOn}`;
+    return `Descartada por cierre del fondo${date}`;
+  return `${period.status === "completed" ? "Completada" : "Descartada"}${date}`;
 }
 
 export function ContributionNotice({ period }: { period: ContributionPeriod }) {
@@ -45,7 +48,8 @@ export function ContributionNotice({ period }: { period: ContributionPeriod }) {
   return (
     <>
       <p className="font-semibold">
-        {period.fundName} · {formatBankAmount(period)} · {period.scheduledOn}
+        {period.fundName} · {formatBankAmount(period)} ·{" "}
+        {formatBankReference(period.scheduledOn)}
       </p>
       {period.reason && <p>{reason[period.reason]}</p>}
       <p>
@@ -93,8 +97,8 @@ function PeriodResolution({
         >
           <p>
             {action === "complete"
-              ? `Reservar ${formatBankAmount(period)} para la aportación del ${period.scheduledOn}.`
-              : `Descartar la aportación del ${period.scheduledOn}.`}
+              ? `Reservar ${formatBankAmount(period)} para la aportación del ${formatBankReference(period.scheduledOn)}.`
+              : `Descartar la aportación del ${formatBankReference(period.scheduledOn)}.`}
           </p>
           <div className="gs-actions">
             <button
@@ -217,7 +221,7 @@ function PlanEditor({
             currency: fund.currency,
             amount: displayedNextAmount,
           })}{" "}
-          el {plan.nextOn}.
+          el {formatBankReference(plan.nextOn)}.
         </p>
       )}
       {paused && <p>Programación pausada.</p>}
@@ -269,7 +273,7 @@ function PlanEditor({
               <p>
                 Desde el próximo mes{" "}
                 {formatBankAmount({ currency: fund.currency, amount: decimal })}
-                . Primera fecha {preview}.
+                . Primera fecha {formatBankReference(preview)}.
               </p>
             )}
             <div className="gs-actions">
@@ -475,8 +479,8 @@ export function FundContributions({
                 <ul className="gs-contrib__list">
                   {resolved.map((period) => (
                     <li id={`aporte-${period.id}`} key={period.id}>
-                      {period.scheduledOn} · {formatBankAmount(period)} ·{" "}
-                      {contributionStatus(period)}
+                      {formatBankReference(period.scheduledOn)} ·{" "}
+                      {formatBankAmount(period)} · {contributionStatus(period)}
                     </li>
                   ))}
                 </ul>
@@ -485,10 +489,10 @@ export function FundContributions({
                 <ul className="gs-contrib__list">
                   {changes.map((change) => (
                     <li key={change.id}>
-                      {change.changedOn} ·{" "}
+                      {formatBankReference(change.changedOn)} ·{" "}
                       {change.action === "pause"
                         ? "Programación pausada"
-                        : `${change.action === "reactivate" ? "Programación reactivada" : "Programación guardada"} · ${formatBankAmount({ currency: fund.currency, amount: change.amount })} el día ${change.preferredDay} desde ${change.effectiveOn}`}
+                        : `${change.action === "reactivate" ? "Programación reactivada" : "Programación guardada"} · ${formatBankAmount({ currency: fund.currency, amount: change.amount })} el día ${change.preferredDay} desde ${change.effectiveOn ? formatBankReference(change.effectiveOn) : "—"}`}
                     </li>
                   ))}
                 </ul>

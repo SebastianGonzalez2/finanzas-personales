@@ -136,7 +136,6 @@ export default async function HistoryPage({
                 categories={data.categories.filter(({ archived }) => !archived)}
                 tags={data.tags.filter(({ archived }) => !archived)}
                 enabled={data.bulkReady}
-                year={year}
                 paged={Boolean(query.cursor || data.hasNextPage)}
                 periodLabel={historyPeriodLabel(query.filters)}
                 chips={historyChips(query.filters, {

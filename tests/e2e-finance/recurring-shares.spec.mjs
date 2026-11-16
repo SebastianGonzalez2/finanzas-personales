@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import { formatInstallmentPeriod } from "../../src/domain/installments.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -32,7 +36,7 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await openCreator(page);
   const creation = page.getByRole("form", { name: "Nueva recurrencia" });
   await creation.getByLabel("Concepto").fill("Alquiler compartido sintético");
-  await creation.getByLabel("Comienza en").fill(previous);
+  await creation.getByLabel("Comienza en").fill(formatBankReference(previous));
   await creation.getByLabel("Importe de referencia").fill("20000");
   await creation.getByLabel("Compartida", { exact: true }).check();
   await creation.getByLabel("Nombre de la persona 1").fill("Ana de prueba");
@@ -44,10 +48,16 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
     exact: true,
   });
   const past = series.getByRole("listitem").filter({
-    has: page.getByRole("heading", { name: previous.slice(0, 7), exact: true }),
+    has: page.getByRole("heading", {
+      name: formatInstallmentPeriod(previous.slice(0, 7)),
+      exact: true,
+    }),
   });
   const current = series.getByRole("listitem").filter({
-    has: page.getByRole("heading", { name: today.slice(0, 7), exact: true }),
+    has: page.getByRole("heading", {
+      name: formatInstallmentPeriod(today.slice(0, 7)),
+      exact: true,
+    }),
   });
   await expect(past).toContainText("Sin pago confirmado");
   await expect(current).toContainText("Sin pago confirmado");

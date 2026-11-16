@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { URLSearchParams } from "node:url";
 import { expect, test } from "@playwright/test";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import { formatInstallmentPeriod } from "../../src/domain/installments.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -92,7 +96,9 @@ test.describe("Calendario de Montevideo", () => {
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/recurrentes\\?serie=${id}`));
     const period = page.locator(`#periodo-${id}-0`);
-    await expect(period).toContainText(firstPeriod.slice(0, 7));
+    await expect(period).toContainText(
+      formatInstallmentPeriod(firstPeriod.slice(0, 7)),
+    );
     await expect(period).toContainText("Pago parcial");
     await expect(period).not.toContainText("Restante");
     await expect(
@@ -226,14 +232,18 @@ test("F4-02: depósitos desde Recurrentes, efectos reales y privacidad", async (
     "Sin cobro confirmado",
   );
   await period.getByRole("button", { name: "Registrar cobro" }).click();
-  await period.getByLabel("Fecha real de cobro").fill(first);
+  await period
+    .getByLabel("Fecha real de cobro")
+    .fill(formatBankReference(first));
   await period.getByLabel("Importe cobrado").fill("30000");
   await period.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect(period).toContainText("Cobro parcial");
   await expect(period).toContainText("30.000,00 UYU");
   await expect(period).not.toContainText("Restante");
   await period.getByRole("button", { name: "Registrar otro cobro" }).click();
-  await period.getByLabel("Fecha real de cobro").fill(second);
+  await period
+    .getByLabel("Fecha real de cobro")
+    .fill(formatBankReference(second));
   await period.getByLabel("Importe cobrado").fill("17000");
   await period.getByLabel("Eso fue todo lo cobrado en este período").check();
   await period.getByRole("button", { name: "Confirmar", exact: true }).click();
@@ -254,7 +264,10 @@ test("F4-02: depósitos desde Recurrentes, efectos reales y privacidad", async (
   await expect(page.getByRole("heading", { name: series })).toBeVisible();
   await expect(page.getByText("Período al que corresponde")).toBeVisible();
   await page
-    .getByRole("link", { name: reference.slice(0, 7), exact: true })
+    .getByRole("link", {
+      name: formatInstallmentPeriod(reference.slice(0, 7)),
+      exact: true,
+    })
     .click();
   await expect(period).toContainText("Cobrado completo");
   await page.goto("/resumen");
@@ -350,14 +363,22 @@ test("F4-02: vincula un pago existente y lo reparte entre períodos", async ({
   await period.getByText("Distribuir el pago entre varios períodos").click();
   await period.getByRole("button", { name: "Buscar otros períodos" }).click();
   await period
-    .getByRole("checkbox", { name: old.slice(0, 7), exact: true })
+    .getByRole("checkbox", {
+      name: formatInstallmentPeriod(old.slice(0, 7)),
+      exact: true,
+    })
     .check();
   for (const month of [recent, old]) {
     await period
-      .getByLabel(`Importe asignado a ${month.slice(0, 7)}`)
+      .getByLabel(
+        `Importe asignado a ${formatInstallmentPeriod(month.slice(0, 7))}`,
+      )
       .fill("1500");
     await period
-      .getByRole("group", { name: month.slice(0, 7), exact: true })
+      .getByRole("group", {
+        name: formatInstallmentPeriod(month.slice(0, 7)),
+        exact: true,
+      })
       .getByLabel("Con esto queda pagado el período")
       .check();
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthField, DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { FundSource } from "@/domain/fund-coverage";
@@ -613,10 +614,9 @@ function DateField({
 }) {
   return (
     <HistoryField label={label}>
-      <input
+      <DateInput
         className={historyControl}
         name={name}
-        type="date"
         min={min}
         max="9999-12-31"
         defaultValue={value ?? ""}
@@ -700,16 +700,14 @@ function PurchaseAssignment({
                 version: assignment.version,
               }}
             >
-              <HistoryField label="Ciclo informado por el emisor">
-                <input
-                  className={historyControl}
-                  name="assignedPeriod"
-                  type="month"
-                  min="0001-01"
-                  max="9999-12"
-                  defaultValue={assignment.assignedPeriod ?? ""}
-                />
-              </HistoryField>
+              <MonthField
+                label="Ciclo informado por el emisor"
+                variant="history"
+                name="assignedPeriod"
+                min="0001-01"
+                max="9999-12"
+                defaultValue={assignment.assignedPeriod ?? ""}
+              />
               <label className="flex min-h-11 items-center gap-2 text-sm">
                 <input
                   name="reviewed"

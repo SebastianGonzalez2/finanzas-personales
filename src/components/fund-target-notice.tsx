@@ -1,4 +1,4 @@
-import { formatBankAmount } from "@/domain/bank-balances";
+import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import { fundTargetNotices, type SavingsFund } from "@/domain/savings-funds";
 
 export function FundTargetMessage({
@@ -18,10 +18,10 @@ export function FundTargetMessage({
     formatBankAmount({ currency: fund.currency, amount: value });
 
   if (kind === "deadline")
-    return overdue && remaining !== null ? (
+    return overdue && fund.targetDate && remaining !== null ? (
       <p className="font-medium">
-        Pasó la fecha objetivo ({fund.targetDate}); aún faltan{" "}
-        {amount(remaining)}.
+        Pasó la fecha objetivo ({formatBankReference(fund.targetDate)}); aún
+        faltan {amount(remaining)}.
       </p>
     ) : null;
 
