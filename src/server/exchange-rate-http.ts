@@ -1,6 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import { withGoogleOwner } from "./google-auth.ts";
+import { refreshReferenceDates } from "./exchange-rates.ts";
 import { googlePrivateHeaders } from "./google-http.ts";
 import { authOrigin, limitedJson } from "./google-policy.ts";
 
@@ -52,4 +53,16 @@ export async function currencyRequest(
       error instanceof Error && error.message === "Acceso denegado" ? 401 : 503,
     );
   }
+}
+
+export function refreshOwnerReferences(
+  request: Request,
+  dates: string[],
+  today: string,
+) {
+  return refreshReferenceDates(
+    (work) => withGoogleOwner(request, (client) => work(client)),
+    dates,
+    today,
+  );
 }

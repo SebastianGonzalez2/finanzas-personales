@@ -17,7 +17,11 @@ import {
   type StatisticsTotal,
 } from "../domain/statistics.ts";
 import { listStatisticsPositions } from "./statistics-positions.ts";
-import { pinnedQuotes, prepareHistoricalQuotes } from "./exchange-rates.ts";
+import {
+  pendingHistoricalDates,
+  pinnedQuotes,
+  prepareHistoricalQuotes,
+} from "./exchange-rates.ts";
 import { consolidatePositions, positionKeys } from "./statistics-fx.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
@@ -215,7 +219,7 @@ async function flowKeys(
   return rows;
 }
 
-export async function prepareStatisticsFx(
+async function statisticsFxKeys(
   client: pg.PoolClient,
   ownerId: string,
   range: StatisticsRange,
@@ -224,7 +228,6 @@ export async function prepareStatisticsFx(
   filters: StatisticsFilters,
   schema: StatisticsSchema,
   target: Currency,
-  today: string,
 ) {
   const flows = await flowKeys(
     client,
@@ -243,13 +246,83 @@ export async function prepareStatisticsFx(
     range,
     filters.currency,
   );
+  return [...flows, ...positionKeys(positions)];
+}
+
+export async function prepareStatisticsFx(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  previous: StatisticsRange | null,
+  history: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target: Currency,
+  today: string,
+) {
   await prepareHistoricalQuotes(
     client,
     ownerId,
-    [...flows, ...positionKeys(positions)],
+    await statisticsFxKeys(
+      client,
+      ownerId,
+      range,
+      previous,
+      history,
+      filters,
+      schema,
+      target,
+    ),
     target,
     today,
   );
+}
+
+export async function statisticsReferenceDates(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  previous: StatisticsRange | null,
+  history: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target: Currency,
+) {
+  return pendingHistoricalDates(
+    client,
+    ownerId,
+    await statisticsFxKeys(
+      client,
+      ownerId,
+      range,
+      previous,
+      history,
+      filters,
+      schema,
+      target,
+    ),
+    target,
+  );
+}
+
+export async function summaryReferenceDates(
+  client: pg.PoolClient,
+  ownerId: string,
+  history: StatisticsRange,
+  target: Currency,
+) {
+  const schema = await statisticsReady(client);
+  if (!schema.ready) return [];
+  const inputs = await flowKeys(
+    client,
+    ownerId,
+    statisticsCte(schema),
+    history,
+    null,
+    { period: "mes-actual" },
+    target,
+  );
+  return pendingHistoricalDates(client, ownerId, inputs, target);
 }
 
 export async function summaryFlowFx(

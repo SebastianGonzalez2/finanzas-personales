@@ -70,64 +70,31 @@ export async function pinnedQuotes(
   return new Map(rows.map((quote) => [fxKey(quote), quote]));
 }
 
-async function refreshYears(
-  client: pg.PoolClient,
-  keys: FxKey[],
-  today: string,
-) {
-  const years = [
-    ...new Set(keys.map(({ date }) => Number(date.slice(0, 4)))),
-  ].sort((a, b) => a - b);
-  const refreshing = new Set<number>();
-  if (years.length === 0) return refreshing;
+type ReferenceTransaction = <T>(
+  work: (client: pg.PoolClient) => Promise<T>,
+) => Promise<T>;
+
+async function freshYears(client: pg.PoolClient, years: number[]) {
   const { rows } = await client.query<{ year: number }>(
     "SELECT year FROM finance.fx_reference_refreshes WHERE year = ANY($1::int[]) AND retry_at > now()",
     [years],
   );
-  const fresh = new Set(rows.map(({ year }) => year));
-  const expired = years.filter((year) => !fresh.has(year));
-  if (!expired.length) return refreshing;
-  // A contending request can use existing pins, but must not freeze a quote
-  // from the old cache for a year another request is currently refreshing.
-  const claims = await client.query<{ year: number; acquired: boolean }>(
-    `SELECT year, pg_try_advisory_xact_lock(50506, year) AS acquired
-       FROM unnest($1::int[]) AS years(year) ORDER BY year`,
-    [expired],
-  );
-  const acquired: number[] = [];
-  for (const claim of claims.rows) {
-    if (claim.acquired) acquired.push(claim.year);
-    else refreshing.add(claim.year);
-  }
-  if (!acquired.length) return refreshing;
-  const { rows: refreshed } = await client.query<{ year: number }>(
-    "SELECT year FROM finance.fx_reference_refreshes WHERE year = ANY($1::int[]) AND retry_at > now()",
-    [acquired],
-  );
-  const completed = new Set(refreshed.map(({ year }) => year));
-  const pending = acquired.filter((year) => !completed.has(year));
-  const batches: (Awaited<ReturnType<typeof fetchReferenceYear>> & {
-    year: number;
-  })[] = [];
-  // Fetch at most three windows concurrently. A Retry-After stops further waves.
-  for (let index = 0; index < pending.length; index += 3) {
-    const wave = await Promise.all(
-      pending.slice(index, index + 3).map(async (year) => ({
-        year,
-        ...(await fetchReferenceYear(year, today)),
-      })),
-    );
-    batches.push(...wave);
-    if (wave.some(({ retry }) => retry > 0)) {
-      for (const year of pending.slice(index + wave.length))
-        refreshing.add(year);
-      break;
-    }
-  }
-  const rates = batches.flatMap((batch) => batch.rates);
-  if (rates.length) {
-    // Adjacent windows overlap in December. All importers acquire row locks
-    // in the same order, including when they fetched different windows.
+  return new Set(rows.map(({ year }) => year));
+}
+
+type ReferenceBatch = Awaited<ReturnType<typeof fetchReferenceYear>>;
+
+async function storeReferenceYear(
+  client: pg.PoolClient,
+  year: number,
+  today: string,
+  batch: ReferenceBatch,
+) {
+  // The public cache lock is held only while importing, in a short transaction.
+  await client.query("SELECT pg_advisory_xact_lock(50506, $1)", [year]);
+  if ((await freshYears(client, [year])).has(year)) return;
+  if (batch.rates.length) {
+    // Adjacent windows overlap. Insert in a consistent order across importers.
     await client.query(
       `INSERT INTO finance.fx_reference_rates (base_currency, quote_currency, observed_on, source, rate)
            SELECT base, target, observed, source, rate
@@ -135,34 +102,81 @@ async function refreshYears(
                                                   observed date, source text, rate numeric)
             ORDER BY base, target, observed, source
            ON CONFLICT DO NOTHING`,
-      [JSON.stringify(rates)],
+      [JSON.stringify(batch.rates)],
     );
   }
-  for (const batch of batches) {
-    const pairs = (source: FxQuote["source"]) => [
-      ...new Set(
-        batch.rates
-          .filter((rate) => rate.source === source)
-          .map(({ base, target }) => `${base}/${target}`),
-      ),
-    ];
-    const delay = batch.complete
-      ? (batch.year < Number(today.slice(0, 4)) ? 30 : 1) * 86400
-      : 3600;
-    await client.query(
-      `INSERT INTO finance.fx_reference_refreshes (year, retry_at, primary_pairs, backup_pairs)
+  const pairs = (source: FxQuote["source"]) => [
+    ...new Set(
+      batch.rates
+        .filter((rate) => rate.source === source)
+        .map(({ base, target }) => `${base}/${target}`),
+    ),
+  ];
+  const delay = batch.complete
+    ? (year < Number(today.slice(0, 4)) ? 30 : 1) * 86400
+    : 3600;
+  await client.query(
+    `INSERT INTO finance.fx_reference_refreshes (year, retry_at, primary_pairs, backup_pairs)
        VALUES ($1, clock_timestamp() + $2::double precision * interval '1 second', $3, $4)
        ON CONFLICT (year) DO UPDATE SET retry_at = excluded.retry_at,
          primary_pairs = excluded.primary_pairs, backup_pairs = excluded.backup_pairs`,
-      [
-        batch.year,
-        Math.max(delay, batch.retry),
-        pairs("datosuruguay"),
-        pairs("frankfurter"),
-      ],
+    [
+      year,
+      Math.max(delay, batch.retry),
+      pairs("datosuruguay"),
+      pairs("frankfurter"),
+    ],
+  );
+}
+
+const inFlight = new Map<number, Promise<number>>();
+
+export async function refreshReferenceDates(
+  transaction: ReferenceTransaction,
+  dates: string[],
+  today: string,
+) {
+  const years = [
+    ...new Set(
+      dates.map((date) => Number((date > today ? today : date).slice(0, 4))),
+    ),
+  ].sort((a, b) => a - b);
+  if (!years.length) return;
+  const fresh = await transaction((client) => freshYears(client, years));
+  const pending = years.filter((year) => !fresh.has(year));
+  // Fetch outside the database. Share requests within the process; PostgreSQL
+  // rechecks freshness under the import lock across instances.
+  for (let index = 0; index < pending.length; index += 3) {
+    const wave = await Promise.all(
+      pending.slice(index, index + 3).map((year) => {
+        const existing = inFlight.get(year);
+        if (existing) return existing;
+        const job = fetchReferenceYear(year, today)
+          .then(async (batch) => {
+            await transaction((client) =>
+              storeReferenceYear(client, year, today, batch),
+            );
+            return batch.retry;
+          })
+          .finally(() => inFlight.delete(year));
+        inFlight.set(year, job);
+        return job;
+      }),
     );
+    if (wave.some((retry) => retry > 0)) break;
   }
-  return refreshing;
+}
+
+export async function pendingHistoricalDates(
+  client: pg.PoolClient,
+  ownerId: string,
+  keys: FxKey[],
+  target: Currency,
+) {
+  const existing = await pinnedQuotes(client, ownerId, keys, target);
+  return quoteInputs(keys, target)
+    .filter((key) => !existing.has(fxKey(key)))
+    .map(({ date }) => date);
 }
 
 // Index-backed lookup of the most recent observation from each provider.
@@ -197,14 +211,8 @@ export async function prepareHistoricalQuotes(
   target: Currency,
   today: string,
 ) {
-  const existing = await pinnedQuotes(client, ownerId, keys, target);
-  const pending = quoteInputs(keys, target).filter(
-    (key) => !existing.has(fxKey(key)),
-  );
-  if (!pending.length) return;
-  const refreshing = await refreshYears(client, pending, today);
-  const eligible = pending.filter(
-    ({ date }) => !refreshing.has(Number(date.slice(0, 4))),
+  const eligible = quoteInputs(keys, target).filter(
+    ({ date }) => date <= today,
   );
   if (!eligible.length) return;
   await client.query(
@@ -212,21 +220,20 @@ export async function prepareHistoricalQuotes(
      SELECT $2, k.date, k.base, k.target, r.observed_on, r.source
        FROM ${inputKeys}
        ${referenceCandidates}
+      WHERE s.retry_at > now() OR r.observed_on = k.date
       ORDER BY k.date, k.base
      ON CONFLICT DO NOTHING`,
     [JSON.stringify(eligible), ownerId],
   );
 }
 
-async function liveQuotes(
+export async function liveQuotes(
   client: pg.PoolClient,
   keys: FxKey[],
   target: Currency,
-  today: string,
 ) {
   const inputs = quoteInputs(keys, target);
   if (!inputs.length) return new Map<string, FxQuote>();
-  await refreshYears(client, inputs, today);
   const { rows } = await client.query<FxQuote>(
     `SELECT k.date::text, k.base, k.target, r.observed_on::text AS observed, r.source, r.rate::text
        FROM ${inputKeys}
@@ -247,7 +254,7 @@ export async function currentCurrencyValue(
       ({ amount, currency }) => currency !== target && /[1-9]/.test(amount),
     )
     .map(({ currency }) => ({ date: today, base: currency }));
-  const quotes = await liveQuotes(client, keys, target, today);
+  const quotes = await liveQuotes(client, keys, target);
   return {
     amount: amounts.length
       ? sumFx(

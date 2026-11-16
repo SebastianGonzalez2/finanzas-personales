@@ -21,7 +21,8 @@ import {
   displayCurrency,
   exchangeRatesReady,
 } from "@/server/exchange-rates";
-import { summaryFlowFx } from "@/server/statistics";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
+import { summaryFlowFx, summaryReferenceDates } from "@/server/statistics";
 import { summaryPeriods } from "@/domain/summary-period";
 import {
   summaryBudgets,
@@ -156,6 +157,30 @@ export default async function SummaryPage({
       redirect("/auth/sign-in");
     throw error;
   });
+
+  const fxDates = await withGoogleOwner(request, async (client, ownerId) => {
+    if (!(await exchangeRatesReady(client))) return [];
+    const dates = data.movementReadable
+      ? await summaryReferenceDates(
+          client,
+          ownerId,
+          periods.history,
+          data.currency,
+        )
+      : [];
+    if (
+      data.balances.some(
+        ({ currency, availableAmount, calculatedAmount, amount }) =>
+          currency !== data.currency &&
+          [availableAmount, calculatedAmount ?? amount].some((value) =>
+            /[1-9]/.test(value),
+          ),
+      )
+    )
+      dates.push(today);
+    return dates;
+  }).catch(() => []);
+  await refreshOwnerReferences(request, fxDates, today).catch(() => undefined);
 
   const fx = withGoogleOwner(request, async (client, ownerId) => {
     if (!(await exchangeRatesReady(client))) return null;
