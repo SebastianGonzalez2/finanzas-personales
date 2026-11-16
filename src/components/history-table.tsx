@@ -1,4 +1,4 @@
-import { formatBankAmount } from "@/domain/bank-balances";
+import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import {
   historyStates,
   type HistoryEntry,
@@ -135,15 +135,8 @@ export function HistoryTableAmount({ entry }: { entry: HistoryEntry }) {
   );
 }
 
-// Fecha corta del prototipo (dd/mm); fuera del año en curso se agrega el
-// año para no confundir registros de distintos años.
-export function HistoryDate({ iso, year }: { iso: string; year: string }) {
-  const [entryYear, month, day] = iso.split("-");
-  return (
-    <time dateTime={iso}>
-      {entryYear === year ? `${day}/${month}` : `${day}/${month}/${entryYear}`}
-    </time>
-  );
+export function HistoryDate({ iso }: { iso: string }) {
+  return <time dateTime={iso}>{formatBankReference(iso)}</time>;
 }
 
 // Comparación decimal exacta (sin pasar por números de coma flotante).

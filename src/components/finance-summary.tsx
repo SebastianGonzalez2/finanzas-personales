@@ -1,3 +1,4 @@
+import { MonthField } from "./ui/date-fields";
 import {
   bankCurrencies,
   formatBankAmount,
@@ -25,7 +26,7 @@ import Link from "next/link";
 import { Icon } from "./ui/icon";
 import { MovementForm } from "./movement-form";
 import type { MovementTag } from "@/domain/classification";
-import { HistoryField, historyButton, historyControl } from "./history-fields";
+import { historyButton } from "./history-fields";
 import { Card } from "./ui/card";
 
 import { summaryMonthEnd, type summaryPeriods } from "@/domain/summary-period";
@@ -41,12 +42,8 @@ import {
 } from "./glaciar-summary/summary-panels";
 import { TransferButton } from "./glaciar-summary/transfer-button";
 
-// Rótulos con el formato aprobado en UI-01: «Sábado 14 de noviembre» y
-// «Noviembre 2026» (solo presentación; el mes sigue saliendo de `period`).
-const dayParts = new Intl.DateTimeFormat("es-UY", {
+const weekday = new Intl.DateTimeFormat("es-UY", {
   weekday: "long",
-  day: "numeric",
-  month: "long",
   timeZone: "UTC",
 });
 const monthParts = new Intl.DateTimeFormat("es-UY", {
@@ -64,10 +61,8 @@ function capitalize(text: string) {
 }
 
 function headerDate(iso: string) {
-  const parts = dayParts.formatToParts(new Date(`${iso}T12:00:00Z`));
-  return capitalize(
-    `${part(parts, "weekday")} ${part(parts, "day")} de ${part(parts, "month")}`,
-  );
+  const day = weekday.format(new Date(`${iso}T12:00:00Z`));
+  return `${capitalize(day)} ${formatBankReference(iso)}`;
 }
 
 function headerMonth(period: string) {
@@ -187,19 +182,15 @@ export function FinanceSummary({
               method="get"
               className="mt-2 grid gap-2 pb-2"
             >
-              <HistoryField label="Elegir mes">
-                <input
-                  type="month"
-                  placeholder="AAAA-MM"
-                  pattern="[0-9]{4}-(0[1-9]|1[0-2])"
-                  name="month"
-                  required
-                  min="0001-01"
-                  max="9999-12"
-                  defaultValue={period}
-                  className={historyControl}
-                />
-              </HistoryField>
+              <MonthField
+                label="Elegir mes"
+                variant="history"
+                name="month"
+                required
+                min="0001-01"
+                max="9999-12"
+                defaultValue={period}
+              />
               <button type="submit" className={historyButton}>
                 Ver mes
               </button>

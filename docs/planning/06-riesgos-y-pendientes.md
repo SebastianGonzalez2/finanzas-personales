@@ -118,4 +118,24 @@ Las condiciones cambian: estos enlaces guían una **verificación actual** en F0
 
 ### Seguimiento de QA-FINAL
 
-- **QA-D02 — Localización de los controles de fecha y mes (pendiente).** En una interfaz en español, Chromium puede mostrar `11/16/2026` en el formulario de pago de Tarjetas y `December 2026` en el selector mensual de Presupuestos. La auditoría no observó valores guardados incorrectos. Evaluar en una tarea posterior una presentación coherente con español de Uruguay sin perder la accesibilidad de los controles nativos. Verificar en distintos navegadores y con teclado.
+- **QA-D02 — Localización de los controles de fecha y mes (en revisión).** Rama `codex/QA-D02-fechas-es-UY`; [implementación](https://github.com/SebastianGonzalez2/finanzas-personales/commit/ce03a5b0228fac40d75b0ce5da0c3a4988101ded).
+
+**Causa reproducida (2026-11-16).** Con locale de navegador `en-US` y `lang="es-UY"` declarado tanto en la página como en los controles nativos, Chrome 157 y Edge 157 mostraron `11/16/2026` y `December 2026`. El árbol de accesibilidad expuso «Month», «Day» y «Year». Firefox 159 degradó el campo de mes a texto ISO; WebKit 27.2 de Playwright para Windows degradó ambos a texto ISO. Los valores ISO se conservaron en la reproducción. El [estándar HTML](https://html.spec.whatwg.org/multipage/input.html#date-state-(type=date)) distingue la interfaz de entrada del valor enviado y deja la presentación al navegador.
+
+**Corrección.** Campo de fecha con teclado numérico y validación en español; admite escribir los ocho dígitos seguidos y los presenta como DD/MM/AAAA. Mes con selector nativo de nombres en español y campo de año. Se conservan etiquetas, orden de tabulación, campos obligatorios u opcionales, límites existentes y valores `AAAA-MM-DD` / `AAAA-MM` en la URL, formularios y solicitudes, según el flujo. También se localizaron las fechas y períodos que aún se mostraban como claves ISO. No cambia la API, la base ni las reglas financieras.
+
+**Matriz local (2026-11-16).** Pasaron **16/16** con `npx --no-install playwright test --config playwright.localized-dates.config.mjs` y [PostgreSQL desechable](../testing.md#postgresql-desechable). Todos los perfiles usaron `en-US`. En Firefox, el perfil móvil usó tamaño de pantalla y entrada táctil emulados.
+
+| Navegador en Windows | Escritorio (1440 × 900) | Móvil emulado (390 × 844) |
+|---|---:|---:|
+| Chrome 157.0.8103.51 | 2/2 | 2/2 |
+| Edge 157.0.4341.60 | 2/2 | 2/2 |
+| Firefox 159.0 (Playwright) | 2/2 | 2/2 |
+| WebKit 27.2 (Playwright) | 2/2 | 2/2 |
+
+- **Tarjetas:** se rechazaron el formato estadounidense, una fecha imposible, una posterior a la fecha máxima y un campo obligatorio vacío. Escribir `29022024` con el teclado mostró `29/02/2024`. El pago respondió HTTP 201 con `effectiveOn: "2024-02-29"` en la solicitud, y el detalle guardado mostró `29/02/2024`.
+- **Presupuestos:** los doce nombres estaban en español, Tab pasó del mes al año y el envío con año vacío fue bloqueado con un mensaje en español. Elegir diciembre de 2024 consultó `?month=2024-12` y conservó la selección.
+- **Capturas:** [reproducción con controles nativos](../evidence/qa-d02/controles-nativos-chrome.png), [fecha en Tarjetas](../evidence/qa-d02/tarjetas-fecha.png) y [mes en Presupuestos](../evidence/qa-d02/presupuestos-mes.png). Las dos últimas son de Chrome en modo móvil emulado, con datos sintéticos.
+- **Otros checks:** `npm run check`, `npm run test:unit` (244/244), `npm run test:integration` (138/138) `npm run test:e2e` en Chrome (44/44) y `npm run test:e2e:finance` en Chrome (128 aprobadas; 10 variantes móviles de seguridad omitidas por diseño y ejecutadas en escritorio).
+- **Seguimiento de CI:** el primer check F0 database pasó las pruebas de fechas y falló al pulsar «Finalizar» en el tutorial. En una ejecución local repetida también se perdió un clic al avanzar al último paso. La prueba ahora recorre los pasos con Enter y espera a que se ubique el recuadro de Ayuda antes del clic de cierre. Pasaron 32 ejecuciones en Chromium con PostgreSQL desechable. [Check inicial de GitHub Actions](https://github.com/SebastianGonzalez2/finanzas-personales/actions/runs/43971283811/job/133663782841).
+- **Límite de la verificación:** las pruebas móviles son emuladas. Falta una revisión en dispositivos físicos con Safari/iOS y Chrome/Android, y con un lector de pantalla real. WebKit de Playwright para Windows no equivale a Safari.

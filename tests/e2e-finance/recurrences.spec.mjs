@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import { formatInstallmentPeriod } from "../../src/domain/installments.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -28,17 +32,22 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
   ).toBeVisible();
   await openCreator(page);
   await expect(page.getByLabel("Frecuencia")).toHaveValue("monthly");
-  await expect(page.getByLabel("Comienza en")).toHaveValue(today);
+  await expect(page.getByLabel("Comienza en")).toHaveValue(
+    formatBankReference(today),
+  );
   await page.getByLabel("Concepto").fill("Seguro sintético de enero");
-  await page.getByLabel("Comienza en").fill(firstPeriod);
+  await page.getByLabel("Comienza en").fill(formatBankReference(firstPeriod));
   await page
     .getByRole("combobox", { name: "Vencimiento", exact: true })
     .selectOption("approximate");
   await page.getByLabel("Importe de referencia (opcional)").fill("125,1234");
   await expect(
-    page.getByText(`Primer período ${firstPeriod.slice(0, 7)}`, {
-      exact: false,
-    }),
+    page.getByText(
+      `Primer período ${formatInstallmentPeriod(firstPeriod.slice(0, 7))}`,
+      {
+        exact: false,
+      },
+    ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Guardar recurrencia" }).click();
   const list = page.getByRole("list", { name: "Recurrencias guardadas" });

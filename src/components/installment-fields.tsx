@@ -1,5 +1,6 @@
 "use client";
 
+import { MonthField } from "./ui/date-fields";
 import { useState } from "react";
 import {
   formatInstallmentTotal,
@@ -65,19 +66,15 @@ export function InstallmentFields({
           onChange={(event) => setQuantity(event.target.value)}
         />
       </HistoryField>
-      <HistoryField label="Mes de la primera cuota">
-        <input
-          name="firstPeriod"
-          type="month"
-          placeholder="AAAA-MM"
-          pattern="[0-9]{4}-(0[1-9]|1[0-2])"
-          required
-          min="0001-01"
-          max="9999-12"
-          defaultValue={firstPeriod}
-          className={historyControl}
-        />
-      </HistoryField>
+      <MonthField
+        label="Mes de la primera cuota"
+        variant="history"
+        name="firstPeriod"
+        required
+        min="0001-01"
+        max="9999-12"
+        defaultValue={firstPeriod}
+      />
       <output className="self-end pb-2 text-sm font-semibold wrap-anywhere">
         Total financiado · {total || "—"}
       </output>

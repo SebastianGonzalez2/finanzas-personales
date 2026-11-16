@@ -72,7 +72,7 @@ test("F6-01 CA-010/014/018/019/065: saldo calculado, fecha futura, desconexión 
   const uyu = balances(page)
     .getByRole("listitem")
     .filter({ hasText: "Saldo bancario 10.000,00 UYU" });
-  await expect(uyu).toContainText("Saldo confirmado el 01/01");
+  await expect(uyu).toContainText("Saldo confirmado el 01/01/2025");
   await expect(uyu.locator("time").first()).toHaveAttribute(
     "datetime",
     "2025-01-01",

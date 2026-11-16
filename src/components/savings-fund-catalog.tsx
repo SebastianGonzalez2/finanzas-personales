@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -8,7 +9,11 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { bankCurrencies, formatBankAmount } from "@/domain/bank-balances";
+import {
+  bankCurrencies,
+  formatBankAmount,
+  formatBankReference,
+} from "@/domain/bank-balances";
 import {
   contributionPending,
   type ContributionChange,
@@ -126,7 +131,7 @@ function TargetProgress({ fund, today }: { fund: SavingsFund; today: string }) {
               saving && (
                 <p className="lab-muted">
                   Ahorro mensual orientativo: {formatFundAmount(fund, saving)}{" "}
-                  hasta {fund.targetDate}.
+                  hasta {formatBankReference(fund.targetDate)}.
                 </p>
               )
             );
@@ -410,7 +415,8 @@ function FundEntry({
             {fund.targetAmount
               ? `Meta ${formatFundAmount(fund, fund.targetAmount)}`
               : "Sin meta"}
-            {fund.targetDate && ` · Fecha objetivo ${fund.targetDate}`}
+            {fund.targetDate &&
+              ` · Fecha objetivo ${formatBankReference(fund.targetDate)}`}
           </p>
         </div>
       </div>
@@ -465,7 +471,7 @@ function FundEntry({
       )}
       {closure && (
         <p className="gs-fund__text">
-          Cerrado el {closure.closedOn}. Se liberaron{" "}
+          Cerrado el {formatBankReference(closure.closedOn)}. Se liberaron{" "}
           {formatFundAmount(fund, closure.amount)} al disponible libre.
         </p>
       )}
@@ -570,7 +576,8 @@ function FundClosure({
           <ul className="gs-effects">
             {periods.map((period) => (
               <li key={period.id}>
-                {period.scheduledOn} · {formatBankAmount(period)}
+                {formatBankReference(period.scheduledOn)} ·{" "}
+                {formatBankAmount(period)}
               </li>
             ))}
           </ul>
@@ -903,9 +910,8 @@ function FundEditor({
                 />
               </Field>
               <Field label="Fecha objetivo (opcional)">
-                <Input
+                <DateInput
                   name="targetDate"
-                  type="date"
                   defaultValue={fund.targetDate ?? ""}
                 />
               </Field>

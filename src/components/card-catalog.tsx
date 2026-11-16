@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -702,8 +703,7 @@ function CardEditor({
               selected.length > 0 && (
                 <div className="gs-form__grid">
                   <Field label="Fecha de deuda inicial">
-                    <Input
-                      type="date"
+                    <DateInput
                       name="openingOn"
                       max={today}
                       defaultValue={today}

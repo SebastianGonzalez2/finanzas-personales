@@ -1,3 +1,4 @@
+import { MonthField } from "@/components/ui/date-fields";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -6,7 +7,6 @@ import { NameCatalog } from "@/components/name-catalog";
 import { FinanceShell } from "@/components/finance-shell";
 import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
 import { buttonClass } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { withGoogleOwner } from "@/server/google-auth";
 import { listMerchantTotals } from "@/server/movements";
@@ -87,15 +87,14 @@ export default async function CatalogPage({
                 method="get"
                 className="flex items-end gap-2"
               >
-                <Field label="Mes" className="flex-1">
-                  <Input
-                    type="month"
-                    name="month"
-                    defaultValue={month}
-                    max={currentMonth}
-                    required
-                  />
-                </Field>
+                <MonthField
+                  label="Mes"
+                  className="flex-1"
+                  name="month"
+                  defaultValue={month}
+                  max={currentMonth}
+                  required
+                />
                 <button type="submit" className={buttonClass("outline")}>
                   Consultar
                 </button>

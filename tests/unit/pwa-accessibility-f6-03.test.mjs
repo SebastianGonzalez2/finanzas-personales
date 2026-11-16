@@ -153,5 +153,5 @@ test("F6-03: el layout declara color de tema y registra los avisos globales", ()
   assert.match(layout, /themeColor: "#070a0d"/);
   assert.match(layout, /<ConnectionStatus \/>/);
   assert.match(layout, /<FormValidation \/>/);
-  assert.match(layout, /lang="es"/);
+  assert.match(layout, /lang="es-UY"/);
 });

@@ -7,7 +7,7 @@ test("CA-066 (parcial): entrada sin sesión en español, sin desborde y con salt
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page).toHaveURL(/\/auth\/sign-in$/);
-  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(page.locator("html")).toHaveAttribute("lang", "es-UY");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Tu espacio personal",
   );

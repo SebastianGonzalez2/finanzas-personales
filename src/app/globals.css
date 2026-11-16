@@ -542,6 +542,24 @@
     cursor: pointer;
   }
 
+  .ui-month-controls {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .ui-month-controls select {
+    flex: 1 1 7.75rem;
+    padding-inline: 8px 28px;
+    background-position: right 8px center;
+  }
+
+  .ui-month-controls input[type="text"] {
+    flex: 0 1 4.5rem;
+    padding-inline: 8px;
+  }
+
   .ui-search {
     display: flex;
     min-height: 44px;

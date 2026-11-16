@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -599,13 +600,12 @@ export function MovementForm({
                   {!needsBalances && (
                     <label className="space-y-1 text-sm">
                       <span>Fecha</span>
-                      <input
+                      <DateInput
                         name="effectiveOn"
-                        type="date"
                         required
                         max={today}
                         value={effectiveOn}
-                        onChange={(event) => setEffectiveOn(event.target.value)}
+                        onValueChange={setEffectiveOn}
                         className={control}
                         aria-describedby="fecha-transaccion-ayuda"
                       />

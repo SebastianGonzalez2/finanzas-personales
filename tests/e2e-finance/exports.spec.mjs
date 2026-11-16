@@ -1,3 +1,4 @@
+import { formatBankReference } from "../../src/domain/bank-balances.ts";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
@@ -98,8 +99,12 @@ test("F5-07 CA-061: descarga tres formatos privados y conserva las reglas contab
     ).toBe(403);
 
     await page.goto("/informes");
-    await page.getByLabel("Desde", { exact: true }).fill(period.from);
-    await page.getByLabel("Hasta", { exact: true }).fill(period.to);
+    await page
+      .getByRole("textbox", { name: "Desde", exact: true })
+      .fill(formatBankReference(period.from));
+    await page
+      .getByRole("textbox", { name: "Hasta", exact: true })
+      .fill(formatBankReference(period.to));
     const downloadEvent = page.waitForEvent("download");
     const exportResponse = page.waitForResponse((response) =>
       response.url().endsWith(report),

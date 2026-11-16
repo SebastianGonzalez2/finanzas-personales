@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { chooseMonth } from "../support/month-field.mjs";
 import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
 import { installmentPeriodAt } from "../../src/domain/installments.ts";
 import {
@@ -74,7 +75,7 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
   await page.getByLabel("Importe original de la compra").fill("50");
   await page.getByLabel("Moneda original").selectOption("EUR");
   await page.getByLabel("Cantidad de cuotas").fill("3");
-  await page.getByLabel("Mes de la primera cuota").fill(firstPeriod);
+  await chooseMonth(page, "Mes de la primera cuota", firstPeriod);
   await page
     .getByLabel("Cargo confirmado por el emisor (opcional)")
     .fill("6000");

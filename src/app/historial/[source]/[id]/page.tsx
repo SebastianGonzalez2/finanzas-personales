@@ -1,3 +1,4 @@
+import { recurrencePeriodLabel } from "@/lib/recurrence-period-label";
 import Link from "next/link";
 import { listEventFundUses, listFundSources } from "@/server/fund-coverage";
 import { headers } from "next/headers";
@@ -364,7 +365,7 @@ export default async function HistoryDetail({
                       key={key}
                       href={`/recurrentes?serie=${seriesId}&hasta=${index}#periodo-${seriesId}-${index}`}
                     >
-                      {key}
+                      {recurrencePeriodLabel(key)}
                     </Link>
                   ))}
                 </dd>
@@ -734,7 +735,9 @@ export default async function HistoryDetail({
                   }) => (
                     <li key={version}>
                       <p>
-                        Versión {version} · {recordedOn}
+                        Versión {version} ·{" "}
+                        {formatBankReference(recordedOn.slice(0, 10))}
+                        {recordedOn.slice(10)}
                       </p>
                       <p>
                         {concept} · {category ?? "Sin categorizar"}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { chooseMonth } from "../support/month-field.mjs";
 import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
 import { installmentPeriodAt } from "../../src/domain/installments.ts";
 import {
@@ -89,7 +90,7 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
       .check();
     await page.getByLabel("Importe de cada cuota").fill("2000");
     await page.getByLabel("Cantidad de cuotas").fill("3");
-    await page.getByLabel("Mes de la primera cuota").fill(month);
+    await chooseMonth(page, "Mes de la primera cuota", month);
     await page
       .getByLabel("Cargo confirmado por el emisor (opcional)")
       .fill("2000");
@@ -113,7 +114,7 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
       .getByRole("group", { name: "Mes del reporte" })
       .locator("summary")
       .click();
-    await page.getByLabel("Elegir mes").fill(periods[1]);
+    await chooseMonth(page, "Elegir mes", periods[1]);
     await button("Ver mes").click();
     await expect(report).toContainText("Cuota 2");
     await expect(expenses).toHaveText("2.000,00 UYU");
@@ -156,7 +157,7 @@ test("F2-03: plan de cuotas, reporte mensual y corrección auditada", async ({
       page.getByText("Cargo confirmado por el emisor · 2.000,00 UYU"),
     ).toBeVisible();
     await button("Corregir plan").click();
-    await page.getByLabel("Mes de la primera cuota").fill(periods[1]);
+    await chooseMonth(page, "Mes de la primera cuota", periods[1]);
     await page.getByLabel("Importe de cada cuota").fill("1900.0001");
     await button("Guardar corrección").click();
     await expect(page.getByText("Historial del plan (2)")).toBeVisible();

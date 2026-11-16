@@ -29,7 +29,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={jakarta.variable}>
+    <html lang="es-UY" className={jakarta.variable}>
       <body>
         <a
           href="#contenido"

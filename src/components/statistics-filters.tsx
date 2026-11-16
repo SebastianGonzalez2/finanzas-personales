@@ -1,3 +1,4 @@
+import { DateInput } from "./ui/date-fields";
 import Link from "next/link";
 import { bankCurrencies } from "@/domain/bank-balances";
 import type { Currency } from "@/domain/money";
@@ -8,7 +9,7 @@ import {
 } from "@/domain/statistics";
 import { movementDisplayMethods } from "@/domain/movements";
 import { buttonClass } from "./ui/button";
-import { Field, Input, Select } from "./ui/field";
+import { Field, Select } from "./ui/field";
 import { Icon } from "./ui/icon";
 import { TagFields } from "./classification-fields";
 import type { MovementTag } from "@/domain/classification";
@@ -175,24 +176,19 @@ export function StatisticsFiltersForm({
               </Field>
             )}
             <Field label="Desde">
-              <Input name="from" type="date" defaultValue={filters.from} />
+              <DateInput name="from" defaultValue={filters.from} />
             </Field>
             <Field label="Hasta">
-              <Input name="to" type="date" defaultValue={filters.to} />
+              <DateInput name="to" defaultValue={filters.to} />
             </Field>
             <Field label="Comparar desde">
-              <Input
+              <DateInput
                 name="compareFrom"
-                type="date"
                 defaultValue={filters.compareFrom}
               />
             </Field>
             <Field label="Comparar hasta">
-              <Input
-                name="compareTo"
-                type="date"
-                defaultValue={filters.compareTo}
-              />
+              <DateInput name="compareTo" defaultValue={filters.compareTo} />
             </Field>
           </div>
           <p className="lab-muted mt-2 text-xs">

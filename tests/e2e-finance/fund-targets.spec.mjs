@@ -66,7 +66,7 @@ test("F3-04: fecha vencida, aporte exacto, aviso, reactivación y cierre", async
   await page.goto("/fondos");
   await page.getByRole("button", { name: "Editar Meta sintética" }).click();
   await page.getByLabel("Meta (UYU, opcional)").fill("2000");
-  await page.getByLabel("Fecha objetivo (opcional)").fill("2020-12-01");
+  await page.getByLabel("Fecha objetivo (opcional)").fill("01/12/2020");
   await page.getByRole("button", { name: "Guardar fondo" }).click();
   await expect(
     page.getByText(/Pasó la fecha objetivo.*400,00 UYU/),

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { type FundPortion, type FundSource } from "@/domain/fund-coverage";
@@ -177,8 +178,7 @@ export function HistoryEditor({
               className="grid min-w-0 gap-3 sm:grid-cols-2"
             >
               <HistoryField label="Fecha">
-                <input
-                  type="date"
+                <DateInput
                   name="effectiveOn"
                   required
                   max={today}

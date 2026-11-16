@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui/date-fields";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   bankCurrencies,
@@ -328,14 +329,13 @@ export function CreditOperationForm({
         <HistoryField
           label={action === "adjustment" ? "Fecha de referencia" : "Fecha"}
         >
-          <input
+          <DateInput
             className={historyControl}
             name="effectiveOn"
-            type="date"
             required
             max={today}
             value={effectiveOn}
-            onChange={(event) => setEffectiveOn(event.target.value)}
+            onValueChange={setEffectiveOn}
           />
         </HistoryField>
         {action === "payment" ? (

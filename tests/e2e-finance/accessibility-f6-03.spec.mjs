@@ -344,7 +344,7 @@ test("QA-D01: el pago de Tarjetas se puede recorrer entero con Tab sin que la ba
     const heading = page.getByRole("heading", {
       name: "Registrar pago · Tarjeta sintética de teclado",
     });
-    const date = page.getByLabel("Fecha", { exact: true });
+    const date = page.getByRole("textbox", { name: "Fecha", exact: true });
     const debt = page.getByRole("checkbox", { name: /Abonar deuda en UYU/ });
     const submit = page.getByRole("button", {
       name: "Registrar pago",

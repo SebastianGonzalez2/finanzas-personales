@@ -1,3 +1,4 @@
+import { MonthField } from "@/components/ui/date-fields";
 import { headers } from "next/headers";
 import { listCatalogCategories } from "@/server/categories";
 import { notFound, redirect } from "next/navigation";
@@ -5,11 +6,7 @@ import { CardCycleDetail } from "@/components/card-cycle-detail";
 import { ReturnCreditForm } from "@/components/refund-form";
 import { FinanceShell } from "@/components/finance-shell";
 import { PageHead, Screen } from "@/components/glaciar/screen";
-import {
-  HistoryField,
-  historyButton,
-  historyControl,
-} from "@/components/history-fields";
+import { historyButton } from "@/components/history-fields";
 import { Icon } from "@/components/ui/icon";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import {
@@ -135,17 +132,15 @@ export default async function StatementPage({
                 )}
               </div>
               <form method="get" className="gs-actions items-end">
-                <HistoryField label="Mes de cierre">
-                  <input
-                    name="ciclo"
-                    type="month"
-                    min="0001-01"
-                    max="9999-12"
-                    required
-                    defaultValue={period}
-                    className={historyControl}
-                  />
-                </HistoryField>
+                <MonthField
+                  label="Mes de cierre"
+                  variant="history"
+                  name="ciclo"
+                  min="0001-01"
+                  max="9999-12"
+                  required
+                  defaultValue={period}
+                />
                 <button type="submit" className={historyButton}>
                   Ver ciclo
                 </button>

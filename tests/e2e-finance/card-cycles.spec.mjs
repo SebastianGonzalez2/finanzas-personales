@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -92,7 +95,9 @@ test("F2-04: resumen oficial y pago desde un aviso en escritorio y móvil", asyn
     await official.click();
     await page.getByLabel("Total oficial en UYU").fill("5500");
     await page.getByLabel("Mínimo oficial en UYU").fill("1000");
-    await page.getByLabel("Vencimiento oficial en UYU").fill(today);
+    await page
+      .getByLabel("Vencimiento oficial en UYU")
+      .fill(formatBankReference(today));
     await page.getByRole("button", { name: "Guardar resumen UYU" }).click();
     await expect(
       page.getByText(/Diferencia pendiente de revisión · \+1\.500,00 UYU/),

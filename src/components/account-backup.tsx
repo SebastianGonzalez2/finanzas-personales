@@ -237,8 +237,11 @@ export function AccountBackup() {
                 <p>
                   Copia del{" "}
                   {new Intl.DateTimeFormat("es-UY", {
-                    dateStyle: "long",
-                    timeStyle: "short",
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
                     timeZone: "America/Montevideo",
                   }).format(new Date(preview.createdAt))}
                   .

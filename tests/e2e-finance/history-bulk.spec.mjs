@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -100,7 +103,9 @@ test("F5-04: aplicar categoría, guardar el período y respetar el titular", asy
     await expect(more).toHaveAttribute("aria-expanded", "false");
     await more.click();
     await expect(more).toHaveAttribute("aria-expanded", "true");
-    await page.getByLabel("Desde", { exact: true }).fill(today);
+    await page
+      .getByLabel("Desde", { exact: true })
+      .fill(formatBankReference(today));
     const period = page.getByRole("combobox", {
       name: "Período",
       exact: true,
