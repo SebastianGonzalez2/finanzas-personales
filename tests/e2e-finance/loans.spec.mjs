@@ -6,6 +6,13 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
+// UI-05F: «Nueva obligación» es un disclosure; se abre solo si está cerrado.
+async function openCreator(page) {
+  const creator = page.locator("details.gs-creator");
+  if (!(await creator.evaluate((node) => node.open)))
+    await creator.locator("summary").click();
+}
+
 test("F2-07: pago multimoneda con los dos importes en Historial", async ({
   page,
   context,
@@ -89,6 +96,7 @@ test("F2-06: alta, pago sin desglose, ajuste e historial privado", async ({
       ).status(),
     ).toBe(201);
     await page.goto("/deudas");
+    await openCreator(page);
     await page
       .getByRole("combobox", { name: "Operación" })
       .selectOption("borrow");
