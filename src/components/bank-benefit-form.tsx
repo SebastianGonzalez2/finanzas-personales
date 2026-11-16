@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useFinancialCommand } from "@/components/financial-command";
 import {
-  AmountInput,
-  HistoryField,
-  historyButton,
-  historyControl,
-  historyPrimary,
-} from "@/components/history-fields";
+  FormFoot,
+  FormPanel,
+  RowIcon,
+  StateTag,
+} from "@/components/glaciar/screen";
+import { AmountInput } from "@/components/history-fields";
+import { buttonClass } from "@/components/ui/button";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import {
   bankCurrencies,
   formatBankAmount,
@@ -54,39 +56,58 @@ export function BankBenefitRecord({
     formatBankAmount({ currency: entry.currency, amount });
   const active = entry.status === "confirmed";
   return (
-    <div className="grid gap-2 py-3 text-sm wrap-anywhere">
-      <p className="font-semibold">
-        {link ? (
-          <Link
-            href={`/historial/movimientos/${entry.id}`}
-            className="underline"
+    <div className="gs-benefit wrap-anywhere">
+      <div className="gs-benefit__top">
+        <RowIcon name="benefits" accent={active} />
+        <div className="gs-row__main">
+          <p
+            className={`gs-row__title ${active ? "" : "text-(--glaciar-faint) line-through"}`}
           >
-            {entry.concept}
-          </Link>
-        ) : (
-          entry.concept
-        )}{" "}
-        · {format(entry.amount)} · {formatBankReference(entry.effectiveOn)}
-        {!active && " · Anulado"}
-      </p>
-      <p>
+            {link ? (
+              <Link
+                href={`/historial/movimientos/${entry.id}`}
+                className="underline"
+              >
+                {entry.concept}
+              </Link>
+            ) : (
+              entry.concept
+            )}
+          </p>
+          <p className="gs-row__sub">
+            {formatBankReference(entry.effectiveOn)} ·{" "}
+            {entry.destination === "bank"
+              ? "Bancos"
+              : `Abono en ${entry.card ?? "la tarjeta"}`}
+          </p>
+        </div>
+        <div className="gs-row__aside">
+          <span
+            className={`gs-row__amount ${active ? "is-positive" : "lab-muted"}`}
+          >
+            {format(entry.amount)}
+          </span>
+          {!active && <StateTag tone="neutral">Anulado</StateTag>}
+        </div>
+      </div>
+      <p className="gs-row__sub">
         {entry.destination === "bank"
           ? "Acreditado en Bancos. Registrado como ingreso por beneficio bancario."
           : `Abono en ${entry.card ?? "la tarjeta"}. Reducción de deuda · ${format(entry.debtReduced)}. Saldo a favor generado · ${format(entry.creditDelta)}. No genera un depósito en Bancos.`}
       </p>
-      {entry.note && <p>{entry.note}</p>}
+      {entry.note && <p className="gs-row__sub">{entry.note}</p>}
       {active &&
         (review ? (
-          <div className="grid gap-2">
+          <div className="gs-confirm">
             <p>
               Se anulará el registro de la app y se revertirá su efecto en{" "}
               {entry.destination === "bank" ? "Bancos" : "la tarjeta"}. Las
               compras originales no cambian.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="gs-actions">
               <button
                 type="button"
-                className={historyButton}
+                className={buttonClass("outline", "gs-btn-danger")}
                 disabled={pending}
                 onClick={async () => {
                   if (await send({ action: "void", eventId: entry.id })) {
@@ -99,7 +120,7 @@ export function BankBenefitRecord({
               </button>
               <button
                 type="button"
-                className={historyButton}
+                className={buttonClass("ghost")}
                 disabled={pending || uncertain}
                 onClick={() => setReview(false)}
               >
@@ -110,13 +131,17 @@ export function BankBenefitRecord({
         ) : (
           <button
             type="button"
-            className={`${historyButton} w-fit`}
+            className={buttonClass("outline", "w-fit")}
             onClick={() => setReview(true)}
           >
             Anular este registro
           </button>
         ))}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -212,116 +237,125 @@ export function BankBenefitForm({
   }
 
   return (
-    <section
-      aria-label="Registrar beneficio bancario"
-      className="grid gap-3 rounded-lg border p-3"
+    <FormPanel
+      labelId="form-beneficio"
+      title="Registrar beneficio bancario"
+      description="Si es la devolución de una compra, registrala desde esa compra en el Historial."
     >
-      <h2 className="font-semibold">Registrar beneficio bancario</h2>
-      <p className="text-sm">
-        Para cashback o bonificaciones que el banco ya acreditó y que no
-        corresponden a una compra concreta. Si es la devolución de una compra,
-        registrala desde esa compra en el Historial.
-      </p>
-      <form key={round} className="grid gap-3" onSubmit={prepare}>
-        <fieldset disabled={!!preview || pending} className="grid gap-3">
-          <HistoryField label="¿Dónde se acreditó?">
-            <select
-              className={historyControl}
-              value={destination}
-              onChange={(event) =>
-                setDestination(event.target.value as BankBenefitDestination)
-              }
-            >
-              {(Object.keys(destinationLabels) as BankBenefitDestination[])
-                .filter((key) => key === "bank" || cards.length > 0)
-                .map((key) => (
-                  <option key={key} value={key}>
-                    {destinationLabels[key]}
-                  </option>
-                ))}
-            </select>
-          </HistoryField>
-          {destination === "card" && (
-            <HistoryField label="Tarjeta">
-              <select
-                className={historyControl}
-                value={cardId}
-                onChange={(event) => setCardId(event.target.value)}
+      <form key={round} className="grid gap-4" onSubmit={prepare}>
+        <fieldset
+          disabled={!!preview || pending}
+          className="grid min-w-0 gap-4 border-0 p-0"
+        >
+          <div className="gs-form__grid">
+            <Field label="¿Dónde se acreditó?">
+              <Select
+                value={destination}
+                onChange={(event) =>
+                  setDestination(event.target.value as BankBenefitDestination)
+                }
               >
-                {cards.map(({ id, name }) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </HistoryField>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <HistoryField label="Importe acreditado">
+                {(Object.keys(destinationLabels) as BankBenefitDestination[])
+                  .filter((key) => key === "bank" || cards.length > 0)
+                  .map((key) => (
+                    <option key={key} value={key}>
+                      {destinationLabels[key]}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+            {destination === "card" && (
+              <Field label="Tarjeta">
+                <Select
+                  value={cardId}
+                  onChange={(event) => setCardId(event.target.value)}
+                >
+                  {cards.map(({ id, name }) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            <p className="gs-hint gs-form__full">
+              {destination === "bank"
+                ? "Sube el saldo en Bancos y se registra como ingreso por beneficio bancario."
+                : "Reduce la deuda de la tarjeta; el excedente queda como saldo a favor. No crea un depósito en Bancos."}
+            </p>
+            <Field label="Importe acreditado">
               <AmountInput name="amount" required />
-            </HistoryField>
-            <HistoryField label="Moneda">
-              <select
-                name="currency"
-                className={historyControl}
-                key={`${destination}-${cardId}`}
-              >
+            </Field>
+            <Field label="Moneda">
+              <Select name="currency" key={`${destination}-${cardId}`}>
                 {currencies.map((code) => (
                   <option key={code} value={code}>
                     {code}
                   </option>
                 ))}
-              </select>
-            </HistoryField>
+              </Select>
+            </Field>
+            <Field label="Fecha de acreditación">
+              <Input
+                name="effectiveOn"
+                type="date"
+                defaultValue={today}
+                max={today}
+                required
+              />
+            </Field>
+            <Field label="Concepto (opcional)">
+              <Input
+                name="concept"
+                maxLength={benefitConceptLimit}
+                placeholder={defaultBenefitConcept}
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="Nota (opcional)" className="gs-form__full">
+              <Textarea name="note" maxLength={benefitNoteLimit} rows={2} />
+            </Field>
+            <label className="gs-check gs-form__full">
+              <input name="credited" type="checkbox" required />
+              El banco ya acreditó este importe
+            </label>
           </div>
-          <HistoryField label="Fecha de acreditación">
-            <input
-              name="effectiveOn"
-              type="date"
-              className={historyControl}
-              defaultValue={today}
-              max={today}
-              required
-            />
-          </HistoryField>
-          <HistoryField label="Concepto (opcional)">
-            <input
-              name="concept"
-              className={historyControl}
-              maxLength={benefitConceptLimit}
-              placeholder={defaultBenefitConcept}
-              autoComplete="off"
-            />
-          </HistoryField>
-          <HistoryField label="Nota (opcional)">
-            <textarea
-              name="note"
-              className={historyControl}
-              maxLength={benefitNoteLimit}
-              rows={2}
-            />
-          </HistoryField>
-          <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
-            <input name="credited" type="checkbox" required />
-            El banco ya acreditó este importe
-          </label>
-          <button type="submit" className={`${historyButton} w-fit`}>
-            Revisar
-          </button>
+          <FormFoot>
+            <button type="submit" className={buttonClass("primary")}>
+              Revisar
+            </button>
+          </FormFoot>
         </fieldset>
       </form>
-      {inputError && <p role="alert">{inputError}</p>}
+      {inputError && (
+        <p role="alert" className="text-sm">
+          {inputError}
+        </p>
+      )}
       {preview && (
-        <div className="grid gap-2 text-sm" aria-label="Resumen para confirmar">
-          <ul className="grid gap-1">
+        <div
+          role="group"
+          aria-label="Resumen para confirmar"
+          className="gs-confirm"
+        >
+          <p className="gs-form__section-title">Qué cambia al confirmar</p>
+          <ul className="gs-effects">
             {preview.summary.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-          <div className="flex flex-wrap gap-2">
+          <FormFoot>
             <button
               type="button"
-              className={historyPrimary}
+              className={buttonClass("ghost")}
+              disabled={pending || uncertain}
+              onClick={() => setPreview(undefined)}
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              className={buttonClass("primary")}
               disabled={pending}
               onClick={async () => {
                 if (await send(preview.fields)) {
@@ -334,19 +368,11 @@ export function BankBenefitForm({
             >
               {uncertain ? "Reintentar el mismo envío" : "Confirmar registro"}
             </button>
-            <button
-              type="button"
-              className={historyButton}
-              disabled={pending || uncertain}
-              onClick={() => setPreview(undefined)}
-            >
-              Volver
-            </button>
-          </div>
+          </FormFoot>
         </div>
       )}
       {saved && <p role="status">{saved}</p>}
       {error && <p role="alert">{error}</p>}
-    </section>
+    </FormPanel>
   );
 }

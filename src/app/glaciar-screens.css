@@ -1720,4 +1720,51 @@
     outline: 2px solid var(--glaciar-focus);
     outline-offset: 2px;
   }
+
+  /* ---------- UI-05F · Deudas y Beneficios ---------- */
+  .gs-rows > li:has(> .gs-benefit) {
+    align-items: stretch;
+  }
+
+  .gs-benefit {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 8px;
+  }
+
+  .gs-benefit__top {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .gs-benefit .gs-row__sub {
+    margin-top: 0;
+  }
+
+  .gs-benefit .gs-actions {
+    margin-top: 2px;
+  }
+
+  /* La fila completa (texto, importe y estado) es el enlace. */
+  .gs-row__link {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .gs-row__link::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    content: "";
+  }
+
+  .gs-row__link:focus-visible {
+    outline: none;
+  }
 }
