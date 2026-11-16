@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { FinanceShell } from "@/components/finance-shell";
 import { CategoryCatalog } from "@/components/category-catalog";
-import { Card } from "@/components/ui/card";
+import { FinanceShell } from "@/components/finance-shell";
+import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
 import { listManagedCategories } from "@/server/categories";
 import { withGoogleOwner } from "@/server/google-auth";
 
@@ -26,28 +26,22 @@ export default async function CategoriesPage() {
 
   return (
     <FinanceShell current="categorias">
-      <div className="grid gap-4">
-        <header>
-          <h1
-            id="titulo-pagina"
-            tabIndex={-1}
-            className="text-2xl font-semibold"
-          >
-            Categorías
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Al archivar una categoría, se oculta junto con sus subcategorías de
-            los formularios. Los movimientos existentes conservan su categoría.
-          </p>
-        </header>
+      <Screen>
+        <PageHead
+          eyebrow="Catálogos"
+          title="Categorías"
+          description="Al archivar una categoría, se oculta junto con sus subcategorías de los formularios. Los movimientos existentes conservan su categoría."
+        />
         {result.categories ? (
           <CategoryCatalog categories={result.categories} />
         ) : (
-          <Card className="p-4">
-            <p role="status">{result.message}</p>
-          </Card>
+          <PageNotice
+            tone="critical"
+            message={result.message}
+            retryHref="/categorias"
+          />
         )}
-      </div>
+      </Screen>
     </FinanceShell>
   );
 }

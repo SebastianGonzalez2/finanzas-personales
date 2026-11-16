@@ -1767,4 +1767,40 @@
   .gs-row__link:focus-visible {
     outline: none;
   }
+
+  /* ---------- UI-05G · Catálogos ---------- */
+  .gs-tree > li + li {
+    border-top: 1px solid var(--glaciar-border);
+  }
+
+  .gs-tree__node {
+    display: flex;
+    min-height: 52px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 6px 0;
+  }
+
+  .gs-tree__children {
+    margin: 0 0 10px 18px;
+    padding-left: 18px;
+    border-left: 1px solid var(--glaciar-border-strong);
+  }
+
+  .gs-tree__children .gs-tree__node {
+    min-height: 44px;
+  }
+
+  .gs-tree__node.is-archived {
+    color: var(--glaciar-faint);
+  }
+
+  .gs-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    border-radius: 3px;
+  }
 }
