@@ -32,14 +32,18 @@ const units = (value) => {
   const [whole, fraction = ""] = value.split(".");
   return BigInt(whole + fraction.padEnd(4, "0").slice(0, 4));
 };
+const decimal = (scaled) => {
+  const padded = scaled.toString().padStart(5, "0");
+  return `${padded.slice(0, -4)}.${padded.slice(-4)}`;
+};
+// Presupuestos devuelve "0" sin consumo y Estadísticas "0.0000": se normaliza el texto.
+const normalized = (value) => decimal(units(value));
 const oracle = (pairs) => {
   const total = pairs.reduce(
     (sum, [amount, rate]) => sum + units(amount) * units(rate),
     BigInt(0),
   );
-  const rounded = ((total + BigInt(5000)) / BigInt(10000)).toString();
-  const padded = rounded.padStart(5, "0");
-  return `${padded.slice(0, -4)}.${padded.slice(-4)}`;
+  return decimal((total + BigInt(5000)) / BigInt(10000));
 };
 
 test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuotas y más de 12 meses", async () => {
@@ -55,10 +59,13 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
   const phase2 = "2026-02-15";
   const run = (work, ownerId = owner) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);
-  const budget = async (month, category, today, ownerId = owner) =>
-    (await run((c, id) => listBudgets(c, id, month, today), ownerId)).find(
-      ({ categoryId }) => categoryId === category,
-    );
+  const budget = async (month, category, today, ownerId = owner) => {
+    const found = (
+      await run((c, id) => listBudgets(c, id, month, today), ownerId)
+    ).find(({ categoryId }) => categoryId === category);
+    if (found) found.progress.consumed = normalized(found.progress.consumed);
+    return found;
+  };
   const rate = (base, date, value) =>
     pool.query(
       "INSERT INTO finance.fx_reference_rates(base_currency,quote_currency,observed_on,source,rate) VALUES ($1,'UYU',$2,'datosuruguay',$3)",
@@ -98,9 +105,9 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
       loadStatistics(c, id, range, previous, history, filters, schema, "UYU"),
     );
     assert.deepEqual(snapshot.fx.missingFlows, []);
-    return (
+    return normalized(
       snapshot.totals.find(({ currency }) => currency === "UYU")?.expense ??
-      "0.0000"
+        "0",
     );
   };
   const expense = (categoryId, currency, amount, effectiveOn, concept) =>
