@@ -164,7 +164,9 @@ export default async function SummaryPage({
       ? await summaryReferenceDates(
           client,
           ownerId,
+          periods.selected ?? periods.history,
           periods.history,
+          periods.comparison,
           data.currency,
         )
       : [];

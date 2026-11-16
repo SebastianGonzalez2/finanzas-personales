@@ -4,6 +4,16 @@ import test from "node:test";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
+import {
+  parseStatisticsParams,
+  statisticsHistoryRange,
+} from "../../src/domain/statistics.ts";
+import {
+  loadStatistics,
+  prepareStatisticsFx,
+  statisticsReady,
+  statisticsReferenceDates,
+} from "../../src/server/statistics.ts";
 import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import {
   budgetReferenceDates,
@@ -107,6 +117,11 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
         amount: "2000.0000",
         asOfDate: "2025-01-01",
       });
+      await saveOpeningBalance(c, id, {
+        currency: "UYU",
+        amount: "10000.0000",
+        asOfDate: "2025-01-01",
+      });
       return saveCard(c, id, {
         action: "create",
         kind: "credit",
@@ -181,6 +196,75 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
         ).rows.map(({ effective_on }) => effective_on),
       );
     assert.ok(!(await valuations()).includes("2025-02-01"));
+    const report = async (display, from, to) => {
+      const parsed = parseStatisticsParams(
+        {
+          from,
+          to,
+          display,
+          category: installmentCategory,
+        },
+        to,
+      );
+      assert.ok(!("error" in parsed));
+      const { range, previous, filters } = parsed;
+      const history = statisticsHistoryRange(range, to);
+      const schema = await run(statisticsReady);
+      if (from === "2025-01-01" && !(await valuations()).includes(from)) {
+        const dates = await run((c, id) =>
+          statisticsReferenceDates(
+            c,
+            id,
+            range,
+            previous,
+            history,
+            filters,
+            schema,
+            display,
+          ),
+        );
+        assert.ok(dates.includes(from));
+      }
+      await run((c, id) =>
+        prepareStatisticsFx(
+          c,
+          id,
+          range,
+          previous,
+          history,
+          filters,
+          schema,
+          display,
+          to,
+        ),
+      );
+      return run((c, id) =>
+        loadStatistics(
+          c,
+          id,
+          range,
+          previous,
+          history,
+          filters,
+          schema,
+          display,
+        ),
+      );
+    };
+    const long = await report("UYU", "2025-01-01", "2026-06-30");
+    assert.equal(long.historyRange.from, "2025-07-01");
+    assert.deepEqual(long.fx.missingFlows, []);
+    assert.equal(
+      long.totals.find(({ currency }) => currency === "UYU").expense,
+      "25500.0000",
+    );
+    assert.equal(long.entries.length, 6);
+    assert.ok(
+      long.entries.every(
+        (entry) => entry.currency === "USD" && entry.amount === "100.0000",
+      ),
+    );
+
     const months = Array.from(
       { length: 6 },
       (_, index) => "2025-0" + (index + 1),
@@ -192,18 +276,20 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
       ]);
       assert.deepEqual(progress[0], progress[1]);
       assert.equal(progress[0].progress.consumed, 4000 + 100 * index + ".0000");
+      const entry = long.entries.find(({ date }) => date === month + "-01");
       assert.equal(progress[0].references[0].provisional, false);
+      assert.equal(progress[0].references[0].rate, entry.quote.rate);
+      assert.equal(progress[0].references[0].date, entry.quote.observed);
+      assert.equal(progress[0].references[0].source, entry.quote.source);
     }
     await rate("2025-02-01", "99");
     assert.equal(
       (await budget("2025-02", installmentCategory)).progress.consumed,
       "4100.0000",
     );
-    assert.deepEqual(await valuations(), [
-      months[0] + "-01",
-      "2025-01-19",
-      ...months.slice(1).map((month) => month + "-01"),
-    ]);
+    const pinnedDates = await valuations();
+    for (const date of [...months.map((month) => month + "-01"), "2025-01-19"])
+      assert.ok(pinnedDates.includes(date));
     assert.deepEqual(
       await run((c, id) => listBudgets(c, id, "2025-02", fixedToday), other),
       [],
@@ -217,6 +303,94 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
     assert.deepEqual(original.rows, [
       { currency: "USD", installment_amount: "100.0000", monthly_fx: true },
     ]);
+
+    const payment = parseCreditCommand(
+      {
+        action: "payment",
+        cardId: card.id,
+        effectiveOn: "2025-06-21",
+        lines: [
+          {
+            currency: "USD",
+            amount: "100",
+            bankCurrency: "UYU",
+            bankAmount: "4367",
+            allocations: [{ purchaseId: result.id, amount: "100" }],
+          },
+        ],
+        idempotencyKey: randomUUID(),
+      },
+      fixedToday,
+    );
+    assert.ok(!("error" in payment));
+    const paid = await run((c, id) => saveCreditOperation(c, id, payment));
+    assert.equal(paid.status, "created");
+    const effects = await run((c) =>
+      c.query(
+        "SELECT currency,amount_signed::text FROM finance.bank_effects WHERE event_id=$1",
+        [paid.id],
+      ),
+    );
+    assert.deepEqual(effects.rows, [
+      { currency: "UYU", amount_signed: "-4367.0000" },
+    ]);
+    assert.equal(
+      (await budget("2025-06", installmentCategory)).progress.consumed,
+      "4500.0000",
+    );
+    const paidReport = await report("UYU", "2025-01-01", "2026-06-30");
+    assert.equal(
+      paidReport.totals.find(({ currency }) => currency === "UYU").expense,
+      "25500.0000",
+    );
+
+    const planBudget = await budget("2025-06", installmentCategory);
+    await run(async (c, id) => {
+      assert.equal(
+        (
+          await saveBudget(
+            c,
+            id,
+            {
+              action: "edit",
+              budgetId: planBudget.id,
+              version: planBudget.version,
+              currency: "EUR",
+              amount: "300",
+              idempotencyKey: randomUUID(),
+            },
+            fixedToday,
+          )
+        ).status,
+        "saved",
+      );
+      assert.equal(
+        (
+          await saveBudget(
+            c,
+            id,
+            {
+              action: "quote",
+              fromCurrency: "USD",
+              toCurrency: "EUR",
+              effectiveOn: "2025-06-01",
+              rate: "0.9",
+              idempotencyKey: randomUUID(),
+            },
+            fixedToday,
+          )
+        ).status,
+        "created",
+      );
+    });
+    const manual = (await report("EUR", "2025-06-01", "2025-06-30")).entries[0]
+      .quote;
+    assert.equal(manual.source, "manual");
+    assert.equal(manual.rate, "0.9");
+    assert.equal(
+      (await budget("2025-06", installmentCategory)).progress.consumed,
+      "90.0000",
+    );
   } finally {
     try {
       await pool.query(

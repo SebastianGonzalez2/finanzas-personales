@@ -283,7 +283,10 @@ export async function listBudgets(
        ${monthlyFx ? "AND NOT x.monthly_fx" : ""}
        ${
          fx
-           ? `AND NOT EXISTS (
+           ? `AND EXISTS (
+         SELECT 1 FROM finance.fx_reference_refreshes s
+          WHERE s.year = extract(year FROM x.reference_on)::int AND s.retry_at > now()
+       ) AND NOT EXISTS (
          SELECT 1 FROM finance.fx_valuations v
           WHERE (v.owner_id,v.effective_on,v.base_currency,v.quote_currency) =
             (x.owner_id,x.reference_on,x.currency,q.to_currency)

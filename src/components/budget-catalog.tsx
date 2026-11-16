@@ -392,7 +392,9 @@ function BudgetEntry({
           </h3>
           <p className="lab-muted text-xs">{budget.currency}</p>
         </div>
-        <StateTag tone={tone}>{label}</StateTag>
+        <StateTag tone={estimated ? "neutral" : tone}>
+          {estimated ? "Estimado" : label}
+        </StateTag>
       </div>
       {budget.progress && (
         <div
@@ -401,7 +403,7 @@ function BudgetEntry({
           aria-valuemax={100}
           aria-valuenow={fill}
           aria-valuetext={`${percent} % del límite`}
-          aria-label={`Consumo de ${budget.categoryName}`}
+          aria-label={`Consumo ${estimated ? "estimado " : ""}de ${budget.categoryName}`}
           className={`lab-meter lab-meter--${tone}`}
         >
           <span style={{ width: `${fill}%` }} />
@@ -428,7 +430,7 @@ function BudgetEntry({
           <p>
             Podés ingresar una cotización manual cuando falte una referencia
             automática. Para cuotas nuevas, usá el primer día del mes de
-            imputación.
+            imputación cuando el mes haya comenzado.
           </p>
         )}
         {budget.references.map((ref, index) => (

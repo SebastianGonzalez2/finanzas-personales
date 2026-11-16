@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { URL } from "node:url";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { setOwnerContext } from "../../src/db/owner-context.mts";
@@ -125,6 +126,7 @@ test("FIX-FX: importar BCU y respaldo fuera de la transacción, con caché concu
   const year = 2043;
   const today = "2043-02-03";
   let active = 0;
+  let installed = false;
   const run = async (work) => {
     const connection = await pool.connect();
     active++;
@@ -144,13 +146,13 @@ test("FIX-FX: importar BCU y respaldo fuera de la transacción, con caché concu
     const url = new URL(input);
     if (url.hostname === "datosuruguay.com") {
       if (!url.pathname.endsWith("/usd"))
-        return new Response(null, { status: 503 });
-      return Response.json({
+        return new globalThis.Response(null, { status: 503 });
+      return globalThis.Response.json({
         meta: { unit: "UYU/USD", source: "BCU", has_more: false },
         data: [{ series: "usd", date: "2043-01-29", value: 39 }],
       });
     }
-    return Response.json(
+    return globalThis.Response.json(
       url.searchParams.get("base") === "EUR"
         ? [{ date: "2043-01-31", base: "EUR", quote: "UYU", rate: 47 }]
         : [],
@@ -159,7 +161,9 @@ test("FIX-FX: importar BCU y respaldo fuera de la transacción, con caché concu
   await client.connect();
   try {
     await client.query("BEGIN");
-    await migrateInTransaction(client);
+    installed = (await migrateInTransaction(client)).includes(
+      "0001_F0-05_initial.sql",
+    );
     await client.query("COMMIT");
     // Test-only public observations on a dedicated synthetic year.
     await client.query(
@@ -191,7 +195,14 @@ test("FIX-FX: importar BCU y respaldo fuera de la transacción, con caché concu
     assert.equal(quotes.get("2043-02-01/EUR").observed, "2043-01-31");
   } finally {
     await client.query("ROLLBACK");
-    await client.end();
-    await pool.end();
+    try {
+      if (installed)
+        await client.query(
+          "DROP SCHEMA finance, finance_meta CASCADE; DROP ROLE finanzas_app",
+        );
+    } finally {
+      await client.end();
+      await pool.end();
+    }
   }
 });
