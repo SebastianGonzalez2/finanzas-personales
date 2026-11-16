@@ -15,9 +15,46 @@ import { Icon } from "./ui/icon";
 // modal: foco atrapado y Escape nativos, clic en el fondo cierra y el foco
 // vuelve al botón (CA-066).
 export function FinanceMobileNav({ current }: { current: Destination }) {
+  const dock = useRef<HTMLElement>(null);
   const drawer = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const close = () => drawer.current?.close();
+
+  useEffect(() => {
+    let frame = 0;
+    const viewport = window.visualViewport;
+    function keepFocusAboveDock() {
+      window.cancelAnimationFrame(frame);
+      // El navegador puede dejar el foco bajo la barra si el control ya
+      // está dentro del viewport. Desplazar después del ajuste nativo.
+      frame = window.requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (
+          !active?.closest(".finance-frame") ||
+          !dock.current?.getClientRects().length
+        )
+          return;
+        const rect = active.getBoundingClientRect();
+        const top = viewport?.offsetTop ?? 0;
+        const bottom = Math.min(
+          dock.current.getBoundingClientRect().top,
+          top + (viewport?.height ?? window.innerHeight),
+        );
+        const margin = 8; // Espacio para el contorno de foco.
+        const overflow = rect.bottom + margin - bottom;
+        if (overflow > 0 && rect.height + margin * 2 <= bottom - top)
+          window.scrollBy({ top: Math.ceil(overflow), behavior: "instant" });
+      });
+    }
+
+    document.addEventListener("focusin", keepFocusAboveDock);
+    viewport?.addEventListener("resize", keepFocusAboveDock);
+    return () => {
+      document.removeEventListener("focusin", keepFocusAboveDock);
+      viewport?.removeEventListener("resize", keepFocusAboveDock);
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 64rem)");
@@ -61,7 +98,7 @@ export function FinanceMobileNav({ current }: { current: Destination }) {
 
   return (
     <>
-      <nav aria-label="Accesos rápidos" className="finance-dock">
+      <nav ref={dock} aria-label="Accesos rápidos" className="finance-dock">
         {quick.map((item) => (
           <a
             key={item.key}

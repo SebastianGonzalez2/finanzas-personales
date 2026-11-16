@@ -182,6 +182,12 @@ Diseño aprobado por el usuario el 2026-11-14: [guía visual definitiva](../desi
 
 **Seguimiento UI-02 — 2026-11-14:** rama `codex/UI-02-sistema-diseno-shell`; tokens Glaciar, Plus Jakarta Sans, controles base (`components/ui`), fondo ambiental, riel/cajón/barra móvil y barra superior con el selector real de moneda (se retiró el selector duplicado de la tarjeta de equivalencias de Resumen) y acceso a «Registrar movimiento» (abre el formulario existente). Pendiente: revisión del PR, e2e financieros en CI y revisión visual con sesión real.
 
+## Correcciones de QA-FINAL
+
+| Ticket | Entrega | Validación |
+|---|---|---|
+| QA-FIX-01 | QA-F01: redondear el consumo de Presupuestos después de sumar, como en Estadísticas, conservando las cotizaciones fijadas. QA-F02: autenticar antes de validar filtros de Estadísticas. QA-D01: mantener visible el foco por encima de la barra móvil de Glaciar. | RF-001/003/031/032/044/045/051/052; CA-042/059/064/066. Casos límite y umbrales con PostgreSQL desechable; URLs anónimas y autenticadas y recorrido de Tarjetas con teclado en Chromium móvil y de escritorio. La localización nativa de fechas queda en [pendientes](06-riesgos-y-pendientes.md#seguimiento-de-qa-final). |
+
 ## Estrategia de PR y tickets
 
 **Tamaño recomendado:** un PR entrega una capacidad vertical pequeña y probada, no varios módulos contables a la vez. **Convención obligatoria:** ver [nombres de rama, commits y PR](09-convenciones-git.md). Usar una rama `codex/F1-03-registro-movimientos`, commits `feat(F1-03): registrar gastos e ingresos`, PR `[F1-03] Registro manual de movimientos`, y completar [plantilla automática de PR](../../.github/PULL_REQUEST_TEMPLATE.md) con RF/CA, pruebas, riesgos y alcance. **El mismo ID aparece en los tres elementos**. Otros prefijos de rama solo si se documentan expresamente; no mezclar tickets en un PR. No reescribir el historial existente. Cada ticket referencia RF, CA, fuente de producto, migración y UI afectada.

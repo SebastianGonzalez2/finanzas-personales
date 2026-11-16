@@ -25,6 +25,10 @@ Presupuestos conserva la fecha efectiva de las compras ordinarias y respeta las 
 
 El informe de Estadísticas prepara y verifica las referencias para toda la selección, la ventana de gráficos y la comparación. Los gráficos mantienen su ventana de hasta 12 meses. Los detalles muestran la moneda y el importe de la cuota; las referencias de visualización quedan asociadas al titular, la fecha y el par dirigido.
 
+## QA-FIX-01 — Precisión de los agregados
+
+Presupuestos aplica la misma regla de agregación que Estadísticas: multiplica en `numeric`, suma sin redondear las conversiones individuales y redondea el agregado a cuatro decimales. La interfaz presenta dos decimales. La coincidencia exige el mismo conjunto de gastos y la misma referencia; se conservan las tasas históricas y la política de Presupuestos para las referencias anteriores a FIX-FX.
+
 ### Migración 0039
 
 SQL exacto en [0039_FIX-FX_installment_monthly_reference.sql](../../src/db/migrations/0039_FIX-FX_installment_monthly_reference.sql). SHA-256 `95f814d7536962146a8e2cac282c84b2c342c0059e8dc09e0039ce85c7c19d67`. Destino previsto para una aplicación posterior aprobada, Neon `development`, base `neondb`. El cambio agrega un indicador de política en `installment_plans` y actualiza dos vistas y el disparador que captura referencias de Presupuestos. La primera versión del plan determina la política en revisiones futuras. El runtime marca explícitamente el plan al crearlo con la nueva política. Los registros anteriores y las compras hechas por el runtime anterior durante una actualización conservan el criterio previo y sus referencias. El DDL puede tomar un bloqueo breve y actualiza la huella técnica del inventario de copias para incluir el indicador. Los registros financieros quedan intactos. El restablecimiento sigue exigiendo una copia compatible con el esquema vigente. La ejecución compartida requiere autorización específica conforme al ADR 0004.

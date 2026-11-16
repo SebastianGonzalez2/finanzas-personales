@@ -11,6 +11,89 @@ import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test.use({ locale: "es-UY" });
 
+test("QA-F01: dos gastos EUR muestran 0,80 UYU con la misma tasa y categoría", async ({
+  page,
+  context,
+}, info) => {
+  const { cookies, owners } = await financeBrowserFixtures();
+  await context.addCookies([cookies.a1]);
+  const today = bankReferenceToday();
+  const month = today.slice(0, 7);
+  const categoryId = randomUUID();
+  const category = "Precisión sintética QA";
+  const admin = new pg.Client(testDatabaseConfig());
+  await admin.connect();
+  try {
+    await admin.query(
+      "INSERT INTO finance.categories(owner_id,id,kind,name) VALUES ($1,$2,'expense',$3)",
+      [owners.a, categoryId, category],
+    );
+    await admin.query(
+      "INSERT INTO finance.fx_valuations(owner_id,effective_on,base_currency,quote_currency,observed_on,source,manual_rate) VALUES ($1,$2,'EUR','UYU',$2,'manual',40.2474)",
+      [owners.a, today],
+    );
+    const create = async (path, data) => {
+      const response = await context.request.post(`/api/${path}`, {
+        data,
+        headers: { origin: financeTestOrigin },
+      });
+      expect(response.status(), await response.text()).toBe(201);
+    };
+    await create("bank-balances", {
+      currency: "EUR",
+      amount: "10",
+      asOfDate: today,
+    });
+    await create("budgets", {
+      action: "save",
+      currency: "UYU",
+      amount: "100",
+      categoryId,
+      idempotencyKey: randomUUID(),
+    });
+    for (const concept of ["Primer gasto QA", "Segundo gasto QA"])
+      await create("movements", {
+        kind: "expense",
+        method: "debit",
+        currency: "EUR",
+        amount: "0.01",
+        effectiveOn: today,
+        categoryId,
+        concept,
+        idempotencyKey: randomUUID(),
+      });
+
+    await page.goto(`/presupuestos?month=${month}`);
+    const item = page.getByRole("listitem").filter({
+      has: page.getByRole("heading", { name: category }),
+    });
+    await expect(item).toContainText("0,80 UYU de 100,00 UYU");
+    await expect(item).toContainText(/40[.,]2474 UYU/);
+    await item.screenshot({
+      path: info.outputPath("precision-presupuestos.png"),
+      animations: "disabled",
+    });
+
+    await page.goto(
+      `/estadisticas?from=${month}-01&to=${today}&display=UYU&category=${categoryId}`,
+    );
+    const table = page.getByRole("table", { name: "Indicadores en UYU" });
+    await expect(table.getByRole("row", { name: /^Gastos/ })).toContainText(
+      "0,80 UYU",
+    );
+    for (const concept of ["Primer gasto QA", "Segundo gasto QA"])
+      await expect(page.getByRole("link", { name: concept })).toContainText(
+        "0,01 EUR",
+      );
+    await table.screenshot({
+      path: info.outputPath("precision-estadisticas.png"),
+      animations: "disabled",
+    });
+  } finally {
+    await admin.end();
+  }
+});
+
 test("FIX-FX: referencia de la cuota compartida y mes futuro estimado", async ({
   page,
   context,

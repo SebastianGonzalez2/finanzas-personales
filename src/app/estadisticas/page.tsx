@@ -23,6 +23,7 @@ import { refreshOwnerReferences } from "@/server/exchange-rate-http";
 import { displayCurrency, exchangeRatesReady } from "@/server/exchange-rates";
 import { listTags } from "@/server/classification";
 import { listHistoryCategories } from "@/server/history";
+import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 import {
   listStatisticsFavorites,
   loadStatistics,
@@ -35,11 +36,12 @@ import {
 export const metadata = { title: "Estadísticas | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
-export default async function StatisticsPage({
-  searchParams,
-}: PageProps<"/estadisticas">) {
+export default async function StatisticsPage(
+  props: PageProps<"/estadisticas">,
+) {
+  await requireGoogleOwnerPage();
   const today = bankReferenceToday();
-  const parsed = parseStatisticsParams(await searchParams, today);
+  const parsed = parseStatisticsParams(await props.searchParams, today);
   if ("error" in parsed)
     return (
       <FinanceShell current="estadisticas">
