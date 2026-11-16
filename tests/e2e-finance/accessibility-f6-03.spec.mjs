@@ -185,64 +185,81 @@ for (const width of [360, 768, 1440]) {
     for (const path of screens) {
       await page.goto(path);
       await expect(page.locator("main#contenido")).toBeVisible();
-      const report = await page.evaluate(() => {
-        const visible = (el) => {
-          const box = el.getBoundingClientRect();
-          return (
-            el.checkVisibility?.() !== false &&
-            box.width > 0 &&
-            box.height > 0 &&
-            !el.closest("dialog:not([open])")
+      // Se mide la pantalla asentada, no un estado intermedio de la carga:
+      // con las fuentes listas y repitiendo la medición mientras cambie. Un
+      // defecto estable sigue fallando con el mismo informe (y sus medidas).
+      await page.evaluate(() => document.fonts.ready);
+      const measure = () =>
+        page.evaluate(() => {
+          const visible = (el) => {
+            const box = el.getBoundingClientRect();
+            return (
+              el.checkVisibility?.() !== false &&
+              box.width > 0 &&
+              box.height > 0 &&
+              !el.closest("dialog:not([open])")
+            );
+          };
+          const name = (el) =>
+            el.getAttribute("aria-label")?.trim() ||
+            el.getAttribute("aria-labelledby") ||
+            el.getAttribute("title")?.trim() ||
+            el.textContent?.trim() ||
+            el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+            "";
+          const controls = [
+            ...document.querySelectorAll("input, select, textarea"),
+          ].filter(
+            (el) => visible(el) && !["hidden", "submit"].includes(el.type),
           );
-        };
-        const name = (el) =>
-          el.getAttribute("aria-label")?.trim() ||
-          el.getAttribute("aria-labelledby") ||
-          el.getAttribute("title")?.trim() ||
-          el.textContent?.trim() ||
-          el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
-          "";
-        const controls = [
-          ...document.querySelectorAll("input, select, textarea"),
-        ].filter(
-          (el) => visible(el) && !["hidden", "submit"].includes(el.type),
-        );
-        const clickable = [
-          ...document.querySelectorAll("a[href], button, summary"),
-        ].filter(
-          (el) =>
-            visible(el) &&
-            !el.classList.contains("sr-only") &&
-            el.getAttribute("href") !== "#contenido",
-        );
-        return {
-          overflow: document.documentElement.scrollWidth - window.innerWidth,
-          headings: document.querySelectorAll("h1").length,
-          unlabeled: controls
-            .filter(
-              (el) =>
-                !el.labels?.length &&
-                !el.getAttribute("aria-label") &&
-                !el.getAttribute("aria-labelledby"),
-            )
-            .map((el) => el.name || el.id || el.tagName),
-          unnamed: clickable
-            .filter((el) => !name(el))
-            .map((el) => el.outerHTML.slice(0, 80)),
-          tiny: clickable
-            .filter((el) => {
-              const box = el.getBoundingClientRect();
-              return box.height < 24 || box.width < 24;
-            })
-            .map((el) => `${el.textContent?.trim().slice(0, 30)}`),
-        };
-      });
-      if (report.overflow > 0)
-        problems.push(`${path}: desborde ${report.overflow}px`);
-      if (report.headings !== 1)
-        problems.push(`${path}: h1=${report.headings}`);
-      for (const key of ["unlabeled", "unnamed", "tiny"])
-        if (report[key].length) problems.push(`${path}: ${key} ${report[key]}`);
+          const clickable = [
+            ...document.querySelectorAll("a[href], button, summary"),
+          ].filter(
+            (el) =>
+              visible(el) &&
+              !el.classList.contains("sr-only") &&
+              el.getAttribute("href") !== "#contenido",
+          );
+          return {
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+            headings: document.querySelectorAll("h1").length,
+            unlabeled: controls
+              .filter(
+                (el) =>
+                  !el.labels?.length &&
+                  !el.getAttribute("aria-label") &&
+                  !el.getAttribute("aria-labelledby"),
+              )
+              .map((el) => el.name || el.id || el.tagName),
+            unnamed: clickable
+              .filter((el) => !name(el))
+              .map((el) => el.outerHTML.slice(0, 80)),
+            tiny: clickable
+              .filter((el) => {
+                const box = el.getBoundingClientRect();
+                return box.height < 24 || box.width < 24;
+              })
+              .map((el) => {
+                const box = el.getBoundingClientRect();
+                return `${el.textContent?.trim().slice(0, 30)} (${Math.round(box.width)}x${Math.round(box.height)})`;
+              }),
+          };
+        });
+      const issues = (report) => [
+        ...(report.overflow > 0
+          ? [`${path}: desborde ${report.overflow}px`]
+          : []),
+        ...(report.headings !== 1 ? [`${path}: h1=${report.headings}`] : []),
+        ...["unlabeled", "unnamed", "tiny"]
+          .filter((key) => report[key].length)
+          .map((key) => `${path}: ${key} ${report[key]}`),
+      ];
+      let found = [];
+      await expect
+        .poll(async () => (found = issues(await measure())), { timeout: 3000 })
+        .toEqual([])
+        .catch(() => {});
+      problems.push(...found);
 
       if (width === 360 && path === "/estadisticas") {
         const chart = page
@@ -376,10 +393,14 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
 
   // La solicitud llega al servidor real; Chrome pierde la respuesta. Simulamos
   // también la caída del origen para RSC mientras navigator.onLine sigue true.
+  // Los prefetch de los enlaces a Resumen (cabecera `next-router-prefetch`)
+  // los dispara el router según el viewport, en cualquier momento: también
+  // caen, pero no son un `router.refresh()` del formulario y no se cuentan.
   let refreshes = 0;
   const dropRefresh = async (route) => {
-    if (route.request().headers().rsc === "1") {
-      refreshes++;
+    const headers = route.request().headers();
+    if (headers.rsc === "1") {
+      if (!headers["next-router-prefetch"]) refreshes++;
       await route.abort("connectionreset");
     } else {
       await route.continue();

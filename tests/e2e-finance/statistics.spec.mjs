@@ -168,15 +168,28 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     await page
       .getByRole("link", { name: "Equipamiento sintético", exact: true })
       .click();
+    // El detalle de la categoría padre ya lista este movimiento y el
+    // formulario de filtros se remonta (key) con cada búsqueda: hay que
+    // esperar a que la navegación a la subcategoría termine antes de elegir
+    // la tarjeta, o la selección se pierde con el formulario anterior.
+    await expect(page).toHaveURL(new RegExp(`category=${child}`));
+    await expect(
+      page.getByRole("heading", {
+        name: "Detalle de movimientos · Equipamiento sintético",
+      }),
+    ).toBeVisible();
     const entry = page.getByRole("link", { name: new RegExp(concept) });
     await expect(entry).toContainText("100,00 UYU");
     await expect(entry).toHaveAttribute(
       "href",
       `/historial/movimientos/${purchaseId}#titulo-pagina`,
     );
-    await page
-      .getByRole("combobox", { name: "Tarjeta", exact: true })
-      .selectOption({ label: "Crédito sintético" });
+    const cardFilter = page.getByRole("combobox", {
+      name: "Tarjeta",
+      exact: true,
+    });
+    await cardFilter.selectOption({ label: "Crédito sintético" });
+    await expect(cardFilter).toHaveValue(cardId);
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
     await expect(page).toHaveURL(new RegExp(`card=${cardId}`));
     await expect(entry).toBeVisible();

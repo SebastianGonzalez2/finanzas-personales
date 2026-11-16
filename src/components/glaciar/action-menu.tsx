@@ -29,12 +29,22 @@ export function ActionMenu({
   const root = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
 
+  // El `<details>` se abre de forma nativa y su evento `toggle` llega en una
+  // tarea posterior: si los listeners dependieran del estado de React, un
+  // Escape o clic afuera en ese intervalo se perdería con el menú visible.
+  // Por eso se registran una vez y deciden según el estado real del DOM.
   useEffect(() => {
-    if (!open) return;
+    const close = () => {
+      const details = root.current;
+      if (!details?.open) return false;
+      details.open = false;
+      setOpen(false);
+      return true;
+    };
     const onPointer = (event: PointerEvent) => {
       const target = event.target as Element | null;
-      if (root.current?.contains(target as Node)) return;
-      setOpen(false);
+      if (!root.current?.open || root.current.contains(target as Node)) return;
+      close();
       // Clic en otro control: el foco es suyo. En una zona sin control (aunque
       // el navegador enfoque un contenedor con tabindex -1) vuelve al
       // disparador una vez resuelto el foco propio del clic.
@@ -46,8 +56,7 @@ export function ActionMenu({
       });
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
+      if (event.key !== "Escape" || !close()) return;
       summary.current?.focus();
     };
     document.addEventListener("pointerdown", onPointer);
@@ -56,7 +65,7 @@ export function ActionMenu({
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, []);
 
   return (
     <details
@@ -76,6 +85,7 @@ export function ActionMenu({
             aria-label={item.ariaLabel}
             disabled={item.disabled}
             onClick={() => {
+              if (root.current) root.current.open = false;
               setOpen(false);
               if (summary.current) item.onSelect(summary.current);
             }}
