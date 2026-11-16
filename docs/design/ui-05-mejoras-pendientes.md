@@ -9,7 +9,7 @@
 
 | ID | Mejora | Grupo recomendado | Alcance |
 | --- | --- | --- | --- |
-| M-01 | Tooltips explicativos en Fondos de ahorro | Chat 1 | UI; verificar semántica de indicadores · **prototipo ✔ / producción pendiente** |
+| M-01 | Tooltips explicativos en Fondos de ahorro | Chat 1 | UI; verificar semántica de indicadores · **prototipo ✔ / producción ✔ (UI-05H)** |
 | M-02 | Colores de estados de Presupuestos | Chat 1 | UI; conservar reglas de clasificación · **prototipo ✔ / producción pendiente** |
 | M-03 | Simplificar Ayuda | Chat 1 | UI; eliminar búsqueda y filtros · **prototipo ✔ / producción pendiente** |
 | M-04 | Ocultar cotización manual permanente en Presupuestos | Posterior (lógica financiera) | UI + manejo de errores y cotizaciones automáticas |
@@ -76,7 +76,7 @@
 
 **Criterio de aceptación:** no hay buscador, filtros ni contenedores vacíos; todas las preguntas siguen accesibles y funcionan los acordeones y el tutorial.
 
-**Estado (2026-11-15): implementado en prototipo; producción pendiente.** Eliminados buscador, contenedor, píldoras «Ir a», resaltado y el estado `busqueda` del prototipo. El prototipo ahora muestra las 16 secciones (57 preguntas) en dos columnas independientes y equilibradas (3047 px / 3414 px) para evitar huecos; una columna en móvil. Acordeones y «Volver a ver tutorial» verificados. Las capturas de `docs/design/ui-05/capturas` (incluida `15-ayuda-busqueda`) son anteriores a este cambio y no se regeneraron.
+**Estado (2026-11-15): implementado en prototipo y en producción (`/ayuda`, UI-05H: sin buscador, filtros ni contenedor de búsqueda; 16 secciones en dos columnas equilibradas con acordeones cerrados por defecto y una columna en móvil; se conservan todas las preguntas, los enlaces «Ir a:» de cada respuesta y «Volver a ver tutorial»; `filterAyudaGroups` queda en el dominio sin uso en UI).** Detalle del prototipo: Eliminados buscador, contenedor, píldoras «Ir a», resaltado y el estado `busqueda` del prototipo. El prototipo ahora muestra las 16 secciones (57 preguntas) en dos columnas independientes y equilibradas (3047 px / 3414 px) para evitar huecos; una columna en móvil. Acordeones y «Volver a ver tutorial» verificados. Las capturas de `docs/design/ui-05/capturas` (incluida `15-ayuda-busqueda`) son anteriores a este cambio y no se regeneraron.
 
 ## M-04 — Cotización manual en Presupuestos (posponer respecto de Chat 1)
 

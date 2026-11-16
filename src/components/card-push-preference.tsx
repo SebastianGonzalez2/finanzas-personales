@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { buttonClass } from "./ui/button";
+import { Icon } from "./ui/icon";
 
 const worker = "/card-push-worker.js";
 const api = "/api/avisos/push";
@@ -154,40 +156,52 @@ export function PushPreference({
       "No pudimos comprobar el estado de los avisos en este dispositivo.",
   }[state];
 
+  const tone =
+    state === "active"
+      ? "text-[var(--lab-good)]"
+      : state === "blocked" || state === "unknown"
+        ? "text-[var(--lab-warning)]"
+        : "text-[var(--glaciar-muted)]";
+
   return (
-    <section aria-labelledby="preferencia-push" className="grid gap-2">
-      <h2 id="preferencia-push" className="font-semibold">
+    <section aria-labelledby="preferencia-push" className="lab-panel">
+      <h2 id="preferencia-push" className="lab-panel__title">
+        <span className="lab-panel__icon">
+          <Icon name="notices" className="size-4.5" />
+        </span>
         Avisos al celular (opcional)
       </h2>
-      <div className="grid gap-2 rounded-lg border p-4 text-sm">
-        <p>
-          Recibí avisos de vencimiento de tarjetas de crédito en este
-          dispositivo.
-        </p>
-        <p role="status" className="text-muted-foreground">
-          {message || status}
-        </p>
-        {state === "active" && (
-          <button
-            type="button"
-            className="w-fit rounded-md border px-3 py-2 font-medium hover:bg-muted disabled:opacity-50"
-            disabled={busy}
-            onClick={deactivate}
-          >
-            Desactivar avisos push
-          </button>
-        )}
-        {state === "inactive" && publicKey && (
-          <button
-            type="button"
-            className="w-fit rounded-md border px-3 py-2 font-medium hover:bg-muted disabled:opacity-50"
-            disabled={busy}
-            onClick={activate}
-          >
-            Activar avisos push
-          </button>
-        )}
-      </div>
+      <p className="lab-muted text-sm">
+        Recibí avisos de vencimiento de tarjetas de crédito en este dispositivo.
+      </p>
+      <p role="status" className="flex items-start gap-2 text-sm">
+        <Icon
+          name={state === "active" ? "check" : "dot"}
+          duotone={false}
+          className={`mt-0.5 size-3.5 shrink-0 ${tone}`}
+        />
+        <span className="min-w-0 wrap-anywhere">{message || status}</span>
+      </p>
+      {state === "active" && (
+        <button
+          type="button"
+          className={buttonClass("outline", "self-start")}
+          disabled={busy}
+          onClick={deactivate}
+        >
+          Desactivar avisos push
+        </button>
+      )}
+      {state === "inactive" && publicKey && (
+        <button
+          type="button"
+          className={buttonClass("outline", "self-start")}
+          disabled={busy}
+          onClick={activate}
+        >
+          Activar avisos push
+        </button>
+      )}
     </section>
   );
 }

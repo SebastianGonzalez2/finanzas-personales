@@ -8,7 +8,7 @@ import {
 } from "@/lib/export/backup-format";
 import { saveDownload } from "@/lib/export/download";
 import { HistoryField, historyControl, historyPrimary } from "./history-fields";
-import { Card } from "./ui/card";
+import { Icon } from "./ui/icon";
 
 type Notice = { kind: "error" | "status"; message: string };
 type Preview = { createdAt: string; confirmation: string };
@@ -136,24 +136,30 @@ export function AccountBackup() {
   return (
     <section
       aria-labelledby="configuracion-copias"
-      className="mt-6 grid max-w-2xl gap-4"
+      className="lab-panel gs-divided"
     >
-      <h2 id="configuracion-copias" className="text-lg font-semibold">
+      <h2 id="configuracion-copias" className="lab-panel__title">
+        <span className="lab-panel__icon">
+          <Icon name="reports" className="size-4.5" />
+        </span>
         Copias de seguridad
       </h2>
-      <Card className="gap-3 p-5 shadow-none">
+      <div>
         <form onSubmit={download} className="grid gap-3">
-          <h3 id="descargar-copia" className="font-semibold" tabIndex={-1}>
+          <h3
+            id="descargar-copia"
+            className="text-[15px] font-semibold"
+            tabIndex={-1}
+          >
             Descargar copia de seguridad
           </h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="lab-muted text-sm">
             El archivo contiene tus datos financieros. Guardalo en un lugar
             privado y seguro.
           </p>
-          <label className="flex items-start gap-2 text-sm">
+          <label className="gs-check">
             <input
               type="checkbox"
-              className="mt-1"
               checked={protect}
               disabled={busy}
               onChange={(event) => {
@@ -178,21 +184,27 @@ export function AccountBackup() {
                   disabled={busy}
                 />
               </HistoryField>
-              <p className="text-sm text-muted-foreground">
+              <p className="lab-muted text-sm">
                 Usá al menos {BACKUP_PASSWORD_MIN} caracteres. Si perdés la
                 contraseña, no vas a poder recuperar esta copia.
               </p>
             </>
           )}
-          <button type="submit" className={historyPrimary} disabled={busy}>
+          <button
+            type="submit"
+            className={`${historyPrimary} justify-self-start`}
+            disabled={busy}
+          >
             Descargar copia
           </button>
           <BackupNotice notice={downloadNotice} />
         </form>
-      </Card>
-      <Card className="gap-3 p-5 shadow-none">
+      </div>
+      <div>
         <form onSubmit={restore} className="grid gap-3">
-          <h3 className="font-semibold">Restaurar copia de seguridad</h3>
+          <h3 className="text-[15px] font-semibold">
+            Restaurar copia de seguridad
+          </h3>
           <HistoryField label="Archivo de copia">
             <input
               ref={fileInput}
@@ -219,57 +231,59 @@ export function AccountBackup() {
             </HistoryField>
           )}
           {preview && (
-            <div className="grid gap-3 rounded-lg border p-3 text-sm">
-              <p>
-                Copia del{" "}
-                {new Intl.DateTimeFormat("es-UY", {
-                  dateStyle: "long",
-                  timeStyle: "short",
-                  timeZone: "America/Montevideo",
-                }).format(new Date(preview.createdAt))}
-                .
-              </p>
-              <p>
-                Se reemplazarán todos tus datos financieros. Perderás los
-                cambios posteriores a esta copia.
-              </p>
-              <a href="#configuracion-copias" className="underline">
-                Descargar una copia del estado actual
-              </a>
-              <label className="flex items-start gap-2 font-medium">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={confirmed}
+            <div className="b-notice b-notice--warning">
+              <Icon name="alert" className="size-4.5 shrink-0" />
+              <div className="grid min-w-0 flex-1 gap-3 text-sm">
+                <p>
+                  Copia del{" "}
+                  {new Intl.DateTimeFormat("es-UY", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                    timeZone: "America/Montevideo",
+                  }).format(new Date(preview.createdAt))}
+                  .
+                </p>
+                <p>
+                  Se reemplazarán todos tus datos financieros. Perderás los
+                  cambios posteriores a esta copia.
+                </p>
+                <a href="#configuracion-copias" className="lab-link w-fit">
+                  Descargar una copia del estado actual
+                </a>
+                <label className="gs-check font-medium">
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    disabled={busy}
+                    onChange={(event) => setConfirmed(event.target.checked)}
+                  />
+                  Confirmo que quiero reemplazar mis datos financieros.
+                </label>
+                <button
+                  type="button"
+                  className="lab-link min-h-11 justify-self-start"
                   disabled={busy}
-                  onChange={(event) => setConfirmed(event.target.checked)}
-                />
-                Confirmo que quiero reemplazar mis datos financieros.
-              </label>
-              <button
-                type="button"
-                className="justify-self-start underline"
-                disabled={busy}
-                onClick={() => {
-                  setPreview(undefined);
-                  setConfirmed(false);
-                  setRestoreNotice(undefined);
-                }}
-              >
-                Volver a verificar la copia
-              </button>
+                  onClick={() => {
+                    setPreview(undefined);
+                    setConfirmed(false);
+                    setRestoreNotice(undefined);
+                  }}
+                >
+                  Volver a verificar la copia
+                </button>
+              </div>
             </div>
           )}
           <button
             type="submit"
-            className={historyPrimary}
+            className={`${historyPrimary} justify-self-start`}
             disabled={busy || !backup || (!!preview && !confirmed)}
           >
             {preview ? "Restaurar y reemplazar datos" : "Verificar copia"}
           </button>
           <BackupNotice notice={restoreNotice} />
         </form>
-      </Card>
+      </div>
     </section>
   );
 }
@@ -277,16 +291,16 @@ export function AccountBackup() {
 function BackupNotice({ notice }: { notice?: Notice }) {
   return (
     notice && (
-      <p
+      <div
         role={notice.kind === "error" ? "alert" : "status"}
-        className={
-          notice.kind === "error"
-            ? "text-sm text-destructive"
-            : "text-sm text-muted-foreground"
-        }
+        className={`b-notice ${notice.kind === "error" ? "b-notice--critical" : "b-notice--info"}`}
       >
-        {notice.message}
-      </p>
+        <Icon
+          name={notice.kind === "error" ? "alert" : "check"}
+          className="size-4.5 shrink-0"
+        />
+        <p className="min-w-0 text-sm wrap-anywhere">{notice.message}</p>
+      </div>
     )
   );
 }

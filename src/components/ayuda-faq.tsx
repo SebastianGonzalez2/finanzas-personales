@@ -1,104 +1,66 @@
-"use client";
+// F6-06 / UI-05H (M-03): preguntas frecuentes en acordeones accesibles
+// (<details>/<summary>), agrupadas por tema y repartidas en dos columnas
+// equilibradas. Sin buscador ni filtros. Contenido estático sin servicios
+// externos.
 
-// F6-06: buscador local y acordeones accesibles (<details>/<summary>) para la
-// sección Ayuda. Contenido estático sin servicios externos.
+import type { AyudaGroup } from "@/domain/ayuda";
 
-import { useId, useMemo, useState } from "react";
-import {
-  countAyudaEntries,
-  filterAyudaGroups,
-  type AyudaGroup,
-} from "@/domain/ayuda";
-
-const searchControl =
-  "min-h-11 w-full rounded-lg border bg-background px-3 text-base";
+/** Reparte los grupos en dos columnas con un total de preguntas similar. */
+function splitGroups(groups: readonly AyudaGroup[]) {
+  const total = groups.reduce((sum, group) => sum + group.entries.length, 0);
+  const left: AyudaGroup[] = [];
+  const right: AyudaGroup[] = [];
+  let acc = 0;
+  for (const group of groups) {
+    // El grupo va a la izquierda mientras su punto medio no pase la mitad.
+    (acc + group.entries.length / 2 <= total / 2 ? left : right).push(group);
+    acc += group.entries.length;
+  }
+  return [left, right] as const;
+}
 
 export function AyudaFaq({ groups }: { groups: readonly AyudaGroup[] }) {
-  const total = useMemo(() => countAyudaEntries(groups), [groups]);
-  const [query, setQuery] = useState("");
-  const filtered = useMemo(
-    () => filterAyudaGroups(query, groups),
-    [query, groups],
-  );
-  const matches = countAyudaEntries(filtered);
-  const searching = query.trim().length > 0;
-  const statusId = useId();
-
   return (
-    <div className="grid gap-5">
-      <form
-        role="search"
-        className="grid gap-1"
-        onSubmit={(event) => event.preventDefault()}
-      >
-        <label htmlFor="buscar-ayuda" className="text-sm font-medium">
-          Buscar en la ayuda
-        </label>
-        <input
-          id="buscar-ayuda"
-          type="search"
-          autoComplete="off"
-          placeholder="Ej.: cuotas, devolución, copia de seguridad"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className={searchControl}
-          aria-describedby={statusId}
-        />
-        <p
-          id={statusId}
-          role="status"
-          className="text-sm text-muted-foreground"
-        >
-          {searching
-            ? matches === 1
-              ? "1 respuesta coincide con la búsqueda."
-              : `${matches} respuestas coinciden con la búsqueda.`
-            : `${total} respuestas ordenadas por tema.`}
-        </p>
-      </form>
-      {searching && matches === 0 ? (
-        <p className="text-sm">
-          No encontramos respuestas para «{query.trim()}». Probá con otra
-          palabra, por ejemplo «cuotas», «saldo» o «devolución».
-        </p>
-      ) : (
-        filtered.map((group) => (
-          <section
-            key={group.id}
-            aria-labelledby={`ayuda-${group.id}`}
-            className="grid gap-2"
-          >
-            <h2 id={`ayuda-${group.id}`} className="text-lg font-semibold">
-              {group.title}
-            </h2>
-            <div className="grid gap-2">
-              {group.entries.map((entry) => (
-                <details
-                  key={entry.question}
-                  className="rounded-lg border p-3 text-sm"
-                >
-                  <summary className="font-medium">{entry.question}</summary>
-                  <p className="mt-2">{entry.answer}</p>
-                  {entry.links && entry.links.length > 0 && (
-                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="text-muted-foreground">Ir a:</span>
-                      {entry.links.map((link) => (
-                        <a
-                          key={link.href}
-                          href={`${link.href}#titulo-pagina`}
-                          className="w-fit py-2 text-sm underline underline-offset-2"
-                        >
-                          {link.label}
-                        </a>
-                      ))}
-                    </p>
-                  )}
-                </details>
-              ))}
-            </div>
-          </section>
-        ))
-      )}
+    <div className="gs-grid">
+      {splitGroups(groups).map((column, index) => (
+        <div key={index} className="gs-stack gs-span-6">
+          {column.map((group) => (
+            <section
+              key={group.id}
+              aria-labelledby={`ayuda-${group.id}`}
+              className="lab-panel"
+            >
+              <h2 id={`ayuda-${group.id}`} className="lab-panel__title">
+                {group.title}
+              </h2>
+              <div className="gs-accordion">
+                {group.entries.map((entry) => (
+                  <details key={entry.question}>
+                    <summary>{entry.question}</summary>
+                    <div className="gs-accordion__body">
+                      <p>{entry.answer}</p>
+                      {entry.links && entry.links.length > 0 && (
+                        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Ir a:</span>
+                          {entry.links.map((link) => (
+                            <a
+                              key={link.href}
+                              href={`${link.href}#titulo-pagina`}
+                              className="lab-link min-h-11"
+                            >
+                              {link.label}
+                            </a>
+                          ))}
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

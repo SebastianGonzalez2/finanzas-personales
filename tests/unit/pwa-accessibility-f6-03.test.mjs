@@ -113,6 +113,8 @@ test("F6-03: el texto de estado y los tokens cumplen contraste AA (4,5:1) sobre 
     ["ring", token("ring")],
     ["amber-400 (advertencia)", "#fbbf24"],
     ["red-400 (límite)", "#f87171"],
+    ["state-warning (avisos Glaciar)", token("state-warning")],
+    ["state-critical (avisos Glaciar)", token("state-critical")],
     ["amber-200 (aviso de conexión)", "#fde68a"],
   ]) {
     assert.ok(
@@ -126,8 +128,11 @@ test("F6-03: el texto de estado y los tokens cumplen contraste AA (4,5:1) sobre 
   );
   assert.ok(contrast(token("ring"), background) >= 3, "Foco ≥ 3:1");
   const notices = read("src/components/notices.tsx");
-  assert.match(notices, /text-amber-400/);
-  assert.match(notices, /text-red-400/);
+  // UI-05H: los avisos usan los tokens semánticos Glaciar (comprobados arriba)
+  // y siempre combinan color con icono.
+  assert.ok(notices.includes("b-notice b-notice--${levelTone[level]}"));
+  assert.match(notices, /warning: "warning"/);
+  assert.match(notices, /danger: "critical"/);
   assert.doesNotMatch(notices, /text-(red|amber)-600/);
 });
 
