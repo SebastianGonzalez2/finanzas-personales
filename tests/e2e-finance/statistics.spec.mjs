@@ -11,6 +11,45 @@ import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test.use({ actionTimeout: 5000 });
 
+test("QA-F02: Estadísticas autoriza antes de validar filtros", async ({
+  page,
+  context,
+}) => {
+  const path = "/estadisticas";
+  const invalid = path + "?from=no-es-fecha";
+  for (const url of [path, path + "?display=original", invalid]) {
+    const response = await page.request.get(url, { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers().location).toBe("/auth/sign-in");
+    await page.goto(url);
+    await expect(page).toHaveURL(/\/auth\/sign-in$/);
+    await expect(
+      page.getByRole("heading", { name: "Estadísticas" }),
+    ).toHaveCount(0);
+    await expect(page.getByText(/Revisá los filtros/)).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", {
+        name: /Navegación principal|Accesos rápidos/,
+      }),
+    ).toHaveCount(0);
+  }
+
+  const { cookies } = await financeBrowserFixtures();
+  await context.addCookies([cookies.a1]);
+  await page.goto(invalid);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Revisá los filtros",
+  );
+  await page.getByRole("link", { name: "Volver a estadísticas" }).click();
+  await expect(page).toHaveURL(/\/estadisticas$/);
+  await expect(
+    page.getByRole("heading", { name: "Estadísticas" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Aplicar filtros" }),
+  ).toBeVisible();
+});
+
 test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", async ({
   page,
   context,

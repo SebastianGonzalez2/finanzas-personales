@@ -47,9 +47,10 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
       .getByRole("link", { name: "Historial", exact: true }),
   ).toBeEnabled();
 
-  for (let step = 0; step < 7; step += 1)
+  for (let next = 2; next <= 8; next += 1) {
     await tour.getByRole("button", { name: /Siguiente/ }).click();
-  await expect(tour).toContainText("Paso 8 de 8");
+    await expect(tour).toContainText(`Paso ${next} de 8`);
+  }
   await expect(tour).toContainText("Ayuda cuando la necesites");
   await tour.getByRole("button", { name: "Finalizar" }).click();
   await expect(tour).toBeHidden();

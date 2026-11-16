@@ -290,6 +290,130 @@ for (const width of [360, 768, 1440]) {
   });
 }
 
+test("QA-D01: el pago de Tarjetas se puede recorrer entero con Tab sin que la barra tape el foco", async ({
+  page,
+  fixtures,
+}, info) => {
+  void fixtures;
+  const today = bankReferenceToday();
+  const create = async (path, data) => {
+    const response = await page.request.post(`/api/${path}`, {
+      data,
+      headers: { origin: financeTestOrigin },
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    return response.json();
+  };
+  await create("bank-balances", {
+    currency: "UYU",
+    amount: "10000",
+    asOfDate: today,
+  });
+  const card = await create("cards", {
+    action: "create",
+    kind: "credit",
+    name: "Tarjeta sintética de teclado",
+    currencies: [{ currency: "UYU" }, { currency: "USD" }],
+    idempotencyKey: randomUUID(),
+  });
+  await create("cards/operations", {
+    action: "purchase",
+    cardId: card.id,
+    currency: "UYU",
+    concept: "Compra sintética de teclado",
+    effectiveOn: today,
+    amount: "4000",
+    covered: false,
+    idempotencyKey: randomUUID(),
+  });
+
+  const widths =
+    info.project.name === "chromium-mobile"
+      ? [
+          [375, 667],
+          [390, 844],
+          [360, 640],
+        ]
+      : [[1440, 900]];
+  for (const [width, height] of widths) {
+    await page.setViewportSize({ width, height });
+    await page.goto(
+      `/tarjetas/${card.id}/resumen?ciclo=${today.slice(0, 7)}&accion=pago`,
+    );
+    await page.evaluate(() => document.fonts.ready);
+    const heading = page.getByRole("heading", {
+      name: "Registrar pago · Tarjeta sintética de teclado",
+    });
+    const date = page.getByLabel("Fecha", { exact: true });
+    const debt = page.getByRole("checkbox", { name: /Abonar deuda en UYU/ });
+    const submit = page.getByRole("button", {
+      name: "Registrar pago",
+      exact: true,
+    });
+    const expectExposedFocus = () =>
+      expect
+        .poll(() =>
+          page.evaluate(() => {
+            const el = document.activeElement;
+            const rect = el.getBoundingClientRect();
+            const dock = document.querySelector(".finance-dock");
+            const lowerEdge = dock.getClientRects().length
+              ? dock.getBoundingClientRect().top
+              : window.innerHeight;
+            const hit = document.elementFromPoint(
+              (rect.left + rect.right) / 2,
+              (rect.top + rect.bottom) / 2,
+            );
+            return (
+              rect.top >= 0 && rect.bottom <= lowerEdge && el.contains(hit)
+            );
+          }),
+        )
+        .toBe(true);
+
+    async function tabTo(control, maxSteps) {
+      for (let step = 0; step < maxSteps; step += 1) {
+        await page.keyboard.press("Tab");
+        await expectExposedFocus();
+        if (await control.evaluate((el) => el === document.activeElement))
+          return;
+      }
+      await expect(control).toBeFocused();
+    }
+
+    await expect(heading).toBeFocused();
+    await tabTo(date, 1);
+    // El control nativo de fecha puede tener varias paradas de Tab.
+    await tabTo(debt, 6);
+    await tabTo(submit, 1);
+    expect(
+      await submit.evaluate((el) => window.getComputedStyle(el).outlineStyle),
+    ).toBe("solid");
+    if (width === 375 || width === 1440)
+      await page.screenshot({
+        path: info.outputPath(`pago-teclado-${width}.png`),
+        animations: "disabled",
+      });
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(debt).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(debt).toBeChecked();
+    const amount = page.getByRole("textbox", {
+      name: "Deuda cancelada en UYU",
+    });
+    await page.keyboard.press("Tab");
+    await expect(amount).toBeFocused();
+    await expectExposedFocus();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("combobox", { name: /Saldo bancario para deuda/ }),
+    ).toBeFocused();
+    await expectExposedFocus();
+    await tabTo(submit, 12);
+  }
+});
+
 test("CA-065/066: validación nativa marca el campo y, sin conexión, no se informa éxito ni se pierde el formulario", async ({
   page,
   fixtures,

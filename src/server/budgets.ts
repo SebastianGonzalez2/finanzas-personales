@@ -347,7 +347,7 @@ export async function readBudgets(
       CROSS JOIN LATERAL (${limitFor("$2::date")}) l
       CROSS JOIN LATERAL (${limitFor("($2::date+interval '1 month')::date")}) n
       LEFT JOIN LATERAL (
-        SELECT sum(round(x.amount * CASE WHEN x.currency=l.currency THEN 1 ELSE ${rate} END,4)) AS total,
+        SELECT round(sum(x.amount * CASE WHEN x.currency=l.currency THEN 1 ELSE ${rate} END),4) AS total,
           count(*) FILTER (WHERE x.currency<>l.currency AND ${rate} IS NULL) AS missing,
           jsonb_agg(DISTINCT jsonb_build_object(
             'fromCurrency',x.currency,'rate',(${rate})::text,

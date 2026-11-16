@@ -115,3 +115,7 @@ Usar estados: `No iniciado`, `En investigación`, `Verificado con evidencia`, `B
 - https://neon.com/docs/ai/ai-rules-neon-auth (skill de Neon para agentes)
 
 Las condiciones cambian: estos enlaces guían una **verificación actual** en F0 y no sustituyen pruebas del proveedor.
+
+### Seguimiento de QA-FINAL
+
+- **QA-D02 — Localización de los controles de fecha y mes (pendiente).** En una interfaz en español, Chromium puede mostrar `11/16/2026` en el formulario de pago de Tarjetas y `December 2026` en el selector mensual de Presupuestos. La auditoría no observó valores guardados incorrectos. Evaluar en una tarea posterior una presentación coherente con español de Uruguay sin perder la accesibilidad de los controles nativos. Verificar en distintos navegadores y con teclado.
