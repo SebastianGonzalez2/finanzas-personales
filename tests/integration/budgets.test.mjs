@@ -270,6 +270,8 @@ test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concu
       (await list("2026-11")).find((x) => x.id === id).progress,
       null,
     );
+    await pool.query(`INSERT INTO finance.fx_reference_refreshes(year,retry_at)
+      VALUES (2026,now()+interval '1 hour') ON CONFLICT (year) DO NOTHING`);
     const quote = {
       action: "quote",
       fromCurrency: "USD",
@@ -294,8 +296,8 @@ test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concu
       "manual",
     );
 
-    // Registration-time quote is captured even before the budget's future month
-    // is read, then retained across every installment and a currency edit.
+    // A legacy plan retains its registration-time quote across installments.
+    // The fixture writes the plan using the older database contract.
     const today = bankReferenceToday(),
       period = today.slice(0, 7);
     await save(
@@ -333,9 +335,20 @@ test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concu
       today,
     );
     assert.ok(!("error" in purchase));
-    const bought = await run((c, owner) =>
-      saveCreditOperation(c, owner, purchase),
-    );
+    const bought = await run(async (c, owner) => {
+      const result = await saveCreditOperation(c, owner, {
+        ...purchase,
+        plan: null,
+      });
+      assert.equal(result.status, "created");
+      await c.query(
+        `INSERT INTO finance.installment_plans
+           (owner_id,event_id,currency,version,installment_amount,installment_count,active_count,first_period,change_type)
+         VALUES ($1,$2,'USD',1,20,3,3,$3,'created')`,
+        [owner, result.id, period + "-01"],
+      );
+      return result;
+    });
     assert.equal(bought.status, "created");
     await save(
       {

@@ -25,6 +25,7 @@ export type Budget = {
     rate: string;
     date: string;
     source: string;
+    provisional?: boolean;
   }[];
 };
 

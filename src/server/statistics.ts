@@ -1,7 +1,7 @@
 import "server-only";
 import type pg from "pg";
 import type { Currency } from "../domain/money.ts";
-import { fxKey, type FxKey, type FxQuote } from "../domain/exchange-rates.ts";
+import { fxKey, type FxQuote } from "../domain/exchange-rates.ts";
 import {
   statisticsChartIdList,
   statisticsMonthComplete,
@@ -17,7 +17,13 @@ import {
   type StatisticsTotal,
 } from "../domain/statistics.ts";
 import { listStatisticsPositions } from "./statistics-positions.ts";
-import { pinnedQuotes, prepareHistoricalQuotes } from "./exchange-rates.ts";
+import {
+  type HistoricalFxKey,
+  pendingHistoricalDates,
+  pinnedQuotes,
+  prepareHistoricalQuotes,
+} from "./exchange-rates.ts";
+import { monthlyInstallmentFxReady } from "./installments.ts";
 import { consolidatePositions, positionKeys } from "./statistics-fx.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
@@ -26,7 +32,8 @@ function statisticsCte(schema: StatisticsSchema) {
   return `
 WITH expense_rows AS (
   SELECT f.id AS event_id, e.currency, (-e.amount_signed) AS amount,
-         m.category_id, f.effective_on, m.method, NULL::uuid AS card_id, false AS mixed
+         m.category_id, f.effective_on, m.method, NULL::uuid AS card_id, false AS mixed,
+         NULL::integer AS installment_ordinal
     FROM finance.financial_events f
     JOIN finance.ordinary_movements m
       ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
@@ -36,7 +43,7 @@ WITH expense_rows AS (
      AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s
        WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
   UNION ALL
-  SELECT s.event_id, s.currency, s.own_amount, s.category_id, f.effective_on, s.method, NULL, false
+  SELECT s.event_id, s.currency, s.own_amount, s.category_id, f.effective_on, s.method, NULL, false, NULL
     FROM finance.current_shared_expenses s
     JOIN finance.financial_events f
       ON (f.owner_id, f.id) = (s.owner_id, s.event_id)
@@ -44,7 +51,7 @@ WITH expense_rows AS (
   UNION ALL
   SELECT x.id, x.currency, x.amount, x.category_id, x.effective_on,
          CASE WHEN f.kind = 'card_payment' THEN 'transfer' ELSE x.method END,
-         CASE WHEN f.kind = 'card_purchase' THEN o.card_id END, false
+         CASE WHEN f.kind = 'card_purchase' THEN o.card_id END, false, x.installment_ordinal
     FROM finance.credit_consumption x
     JOIN finance.financial_events f
       ON (f.owner_id, f.id) = (x.owner_id, x.id)
@@ -54,13 +61,13 @@ WITH expense_rows AS (
        WHERE (m.owner_id, m.event_id) = (x.owner_id, x.id))
   UNION ALL
   SELECT x.id, x.currency, x.amount, x.category_id, x.effective_on, x.method,
-         CASE WHEN x.method = 'credit' THEN o.card_id ELSE m.debit_card_id END, true
+         CASE WHEN x.method = 'credit' THEN o.card_id ELSE m.debit_card_id END, true, x.installment_ordinal
     FROM finance.mixed_purchase_expenses x
     JOIN finance.mixed_purchases m ON (m.owner_id, m.event_id) = (x.owner_id, x.id)
     JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (x.owner_id, x.id)
    WHERE x.owner_id = $1
   UNION ALL
-  SELECT o.event_id, o.currency, o.expense, NULL, f.effective_on, 'transfer', NULL, false
+  SELECT o.event_id, o.currency, o.expense, NULL, f.effective_on, 'transfer', NULL, false, NULL
     FROM finance.loan_operations o
     JOIN finance.financial_events f
       ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
@@ -68,7 +75,8 @@ WITH expense_rows AS (
 ),
 income_rows AS (
   SELECT f.id AS event_id, e.currency, e.amount_signed AS amount,
-         m.category_id, f.effective_on, m.method, NULL::uuid AS card_id, false AS mixed
+         m.category_id, f.effective_on, m.method, NULL::uuid AS card_id, false AS mixed,
+         NULL::integer AS installment_ordinal
     FROM finance.financial_events f
     JOIN finance.ordinary_movements m
       ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
@@ -80,7 +88,7 @@ income_rows AS (
       ? `UNION ALL
   SELECT b.event_id, b.currency, b.amount, NULL::uuid, f.effective_on,
          CASE b.destination WHEN 'card' THEN 'credit' ELSE 'deposit' END,
-         b.card_id, false
+         b.card_id, false, NULL
     FROM finance.bank_benefits b
     JOIN finance.financial_events f
       ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
@@ -98,7 +106,7 @@ rows AS (
     schema.allocations
       ? `SELECT b.kind, b.event_id, b.currency, coalesce(a.amount, b.amount) AS amount,
          CASE WHEN a.event_id IS NULL THEN b.category_id ELSE a.category_id END AS category_id,
-         b.effective_on, b.method, b.card_id, b.mixed
+         b.effective_on, b.method, b.card_id, b.mixed, b.installment_ordinal
     FROM base_rows b
     LEFT JOIN finance.current_movement_allocations a
       ON (a.owner_id, a.event_id) = ($1, b.event_id)`
@@ -109,7 +117,7 @@ refund_rows AS (
   SELECT 'refund'::text AS kind, r.event_id, r.currency, p.amount,
          p.category_id, f.effective_on, p.method,
          CASE WHEN p.method = 'credit' THEN o.card_id ELSE m.debit_card_id END AS card_id,
-         m.event_id IS NOT NULL AS mixed
+         m.event_id IS NOT NULL AS mixed, NULL::integer AS installment_ordinal
     FROM finance.purchase_refunds r
     JOIN finance.financial_events f
       ON (f.owner_id, f.id) = (r.owner_id, r.event_id)
@@ -188,34 +196,53 @@ async function flowKeys(
   client: pg.PoolClient,
   ownerId: string,
   cte: string,
+  range: StatisticsRange,
   history: StatisticsRange,
   previous: StatisticsRange | null,
   filters: StatisticsFilters,
   target: Currency,
 ) {
-  const enclosing = {
-    ...history,
-    from:
-      previous && previous.from < history.from ? previous.from : history.from,
-    to: previous && previous.to > history.to ? previous.to : history.to,
-  };
-  const { rows } = await client.query<FxKey>(
-    `${cte} SELECT DISTINCT to_char(effective_on, 'YYYY-MM-DD') AS date, currency AS base
-      FROM scoped_source WHERE currency <> $10 AND
-       (effective_on BETWEEN $11 AND $12 OR effective_on BETWEEN $13 AND $14)
+  // The selected period can start before the chart history. Include exactly
+  // the dates read by the report, including any independent comparison.
+  const windows = [range, history, previous].filter(
+    (window) => window !== null,
+  );
+  const enclosing = windows.reduce(
+    (bounds, window) => ({
+      ...bounds,
+      from: window.from < bounds.from ? window.from : bounds.from,
+      to: window.to > bounds.to ? window.to : bounds.to,
+    }),
+    range,
+  );
+  const monthlyFx = await monthlyInstallmentFxReady(client);
+  const { rows } = await client.query<HistoricalFxKey>(
+    `${cte} SELECT DISTINCT to_char(x.effective_on, 'YYYY-MM-DD') AS date, x.currency AS base,
+      ${monthlyFx ? "coalesce(p.monthly_fx, false)" : "false"} AS monthly
+      FROM scoped_source x
+      ${
+        monthlyFx
+          ? `LEFT JOIN finance.installment_plans p
+        ON (p.owner_id,p.event_id,p.version) = ($1,x.event_id,1)
+        AND x.installment_ordinal IS NOT NULL`
+          : ""
+      }
+      WHERE x.currency <> $10 AND EXISTS (
+        SELECT 1 FROM jsonb_to_recordset($11::jsonb) AS period(from_date date, to_date date)
+        WHERE x.effective_on BETWEEN period.from_date AND period.to_date
+      )
       ORDER BY date DESC, base`,
     [
       ...parameters(ownerId, enclosing, filters, target),
-      history.from,
-      history.to,
-      previous?.from ?? null,
-      previous?.to ?? null,
+      JSON.stringify(
+        windows.map(({ from, to }) => ({ from_date: from, to_date: to })),
+      ),
     ],
   );
   return rows;
 }
 
-export async function prepareStatisticsFx(
+async function statisticsFxKeys(
   client: pg.PoolClient,
   ownerId: string,
   range: StatisticsRange,
@@ -224,12 +251,12 @@ export async function prepareStatisticsFx(
   filters: StatisticsFilters,
   schema: StatisticsSchema,
   target: Currency,
-  today: string,
 ) {
   const flows = await flowKeys(
     client,
     ownerId,
     statisticsCte(schema),
+    range,
     history,
     previous,
     filters,
@@ -243,13 +270,86 @@ export async function prepareStatisticsFx(
     range,
     filters.currency,
   );
+  return [...flows, ...positionKeys(positions)];
+}
+
+export async function prepareStatisticsFx(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  previous: StatisticsRange | null,
+  history: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target: Currency,
+  today: string,
+) {
   await prepareHistoricalQuotes(
     client,
     ownerId,
-    [...flows, ...positionKeys(positions)],
+    await statisticsFxKeys(
+      client,
+      ownerId,
+      range,
+      previous,
+      history,
+      filters,
+      schema,
+      target,
+    ),
     target,
     today,
   );
+}
+
+export async function statisticsReferenceDates(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  previous: StatisticsRange | null,
+  history: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target: Currency,
+) {
+  return pendingHistoricalDates(
+    client,
+    ownerId,
+    await statisticsFxKeys(
+      client,
+      ownerId,
+      range,
+      previous,
+      history,
+      filters,
+      schema,
+      target,
+    ),
+    target,
+  );
+}
+
+export async function summaryReferenceDates(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  history: StatisticsRange,
+  comparison: StatisticsRange | null,
+  target: Currency,
+) {
+  const schema = await statisticsReady(client);
+  if (!schema.ready) return [];
+  const inputs = await flowKeys(
+    client,
+    ownerId,
+    statisticsCte(schema),
+    range,
+    history,
+    comparison,
+    { period: "mes-actual" },
+    target,
+  );
+  return pendingHistoricalDates(client, ownerId, inputs, target);
 }
 
 export async function summaryFlowFx(
@@ -269,8 +369,9 @@ export async function summaryFlowFx(
     client,
     ownerId,
     source,
+    range,
     history,
-    null,
+    comparison,
     filters,
     target,
   );
@@ -543,6 +644,7 @@ export async function loadStatistics(
         client,
         ownerId,
         source,
+        range,
         historyRange,
         previous,
         filters,

@@ -120,7 +120,6 @@ test("F6-04 CA-062/063: recuperación controlada del dominio financiero completo
       "name_catalog_changes",
       "bulk_classification_changes",
       "statistics_favorites",
-      "fx_valuations",
     ]);
     const effectsBefore = await effectTotals();
     assert.ok(effectsBefore.length > 0);

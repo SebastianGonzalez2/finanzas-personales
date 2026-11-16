@@ -10,6 +10,7 @@ import { parseRefundCommand } from "../../src/domain/refunds.ts";
 import { parseSharedExpense } from "../../src/domain/shared-expenses.ts";
 import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import { saveBankBenefit } from "../../src/server/bank-benefits.ts";
+import { saveManualFx } from "../../src/server/exchange-rates.ts";
 import { saveBudget } from "../../src/server/budgets.ts";
 import { parseCycleCommand } from "../../src/domain/card-cycles.ts";
 import { saveCard } from "../../src/server/cards.ts";
@@ -202,7 +203,7 @@ export async function seedFinancialDomain(
       ),
     ),
   );
-  // USD installments after a budget quote exercise the rate-capture trigger.
+  // Preserve both rate formats in the restore rehearsal.
   const { id: usdCardId } = await saveCard(
     client,
     ownerId,
@@ -250,6 +251,39 @@ export async function seedFinancialDomain(
       ),
     ),
   );
+  const legacyPlan = created(
+    await saveCreditOperation(
+      client,
+      ownerId,
+      parsed(
+        parseCreditCommand(
+          creditPurchase({
+            cardId: usdCardId,
+            currency: "USD",
+            amount: "300",
+            concept: "Plan anterior sintético",
+          }),
+          today,
+        ),
+      ),
+    ),
+  );
+  // Older writers omit the monthly policy indicator and capture a budget rate.
+  await client.query(
+    `INSERT INTO finance.installment_plans
+       (owner_id,event_id,currency,version,installment_amount,installment_count,active_count,first_period,change_type)
+     VALUES ($1,$2,'USD',1,100,3,3,'2026-02-01','created')`,
+    [ownerId, legacyPlan.id],
+  );
+  if (
+    !(await saveManualFx(client, ownerId, {
+      date: "2026-02-01",
+      base: "USD",
+      target: "UYU",
+      rate: "39.321",
+    }))
+  )
+    throw new Error("No se pudo preparar la referencia mensual sintética");
   const purchase = created(
     await saveCreditOperation(
       client,

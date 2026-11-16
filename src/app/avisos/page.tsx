@@ -21,7 +21,8 @@ import { bankReferenceToday } from "@/domain/bank-balances";
 import { contributionPending } from "@/domain/contribution-plans";
 import { fundTargetNotices } from "@/domain/savings-funds";
 import { withGoogleOwner } from "@/server/google-auth";
-import { listBudgetNotices } from "@/server/budgets";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
+import { budgetReferenceDates, listBudgetNotices } from "@/server/budgets";
 import { cardCyclesReady, listCardCycleAlerts } from "@/server/card-cycles";
 import { cardPushConfig, cardPushReady } from "@/server/card-push";
 import { savingsFundsReady } from "@/server/bank-balances";
@@ -42,47 +43,48 @@ export const metadata = { title: "Avisos | Finanzas personales" };
 export const dynamic = "force-dynamic";
 
 export default async function NoticesPage() {
-  const result = await withGoogleOwner(
-    new Request("https://internal.invalid", { headers: await headers() }),
-    async (client, ownerId) => {
-      const today = bankReferenceToday();
-      const month = today.slice(0, 7);
-      let periods: Awaited<ReturnType<typeof listContributionPeriods>> = [];
-      let plans: Awaited<ReturnType<typeof listContributionPlans>> = [];
-      if (await contributionPlansReady(client)) {
-        await processDueContributions(client, ownerId);
-        periods = (await listContributionPeriods(client, ownerId)).filter(
-          ({ reason }) => reason,
-        );
-        plans = await listContributionPlans(client, ownerId);
-      }
-      return {
-        today,
-        periods,
-        plans,
-        pushReady: await cardPushReady(client),
-        budgetNotices: await listBudgetNotices(client, ownerId, month),
-        cardAlerts:
-          (await cardsReady(client)) && (await cardCyclesReady(client))
-            ? await listCardCycleAlerts(
-                client,
-                ownerId,
-                await listCards(client, ownerId),
-                today,
-              )
-            : [],
-        debtNotices: await listLoanDueNotices(client, ownerId, today),
-        recurrenceNotices: await listRecurrenceDueNotices(
-          client,
-          ownerId,
-          today,
-        ),
-        funds: (await savingsFundsReady(client))
-          ? await listSavingsFunds(client, ownerId)
-          : null,
-      };
-    },
-  ).catch((error: unknown) => {
+  const today = bankReferenceToday();
+  const month = today.slice(0, 7);
+  const request = new Request("https://internal.invalid", {
+    headers: await headers(),
+  });
+  const dates = await withGoogleOwner(request, (client, ownerId) =>
+    budgetReferenceDates(client, ownerId, month, today),
+  ).catch(() => []);
+  await refreshOwnerReferences(request, dates, today).catch(() => undefined);
+
+  const result = await withGoogleOwner(request, async (client, ownerId) => {
+    let periods: Awaited<ReturnType<typeof listContributionPeriods>> = [];
+    let plans: Awaited<ReturnType<typeof listContributionPlans>> = [];
+    if (await contributionPlansReady(client)) {
+      await processDueContributions(client, ownerId);
+      periods = (await listContributionPeriods(client, ownerId)).filter(
+        ({ reason }) => reason,
+      );
+      plans = await listContributionPlans(client, ownerId);
+    }
+    return {
+      today,
+      periods,
+      plans,
+      pushReady: await cardPushReady(client),
+      budgetNotices: await listBudgetNotices(client, ownerId, month),
+      cardAlerts:
+        (await cardsReady(client)) && (await cardCyclesReady(client))
+          ? await listCardCycleAlerts(
+              client,
+              ownerId,
+              await listCards(client, ownerId),
+              today,
+            )
+          : [],
+      debtNotices: await listLoanDueNotices(client, ownerId, today),
+      recurrenceNotices: await listRecurrenceDueNotices(client, ownerId, today),
+      funds: (await savingsFundsReady(client))
+        ? await listSavingsFunds(client, ownerId)
+        : null,
+    };
+  }).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
       redirect("/auth/sign-in");
     return null;
@@ -96,7 +98,6 @@ export default async function NoticesPage() {
   const cardAlerts = result?.cardAlerts ?? [];
   const debtNotices = result?.debtNotices ?? [];
   const recurrenceNotices = result?.recurrenceNotices ?? [];
-  const today = result?.today ?? "";
   const planIds = new Set(result?.plans.map(({ fundId }) => fundId));
   const goals = funds
     .map((fund) => ({ fund, ...fundTargetNotices(fund, today) }))

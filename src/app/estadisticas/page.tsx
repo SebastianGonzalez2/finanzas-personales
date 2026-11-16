@@ -19,6 +19,7 @@ import {
   statisticsSearch,
 } from "@/domain/statistics";
 import { withGoogleOwner } from "@/server/google-auth";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
 import { displayCurrency, exchangeRatesReady } from "@/server/exchange-rates";
 import { listTags } from "@/server/classification";
 import { listHistoryCategories } from "@/server/history";
@@ -28,6 +29,7 @@ import {
   prepareStatisticsFx,
   listStatisticsCards,
   statisticsReady,
+  statisticsReferenceDates,
 } from "@/server/statistics";
 
 export const metadata = { title: "Estadísticas | Finanzas personales" };
@@ -63,7 +65,7 @@ export default async function StatisticsPage({
   });
   // Import public observations and commit historical pins before the report's
   // repeatable-read snapshot. Every aggregation sees the same pinned rates.
-  const target =
+  const conversion =
     parsed.filters.display === "original"
       ? undefined
       : await withGoogleOwner(request, async (client, ownerId) => {
@@ -73,7 +75,7 @@ export default async function StatisticsPage({
           const currency =
             parsed.filters.display || (await displayCurrency(client, ownerId));
           if (currency === "original") return undefined;
-          await prepareStatisticsFx(
+          const dates = await statisticsReferenceDates(
             client,
             ownerId,
             parsed.range,
@@ -82,10 +84,30 @@ export default async function StatisticsPage({
             parsed.filters,
             schema,
             currency,
-            today,
           );
-          return currency;
+          return { currency, dates };
         }).catch(() => undefined);
+  const target = conversion?.currency;
+  if (conversion) {
+    await refreshOwnerReferences(request, conversion.dates, today).catch(
+      () => undefined,
+    );
+    await withGoogleOwner(request, async (client, ownerId) => {
+      const schema = await statisticsReady(client);
+      if (schema.ready)
+        await prepareStatisticsFx(
+          client,
+          ownerId,
+          parsed.range,
+          parsed.previous,
+          historyRange,
+          parsed.filters,
+          schema,
+          conversion.currency,
+          today,
+        );
+    }).catch(() => undefined);
+  }
   const data = await withGoogleOwner(
     request,
     async (client, ownerId) => {

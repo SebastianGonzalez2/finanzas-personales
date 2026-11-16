@@ -5,7 +5,12 @@ import { BudgetCatalog } from "@/components/budget-catalog";
 import { PageHead, PageNotice, Screen } from "@/components/glaciar/screen";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import { listCatalogCategories } from "@/server/categories";
-import { budgetsReady, listBudgets } from "@/server/budgets";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
+import {
+  budgetReferenceDates,
+  budgetsReady,
+  listBudgets,
+} from "@/server/budgets";
 import { withGoogleOwner } from "@/server/google-auth";
 
 export const metadata = { title: "Presupuestos | Finanzas personales" };
@@ -23,23 +28,28 @@ export default async function BudgetsPage({
     /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(requested)
       ? requested
       : today.slice(0, 7);
-  const result = await withGoogleOwner(
-    new Request("https://internal.invalid", { headers: await headers() }),
-    async (client, ownerId) => {
-      if (!(await budgetsReady(client)))
-        return {
-          message:
-            "Los presupuestos estarán disponibles cuando se actualice la base de datos.",
-        };
-      const budgets = await listBudgets(client, ownerId, month);
+  const request = new Request("https://internal.invalid", {
+    headers: await headers(),
+  });
+  const dates = await withGoogleOwner(request, (client, ownerId) =>
+    budgetReferenceDates(client, ownerId, month, today),
+  ).catch(() => []);
+  await refreshOwnerReferences(request, dates, today).catch(() => undefined);
+
+  const result = await withGoogleOwner(request, async (client, ownerId) => {
+    if (!(await budgetsReady(client)))
       return {
-        budgets,
-        categories: (await listCatalogCategories(client, ownerId)).filter(
-          ({ kind }) => kind === "expense",
-        ),
+        message:
+          "Los presupuestos estarán disponibles cuando se actualice la base de datos.",
       };
-    },
-  ).catch((error: unknown) => {
+    const budgets = await listBudgets(client, ownerId, month, today);
+    return {
+      budgets,
+      categories: (await listCatalogCategories(client, ownerId)).filter(
+        ({ kind }) => kind === "expense",
+      ),
+    };
+  }).catch((error: unknown) => {
     if (error instanceof Error && error.message === "Acceso denegado")
       redirect("/auth/sign-in");
     return {

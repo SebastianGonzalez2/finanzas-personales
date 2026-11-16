@@ -21,6 +21,7 @@ import {
   displayCurrency,
   exchangeRatesReady,
 } from "@/server/exchange-rates";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
 import { savingsFundsReady } from "@/server/bank-balances";
 import {
   fundLifecycleReady,
@@ -87,28 +88,34 @@ export default async function SavingsFundsPage({
     };
   });
   const fundsData = "funds" in result && result.funds ? result : null;
-  const equivalence = fundsData?.funds.some(({ status }) => status !== "closed")
+  const amounts = (fundsData?.funds ?? [])
+    .filter(({ status }) => status !== "closed")
+    .map(({ currency, reservedAmount }) => ({
+      currency,
+      amount: reservedAmount,
+    }));
+  const today = fundsData?.today ?? bankReferenceToday();
+  const currency = amounts.length
     ? await withGoogleOwner(request, async (client, ownerId) => {
         if (!(await exchangeRatesReady(client))) return null;
-        const currency = isCurrency(display)
-          ? display
-          : await displayCurrency(client, ownerId);
-        const amounts = fundsData.funds
-          .filter(({ status }) => status !== "closed")
-          .map(({ currency, reservedAmount }) => ({
-            currency,
-            amount: reservedAmount,
-          }));
-        return {
-          currency,
-          value: await currentCurrencyValue(
-            client,
-            amounts,
-            currency,
-            fundsData.today,
-          ),
-        };
+        return isCurrency(display) ? display : displayCurrency(client, ownerId);
       }).catch(() => null)
+    : null;
+  if (
+    currency &&
+    amounts.some(
+      (item) => item.currency !== currency && /[1-9]/.test(item.amount),
+    )
+  )
+    await refreshOwnerReferences(request, [today], today).catch(
+      () => undefined,
+    );
+
+  const equivalence = currency
+    ? await withGoogleOwner(request, async (client) => ({
+        currency,
+        value: await currentCurrencyValue(client, amounts, currency, today),
+      })).catch(() => null)
     : null;
 
   return (

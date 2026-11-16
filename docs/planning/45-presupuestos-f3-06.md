@@ -11,15 +11,13 @@ Continuación MIX del commit de OpenCode `cd0738d`, en `codex/F3-06-presupuestos
 - Los comandos se serializan por titular dentro de la transacción existente, con clave idempotente, huella y versión esperada. Dos ediciones con la misma versión permiten solo una confirmación. Ante respuesta perdida se bloquean los campos y se reenvía exactamente el mismo cuerpo y clave. Una excepción guardada se puede reintentar después de cambiar de mes; una nueva excepción retroactiva se rechaza.
 - Las cuatro tablas nuevas fuerzan RLS por titular y FK compuestas. El runtime solo puede leer/insertar; no actualizar ni borrar historial. Las APIs conservan sesión Google validada, autorización fresca, origen permitido y respuestas privadas.
 
-## Cotizaciones y límites actuales
+## Cotizaciones
 
-El proveedor automático de referencia aún no existe en esta base y corresponde a F5-06. Se implementa la alternativa manual ya prevista en §10/§11.2 de decisiones de producto, identificada como `manual`, con par, fecha y tasa decimal positiva de hasta ocho decimales. Cada par se informa expresamente; no se inventan tasas inversas/cruzadas ni equivalencias 1:1.
+Presupuestos usa el servicio de [F5-06](50-cotizaciones-f5-06.md). La fuente principal es datosUruguay (BCU) y el respaldo es Frankfurter. Cada gasto ordinario usa su fecha efectiva. El par es dirigido y los cálculos usan `numeric`. Si falta alguna conversión, la vista indica consumo sin calcular.
 
-Se toma la última referencia con fecha anterior o igual al gasto. Para cuotas se captura al registrar la compra, para todas las monedas de destino disponibles, aunque todavía no haya presupuesto. Todas sus cuotas reutilizan la referencia original. Cambiar la moneda del presupuesto selecciona la referencia fija del otro par; no recotiza por el paso del tiempo.
+FIX-FX mantiene cualquier referencia histórica ya fijada en `budget_rates`. Los planes anteriores preservan la fecha de registro en Presupuestos. Las nuevas cuotas usan la referencia fijada por titular, primer día del mes y par en `fx_valuations`, compartida con Estadísticas. Una tasa manual para una cuota nueva debe informar ese primer día. Un mes futuro solo muestra una equivalencia estimada con referencias públicas disponibles al consultar. Las estimaciones quedan fuera de los avisos de umbral.
 
-Para gastos/planes anteriores o sin tasa disponible, la primera referencia histórica suministrada resuelve la conversión pendiente y queda fijada al evento/par. Una referencia posterior no reemplaza una ya usada. La vista muestra fecha, fuente y tasa; si falta alguna conversión, muestra consumo sin calcular, sin presentar un total parcial como cero. Una corrección financiera que crea un evento sustituto obtiene su propia referencia. Este mecanismo no ejecuta cambios de moneda bancarios.
-
-Las consultas pueden insertar únicamente referencias faltantes en `budget_rates`; no crean movimientos ni modifican bancos, deudas o fondos. Los cálculos usan NUMERIC y el porcentaje de interfaz usa enteros exactos.
+Las consultas capturan referencias faltantes y los comandos financieros pueden usar el caché existente. Presupuestos y Avisos actualizan las observaciones públicas antes de iniciar la transacción de cálculo. Las referencias y el cálculo de progreso solo afectan la presentación.
 
 ## Migración preparada, no aplicada en Neon
 
