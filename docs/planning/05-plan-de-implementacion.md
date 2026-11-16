@@ -186,7 +186,8 @@ Diseño aprobado por el usuario el 2026-11-14: [guía visual definitiva](../desi
 
 | Ticket | Entrega | Validación |
 |---|---|---|
-| QA-FIX-01 | QA-F01: redondear el consumo de Presupuestos después de sumar, como en Estadísticas, conservando las cotizaciones fijadas. QA-F02: autenticar antes de validar filtros de Estadísticas. QA-D01: mantener visible el foco por encima de la barra móvil de Glaciar. | RF-001/003/031/032/044/045/046/051/052; CA-005/042/059/060/066. Casos límite y umbrales con PostgreSQL desechable; URLs anónimas y autenticadas y recorrido de Tarjetas con teclado en Chromium móvil y de escritorio. La localización nativa de fechas queda en [pendientes](06-riesgos-y-pendientes.md#seguimiento-de-qa-final). |
+| QA-FIX-01 | QA-F01: redondear el consumo de Presupuestos después de sumar, como en Estadísticas, conservando las cotizaciones fijadas. QA-F02: autenticar antes de validar filtros de Estadísticas. QA-D01: mantener visible el foco por encima de la barra móvil de Glaciar. | RF-001/003/031/032/044/045/046/051/052; CA-005/042/059/060/066. Casos límite y umbrales con PostgreSQL desechable; URLs anónimas y autenticadas y recorrido de Tarjetas con teclado en Chromium móvil y de escritorio. La localización de fechas se trata en QA-D02. |
+| QA-D02 | Presentar fechas como DD/MM/AAAA y meses con nombre en español en los formularios, manteniendo los valores ISO y las mismas reglas financieras. | RF-018/031/032/051/052; CA-024/042/043/066 como regresión. [Evidencia y límites](06-riesgos-y-pendientes.md#seguimiento-de-qa-final). |
 
 ## Estrategia de PR y tickets
 
