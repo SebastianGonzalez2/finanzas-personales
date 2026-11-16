@@ -2,11 +2,11 @@
 @import "./glaciar-summary.css";
 @import "./glaciar-history.css";
 @import "./glaciar-screens.css";
+@import "./glaciar-tour.css";
 
 /* UI-02 — Sistema visual «Ambient Glow + Glassmorphism», paleta Glaciar.
    Fuente de verdad: docs/design/ui-identidad-visual.md (§3 tokens, §4 reglas).
-   Implementación de referencia: src/app/prototipos/ui/_lab/lab.css
-   ([data-palette="glaciar"] de la variante Final). Todo el CSS propio va en
+   El laboratorio de referencia (UI-01) se retiró en UI-06. Todo el CSS propio va en
    `@layer base/components` para que las utilidades de Tailwind sigan ganando. */
 
 @theme inline {

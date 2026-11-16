@@ -1,5 +1,5 @@
 /* UI-04 — Historial Glaciar. Portado de la sección «Historial» de
-   src/app/prototipos/ui/_lab/lab.css (UI-01, diseño aprobado). Todo queda
+   el laboratorio UI-01 (retirado en UI-06; diseño aprobado). Todo queda
    bajo `.glaciar-history` para no alterar el Resumen ni otras pantallas; los
    tokens `--lab-*` se resuelven a los Glaciar en glaciar-summary.css.
    Agregados respecto del prototipo, necesarios para la app real: selección
