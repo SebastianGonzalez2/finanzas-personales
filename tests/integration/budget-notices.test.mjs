@@ -124,40 +124,42 @@ test("QA-F01: redondeo del total convertido y cruces de los umbrales de presupue
       return categories;
     });
     const balances = await run(listBankBalances);
-    await run(async (c, id) => {
-      const budgets = await listBudgets(c, id, month);
-      const schema = await statisticsReady(c);
-      for (const [index, { categoryId }] of categories.entries()) {
-        const { total, visible } = cases[index];
-        const budget = budgets.find((item) => item.categoryId === categoryId);
-        const report = await loadStatistics(
+    const budgets = await run((c, id) => listBudgets(c, id, month));
+    for (const [index, { categoryId }] of categories.entries()) {
+      const { total, visible } = cases[index];
+      const budget = budgets.find((item) => item.categoryId === categoryId);
+      const report = await run(async (c, id) =>
+        loadStatistics(
           c,
           id,
           range,
           null,
           range,
           { category: categoryId },
-          schema,
+          await statisticsReady(c),
           "UYU",
-        );
-        assert.equal(budget.progress.consumed, total);
-        assert.equal(report.totals[0].expense, total);
-        assert.equal(report.totals[0].movements, 2);
-        assert.equal(report.categories[0].amount, total);
-        assert.equal(
-          formatBankAmount({ amount: total, currency: "UYU" }),
-          visible,
-        );
-      }
-      const thresholds = async () =>
-        (await listBudgetNotices(c, id, month)).map(
-          ({ budgetId, threshold }) => [budgetId, threshold],
-        );
-      const near80 = categories[2];
-      const near100 = categories[3];
-      assert.deepEqual(await thresholds(), [[near100.budgetId, 80]]);
-      for (const { categoryId, date } of [near80, near100]) {
-        const result = await saveMovement(c, id, {
+        ),
+      );
+      assert.equal(budget.progress.consumed, total);
+      assert.equal(report.totals[0].expense, total);
+      assert.equal(report.totals[0].movements, 2);
+      assert.equal(report.categories[0].amount, total);
+      assert.equal(
+        formatBankAmount({ amount: total, currency: "UYU" }),
+        visible,
+      );
+    }
+    const thresholds = async () =>
+      (await run((c, id) => listBudgetNotices(c, id, month))).map(
+        ({ budgetId, threshold }) => [budgetId, threshold],
+      );
+    const near80 = categories[2];
+    const near100 = categories[3];
+    assert.deepEqual(await thresholds(), [[near100.budgetId, 80]]);
+    assert.deepEqual(await run(listBankBalances), balances);
+    for (const { categoryId, date } of [near80, near100]) {
+      const result = await run((c, id) =>
+        saveMovement(c, id, {
           kind: "expense",
           method: "debit",
           currency: "UYU",
@@ -167,19 +169,17 @@ test("QA-F01: redondeo del total convertido y cruces de los umbrales de presupue
           concept: "Cruce sintético QA-F01",
           note: null,
           idempotencyKey: randomUUID(),
-        });
-        assert.equal(result.status, "created");
-      }
-      assert.deepEqual(await thresholds(), [
-        [near100.budgetId, 100],
-        [near80.budgetId, 80],
-        [near100.budgetId, 80],
-      ]);
-    });
-    const after = await run(listBankBalances);
+        }),
+      );
+      assert.equal(result.status, "created");
+    }
     assert.deepEqual(
-      after.find(({ currency }) => currency === "EUR"),
-      balances.find(({ currency }) => currency === "EUR"),
+      (await thresholds()).sort(),
+      [
+        [near100.budgetId, 100],
+        [near100.budgetId, 80],
+        [near80.budgetId, 80],
+      ].sort(),
     );
   } finally {
     await pool.end();
