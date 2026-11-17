@@ -67,6 +67,44 @@ async function excelReport(period: ReportPeriod, report: ReportRows) {
   return new Uint8Array(data);
 }
 
+// The PDF uses the standard Helvetica font, which only draws ISO-8859-1. PDFKit
+// does not reject other characters: it silently emits wrong glyphs or drops
+// them (smart quotes, dashes, the euro sign, emoji). Common punctuation gets its
+// plain equivalent and anything else is shown as "?" so the PDF never garbles
+// or hides text that CSV and Excel keep intact.
+const pdfEquivalents: Record<string, string> = {
+  "‘": "'",
+  "’": "'",
+  "‚": "'",
+  "“": '"',
+  "”": '"',
+  "„": '"',
+  "‐": "-",
+  "‑": "-",
+  "‒": "-",
+  "–": "-",
+  "—": "-",
+  "−": "-",
+  "…": "...",
+  "•": "·",
+  "€": "EUR",
+  " ": " ",
+  " ": " ",
+  " ": " ",
+};
+
+export function pdfSafe(value: string) {
+  return Array.from(
+    value.normalize("NFC").replace(/[\p{Cc}]+/gu, " "),
+    (char) => {
+      const code = char.codePointAt(0) ?? 0;
+      if ((code >= 0x20 && code <= 0x7e) || (code > 0xa0 && code <= 0xff))
+        return char;
+      return pdfEquivalents[char] ?? "?";
+    },
+  ).join("");
+}
+
 function summaryChart(doc: PDFKit.PDFDocument, rows: string[][]) {
   const data = rows.filter(([concept]) =>
     ["Ingreso", "Gasto"].includes(concept),
@@ -138,9 +176,7 @@ function pdfReport(period: ReportPeriod, report: ReportRows) {
     for (const row of report[id]) {
       const text = row
         .flatMap((value, index) =>
-          value === ""
-            ? []
-            : [`${columns[index].label}: ${value.replace(/[\p{Cc}]+/gu, " ")}`],
+          value === "" ? [] : [`${columns[index].label}: ${pdfSafe(value)}`],
         )
         .join("  ·  ");
       if (

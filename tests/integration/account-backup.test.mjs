@@ -84,7 +84,13 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
       loadPeriodReport(client, owner, { from: "2025-03-01", to: "2025-03-31" }),
     );
     assert.deepEqual(report.saldos, [
-      ["Saldo bancario", "UYU", "9999999999999999.9999", "2025-01-01", ""],
+      [
+        "Saldo bancario",
+        "UYU",
+        "9999999999999999.9999",
+        "2025-01-01",
+        "9999999999999999.9999",
+      ],
     ]);
     const createPurchase = (reference = {}) =>
       tx(owners.a, async (client, ownerId) => {

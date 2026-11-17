@@ -22,3 +22,14 @@ RF-048/049 · CA-061…063 · Ruta MIX. Se conservan las secciones y el flujo de
 - Configurar `FINANCE_BACKUP_SIGNING_KEY` con 32 bytes aleatorios en hexadecimal y conservar la misma clave en recuperaciones del entorno. Si se pierde la clave, las copias que firmó no se pueden restaurar. Esta clave se administra fuera del archivo y es independiente de la contraseña de cada copia.
 - El inventario cubre el esquema financiero integrado hasta F5-07. Las suscripciones push y el caché público de cotizaciones quedan fuera de la copia. Al restaurar, se conservan las suscripciones y los intentos de envío de las tarjetas que siguen presentes. Las valoraciones históricas por titular se incluyen y conservan sus referencias al caché público del entorno.
 - PDFKit y write-excel-file se ejecutan localmente en el servidor de la app. Ambas bibliotecas tienen licencia MIT. [PDFKit](https://github.com/foliojs/pdfkit) · [write-excel-file](https://gitlab.com/catamphetamine/write-excel-file).
+
+## EXPORT-FIX — Auditoría final de exportaciones (v1.0)
+
+Informe completo con matriz, defectos y pruebas: [EXPORT-FIX-v1.md](EXPORT-FIX-v1.md). Resumen de los cambios de contrato:
+
+- `POST /api/export` prepara las referencias históricas igual que Presupuestos antes de leer: calcula las fechas pendientes, consulta los proveedores fuera de transacción y fija las cotizaciones del titular (`listBudgets` por mes). Después lee todo desde una instantánea `REPEATABLE READ`. Si esa preparación falla, la fila afectada indica «Faltan cotizaciones históricas». Las cuotas de meses futuros muestran la estimación provisional, marcada como tal.
+- Resumen: los ingresos divididos cuentan por categoría como en Estadísticas, y todos los importes usan cuatro decimales (también el cero).
+- Movimientos: la categoría refleja el desglose vigente. Un pago de tarjeta con conversión o comisión añade filas «Pago de tarjeta (débito bancario)» y «Comisión bancaria de pago», para poder trazar el gasto por comisión que cuenta Resumen.
+- Saldos: sin movimientos posteriores al checkpoint, la proyección es el saldo confirmado.
+- Tarjetas: dos columnas nuevas al final, «Compras sin ciclo asignado» (tarjetas sin día de cierre) y «Monto oficial del resumen».
+- PDF: la fuente estándar solo dibuja Latin-1. Las comillas y guiones tipográficos, `€` y similares se sustituyen por su equivalente simple y el resto por `?`. CSV y Excel conservan el texto original.
