@@ -329,7 +329,6 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
     );
     created(
       await expense("Compra dividida", "1234.5678", "03-31", {
-        categoryId: cat.super,
         allocations: [
           { categoryId: cat.super, amount: "1000.0000" },
           { categoryId: cat.home, amount: "234.5678" },
