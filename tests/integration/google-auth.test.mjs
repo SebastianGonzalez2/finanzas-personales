@@ -375,9 +375,11 @@ test(
             const {
               rows: [target],
             } = await c.query(
-              "SELECT current_database() AS db, inet_server_port() AS port",
+              "SELECT current_database() AS db, session_user AS role",
             );
-            assert.deepEqual(target, { db: "neondb", port: 55432 });
+            // testDatabaseConfig pins the client to loopback:55432. Docker
+            // publishes that port while PostgreSQL listens on 5432 inside CI.
+            assert.deepEqual(target, { db: "neondb", role: "f0_test" });
           };
           const options = { ownerId, email: "a@example.invalid", verifyTarget };
           const plan = (id = ownerId, email = options.email) =>
