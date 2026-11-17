@@ -734,6 +734,8 @@
 - No añadir servicio de pago ni infraestructura extra para esta función. El borrado en la aplicación no implica eliminar archivos de copia descargados por el usuario, ni garantiza una eliminación instantánea de respaldos internos de los proveedores, cuya política de retención debe verificarse.
 - No incorporar por ahora una papelera, período de recuperación ni borrado masivo de terceros: el alcance aprobado es **eliminación voluntaria de la cuenta propia** con advertencia y confirmación.
 
+**Reinicio financiero voluntario (OPS-RESET).** En **Mi cuenta → Reiniciar datos**, el titular autenticado puede empezar de cero con la misma cuenta Google. La confirmación explícita borra en una sola transacción su información financiera actual, histórica y de configuración. Conserva su identidad, autorización y sesiones. La copia de seguridad es independiente y queda a elección del titular.
+
 ### 11.4.5 Registro mediante código de invitación — OPCIÓN B CONFIRMADA
 
 - La aplicación es para un **grupo pequeño de familiares y amigos**, no un servicio con altas abiertas al público. Aunque cualquier persona pueda abrir la URL de Vercel, **solo podrá crearse una cuenta si conoce un código de invitación válido compartido por el administrador**.

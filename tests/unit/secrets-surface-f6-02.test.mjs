@@ -146,6 +146,7 @@ test(
       "authorize_session",
       "pg_advisory",
       "restore_account",
+      "reset_own_finances",
       "account_backup_snapshot",
     ];
     const values = [
