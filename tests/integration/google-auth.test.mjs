@@ -1,4 +1,14 @@
 import test from "node:test";
+import { resetFinancialOwner } from "../../scripts/reset-financial-owner.mjs";
+import { openingBalance } from "../support/f2-10-fixtures.mjs";
+import { seedFinancialDomain } from "../support/f6-04-dataset.mjs";
+import {
+  listBankBalances,
+  saveOpeningBalance,
+} from "../../src/server/bank-balances.ts";
+import { decodeBackup, encodeBackup } from "../../src/server/backup-format.ts";
+import { saveMovement } from "../../src/server/movements.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { randomUUID, generateKeyPairSync, sign, createHash } from "node:crypto";
@@ -330,6 +340,191 @@ test(
               ]),
             ),
           );
+        },
+      );
+      await t.test(
+        "OPS-RESET: copia cifrada, rollback, aislamiento y regreso por OAuth del mismo titular",
+        async () => {
+          const ownerId = a.session.user.id;
+          const otherId = b.session.user.id;
+          // The previous A/B test already stored preferences for both owners.
+          // The broad F6-04 fixture adds real financial relations and history.
+          await authorizedRead(a.session, (c, id) =>
+            seedFinancialDomain(c, id),
+          );
+          await authorizedRead(b.session, (c, id) =>
+            seedFinancialDomain(c, id, { rich: false }),
+          );
+          for (const id of [ownerId, otherId]) {
+            const subscription = randomUUID();
+            await admin.query(
+              "INSERT INTO finance.card_push_subscriptions(owner_id,id,endpoint,p256dh,auth) VALUES($1,$2,$3,'fixture','fixture')",
+              [id, subscription, "https://example.invalid/" + subscription],
+            );
+            await admin.query(
+              "INSERT INTO finance.card_push_attempts(owner_id,subscription_id,card_id,period,currency) " +
+                "SELECT owner_id,$2,id,'2026-01-01','UYU' FROM finance.cards WHERE owner_id=$1 LIMIT 1",
+              [id, subscription],
+            );
+            await admin.query(
+              "INSERT INTO finance_meta.account_restores(owner_id,id,backup_sha256) VALUES($1,$2,repeat('a',64))",
+              [id, randomUUID()],
+            );
+          }
+          const verifyTarget = async (c) => {
+            const {
+              rows: [target],
+            } = await c.query(
+              "SELECT current_database() AS db, session_user AS role",
+            );
+            // testDatabaseConfig pins the client to loopback:55432. Docker
+            // publishes that port while PostgreSQL listens on 5432 inside CI.
+            assert.deepEqual(target, { db: "neondb", role: "f0_test" });
+          };
+          const options = { ownerId, email: "a@example.invalid", verifyTarget };
+          const plan = (id = ownerId, email = options.email) =>
+            resetFinancialOwner(admin, { ownerId: id, email, verifyTarget });
+          const initial = await plan();
+          const other = await plan(otherId, "b@example.invalid");
+          assert.equal(Object.keys(initial.counts).length, 62);
+          assert.ok(
+            Object.values(initial.counts).filter((n) => Number(n) > 0).length >=
+              45,
+          );
+          for (const table of [
+            "finance.card_push_attempts",
+            "finance.card_push_subscriptions",
+            "finance_meta.account_restores",
+          ])
+            assert.equal(initial.counts[table], "1");
+          await assert.rejects(
+            plan(otherId),
+            /Identidad Google o sesión no autorizada/,
+          );
+          const {
+            rows: [{ payload }],
+          } = await authorizedRead(a.session, (c) =>
+            c.query("SELECT payload FROM finance.account_backup_snapshot($1)", [
+              a.session.session.token,
+            ]),
+          );
+          const password = "copia-cifrada-sintetica";
+          const key = Buffer.alloc(32, 1);
+          const { file } = await encodeBackup(payload, ownerId, key, password);
+          await assert.rejects(
+            decodeBackup(JSON.parse(file), otherId, key, password),
+          );
+          const copy = await decodeBackup(
+            JSON.parse(file),
+            ownerId,
+            key,
+            password,
+          );
+          const approval = {
+            stateSha256: initial.stateSha256,
+            payloadSha256: createHash("sha256")
+              .update(copy.payload)
+              .digest("hex"),
+          };
+          const reset = (override = {}, client = admin) => {
+            const settings = { ...approval, ...override };
+            return resetFinancialOwner(client, {
+              ...options,
+              approval: { stateSha256: settings.stateSha256 },
+              backupPayloadSha256: settings.payloadSha256,
+            });
+          };
+
+          const protectedTables = [
+            'app_auth."user"',
+            "app_auth.account",
+            "app_auth.session",
+            "app_auth.verification",
+            'app_auth."rateLimit"',
+            "app_access.allowlist",
+            "app_access.audit",
+            "finance_meta.account_backup_layout",
+            "finance_meta.schema_migrations",
+            "finance.fx_reference_rates",
+            "finance.fx_reference_refreshes",
+          ];
+          const protectedState = async () => {
+            const rows = [];
+            for (const table of protectedTables) {
+              const result = await admin.query(
+                `SELECT to_jsonb(t)::text AS row FROM ${table} t ORDER BY 1`,
+              );
+              rows.push(result.rows);
+            }
+            return rows;
+          };
+          const before = await protectedState();
+          await assert.rejects(
+            reset({ payloadSha256: "0".repeat(64) }),
+            /copia no corresponde/,
+          );
+          await assert.rejects(
+            reset({ stateSha256: "0".repeat(64) }),
+            /estado cambió/,
+          );
+          const midFailure = {
+            query(sql, parameters) {
+              if (sql.startsWith("DELETE FROM finance_meta.account_restores"))
+                return admin.query("SELECT 1 / 0");
+              return admin.query(sql, parameters);
+            },
+          };
+          await assert.rejects(reset({}, midFailure), { code: "22012" });
+          assert.deepEqual(await plan(), initial);
+          assert.deepEqual(await plan(otherId, "b@example.invalid"), other);
+          assert.deepEqual(await protectedState(), before);
+
+          const result = await reset();
+          assert.deepEqual(result.deleted, initial.counts);
+          assert.ok(Object.values(result.remaining).every((n) => n === "0"));
+          assert.deepEqual((await plan()).counts, result.remaining);
+          assert.deepEqual(await plan(otherId, "b@example.invalid"), other);
+          assert.deepEqual(await protectedState(), before);
+          assert.equal((await fresh(a.cookie)).user.id, ownerId);
+          await assert.rejects(reset(), /estado cambió/);
+
+          const returnLogin = await callback(
+            await begin(),
+            google("a@example.invalid", "google-A"),
+          );
+          assert.equal(
+            returnLogin.headers.get("location"),
+            `${origin}/resumen`,
+          );
+          const returned = await fresh(cookieHeader(returnLogin));
+          assert.equal(returned.user.id, ownerId);
+          assert.notEqual(returned.session.token, a.session.session.token);
+          await authorizedRead(returned, async (c, id) => {
+            assert.deepEqual(await listBankBalances(c, id), []);
+            assert.equal(
+              await saveOpeningBalance(
+                c,
+                id,
+                openingBalance({ amount: "100.1234" }),
+              ),
+              "created",
+            );
+            const movement = await saveMovement(c, id, {
+              kind: "expense",
+              method: "debit",
+              currency: "UYU",
+              amount: "10.0034",
+              concept: "Primer movimiento tras OPS-RESET",
+              effectiveOn: "2026-01-02",
+              idempotencyKey: randomUUID(),
+              categoryId: null,
+              note: null,
+            });
+            assert.equal(movement.status, "created");
+            const [uyu] = await listBankBalances(c, id);
+            assert.equal(uyu.calculatedAmount, "90.1200");
+          });
+          assert.deepEqual(await plan(otherId, "b@example.invalid"), other);
         },
       );
       await t.test(
