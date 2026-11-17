@@ -326,7 +326,7 @@ test("F5-09 CA-067: cashback acreditado en Bancos es un ingreso único que no to
       });
       assert.deepEqual(
         report.resumen.filter(([concept]) => concept === "Ingreso"),
-        [["Ingreso", currency, "300.0000", "0", "300.0000"]],
+        [["Ingreso", currency, "300.0000", "0.0000", "300.0000"]],
       );
       assert.deepEqual(
         report.resumen.filter(([concept]) => concept === "Gasto"),
@@ -575,6 +575,8 @@ test("F5-09: el abono figura en la estimación del ciclo y el aislamiento A/B pr
           "0.0000",
           "300.0000",
           "200.0000",
+          "0.0000",
+          "",
         ],
       ]);
       assert.equal(
