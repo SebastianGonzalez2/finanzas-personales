@@ -84,19 +84,6 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
        VALUES ($1,$2,'expense','Categoría privada B')`,
       [owners.b, privateCategory],
     );
-    await admin.query(
-      `INSERT INTO finance.fx_reference_rates
-         (base_currency,quote_currency,observed_on,source,rate)
-       VALUES ('USD','UYU',$1,'datosuruguay',40)
-       ON CONFLICT DO NOTHING`,
-      [reference],
-    );
-    await admin.query(
-      `INSERT INTO finance.fx_reference_refreshes(year,retry_at,primary_pairs,backup_pairs)
-       VALUES ($1,now()+interval '1 hour',ARRAY['USD/UYU'],ARRAY['EUR/UYU'])
-       ON CONFLICT (year) DO UPDATE SET retry_at = EXCLUDED.retry_at`,
-      [year - 4],
-    );
     await bank("UYU");
     await bank("USD");
     await bank("EUR");
@@ -105,6 +92,13 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     await expense("50", `${year - 6}-02-10`);
     const { id: refunded } = await expense("110.0123", reference);
     await expense("5", reference, child, "USD");
+    // Keep the historical rate private so the shared test database has no
+    // public USD/UYU rate from this scenario for later tests to pick up.
+    const quote = await context.request.post("/api/manual-exchange-rate", {
+      data: { date: reference, base: "USD", target: "UYU", rate: "40" },
+      headers: { origin: financeTestOrigin },
+    });
+    expect(quote.status()).toBe(200);
     await expense("40", `${year - 2}-02-10`, otherCategory);
     await create("refunds", {
       action: "credit",
