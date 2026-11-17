@@ -701,7 +701,9 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       async () => {
         const csv = parseCsvReport(files.csv);
         const xlsx = parseXlsxReport(files.excel);
-        const pdf = pdfText(files.pdf);
+        // PDFKit parte las líneas largas (por ejemplo, en los guiones de un
+        // identificador): el contenido se compara sin espacios.
+        const pdfCompact = pdfText(files.pdf).replace(/\s+/g, "");
         assert.deepEqual(
           csv.sections.map(({ title }) => title),
           REPORT_SECTIONS.map(({ title }) => title),
@@ -746,7 +748,7 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
             for (const value of row)
               if (value !== "")
                 assert.ok(
-                  pdf.includes(value.replace(/\s+/g, " ")),
+                  pdfCompact.includes(value.replace(/\s+/g, "")),
                   `PDF ${id}: ${value}`,
                 );
         }
