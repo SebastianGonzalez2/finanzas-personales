@@ -47,7 +47,7 @@ import {
 // Año alejado del resto de las pruebas: las cotizaciones de referencia son un
 // caché global de la base desechable y no se deben mezclar con otras fixtures.
 const Y = "2037";
-const today = `${Y}-04-20`;
+const today = `${Y}-05-31`;
 const period = { from: `${Y}-03-01`, to: `${Y}-04-30` };
 const d = (monthDay) => `${Y}-${monthDay}`;
 
