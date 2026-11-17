@@ -242,6 +242,38 @@ export async function budgetReferenceDates(
   return [...dates];
 }
 
+// Provisional conversions for installments of future months. With pin=true the
+// historical references already due are also fixed for the owner, as Presupuestos
+// does when it is opened. With pin=false nothing is written.
+export async function budgetEstimates(
+  client: pg.PoolClient,
+  ownerId: string,
+  month: string,
+  today: string,
+  pin: boolean,
+) {
+  const estimates: FxQuote[] = [];
+  if (!(await exchangeRatesReady(client))) return estimates;
+  const monthlyFx = await monthlyInstallmentFxReady(client);
+  for (const [target, keys] of await budgetFxKeys(
+    client,
+    ownerId,
+    month,
+    monthlyFx,
+  )) {
+    if (pin)
+      await prepareHistoricalQuotes(client, ownerId, keys, target, today);
+    const future = keys.filter(({ date, monthly }) => monthly && date > today);
+    const quotes = await liveQuotes(
+      client,
+      future.map(({ base }) => ({ base, date: today })),
+      target,
+    );
+    estimates.push(...quotes.values());
+  }
+  return estimates;
+}
+
 export async function listBudgets(
   client: pg.PoolClient,
   ownerId: string,
@@ -253,26 +285,7 @@ export async function listBudgets(
   await lockBudgets(client, ownerId);
   const fx = await exchangeRatesReady(client);
   const monthlyFx = fx && (await monthlyInstallmentFxReady(client));
-  const estimates: FxQuote[] = [];
-  if (fx) {
-    for (const [target, keys] of await budgetFxKeys(
-      client,
-      ownerId,
-      month,
-      monthlyFx,
-    )) {
-      await prepareHistoricalQuotes(client, ownerId, keys, target, today);
-      const future = keys.filter(
-        ({ date, monthly }) => monthly && date > today,
-      );
-      const quotes = await liveQuotes(
-        client,
-        future.map(({ base }) => ({ base, date: today })),
-        target,
-      );
-      estimates.push(...quotes.values());
-    }
-  }
+  const estimates = await budgetEstimates(client, ownerId, month, today, true);
   // Fill missing snapshots only. A manually supplied historical quote may
   // resolve a missing conversion, but cannot replace a previously used quote.
   await client.query(
@@ -307,8 +320,8 @@ export async function listBudgets(
   });
 }
 
-// Export reads only previously captured rates. Listing budgets can also
-// capture missing rates, so that path is deliberately kept above.
+// Reads only rates already captured. The period report prepares them first
+// (listBudgets also captures missing ones) and then reads from one snapshot.
 export async function readBudgets(
   client: pg.PoolClient,
   ownerId: string,

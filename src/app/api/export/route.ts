@@ -1,6 +1,12 @@
 import { withGoogleOwner } from "@/server/google-auth";
 import { limitedJson } from "@/server/google-policy";
-import { loadPeriodReport } from "@/server/period-report";
+import { bankReferenceToday } from "@/domain/bank-balances";
+import { refreshOwnerReferences } from "@/server/exchange-rate-http";
+import {
+  loadPeriodReport,
+  prepareReportBudgets,
+  reportReferenceDates,
+} from "@/server/period-report";
 import { generateReport } from "@/server/report-files";
 import {
   exportFailure,
@@ -32,9 +38,21 @@ export async function POST(request: Request) {
   if (!format) return exportFailure("Formato de informe inválido.", 400);
 
   try {
+    // Same preparation as Presupuestos: fix the historical references for the
+    // selected months (providers are queried outside transactions) and only
+    // then read everything from one consistent snapshot. A failure here leaves
+    // the affected budget rows flagged as missing quotes instead of blocking.
+    const today = bankReferenceToday();
+    const dates = await withGoogleOwner(request, (client, ownerId) =>
+      reportReferenceDates(client, ownerId, period, today),
+    ).catch(() => []);
+    await refreshOwnerReferences(request, dates, today).catch(() => undefined);
+    await withGoogleOwner(request, (client, ownerId) =>
+      prepareReportBudgets(client, ownerId, period, today),
+    ).catch(() => undefined);
     const report = await withGoogleOwner(
       request,
-      (client, ownerId) => loadPeriodReport(client, ownerId, period),
+      (client, ownerId) => loadPeriodReport(client, ownerId, period, today),
       { repeatableRead: true },
     );
     if (!report)

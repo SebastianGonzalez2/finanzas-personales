@@ -22,7 +22,11 @@ import { saveCardCycle } from "../../src/server/card-cycles.ts";
 import { saveCard } from "../../src/server/cards.ts";
 import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { saveMovement } from "../../src/server/movements.ts";
-import { loadPeriodReport } from "../../src/server/period-report.ts";
+import {
+  loadPeriodReport,
+  prepareReportBudgets,
+  reportReferenceDates,
+} from "../../src/server/period-report.ts";
 import { saveRefund } from "../../src/server/refunds.ts";
 import { generateReport } from "../../src/server/report-files.ts";
 import { saveSavingsFund } from "../../src/server/savings-funds.ts";
@@ -151,8 +155,14 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
     run((c, id) =>
       saveCreditOperation(c, id, ok(parseCreditCommand(command, today))),
     );
-  const report = (range = period, ownerId = owner) =>
-    run((c, id) => loadPeriodReport(c, id, range), ownerId);
+  // Mismos pasos que POST /api/export: referencias pendientes, captura de las
+  // cotizaciones históricas (las proveedoras ya están vigentes en la prueba) y
+  // lectura del informe.
+  const report = async (range = period, ownerId = owner) => {
+    await run((c, id) => reportReferenceDates(c, id, range, today), ownerId);
+    await run((c, id) => prepareReportBudgets(c, id, range, today), ownerId);
+    return run((c, id) => loadPeriodReport(c, id, range, today), ownerId);
+  };
   const rowsOf = (data, id) => data[id];
   const map = (rows, keyColumns) =>
     new Map(rows.map((row) => [keyColumns.map((i) => row[i]).join("|"), row]));

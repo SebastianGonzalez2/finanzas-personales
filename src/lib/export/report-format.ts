@@ -144,6 +144,16 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       moneyColumn("pagos", "Pagos del ciclo"),
       moneyColumn("saldo_pendiente", "Saldo pendiente"),
       moneyColumn("abonos", "Abonos en la estimación"),
+      moneyColumn(
+        "sin_ciclo",
+        "Compras sin ciclo asignado",
+        "Compras del mes de una tarjeta sin día de cierre configurado; no forman parte del saldo pendiente.",
+      ),
+      moneyColumn(
+        "oficial",
+        "Monto oficial del resumen",
+        "Total informado por la tarjeta. Cuando existe, el saldo pendiente parte de este valor y no de las compras.",
+      ),
     ],
   },
   {
