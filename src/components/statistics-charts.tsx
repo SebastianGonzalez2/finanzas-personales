@@ -273,7 +273,7 @@ export function StatisticsMonthlyChart({
         width={width}
         height={height}
       >
-        <title id={titleId}>Ingresos y gastos por mes en {currency}</title>
+        <title id={titleId}>{`Ingresos y gastos por mes en ${currency}`}</title>
         <desc id={descriptionId}>
           Período {range.label}. Las columnas sin datos se marcan como faltantes
           y no se interpolan.
@@ -315,7 +315,7 @@ export function StatisticsMonthlyChart({
                 aria-label={`${row.label}: sin datos`}
                 className="outline-none"
               >
-                <title>{row.label}: sin datos</title>
+                <title>{`${row.label}: sin datos`}</title>
                 <text
                   x={x}
                   y={height - bottom - 6}
@@ -462,7 +462,7 @@ export function StatisticsHistoryChart({
         width={width}
         height={height}
       >
-        <title id={titleId}>Histórico por fecha en {currency}</title>
+        <title id={titleId}>{`Histórico por fecha en ${currency}`}</title>
         <desc id={descriptionId}>
           Balance ordinario mensual de {range.label}. Las barras hacia arriba
           son ingresos mayores que gastos; hacia abajo, gastos mayores que
@@ -486,7 +486,7 @@ export function StatisticsHistoryChart({
                 aria-label={`${row.label}: sin datos`}
                 className="outline-none"
               >
-                <title>{row.label}: sin datos</title>
+                <title>{`${row.label}: sin datos`}</title>
                 <text
                   x={x}
                   y={middle - 6}

@@ -46,10 +46,18 @@ test("F2-08: repartir un gasto y saldar una deuda desde Historial", async ({
     ),
   ).toBe(true);
   await form.getByRole("button", { name: "Confirmar reparto" }).click();
-  await page
-    .getByRole("status")
-    .getByRole("link", { name: "Ver gasto y obligaciones" })
-    .click();
+  await expect(
+    page
+      .getByRole("status")
+      .getByRole("link", { name: "Ver gasto y obligaciones" }),
+  ).toBeVisible();
+  await page.reload();
+  const recent = page.getByRole("region", { name: "Movimientos recientes" });
+  await recent.getByLabel("Más acciones de Cena de prueba").click();
+  await expect(
+    recent.getByRole("button", { name: "Corregir importe" }),
+  ).toHaveCount(0);
+  await recent.getByRole("link", { name: "Ver gasto y obligaciones" }).click();
   await expect(page.getByText("Gasto propio · 1.000,00 UYU")).toBeVisible();
   const obligations = page.getByRole("region", {
     name: "Obligaciones del gasto",

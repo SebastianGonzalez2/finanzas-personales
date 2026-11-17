@@ -1,17 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 
 // UI-05A · P-04 — Menú «Más acciones». `<details>` nativo: Escape y clic
 // afuera lo cierran (el foco vuelve al disparador) y elegir un ítem lo cierra
-// antes de ejecutar la acción, que recibe el `summary` como disparador.
-export type ActionMenuItem = {
-  label: string;
-  ariaLabel?: string;
-  disabled?: boolean;
-  onSelect: (trigger: HTMLElement) => void;
-};
+// antes de ejecutar la acción o seguir su enlace.
+export type ActionMenuItem = { label: string; ariaLabel?: string } & (
+  | { href: string }
+  | { disabled?: boolean; onSelect: (trigger: HTMLElement) => void }
+);
 
 const interactive =
   "a[href],button,input,select,textarea,summary,label,[tabindex]:not([tabindex='-1']),[contenteditable='true'],[role='button'],[role='menuitem']";
@@ -67,6 +66,11 @@ export function ActionMenu({
     };
   }, []);
 
+  const closeMenu = () => {
+    if (root.current) root.current.open = false;
+    setOpen(false);
+  };
+
   return (
     <details
       ref={root}
@@ -78,21 +82,31 @@ export function ActionMenu({
         <Icon name="more" duotone={false} className="size-4" />
       </summary>
       <div className="gs-menu__list">
-        {items.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            aria-label={item.ariaLabel}
-            disabled={item.disabled}
-            onClick={() => {
-              if (root.current) root.current.open = false;
-              setOpen(false);
-              if (summary.current) item.onSelect(summary.current);
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
+        {items.map((item) =>
+          "href" in item ? (
+            <Link
+              key={item.label}
+              href={item.href}
+              aria-label={item.ariaLabel}
+              onClick={closeMenu}
+            >
+              {item.label}
+            </Link>
+          ) : (
+            <button
+              key={item.label}
+              type="button"
+              aria-label={item.ariaLabel}
+              disabled={item.disabled}
+              onClick={() => {
+                closeMenu();
+                if (summary.current) item.onSelect(summary.current);
+              }}
+            >
+              {item.label}
+            </button>
+          ),
+        )}
       </div>
     </details>
   );

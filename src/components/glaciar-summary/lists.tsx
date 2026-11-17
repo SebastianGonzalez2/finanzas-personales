@@ -174,12 +174,12 @@ export function RecentList({
       {items.map((movement) => (
         <li key={movement.id}>
           {movement.badge}
-          <div className="min-w-0 flex-1">
+          <div className="lab-recent__content">
             <p className="lab-recent__title">{movement.title}</p>
             <div className="lab-recent__sub">{movement.detail}</div>
-            {movement.actions}
           </div>
-          {movement.amount}
+          <div className="lab-recent__amount">{movement.amount}</div>
+          {movement.actions}
         </li>
       ))}
     </ul>

@@ -10,7 +10,7 @@ import {
   prepareClassification,
   insertClassification,
 } from "./classification.ts";
-import { hasLinkedRefund } from "./refund-schema.ts";
+import { hasLinkedRefund, refundsReady } from "./refund-schema.ts";
 import { bankBenefitsReady } from "./bank-benefit-schema.ts";
 import {
   isSharedExpense,
@@ -32,6 +32,7 @@ import type {
   MovementTotal,
   RecentBankTransfer,
   RecentMovement,
+  SummaryRecentMovement,
 } from "../domain/movements.ts";
 import { resolveMovementCategory } from "./categories.ts";
 export {
@@ -1132,7 +1133,7 @@ export async function listSummaryRecentMovements(
   ownerId: string,
   installmentsReady: boolean,
 ) {
-  type OrderedMovement = RecentMovement & { createdAt: string };
+  type OrderedMovement = SummaryRecentMovement & { createdAt: string };
   const expenses = await recentMovementRows<OrderedMovement>(
     client,
     ownerId,
@@ -1160,11 +1161,13 @@ async function recentMovementRows<T extends RecentMovement>(
   ownerId: string,
   kind: MovementKind,
   installmentsReady: boolean,
-  includeCreatedAt: boolean,
+  withSummaryMetadata: boolean,
 ) {
   const credit = kind === "expense" && (await creditOperationsReady(client));
   const mixed = credit && (await mixedPurchasesReady(client));
   const shared = kind === "expense" && (await sharedExpensesReady(client));
+  const checkRefunds =
+    withSummaryMetadata && kind === "expense" && (await refundsReady(client));
   const classified = await classificationReady(client);
   const category = classified
     ? `CASE WHEN EXISTS (SELECT 1 FROM finance.current_movement_allocations a
@@ -1175,10 +1178,27 @@ async function recentMovementRows<T extends RecentMovement>(
         WHERE a.owner_id = $1 AND a.event_id = recent.id)
       ELSE recent.category END AS category`
     : "category";
+  // Una fila de crédito o mixta puede mostrar un débito que no admite
+  // corrección por la vía de los movimientos bancarios ordinarios.
+  const amountCorrectable = withSummaryMetadata
+    ? `, (EXISTS (
+        SELECT 1 FROM finance.ordinary_movements m
+         WHERE m.owner_id = $1 AND m.event_id = recent.id
+      ) ${
+        checkRefunds
+          ? `AND NOT EXISTS (
+        SELECT 1 FROM finance.purchase_refunds r
+        JOIN finance.financial_events f ON (f.owner_id, f.id) = (r.owner_id, r.event_id)
+         WHERE r.owner_id = $1 AND r.purchase_id = recent.id AND f.status = 'confirmed'
+      )`
+          : ""
+      }) AS "amountCorrectable"`
+    : "";
   const { rows } = await client.query<T>(
     `SELECT id, kind, concept, to_char(effective_on, 'YYYY-MM-DD') AS "effectiveOn",
-            ${includeCreatedAt ? `to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt",` : ""}
+            ${withSummaryMetadata ? `to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt",` : ""}
             currency, amount, method, note, ${category}
+            ${amountCorrectable}
             ${shared ? ", EXISTS (SELECT 1 FROM finance.shared_expenses s WHERE s.owner_id = $1 AND s.event_id = recent.id) AS shared" : ""} FROM (
       SELECT f.id, f.kind, f.concept, f.effective_on, f.created_at,
             e.currency, abs(e.amount_signed)::text AS amount, m.method, m.note, c.name AS category

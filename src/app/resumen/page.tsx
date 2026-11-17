@@ -2,25 +2,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { FinanceSummary } from "@/components/finance-summary";
-import { CurrencyValue } from "@/components/current-currency-value";
-import { ExchangeRateDetails } from "@/components/exchange-rate-details";
-import { Card } from "@/components/ui/card";
-import {
-  bankCurrencies,
-  bankReferenceToday,
-  formatBankAmount,
-} from "@/domain/bank-balances";
+import { bankCurrencies, bankReferenceToday } from "@/domain/bank-balances";
 import { classificationReady, listTags } from "@/server/classification";
 import { listRefundTotals } from "@/server/refund-totals";
-import {
-  formatInstallmentPeriod,
-  isInstallmentPeriod,
-} from "@/domain/installments";
-import {
-  currentCurrencyValue,
-  displayCurrency,
-  exchangeRatesReady,
-} from "@/server/exchange-rates";
+import { isInstallmentPeriod } from "@/domain/installments";
+import { displayCurrency, exchangeRatesReady } from "@/server/exchange-rates";
 import { refreshOwnerReferences } from "@/server/exchange-rate-http";
 import { summaryFlowFx, summaryReferenceDates } from "@/server/statistics";
 import { summaryPeriods } from "@/domain/summary-period";
@@ -49,7 +35,6 @@ import {
   creditOperationsReady,
   historyReady,
   listMovementTotals,
-  listRecentBankTransfers,
   listSummaryRecentMovements,
   movementAvailability,
 } from "@/server/movements";
@@ -93,7 +78,6 @@ export default async function SummaryPage({
         cardsReady: false,
         movementRegistrationReady: false,
         bankTransfersReady: false,
-        bankTransfers: [],
         categories: [],
         creditCards: [],
         registrationCards: [],
@@ -117,9 +101,6 @@ export default async function SummaryPage({
       cardsReady: catalogReady,
       movementRegistrationReady: writable,
       bankTransfersReady: transfers,
-      bankTransfers: transfers
-        ? await listRecentBankTransfers(client, ownerId)
-        : [],
       fundSources: writable ? await listFundSources(client, ownerId) : null,
       tags:
         writable && (await classificationReady(client))
@@ -160,8 +141,8 @@ export default async function SummaryPage({
 
   const fxDates = await withGoogleOwner(request, async (client, ownerId) => {
     if (!(await exchangeRatesReady(client))) return [];
-    const dates = data.movementReadable
-      ? await summaryReferenceDates(
+    return data.movementReadable
+      ? summaryReferenceDates(
           client,
           ownerId,
           periods.selected ?? periods.history,
@@ -170,52 +151,21 @@ export default async function SummaryPage({
           data.currency,
         )
       : [];
-    if (
-      data.balances.some(
-        ({ currency, availableAmount, calculatedAmount, amount }) =>
-          currency !== data.currency &&
-          [availableAmount, calculatedAmount ?? amount].some((value) =>
-            /[1-9]/.test(value),
-          ),
-      )
-    )
-      dates.push(today);
-    return dates;
   }).catch(() => []);
   await refreshOwnerReferences(request, fxDates, today).catch(() => undefined);
 
   const fx = withGoogleOwner(request, async (client, ownerId) => {
-    if (!(await exchangeRatesReady(client))) return null;
-    const available = await currentCurrencyValue(
+    if (!data.movementReadable || !(await exchangeRatesReady(client)))
+      return null;
+    return summaryFlowFx(
       client,
-      data.balances.map(({ currency, availableAmount }) => ({
-        currency,
-        amount: availableAmount,
-      })),
+      ownerId,
+      periods.selected ?? periods.history,
       data.currency,
       today,
+      periods.history,
+      periods.comparison,
     );
-    const bank = await currentCurrencyValue(
-      client,
-      data.balances.map(({ currency, calculatedAmount, amount }) => ({
-        currency,
-        amount: calculatedAmount ?? amount,
-      })),
-      data.currency,
-      today,
-    );
-    const flows = data.movementReadable
-      ? await summaryFlowFx(
-          client,
-          ownerId,
-          periods.selected ?? periods.history,
-          data.currency,
-          today,
-          periods.history,
-          periods.comparison,
-        )
-      : null;
-    return { available, bank, flows };
   }).catch(() => null);
 
   const widgets = withGoogleOwner(request, async (client, ownerId) => {
@@ -230,7 +180,7 @@ export default async function SummaryPage({
     );
     return { cards, funds, budgets, notices };
   }).catch(() => null);
-  const [conversion, panels] = await Promise.all([fx, widgets]);
+  const [flowFx, panels] = await Promise.all([fx, widgets]);
 
   return (
     <FinanceShell current="resumen">
@@ -239,95 +189,8 @@ export default async function SummaryPage({
         today={today}
         period={period}
         periods={periods}
-        fx={conversion?.flows ?? null}
+        fx={flowFx}
         panels={panels}
-        currencySummary={
-          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 shadow-none">
-            {/* UI-02: la moneda se elige en la barra superior del shell. */}
-            {conversion ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <section
-                  aria-label="Equivalencia del disponible libre"
-                  className="grid content-start gap-1"
-                >
-                  <h2 className="text-sm font-medium">
-                    Saldo disponible equivalente
-                  </h2>
-                  <CurrencyValue
-                    currency={data.currency}
-                    value={conversion.available}
-                  />
-                  {conversion.bank.amount !== null && (
-                    <p className="text-sm text-muted-foreground">
-                      Saldo bancario registrado{" "}
-                      {formatBankAmount({
-                        currency: data.currency,
-                        amount: conversion.bank.amount,
-                      })}
-                    </p>
-                  )}
-                </section>
-                {periods.selected &&
-                  conversion.flows &&
-                  conversion.flows.rows.length > 0 && (
-                    <section
-                      aria-label="Equivalencia del flujo mensual"
-                      className="grid content-start gap-1"
-                    >
-                      <h2 className="text-sm font-medium">
-                        Flujo registrado · {formatInstallmentPeriod(period)}
-                      </h2>
-                      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
-                        {conversion.flows.rows.map(({ kind, amount }) => (
-                          <div key={kind} className="contents">
-                            <dt>
-                              {
-                                {
-                                  income: "Ingresos",
-                                  expense: "Gastos",
-                                  refund: "Devoluciones",
-                                }[kind]
-                              }
-                            </dt>
-                            <dd className="text-right font-semibold wrap-anywhere tabular-nums">
-                              {amount === null
-                                ? "Equivalencia no disponible"
-                                : formatBankAmount({
-                                    currency: data.currency,
-                                    amount,
-                                  })}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-                  )}
-                {conversion.flows &&
-                  (conversion.flows.quotes.length > 0 ||
-                    conversion.flows.missing.length > 0) && (
-                    <section
-                      aria-label="Cotizaciones del flujo"
-                      className="grid gap-1 sm:col-span-2"
-                    >
-                      <h2 className="text-sm font-medium">
-                        Cotizaciones del flujo
-                      </h2>
-                      <ExchangeRateDetails
-                        target={data.currency}
-                        quotes={conversion.flows.quotes}
-                        missing={conversion.flows.missing}
-                      />
-                    </section>
-                  )}
-              </div>
-            ) : (
-              <p role="status" className="text-sm text-muted-foreground">
-                La conversión no está disponible. Se muestran importes en su
-                moneda original.
-              </p>
-            )}
-          </Card>
-        }
       />
     </FinanceShell>
   );

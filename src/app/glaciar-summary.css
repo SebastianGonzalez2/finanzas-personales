@@ -505,23 +505,28 @@
     flex-direction: column;
   }
 
-  .lab-recent li {
-    display: flex;
+  .lab-recent > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) fit-content(42%) var(
+        --recent-action-width,
+        0px
+      );
     align-items: center;
-    gap: 12px;
     padding: 10px 0;
     border-bottom: 1px solid var(--lab-border);
   }
 
-  .lab-recent li:last-child {
+  .lab-recent:has(.lab-recent__actions) {
+    --recent-action-width: 52px;
+  }
+
+  .lab-recent > li:last-child {
     border-bottom: 0;
   }
 
   .lab-recent__title {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 500;
   }
@@ -530,6 +535,52 @@
     display: block;
     color: var(--lab-muted);
     font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .lab-recent__content,
+  .lab-recent__amount {
+    min-width: 0;
+    margin-inline-start: 12px;
+  }
+
+  .lab-recent__amount {
+    text-align: end;
+  }
+
+  .lab-recent__amount .lab-amount {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .lab-recent__amount .amount-tone {
+    justify-content: flex-end;
+  }
+
+  .lab-recent__actions {
+    margin-inline-start: 8px;
+  }
+
+  .lab-recent__actions .gs-menu > summary {
+    width: 44px;
+    height: 44px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--lab-muted);
+  }
+
+  .lab-recent__actions .gs-menu > summary:hover,
+  .lab-recent__actions .gs-menu[open] > summary {
+    background: var(--glaciar-hover);
+    color: var(--lab-text);
+  }
+
+  .lab-recent__editor {
+    grid-column: 2 / -1;
+    min-width: 0;
+    margin-block-start: 8px;
+    margin-inline-start: 12px;
   }
 
   .lab-kind {
@@ -1143,11 +1194,6 @@
     overflow-wrap: anywhere;
   }
 
-  .glaciar-summary .lab-recent__title {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-
   .glaciar-summary
     :is(.lab-recent__title, .lab-upcoming, .b-notice, .b-card)
     a {
@@ -1175,11 +1221,29 @@
       white-space: normal;
     }
 
-    .glaciar-summary .lab-recent .lab-amount {
-      max-width: 38%;
-      text-align: right;
-      white-space: normal;
-      overflow-wrap: anywhere;
+    .lab-recent > li {
+      grid-template-columns: auto minmax(0, 1fr) fit-content(36%) var(
+          --recent-action-width,
+          0px
+        );
+    }
+
+    .lab-recent__amount .lab-amount {
+      font-size: 13px;
+    }
+
+    .lab-recent__content,
+    .lab-recent__amount,
+    .lab-recent__editor {
+      margin-inline-start: 8px;
+    }
+
+    .lab-recent:has(.lab-recent__actions) {
+      --recent-action-width: 48px;
+    }
+
+    .lab-recent__actions {
+      margin-inline-start: 4px;
     }
   }
 }
