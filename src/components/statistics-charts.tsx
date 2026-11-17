@@ -18,6 +18,7 @@ import {
   movementDisplayMethods,
   type MovementDisplayMethod,
 } from "@/domain/movements";
+import { StatisticsChartTable } from "./statistics-chart-table";
 import { StatisticsFavoriteButton } from "./statistics-favorite-button";
 
 const shortMonth = new Intl.DateTimeFormat("es-UY", {
@@ -87,7 +88,10 @@ function completeMonths(
   );
 }
 
-const chartIcons: Record<StatisticsChartId, IconName> = {
+type StatisticsCardId = StatisticsChartId | "annual-expenses";
+
+const chartIcons: Record<StatisticsCardId, IconName> = {
+  "annual-expenses": "trendUp",
   metrics: "stats",
   "income-expense": "trendUp",
   "expense-categories": "expense",
@@ -104,10 +108,10 @@ export function StatisticsChartCard({
   description,
   children,
 }: {
-  chart: StatisticsChartId;
+  chart: StatisticsCardId;
   favorite: boolean | undefined;
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
 }) {
   return (
@@ -123,11 +127,11 @@ export function StatisticsChartCard({
           </span>
           {title}
         </h2>
-        {favorite !== undefined && (
+        {chart !== "annual-expenses" && favorite !== undefined && (
           <StatisticsFavoriteButton chart={chart} favorite={favorite} />
         )}
       </header>
-      <p className="lab-muted text-sm">{description}</p>
+      {description && <p className="lab-muted text-sm">{description}</p>}
       {children}
     </section>
   );
@@ -189,52 +193,6 @@ export function StatisticsBarList({
         </li>
       ))}
     </ul>
-  );
-}
-
-function ChartTable({
-  caption,
-  headings,
-  rows,
-}: {
-  caption: string;
-  headings: string[];
-  rows: string[][];
-}) {
-  return (
-    <details className="lab-table-toggle mt-2">
-      <summary>Ver datos</summary>
-      <div
-        role="region"
-        aria-label={caption}
-        tabIndex={0}
-        className="overflow-x-auto"
-      >
-        <table className="lab-mini-table w-full min-w-80 text-left">
-          <caption className="sr-only">{caption}</caption>
-          <thead>
-            <tr>
-              {headings.map((heading) => (
-                <th key={heading} scope="col">
-                  {heading}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.join("|")}>
-                {row.map((cell, index) => (
-                  <td key={`${index}-${cell}`} className="tabular-nums">
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
   );
 }
 
@@ -447,7 +405,7 @@ export function StatisticsMonthlyChart({
           );
         })}
       </ChartPlot>
-      <ChartTable
+      <StatisticsChartTable
         caption={`Datos de ingresos y gastos por mes en ${currency}`}
         headings={["Período", "Ingresos", "Gastos", "Estado"]}
         rows={rows.map((row) =>
@@ -600,7 +558,7 @@ export function StatisticsHistoryChart({
           );
         })}
       </ChartPlot>
-      <ChartTable
+      <StatisticsChartTable
         caption={`Histórico mensual en ${currency}`}
         headings={["Período", "Ingresos", "Gastos", "Devoluciones", "Balance"]}
         rows={rows.map((row) => {

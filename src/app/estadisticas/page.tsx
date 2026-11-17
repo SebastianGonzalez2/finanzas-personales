@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FinanceShell } from "@/components/finance-shell";
 import { StatisticsDashboard } from "@/components/statistics-dashboard";
+import { StatisticsAnnualCard } from "@/components/statistics-annual";
 import { StatisticsFiltersForm } from "@/components/statistics-filters";
 import {
   EmptyState,
@@ -15,6 +16,7 @@ import { ExchangeRateDetails } from "@/components/exchange-rate-details";
 import { bankReferenceToday } from "@/domain/bank-balances";
 import {
   parseStatisticsParams,
+  statisticsAnnualRange,
   statisticsHistoryRange,
   statisticsSearch,
 } from "@/domain/statistics";
@@ -27,6 +29,7 @@ import { requireGoogleOwnerPage } from "@/server/require-google-owner-page";
 import {
   listStatisticsFavorites,
   loadStatistics,
+  loadStatisticsAnnual,
   prepareStatisticsFx,
   listStatisticsCards,
   statisticsReady,
@@ -62,6 +65,7 @@ export default async function StatisticsPage(
     );
 
   const historyRange = statisticsHistoryRange(parsed.range, today);
+  const annualRange = statisticsAnnualRange(today, parsed.filters.annualEnd);
   const request = new Request("https://internal.invalid", {
     headers: await headers(),
   });
@@ -77,6 +81,11 @@ export default async function StatisticsPage(
           const currency =
             parsed.filters.display || (await displayCurrency(client, ownerId));
           if (currency === "original") return undefined;
+          const showAnnual =
+            parsed.filters.view === "todas" ||
+            (!parsed.filters.view &&
+              (!schema.favorites ||
+                (await listStatisticsFavorites(client, ownerId)).length === 0));
           const dates = await statisticsReferenceDates(
             client,
             ownerId,
@@ -86,8 +95,9 @@ export default async function StatisticsPage(
             parsed.filters,
             schema,
             currency,
+            showAnnual ? annualRange : undefined,
           );
-          return { currency, dates };
+          return { currency, dates, showAnnual };
         }).catch(() => undefined);
   const target = conversion?.currency;
   if (conversion) {
@@ -107,6 +117,7 @@ export default async function StatisticsPage(
           schema,
           conversion.currency,
           today,
+          conversion.showAnnual ? annualRange : undefined,
         );
     }).catch(() => undefined);
   }
@@ -119,7 +130,27 @@ export default async function StatisticsPage(
       const favorites = favoritesReady
         ? await listStatisticsFavorites(client, ownerId)
         : [];
+      const view =
+        parsed.filters.view ?? (favorites.length > 0 ? "favoritos" : "todas");
       const categories = await listHistoryCategories(client, ownerId);
+      const selectedCategory = parsed.filters.category;
+      const annualCategoryAvailable =
+        !selectedCategory ||
+        selectedCategory === "none" ||
+        categories.some(
+          ({ id, kind }) => id === selectedCategory && kind === "expense",
+        );
+      const annual =
+        view === "todas" && annualCategoryAvailable
+          ? await loadStatisticsAnnual(
+              client,
+              ownerId,
+              annualRange,
+              parsed.filters,
+              ready,
+              target,
+            )
+          : undefined;
       const cards = await listStatisticsCards(client, ownerId);
       const tags = ready.tags ? await listTags(client, ownerId) : [];
       const snapshot = await loadStatistics(
@@ -140,6 +171,9 @@ export default async function StatisticsPage(
         cards,
         tags,
         snapshot,
+        annual,
+        annualCategoryAvailable,
+        view,
       };
     },
     { repeatableRead: true },
@@ -178,8 +212,7 @@ export default async function StatisticsPage(
       </FinanceShell>
     );
 
-  const view =
-    parsed.filters.view ?? (data.favorites.length > 0 ? "favoritos" : "todas");
+  const view = data.view;
   const filters = { ...parsed.filters, view };
   const favoriteSearch = statisticsSearch(filters, { view: "favoritos" });
   const allSearch = statisticsSearch(filters, { view: "todas" });
@@ -276,6 +309,16 @@ export default async function StatisticsPage(
             categoryName={
               data.categories.find(({ id }) => id === filters.category)?.name
             }
+          />
+        )}
+        {view === "todas" && (
+          <StatisticsAnnualCard
+            filters={filters}
+            categories={data.categories}
+            categoryAvailable={data.annualCategoryAvailable}
+            result={data.annual}
+            range={annualRange}
+            today={today}
           />
         )}
       </Screen>

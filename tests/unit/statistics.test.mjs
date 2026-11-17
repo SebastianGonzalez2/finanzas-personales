@@ -10,6 +10,7 @@ import {
   percentageChange,
   sumAmounts,
   statisticsComparisonRange,
+  statisticsAnnualRange,
   statisticsHistoryRange,
   statisticsSearch,
   statisticsSummary,
@@ -17,6 +18,30 @@ import {
 
 const today = "2026-11-11";
 const uuid = "11075139-c46d-4cb4-9a2c-92ae733e6e57";
+
+test("STAT-ANNUAL: ventana calendario independiente y sin años futuros", () => {
+  const current = statisticsAnnualRange(today);
+  assert.equal(current.from, "2022-01-01");
+  assert.equal(current.to, today);
+  assert.equal(current.complete, false);
+  const historical = statisticsAnnualRange(today, "2021");
+  assert.equal(historical.from, "2017-01-01");
+  assert.equal(historical.to, "2021-12-31");
+  assert.equal(historical.complete, true);
+
+  const parsed = parseStatisticsParams(
+    { annualEnd: "2021", category: uuid },
+    today,
+  );
+  assert.ok(!("error" in parsed));
+  assert.equal(parsed.range.from, "2026-11-01");
+  assert.equal(
+    new URLSearchParams(statisticsSearch(parsed.filters)).get("annualEnd"),
+    "2021",
+  );
+  assert.ok("error" in parseStatisticsParams({ annualEnd: "2027" }, today));
+  assert.ok("error" in parseStatisticsParams({ annualEnd: "1.5" }, today));
+});
 
 test("F5-05: los períodos y el rango personalizado se validan", () => {
   const current = parseStatisticsParams({}, today);

@@ -14,6 +14,40 @@ import { Icon } from "./ui/icon";
 import { TagFields } from "./classification-fields";
 import type { MovementTag } from "@/domain/classification";
 
+type StatisticsCategoryOption = {
+  id: string;
+  name: string;
+  kind: "income" | "expense";
+};
+
+export function StatisticsCategorySelect({
+  categories,
+  category,
+  expensesOnly = false,
+}: {
+  categories: StatisticsCategoryOption[];
+  category?: string;
+  expensesOnly?: boolean;
+}) {
+  return (
+    <Field label={expensesOnly ? "Categoría de gasto" : "Categoría"}>
+      <Select name="category" defaultValue={category}>
+        <option value="">Todas</option>
+        <option value="none">Sin categorizar</option>
+        {categories
+          .filter(({ kind }) => !expensesOnly || kind === "expense")
+          .map(({ id, name, kind }) => (
+            <option key={id} value={id}>
+              {expensesOnly
+                ? name
+                : `${name} (${kind === "income" ? "ingreso" : "gasto"})`}
+            </option>
+          ))}
+      </Select>
+    </Field>
+  );
+}
+
 export function StatisticsFiltersForm({
   filters,
   display,
@@ -23,11 +57,7 @@ export function StatisticsFiltersForm({
 }: {
   filters: StatisticsFilters;
   display: Currency | "original";
-  categories: {
-    id: string;
-    name: string;
-    kind: "income" | "expense";
-  }[];
+  categories: StatisticsCategoryOption[];
   cards: { id: string; name: string }[];
   tags: MovementTag[];
 }) {
@@ -96,6 +126,9 @@ export function StatisticsFiltersForm({
         className="grid gap-3"
       >
         <input type="hidden" name="view" value={filters.view ?? "todas"} />
+        {filters.annualEnd && (
+          <input type="hidden" name="annualEnd" value={filters.annualEnd} />
+        )}
         <div className="gs-filterbar">
           <Field label="Período">
             <Select name="period" defaultValue={filters.period}>
@@ -142,17 +175,10 @@ export function StatisticsFiltersForm({
             Más filtros
           </summary>
           <div className="gs-form__grid">
-            <Field label="Categoría">
-              <Select name="category" defaultValue={filters.category}>
-                <option value="">Todas</option>
-                <option value="none">Sin categorizar</option>
-                {categories.map(({ id, name, kind }) => (
-                  <option key={id} value={id}>
-                    {name} ({kind === "income" ? "ingreso" : "gasto"})
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <StatisticsCategorySelect
+              categories={categories}
+              category={filters.category}
+            />
             <Field label="Medio de pago">
               <Select name="method" defaultValue={filters.method}>
                 <option value="">Todos</option>
@@ -226,6 +252,7 @@ export function StatisticsFiltersForm({
             kind: undefined,
             card: undefined,
             detailPage: undefined,
+            annualEnd: undefined,
             compareFrom: undefined,
             compareTo: undefined,
             from: undefined,

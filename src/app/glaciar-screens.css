@@ -1435,6 +1435,64 @@
     animation: lab-fill 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
 
+  .gs-annual__readout {
+    min-block-size: 2rem;
+    margin-block-end: 1.75rem;
+  }
+
+  .gs-annual__height {
+    block-size: clamp(9.5rem, 18vw, 13rem);
+  }
+
+  .gs-annual__scale {
+    position: relative;
+    align-self: start;
+    min-inline-size: 2rem;
+  }
+
+  .gs-annual__unit {
+    position: absolute;
+    inset-block-end: calc(100% + 0.65rem);
+    inset-inline-end: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  .gs-annual__dot {
+    inline-size: 0.4375rem;
+    block-size: 0.4375rem;
+    border: 1.5px solid var(--data-expense);
+    background: var(--data-expense);
+  }
+
+  .gs-annual__year[data-partial] .gs-annual__dot {
+    inline-size: 0.5625rem;
+    block-size: 0.5625rem;
+    background: var(--glaciar-bg);
+  }
+
+  .gs-annual__year[data-active] .gs-annual__dot {
+    inline-size: 0.625rem;
+    block-size: 0.625rem;
+    outline: 1px solid var(--data-expense);
+    outline-offset: 3px;
+  }
+
+  .gs-annual__year[data-active] .gs-annual__year-label {
+    color: var(--glaciar-text);
+    font-weight: 600;
+  }
+
+  .gs-annual__year:focus-visible {
+    outline: none;
+  }
+
+  .gs-annual__year:focus-visible .gs-annual__dot,
+  .gs-annual__year[data-gap]:focus-visible .gs-annual__year-label {
+    outline: 2px solid var(--glaciar-accent);
+    outline-offset: 3px;
+  }
+
   /* Tooltip por teclado/hover de los gráficos mensuales (sin JS). */
   .gs-chart__value,
   .gs-chart__band {
