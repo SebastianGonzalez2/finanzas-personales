@@ -341,7 +341,7 @@ export async function readBudgets(
       l.amount::numeric(20,4)::text AS "monthlyLimit",l.effective::numeric(20,4)::text AS "effectiveLimit",l.version,
       CASE WHEN l.exception IS NOT NULL THEN jsonb_build_object('month',$3::text,'limit',l.exception::numeric(20,4)::text) ELSE NULL END AS exception,
       CASE WHEN n.action='remove' THEN NULL ELSE jsonb_build_object('currency',n.currency,'amount',n.effective::numeric(20,4)::text,'exception',n.exception IS NOT NULL) END AS "nextLimit",
-      CASE WHEN coalesce(cons.missing,0)>0 THEN NULL ELSE jsonb_build_object('month',$3::text,'consumed',coalesce(cons.total,0)::numeric::text) END AS progress,
+      CASE WHEN coalesce(cons.missing,0)>0 THEN NULL ELSE jsonb_build_object('month',$3::text,'consumed',coalesce(cons.total,0)::numeric(20,4)::text) END AS progress,
       coalesce(cons.refs,'[]'::jsonb) AS references
       FROM finance.budget_limits b JOIN finance.categories c ON (c.owner_id,c.id)=(b.owner_id,b.category_id)
       CROSS JOIN LATERAL (${limitFor("$2::date")}) l
