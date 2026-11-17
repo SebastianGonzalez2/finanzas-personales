@@ -200,7 +200,7 @@ test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concu
     );
     assert.equal(
       (await list("2027-01")).find((x) => x.id === id).progress.consumed,
-      "0",
+      "0.0000",
     );
     assert.equal(
       (
