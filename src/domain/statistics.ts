@@ -37,6 +37,7 @@ export type StatisticsFilters = {
   method?: MovementDisplayMethod;
   card?: string;
   detailPage?: string;
+  annualEnd?: string;
   view?: StatisticsView;
 };
 
@@ -60,6 +61,22 @@ export type StatisticsRange = {
   to: string;
   label: string;
   complete: boolean;
+};
+
+export const statisticsAnnualTitle = "Evolución anual por categoría";
+export const statisticsAnnualWindow = 5;
+
+export type StatisticsAnnualPoint = {
+  year: number;
+  complete: boolean;
+  value:
+    | { amount: string; status: "total" | "zero" }
+    | { status: "no-records" | "missing-rate" };
+};
+
+export type StatisticsAnnual = {
+  series: { currency: Currency; points: StatisticsAnnualPoint[] }[];
+  hasEarlier: boolean;
 };
 
 export type StatisticsCategoryTotal = {
@@ -177,6 +194,7 @@ const filterKeys = [
   "method",
   "card",
   "detailPage",
+  "annualEnd",
   "view",
 ] as const;
 // A qualitative comparison requires five registered movements in each sample.
@@ -303,6 +321,14 @@ function range(from: string, to: string, today: string): StatisticsRange {
   };
 }
 
+export function statisticsAnnualRange(today: string, annualEnd?: string) {
+  const end = Number(annualEnd ?? today.slice(0, 4));
+  const start = Math.max(1, end - statisticsAnnualWindow + 1);
+  const first = String(start).padStart(4, "0");
+  const last = `${String(end).padStart(4, "0")}-12-31`;
+  return range(`${first}-01-01`, last < today ? last : today, today);
+}
+
 export function parseStatisticsParams(
   input: Record<string, string | string[] | undefined>,
   today: string,
@@ -387,6 +413,12 @@ export function parseStatisticsParams(
     return invalid;
   if (values.detailPage && !/^[1-9]\d{0,5}$/.test(values.detailPage))
     return invalid;
+  if (
+    values.annualEnd &&
+    (!/^[1-9]\d{0,3}$/.test(values.annualEnd) ||
+      Number(values.annualEnd) > Number(today.slice(0, 4)))
+  )
+    return invalid;
   if (values.view && values.view !== "favoritos" && values.view !== "todas")
     return invalid;
 
@@ -415,6 +447,7 @@ export function parseStatisticsParams(
     ...(kind ? { kind } : {}),
     ...(values.card ? { card: values.card } : {}),
     ...(values.detailPage ? { detailPage: values.detailPage } : {}),
+    ...(values.annualEnd ? { annualEnd: values.annualEnd } : {}),
     ...(values.method
       ? { method: values.method as MovementDisplayMethod }
       : {}),

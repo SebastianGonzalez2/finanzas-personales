@@ -6,6 +6,8 @@ import {
   statisticsChartIdList,
   statisticsMonthComplete,
   statisticsMonthLabel,
+  type StatisticsAnnual,
+  type StatisticsAnnualPoint,
   type StatisticsEntry,
   type StatisticsCategoryTotal,
   type StatisticsChartId,
@@ -28,7 +30,7 @@ import { consolidatePositions, positionKeys } from "./statistics-fx.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
 
-function statisticsCte(schema: StatisticsSchema) {
+function statisticsCte(schema: StatisticsSchema, includeRecurrences = true) {
   return `
 WITH expense_rows AS (
   SELECT f.id AS event_id, e.currency, (-e.amount_signed) AS amount,
@@ -131,9 +133,9 @@ category_scope AS (
   SELECT id FROM finance.categories
    WHERE owner_id = $1 AND (id::text = $5 OR parent_id::text = $5)
 ),
-scoped_source AS (
+filtered_rows AS (
   SELECT x.*, ${
-    schema.recurrences
+    includeRecurrences && schema.recurrences
       ? `EXISTS (SELECT 1 FROM finance.recurring_event_lineage r
     WHERE (r.owner_id, r.event_id) = ($1, x.event_id))`
       : "NULL::boolean"
@@ -141,17 +143,20 @@ scoped_source AS (
     FROM (SELECT * FROM rows UNION ALL SELECT * FROM refund_rows) x
    WHERE x.effective_on BETWEEN $2::date AND $3::date
      AND ($4::text IS NULL OR x.currency = $4)
-     AND ($5::text IS NULL OR ($5 = 'none' AND x.category_id IS NULL)
-       OR x.category_id IN (SELECT id FROM category_scope))
      AND ($6::text IS NULL OR ($6 = 'mixed' AND x.mixed) OR x.method = $6)
      AND ($7::uuid IS NULL OR x.card_id = $7)
-     AND ($8::text IS NULL OR x.kind = $8)
      AND ($9::uuid[] IS NULL${
        schema.tags
          ? ` OR EXISTS (SELECT 1 FROM finance.current_event_tags t
         WHERE (t.owner_id, t.event_id) = ($1, x.event_id) AND t.tag_id = ANY($9))`
          : ""
      })
+),
+scoped_source AS (
+  SELECT * FROM filtered_rows x
+   WHERE ($5::text IS NULL OR ($5 = 'none' AND x.category_id IS NULL)
+       OR x.category_id IN (SELECT id FROM category_scope))
+     AND ($8::text IS NULL OR x.kind = $8)
 )`;
 }
 
@@ -197,7 +202,7 @@ async function flowKeys(
   ownerId: string,
   cte: string,
   range: StatisticsRange,
-  history: StatisticsRange,
+  history: StatisticsRange | null,
   previous: StatisticsRange | null,
   filters: StatisticsFilters,
   target: Currency,
@@ -251,11 +256,13 @@ async function statisticsFxKeys(
   filters: StatisticsFilters,
   schema: StatisticsSchema,
   target: Currency,
+  annualRange?: StatisticsRange,
 ) {
+  const source = statisticsCte(schema);
   const flows = await flowKeys(
     client,
     ownerId,
-    statisticsCte(schema),
+    source,
     range,
     history,
     previous,
@@ -270,7 +277,23 @@ async function statisticsFxKeys(
     range,
     filters.currency,
   );
-  return [...flows, ...positionKeys(positions)];
+  const annualFlows =
+    annualRange && filters.kind !== "income"
+      ? await flowKeys(
+          client,
+          ownerId,
+          source,
+          annualRange,
+          null,
+          null,
+          {
+            ...filters,
+            kind: "expense",
+          },
+          target,
+        )
+      : [];
+  return [...flows, ...positionKeys(positions), ...annualFlows];
 }
 
 export async function prepareStatisticsFx(
@@ -283,6 +306,7 @@ export async function prepareStatisticsFx(
   schema: StatisticsSchema,
   target: Currency,
   today: string,
+  annualRange?: StatisticsRange,
 ) {
   await prepareHistoricalQuotes(
     client,
@@ -296,6 +320,7 @@ export async function prepareStatisticsFx(
       filters,
       schema,
       target,
+      annualRange,
     ),
     target,
     today,
@@ -311,6 +336,7 @@ export async function statisticsReferenceDates(
   filters: StatisticsFilters,
   schema: StatisticsSchema,
   target: Currency,
+  annualRange?: StatisticsRange,
 ) {
   return pendingHistoricalDates(
     client,
@@ -324,6 +350,7 @@ export async function statisticsReferenceDates(
       filters,
       schema,
       target,
+      annualRange,
     ),
     target,
   );
@@ -618,6 +645,91 @@ async function entries(
     entries: rows.slice(0, detailPageSize),
     hasNextPage: rows.length > detailPageSize,
   };
+}
+
+export async function loadStatisticsAnnual(
+  client: pg.PoolClient,
+  ownerId: string,
+  range: StatisticsRange,
+  filters: StatisticsFilters,
+  schema: StatisticsSchema,
+  target?: Currency,
+): Promise<StatisticsAnnual> {
+  if (filters.kind === "income") return { series: [], hasEarlier: false };
+
+  const source = statisticsCte(schema, false);
+  const expenseFilters = { ...filters, kind: "expense" } as const;
+  // Coverage uses all reportable rows under the payment, currency and tag
+  // filters. Category and type apply only to the expense total.
+  const { rows } = await client.query<{
+    year: number;
+    currency: Currency;
+    amount: string | null;
+    missingRate: boolean;
+  }>(
+    `${displayCte(source, target)},
+    coverage AS (
+      SELECT DISTINCT extract(year FROM effective_on)::int AS year,
+             ${target ? "$10::finance.currency" : "currency"} AS currency
+        FROM filtered_rows
+    ),
+    annual_expenses AS (
+      SELECT extract(year FROM effective_on)::int AS year, currency,
+             round(sum(amount), 4)::text AS amount,
+             bool_or(amount IS NULL) AS missing_rate
+        FROM scoped GROUP BY year, currency
+    )
+    SELECT c.year, c.currency, e.amount, coalesce(e.missing_rate, false) AS "missingRate"
+      FROM coverage c LEFT JOIN annual_expenses e USING (year, currency)
+     ORDER BY c.currency, c.year`,
+    parameters(ownerId, range, expenseFilters, target),
+  );
+  const startYear = Number(range.from.slice(0, 4));
+  const endYear = Number(range.to.slice(0, 4));
+  const currencies = [...new Set(rows.map(({ currency }) => currency))];
+  const values = new Map(
+    rows.map((row) => [`${row.currency}:${row.year}`, row]),
+  );
+  const series = currencies.map((currency) => ({
+    currency,
+    points: Array.from(
+      { length: endYear - startYear + 1 },
+      (_, index): StatisticsAnnualPoint => {
+        const year = startYear + index;
+        const row = values.get(`${currency}:${year}`);
+        return {
+          year,
+          complete: year < endYear || range.complete,
+          value: !row
+            ? { status: "no-records" }
+            : row.missingRate
+              ? { status: "missing-rate" }
+              : row.amount === null
+                ? { status: "zero", amount: zero }
+                : { status: "total", amount: row.amount },
+        };
+      },
+    ),
+  }));
+
+  const earlier =
+    startYear > 1 &&
+    (
+      await client.query<{ exists: boolean }>(
+        `${source} SELECT EXISTS (SELECT 1 FROM filtered_rows)`,
+        parameters(
+          ownerId,
+          {
+            ...range,
+            from: "0001-01-01",
+            to: `${String(startYear - 1).padStart(4, "0")}-12-31`,
+          },
+          expenseFilters,
+        ),
+      )
+    ).rows[0]?.exists;
+
+  return { series, hasEarlier: earlier === true };
 }
 
 export async function loadStatistics(

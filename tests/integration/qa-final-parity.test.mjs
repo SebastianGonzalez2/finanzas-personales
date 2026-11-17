@@ -9,6 +9,7 @@ import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import {
   formatStatisticsAmount,
   parseStatisticsParams,
+  statisticsAnnualRange,
   statisticsHistoryRange,
 } from "../../src/domain/statistics.ts";
 import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
@@ -18,6 +19,7 @@ import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { saveMovement } from "../../src/server/movements.ts";
 import {
   loadStatistics,
+  loadStatisticsAnnual,
   prepareStatisticsFx,
   statisticsReady,
 } from "../../src/server/statistics.ts";
@@ -396,6 +398,30 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
     assert.equal(
       await stats(categories.installments, "2024-12-01", phase2),
       "16061.3400",
+    );
+
+    // STAT-ANNUAL: comparar importes exactos con el informe del mismo año.
+    const years = [2024, 2025];
+    const yearTotals = await Promise.all(
+      years.map((year) =>
+        stats(categories.super, `${year}-01-01`, `${year}-12-31`, phase2),
+      ),
+    );
+    const annual = await run(async (c, id) =>
+      loadStatisticsAnnual(
+        c,
+        id,
+        statisticsAnnualRange(phase2),
+        { period: "mes-actual", category: categories.super },
+        await statisticsReady(c),
+        "UYU",
+      ),
+    );
+    assert.deepEqual(
+      annual.series[0].points
+        .filter(({ year }) => years.includes(year))
+        .map(({ value }) => value),
+      yearTotals.map((amount) => ({ status: "total", amount })),
     );
 
     // Aislamiento: otro titular no ve consumo ni presupuestos.
