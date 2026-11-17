@@ -1,5 +1,7 @@
 # OPS-RESET · Reinicio financiero de un titular
 
+**Desde Mi cuenta**, el titular puede pulsar **Reiniciar mis datos** y escribir `REINICIAR`. Este flujo borra su dominio financiero, conserva el acceso con Google y funciona sin descargar una copia. Este documento describe además el procedimiento administrativo del PR #100.
+
 Operación puntual de mantenimiento. Referencias [F5-08](f5-08-privacidad-y-retencion.md), [F6-04](55-backup-recuperacion-f6-04.md) y [ADR 0004](../adr/0004-google-only-allowlist-auth.md). Aplica el aislamiento I-12 y la atomicidad I-11. La copia y su validación reutilizan RF-048/049 y CA-062/063.
 
 ## Alcance

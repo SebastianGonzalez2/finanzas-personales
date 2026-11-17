@@ -8,7 +8,9 @@ export async function readMigrations() {
   if (
     names.some(
       (name) =>
-        !/^\d{4}_(?:F\d-\d{2}|CA-\d{3}|FIX-FX)_[a-z_]+\.sql$/.test(name),
+        !/^\d{4}_(?:F\d-\d{2}|CA-\d{3}|FIX-FX|OPS-RESET)_[a-z_]+\.sql$/.test(
+          name,
+        ),
     )
   )
     throw new Error("Nombre de migración inesperado");

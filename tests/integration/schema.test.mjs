@@ -95,6 +95,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0037_F5-08_delete_account.sql",
       "0038_CA-027_purchase_original_amount.sql",
       "0039_FIX-FX_installment_monthly_reference.sql",
+      "0040_OPS-RESET_financial_reset.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);
@@ -155,6 +156,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       deletion,
       purchaseOriginalAmount,
       installmentMonthlyReference,
+      financialReset,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -543,12 +545,23 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
     const before = await legacyQuote();
     assert.equal(before.rowCount, 1);
     await client.query("RESET ROLE");
-    assert.deepEqual(
-      await migrateInTransaction(client, installmentMonthlyReference.sha256),
-      [installmentMonthlyReference.version],
+    await assert.rejects(
+      migrateInTransaction(client, installmentMonthlyReference.sha256),
+    );
+    await client.query(installmentMonthlyReference.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [installmentMonthlyReference.version, installmentMonthlyReference.sha256],
+    );
+    await assert.rejects(
+      migrateInTransaction(client, installmentMonthlyReference.sha256),
     );
     assert.deepEqual(
-      await migrateInTransaction(client, installmentMonthlyReference.sha256),
+      await migrateInTransaction(client, financialReset.sha256),
+      [financialReset.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, financialReset.sha256),
       [],
     );
     await setOwnerContext(client, "legacy-fixture");

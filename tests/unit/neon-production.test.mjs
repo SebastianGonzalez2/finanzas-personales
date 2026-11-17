@@ -228,9 +228,9 @@ test("sesión distinta a production o al rol propietario es rechazada sin valore
   }
 });
 
-test("manifiesto: 39 migraciones ordenadas con SHA-256 individuales verificados", async () => {
+test("manifiesto: 40 migraciones ordenadas con SHA-256 individuales verificados", async () => {
   const manifest = await readProductionManifest();
-  assert.equal(manifest.entries.length, 39);
+  assert.equal(manifest.entries.length, 40);
   const versions = manifest.entries.map(({ version }) => version);
   assert.deepEqual(
     [...versions].sort(),
@@ -240,10 +240,11 @@ test("manifiesto: 39 migraciones ordenadas con SHA-256 individuales verificados"
   assert.equal(versions[0], "0001_F0-05_initial.sql");
   assert.equal(versions[37], "0038_CA-027_purchase_original_amount.sql");
   assert.equal(versions[38], "0039_FIX-FX_installment_monthly_reference.sql");
+  assert.equal(versions[39], "0040_OPS-RESET_financial_reset.sql");
   for (const entry of manifest.entries) {
     assert.match(
       entry.version,
-      /^\d{4}_(?:F\d-\d{2}|CA-\d{3}|FIX-FX)_[a-z_]+\.sql$/,
+      /^\d{4}_(?:F\d-\d{2}|CA-\d{3}|FIX-FX|OPS-RESET)_[a-z_]+\.sql$/,
     );
     assert.match(entry.sha256, /^[a-f0-9]{64}$/);
     // El hash del manifiesto es el del contenido exacto del archivo versionado.
@@ -321,7 +322,7 @@ const migrationFake = ({ present = false, ledger = [] } = {}) => {
   };
 };
 
-test("flujo completo: advisory lock, 39 DDL en orden y ledger con checksums", async () => {
+test("flujo completo: advisory lock, 40 DDL en orden y ledger con checksums", async () => {
   const manifest = await readProductionManifest();
   const migrations = await readMigrations();
   const client = migrationFake({ present: false });
@@ -335,8 +336,8 @@ test("flujo completo: advisory lock, 39 DDL en orden y ledger con checksums", as
     manifest.entries.map(({ version }) => version),
   );
   assert.equal(result.alreadyApplied, 0);
-  assert.equal(client.calls.ddl.length, 39);
-  assert.equal(client.calls.inserts.length, 39);
+  assert.equal(client.calls.ddl.length, 40);
+  assert.equal(client.calls.inserts.length, 40);
   client.calls.ddl.forEach((sql, index) => {
     // Cada DDL es exactamente el SQL de la migración en la misma posición del plan.
     assert.equal(sql, migrations[index].sql);
@@ -396,7 +397,7 @@ test("idempotencia: historial idéntico al manifiesto no re-aplica nada", async 
   const client = migrationFake({ present: true, ledger: manifest.entries });
   const result = await migrateProductionInTransaction(client, manifest.sha256);
   assert.deepEqual(result.completed, []);
-  assert.equal(result.alreadyApplied, 39);
+  assert.equal(result.alreadyApplied, 40);
   assert.equal(client.calls.ddl.length, 0);
   assert.equal(client.calls.inserts.length, 0);
   assert.equal(client.calls.lock, 1);
@@ -412,8 +413,14 @@ test("historial parcial compatible: aplica solo el resto, en orden", async () =>
     manifest.entries.slice(10).map(({ version }) => version),
   );
   assert.equal(result.alreadyApplied, 10);
-  assert.equal(client.calls.ddl.length, 29);
-  assert.equal(client.calls.inserts.length, 29);
+  assert.equal(
+    client.calls.ddl.length,
+    manifest.entries.length - prefix.length,
+  );
+  assert.equal(
+    client.calls.inserts.length,
+    manifest.entries.length - prefix.length,
+  );
   client.calls.inserts.forEach(([version], index) => {
     assert.equal(version, manifest.entries[10 + index].version);
   });
@@ -846,7 +853,7 @@ const run = (script, args) => {
   }
 };
 
-test("CLI plan de production: JSON sin conexión, 39 migraciones y hash de manifiesto", async () => {
+test("CLI plan de production: JSON sin conexión, 40 migraciones y hash de manifiesto", async () => {
   const result = run("scripts/migrate-production.mjs", []);
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
@@ -855,8 +862,8 @@ test("CLI plan de production: JSON sin conexión, 39 migraciones y hash de manif
   assert.equal(plan.environment, "production");
   assert.equal(plan.target.branchId, prod.branchId);
   assert.equal(plan.target.endpointHost, prod.endpointHost);
-  assert.equal(plan.migrationsCount, 39);
-  assert.equal(plan.migrations.length, 39);
+  assert.equal(plan.migrationsCount, 40);
+  assert.equal(plan.migrations.length, 40);
   assert.ok(!result.stdout.includes("CREATE ROLE"));
   assert.match(plan.manifestSha256, /^[a-f0-9]{64}$/);
   assert.equal(plan.manifestSha256, (await readProductionManifest()).sha256);

@@ -59,6 +59,7 @@ const definers = [
   "finance.account_backup_snapshot",
   "finance.cron_owner_is_active",
   "finance.delete_own_account",
+  "finance.reset_own_finances",
   "finance.restore_account",
 ];
 
@@ -319,6 +320,7 @@ test("F6-02: RLS, privilegios y funciones privilegiadas del esquema completo", a
             "finance.account_backup_snapshot",
             "finance.cron_owner_is_active",
             "finance.delete_own_account",
+            "finance.reset_own_finances",
             "finance.restore_account",
           ],
         );
