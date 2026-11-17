@@ -80,6 +80,12 @@ test("F2-09: registrar y consultar una devolución de otro mes desde la compra",
   await expect(
     page.getByRole("heading", { name: "Devoluciones recibidas en el mes" }),
   ).toBeVisible();
+  const recent = page.getByRole("region", { name: "Movimientos recientes" });
+  const original = recent.getByRole("listitem").filter({
+    has: page.locator(`a[href="/historial/movimientos/${purchaseId}"]`),
+  });
+  await expect(original).toBeVisible();
+  await expect(original.getByLabel(/^Más acciones de/)).toHaveCount(0);
   await page
     .getByRole("link", { name: "Ver devoluciones en el historial" })
     .click();

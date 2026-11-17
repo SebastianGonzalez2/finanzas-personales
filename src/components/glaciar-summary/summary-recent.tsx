@@ -3,9 +3,10 @@ import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import { historyKinds, type HistoryEntry } from "@/domain/history";
 import {
   movementDisplayMethods,
-  type RecentMovement,
+  type SummaryRecentMovement,
 } from "@/domain/movements";
 import { HistoryAmount, historyAmountTones } from "../history-entry";
+import { ActionMenu } from "../glaciar/action-menu";
 import { RecentAmountCorrection } from "../recent-amount-correction";
 import { Icon, type IconName } from "../ui/icon";
 import { Panel, PanelLink } from "./panel";
@@ -27,7 +28,7 @@ export function SummaryRecent({
   available,
   canCorrect,
 }: {
-  recent: RecentMovement[];
+  recent: SummaryRecentMovement[];
   activity: HistoryEntry[];
   available: boolean;
   canCorrect: boolean;
@@ -40,10 +41,7 @@ export function SummaryRecent({
       effectiveOn: movement.effectiveOn,
       badge: (
         <span className={`lab-kind lab-kind--${movement.kind}`}>
-          <Icon
-            name={movement.method === "credit" ? "cards" : movement.kind}
-            className="size-4"
-          />
+          <Icon name={movement.kind} className="size-4" />
           <span className="sr-only">{income ? "Ingreso" : "Gasto"}</span>
         </span>
       ),
@@ -72,13 +70,13 @@ export function SummaryRecent({
         </span>
       ),
       actions: movement.shared ? (
-        <Link
-          href={detail}
-          className="inline-flex min-h-11 items-center text-sm underline"
-        >
-          Ver gasto y obligaciones
-        </Link>
-      ) : canCorrect && movement.method !== "credit" ? (
+        <div className="lab-recent__actions">
+          <ActionMenu
+            label={`Más acciones de ${movement.concept}`}
+            items={[{ href: detail, label: "Ver gasto y obligaciones" }]}
+          />
+        </div>
+      ) : canCorrect && movement.amountCorrectable ? (
         <RecentAmountCorrection
           eventId={movement.id}
           amount={movement.amount}

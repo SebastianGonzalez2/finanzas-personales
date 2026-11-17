@@ -461,7 +461,6 @@ export async function summaryFlowFx(
     months,
     previous,
     spending,
-    quotes: [...quotes.values()],
     missing,
   };
 }

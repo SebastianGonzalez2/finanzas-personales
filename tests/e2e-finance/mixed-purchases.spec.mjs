@@ -115,6 +115,11 @@ test("F2-05: una compra con débito, crédito financiado y categorías", async (
   await expect(
     page.getByRole("list", { name: "Cuotas del mes" }),
   ).toContainText("Cuota 1");
+  const recent = page.getByRole("region", { name: "Movimientos recientes" });
+  await expect(
+    recent.getByRole("link", { name: concept, exact: true }),
+  ).toBeVisible();
+  await expect(recent.getByLabel(`Más acciones de ${concept}`)).toHaveCount(0);
   await page.goto("/historial");
   const purchase = page.getByRole("link", { name: new RegExp(`^${concept}`) });
   await expect(purchase).toHaveCount(1);

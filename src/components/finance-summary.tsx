@@ -8,8 +8,7 @@ import {
 } from "@/domain/bank-balances";
 import {
   type MovementTotal,
-  type RecentBankTransfer,
-  type RecentMovement,
+  type SummaryRecentMovement,
 } from "@/domain/movements";
 import type { CatalogCategory } from "@/domain/categories";
 import type { FundSource } from "@/domain/fund-coverage";
@@ -88,10 +87,8 @@ export function FinanceSummary({
   refundTotals,
   recent,
   activity,
-  bankTransfers,
   bankTransfersReady,
   movementRegistrationReady,
-  currencySummary,
   currency,
   periods,
   fx,
@@ -114,12 +111,10 @@ export function FinanceSummary({
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
   refundTotals: Pick<MovementTotal, "currency" | "amount">[];
-  recent: RecentMovement[];
+  recent: SummaryRecentMovement[];
   activity: HistoryEntry[];
-  bankTransfers: RecentBankTransfer[];
   bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
-  currencySummary: React.ReactNode;
   currency: Currency;
   periods: ReturnType<typeof summaryPeriods>;
   fx: SummaryFx;
@@ -280,102 +275,63 @@ export function FinanceSummary({
           canCorrect={movementRegistrationReady && reconciliationReady}
         />
       </section>
-      <section aria-label="Detalle financiero">
-        {currencySummary}
-        {refundTotals.length > 0 && (
-          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
-            <h3 className="font-semibold">Devoluciones recibidas en el mes</h3>
-            <ul className="flex flex-wrap gap-3">
-              {refundTotals.map((refund) => (
-                <li key={refund.currency}>{formatBankAmount(refund)}</li>
-              ))}
-            </ul>
-            <a
-              className="w-fit underline"
-              href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${summaryMonthEnd(period).slice(-2)}`}
-            >
-              Ver devoluciones en el historial
-            </a>
-          </Card>
-        )}
-        {monthlyInstallments.length > 0 && (
-          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
-            <h3 className="font-semibold">
-              Cuotas incluidas en los gastos del mes
-            </h3>
-            <p className="text-muted-foreground">
-              {period > today.slice(0, 7)
-                ? "Proyección según el calendario vigente."
-                : "Importes imputados al mes según el calendario vigente."}{" "}
-              La facturación y los pagos se registran aparte.
-            </p>
-            <ul aria-label="Cuotas del mes" className="divide-y">
-              {monthlyInstallments.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex flex-wrap justify-between gap-x-3 py-2 wrap-anywhere"
-                >
-                  <span>
-                    <a
-                      href={`/historial/movimientos/${item.id}`}
-                      className="underline"
-                    >
-                      {item.concept}
-                    </a>{" "}
-                    · Cuota {item.ordinal} ·{" "}
-                    {item.category ?? "Sin categorizar"}
-                  </span>
-                  <span className="font-semibold">
-                    {formatBankAmount(item)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-        {bankTransfersReady && (
-          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
-            <h3 className="font-semibold">Cambios de moneda recientes</h3>
-            {bankTransfers.length ? (
-              <ul aria-label="Cambios de moneda recientes" className="divide-y">
-                {bankTransfers.map((transfer) => (
+      {(refundTotals.length > 0 || monthlyInstallments.length > 0) && (
+        <section aria-label="Detalle financiero">
+          {refundTotals.length > 0 && (
+            <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+              <h3 className="font-semibold">
+                Devoluciones recibidas en el mes
+              </h3>
+              <ul className="flex flex-wrap gap-3">
+                {refundTotals.map((refund) => (
+                  <li key={refund.currency}>{formatBankAmount(refund)}</li>
+                ))}
+              </ul>
+              <a
+                className="w-fit underline"
+                href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${summaryMonthEnd(period).slice(-2)}`}
+              >
+                Ver devoluciones en el historial
+              </a>
+            </Card>
+          )}
+          {monthlyInstallments.length > 0 && (
+            <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+              <h3 className="font-semibold">
+                Cuotas incluidas en los gastos del mes
+              </h3>
+              <p className="text-muted-foreground">
+                {period > today.slice(0, 7)
+                  ? "Proyección según el calendario vigente."
+                  : "Importes imputados al mes según el calendario vigente."}{" "}
+                La facturación y los pagos se registran aparte.
+              </p>
+              <ul aria-label="Cuotas del mes" className="divide-y">
+                {monthlyInstallments.map((item) => (
                   <li
-                    key={transfer.id}
-                    className="wrap-anywhere py-2 first:pt-0 last:pb-0"
+                    key={item.id}
+                    className="flex flex-wrap justify-between gap-x-3 py-2 wrap-anywhere"
                   >
-                    <p className="flex flex-wrap gap-x-4 tabular-nums">
-                      <span>
-                        Entregaste{" "}
-                        {formatBankAmount({
-                          currency: transfer.sourceCurrency,
-                          amount: transfer.sourceAmount,
-                        })}
-                      </span>
-                      <span>
-                        Recibiste{" "}
-                        {formatBankAmount({
-                          currency: transfer.destinationCurrency,
-                          amount: transfer.destinationAmount,
-                        })}
-                      </span>
-                    </p>
-                    <time
-                      dateTime={transfer.effectiveOn}
-                      className="text-muted-foreground"
-                    >
-                      {formatBankReference(transfer.effectiveOn)}
-                    </time>
+                    <span>
+                      <a
+                        href={`/historial/movimientos/${item.id}`}
+                        className="underline"
+                      >
+                        {item.concept}
+                      </a>{" "}
+                      · Cuota {item.ordinal} ·{" "}
+                      {item.category ?? "Sin categorizar"}
+                    </span>
+                    <span className="font-semibold">
+                      {formatBankAmount(item)}
+                    </span>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-muted-foreground">
-                Todavía no hay cambios de moneda registrados.
-              </p>
-            )}
-          </Card>
-        )}
-      </section>
+            </Card>
+          )}
+        </section>
+      )}
     </div>
   );
 }

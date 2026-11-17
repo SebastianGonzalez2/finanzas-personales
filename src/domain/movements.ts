@@ -75,6 +75,10 @@ export type RecentMovement = Pick<
   shared?: boolean;
 };
 
+export type SummaryRecentMovement = RecentMovement & {
+  amountCorrectable: boolean;
+};
+
 export type MovementTotal = Pick<MovementInput, "kind" | "currency" | "amount">;
 
 export type BankTransfer = {

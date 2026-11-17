@@ -156,9 +156,13 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     await expect(
       selector.getByRole("button", { name: "USD", pressed: false }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Equivalencia del disponible libre" }),
-    ).toContainText("90,00 EUR");
+    await page
+      .getByRole("tablist", { name: "Moneda del saldo" })
+      .getByRole("tab", { name: "EUR" })
+      .click();
+    await expect(page.getByRole("tabpanel", { name: "EUR" })).toContainText(
+      "Saldo bancario 90,00 EUR",
+    );
     await expect(categories).toContainText("10,00 EUR");
     await page.screenshot({ path: testInfo.outputPath("resumen-moneda.png") });
 

@@ -8,6 +8,22 @@ import {
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
 
+test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
+
+async function expectApprovedSummary(page) {
+  await expect(
+    page.getByRole("heading", {
+      name: /Saldo disponible equivalente|Flujo registrado ·|Cambios de moneda recientes/,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Saldo bancario registrado", { exact: false }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Cotizaciones del flujo", { exact: true }),
+  ).toHaveCount(0);
+}
+
 test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular", async ({
   page,
   context,
@@ -139,11 +155,12 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
       action: "purchase",
       cardId,
       currency: "UYU",
-      amount: "2550",
+      amount: "5100",
       effectiveOn: today,
       concept: "Compra Visa UI-03",
       covered: false,
       categoryId,
+      plan: { installmentAmount: "2550", count: 2, firstPeriod: current },
     });
     await record("cards/cycles", {
       scope: "schedule",
@@ -187,6 +204,7 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/resumen");
     await expect(heading("Resumen financiero")).toBeVisible();
+    await expectApprovedSummary(page);
     const accountTabs = page.getByRole("tablist", { name: "Moneda del saldo" });
     const uyu = accountTabs.getByRole("tab", { name: "UYU" });
     await expect(uyu).toHaveAttribute("aria-selected", "true");
@@ -223,6 +241,10 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
         `a[href="/historial/movimientos/${transfer.id}"]`,
       ),
     ).toBeVisible();
+
+    await expect(
+      page.getByRole("list", { name: "Cuotas del mes" }),
+    ).toContainText("Compra Visa UI-03");
 
     const flow = panel("Flujo de los últimos seis meses");
     await flow.locator(".lab-hit").last().focus();
@@ -263,8 +285,9 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
     await flow.getByText("Ver como tabla", { exact: true }).click();
     await heading("Resumen financiero").focus();
     await page.screenshot({
-      path: testInfo.outputPath("resumen-glaciar.png"),
+      path: testInfo.outputPath("resumen-glaciar.jpg"),
       fullPage: true,
+      quality: 87,
     });
 
     await uyu.focus();
@@ -295,6 +318,14 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
       .getByRole("button", { name: "Cancelar", exact: true })
       .click();
 
+    await usd.press("ArrowRight");
+    const eur = accountTabs.getByRole("tab", { name: "EUR" });
+    await expect(eur).toBeFocused();
+    await expect(eur).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tabpanel", { name: "EUR" })).toContainText(
+      "Saldo bancario 490,00 EUR",
+    );
+
     // Simula que el navegador difiere el foco inicial hasta después de que
     // el usuario entra a un campo. El formulario debe respetar ese foco.
     const register = page
@@ -324,8 +355,105 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
     await expect(concept).toBeFocused();
     await page.getByRole("button", { name: "Cancelar", exact: true }).click();
 
+    const recent = panel("Movimientos recientes");
+    const transferRow = recent.getByRole("listitem").filter({
+      has: page.locator(`a[href="/historial/movimientos/${transfer.id}"]`),
+    });
+    await expect(transferRow).toBeVisible();
+    await expect(transferRow.getByLabel(/^Más acciones de/)).toHaveCount(0);
+    const conceptLink = recent.getByRole("link", {
+      name: "Compra sintética UI-03",
+      exact: true,
+    });
+    const originalDetail = await conceptLink.getAttribute("href");
+    const menu = recent.getByLabel("Más acciones de Compra sintética UI-03");
+    const correct = recent.getByRole("button", {
+      name: "Corregir importe",
+      exact: true,
+    });
+    await expect(correct).toHaveCount(0);
+    await menu.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await expect(correct).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(correct).toHaveCount(0);
+    await expect(menu).toBeFocused();
+
+    await menu.click();
+    await expect(correct).toBeVisible();
+    const menuCapture = {
+      path: testInfo.outputPath("menu-movimiento.jpg"),
+      quality: 87,
+    };
+    if (width === 375) {
+      await recent.evaluate((panel) =>
+        panel.scrollIntoView({ block: "start" }),
+      );
+      await page.screenshot(menuCapture);
+    } else {
+      await recent.screenshot(menuCapture);
+    }
+    await recent
+      .getByRole("heading", { name: "Movimientos recientes" })
+      .click();
+    await expect(correct).toHaveCount(0);
+    await expect(menu).toBeFocused();
+
+    await menu.press("Enter");
+    await correct.press("Enter");
+    const editor = recent.getByRole("form", {
+      name: "Corregir importe de Compra sintética UI-03",
+    });
+    const amount = editor.getByLabel("Importe correcto");
+    await expect(amount).toBeFocused();
+    await expect(amount).toHaveValue("18250,0000");
+    await amount.fill("importe inválido");
+    await editor.getByRole("button", { name: "Guardar corrección" }).click();
+    await expect(editor.getByRole("alert")).toContainText(/importe|monto/i);
+    await editor.getByRole("button", { name: "Cancelar" }).click();
+    await expect(editor).toHaveCount(0);
+    await expect(menu).toBeFocused();
+
+    await menu.press("Enter");
+    await correct.press("Enter");
+    await amount.fill("18251");
+    expect(
+      await page.evaluate(
+        () => globalThis.document.documentElement.scrollWidth,
+      ),
+    ).toBeLessThanOrEqual(width);
+    const correction = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/movements") &&
+        response.request().method() === "PATCH",
+    );
+    await editor.getByRole("button", { name: "Guardar corrección" }).click();
+    const corrected = await correction;
+    expect(corrected.status(), await corrected.text()).toBe(200);
+    const { id: replacement } = await corrected.json();
+    await expect(conceptLink).toHaveAttribute(
+      "href",
+      `/historial/movimientos/${replacement}`,
+    );
+    await expect(conceptLink).not.toHaveAttribute("href", originalDetail);
+    await expect(
+      recent.getByRole("listitem").filter({
+        has: page.locator(`a[href="/historial/movimientos/${replacement}"]`),
+      }),
+    ).toContainText("18.251,00 UYU");
+
     await page.getByRole("link", { name: "Mes anterior" }).click();
     await expect(page).toHaveURL(new RegExp(`month=${previous}`));
+
+    await page.goto("/historial?kind=bank_transfer");
+    const recordedTransfer = page.locator(
+      `a[href^="/historial/movimientos/${transfer.id}"]`,
+    );
+    await expect(recordedTransfer).toBeVisible();
+    await recordedTransfer.click();
+    await expect(page.getByRole("main")).toContainText("150,00 EUR");
+    await expect(page.getByRole("main")).toContainText("6.450,00 UYU");
 
     const visitor = await other.newPage();
     await visitor.goto("/resumen");
@@ -344,4 +472,104 @@ test("UI-03: saldos por moneda, flujo accesible y widgets aislados por titular",
   } finally {
     await other.close();
   }
+});
+
+test("OPS: Resumen con un gasto y sin otros movimientos", async ({
+  page,
+  context,
+}, testInfo) => {
+  const { cookies } = await financeBrowserFixtures();
+  await context.addCookies([cookies.a1]);
+  const today = bankReferenceToday();
+  const width = testInfo.project.name === "chromium-mobile" ? 375 : 1440;
+  await page.setViewportSize({ width, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const record = (path, data) =>
+    context.request.post(`/api/${path}`, {
+      data,
+      headers: { origin: financeTestOrigin },
+    });
+  const opening = await record("bank-balances", {
+    currency: "UYU",
+    amount: "1000",
+    asOfDate: today,
+  });
+  expect(opening.status(), await opening.text()).toBe(201);
+  const expense = await record("movements", {
+    idempotencyKey: randomUUID(),
+    kind: "expense",
+    method: "debit",
+    currency: "UYU",
+    amount: "1000",
+    effectiveOn: today,
+    concept: "Único gasto de prueba",
+  });
+  expect(expense.status(), await expense.text()).toBe(201);
+  await page.goto("/resumen#titulo-pagina");
+  await expectApprovedSummary(page);
+  await expect(
+    page.getByRole("list", { name: "Ingresos del mes" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Tarjetas de crédito" }),
+  ).toContainText(/sin tarjetas|todavía no hay tarjetas/i);
+  await expect(
+    page.getByRole("region", { name: "Fondos de ahorro" }),
+  ).toContainText(/sin fondos|todavía no hay fondos/i);
+  await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
+    "1.000,00 UYU",
+  );
+  await expect(
+    page.getByRole("link", { name: "Único gasto de prueba", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("heading", { level: 1 }).focus();
+  await page.screenshot({
+    path: testInfo.outputPath("resumen-cuenta-casi-vacia.jpg"),
+    fullPage: true,
+    quality: 87,
+  });
+
+  // Sacá el puntero del viewport para medir el color en reposo.
+  await page.mouse.move(-1, -1);
+  const scrollBar = await page.evaluate(() => {
+    const root = globalThis.document.documentElement;
+    return {
+      width: globalThis.getComputedStyle(root, "::-webkit-scrollbar").width,
+      track: globalThis.getComputedStyle(root, "::-webkit-scrollbar-track")
+        .backgroundColor,
+      thumb: globalThis.getComputedStyle(root, "::-webkit-scrollbar-thumb")
+        .backgroundColor,
+    };
+  });
+  expect(scrollBar).toEqual({
+    width: "9px",
+    track: "rgb(7, 10, 13)",
+    thumb: "rgb(104, 115, 127)",
+  });
+  await page.keyboard.press("End");
+  await expect
+    .poll(() => page.evaluate(() => globalThis.scrollY))
+    .toBeGreaterThan(0);
+
+  const navigation = page.getByRole("navigation", {
+    name: width === 375 ? "Accesos rápidos" : "Navegación principal",
+  });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  for (const name of ["Historial", "Estadísticas", "Resumen"]) {
+    const link = navigation.getByRole("link", { name, exact: true });
+    await link.focus();
+    await expect(link).toHaveCSS("outline-style", "solid");
+    await page.keyboard.press("Enter");
+    await page.waitForLoadState("load");
+    const title = page.getByRole("heading", {
+      level: 1,
+      name: name === "Resumen" ? "Resumen financiero" : name,
+      exact: true,
+    });
+    await expect(title).toBeFocused();
+    await expect(title).toHaveCSS("outline-style", "none");
+    await expect(title).toHaveCSS("text-decoration-line", "underline");
+  }
+  expect(errors).toEqual([]);
 });

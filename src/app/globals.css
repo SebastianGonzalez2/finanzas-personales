@@ -123,6 +123,42 @@
     outline-offset: 2px;
   }
 
+  #titulo-pagina[tabindex="-1"]:focus {
+    outline: none;
+    text-decoration: underline 1px var(--glaciar-muted);
+    text-underline-offset: 0.2em;
+  }
+
+  @media (forced-colors: none) {
+    @supports selector(::-webkit-scrollbar) {
+      :root::-webkit-scrollbar {
+        width: 9px;
+        height: 9px;
+      }
+
+      :root::-webkit-scrollbar-track {
+        background: var(--glaciar-bg);
+      }
+
+      :root::-webkit-scrollbar-thumb {
+        border: 2px solid var(--glaciar-bg);
+        border-radius: 999px;
+        background: var(--glaciar-faint);
+      }
+
+      :root::-webkit-scrollbar-thumb:hover {
+        background: var(--glaciar-muted);
+      }
+    }
+
+    @supports not selector(::-webkit-scrollbar) {
+      :root {
+        scrollbar-width: thin;
+        scrollbar-color: var(--glaciar-faint) var(--glaciar-bg);
+      }
+    }
+  }
+
   ::selection {
     background: color-mix(in srgb, var(--glaciar-accent) 30%, transparent);
   }
