@@ -402,7 +402,7 @@ test("F3-06 CA-043: historial, jerarquía, cuotas fijas, RLS, reintentos y concu
     assert.equal(
       (await list(nextMonth)).find((x) => x.categoryId === child).progress
         .consumed,
-      "0",
+      "0.0000",
     );
 
     await save({ action: "remove", budgetId: id, version: 4 }, "2027-02-01");
