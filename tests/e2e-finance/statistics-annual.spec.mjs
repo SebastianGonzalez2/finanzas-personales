@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
+import {
+  bankReferenceToday,
+  formatBankReference,
+} from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -112,7 +115,7 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     await expense("290", `${year - 1}-12-05`);
     await expense("25", `${year}-01-01`);
     await expense(
-      "999",
+      "1250",
       `${year - 3}-01-01`,
       privateCategory,
       "UYU",
@@ -166,38 +169,84 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
       new RegExp(`category=${root}.*#estadisticas-annual-expenses$`),
     );
     await expect(category).toHaveValue(root);
+    const figure = card.getByRole("figure", { name: "Serie anual en UYU" });
+    const readout = figure.locator(".gs-annual__readout");
     const point = (label) =>
       card.getByRole("button", { name: label, exact: true });
+    const cutoff = formatBankReference(today);
     await expect(point(`${year - 4} · 310,0123 UYU`)).toBeVisible();
     await expect(point(`${year - 3} · Sin registros`)).toBeVisible();
     await expect(point(`${year - 2} · 0,00 UYU · Sin gastos`)).toBeVisible();
     await expect(point(`${year - 1} · 370,00 UYU`)).toBeVisible();
-    const current = `${year} · 105,00 UYU · Año en curso`;
+    const current = `${year} · 105,00 UYU · Año parcial al ${cutoff}`;
     await expect(point(current)).toBeVisible();
+    await expect(readout).toContainText(`Parcial al ${cutoff}`);
+    await expect(figure.locator(".gs-annual__scale")).toHaveText(
+      "UYU4003002001000",
+    );
+    const pathSegments = (
+      await figure.locator("svg path").getAttribute("d")
+    ).match(/[ML]/g);
+    expect(pathSegments).toEqual(["M", "M", "L", "L"]);
+    await expect(
+      point(`${year - 3} · Sin registros`).locator(".gs-annual__dot"),
+    ).toHaveCount(0);
+    await expect(
+      point(`${year - 2} · 0,00 UYU · Sin gastos`).locator(".gs-annual__dot"),
+    ).toHaveAttribute("style", /top:\s*100%/);
+    await expect(figure).toMatchAriaSnapshot(`
+      - figure "Serie anual en UYU":
+        - button "${year - 4} · 310,0123 UYU"
+        - button "${year - 3} · Sin registros"
+        - button "${year - 2} · 0,00 UYU · Sin gastos"
+        - button "${year - 1} · 370,00 UYU"
+        - button "${current}"
+    `);
     // Tab to a point from the preceding year, then verify the visible readout.
     await point(`${year - 2} · 0,00 UYU · Sin gastos`).focus();
     await page.keyboard.press("Tab");
     await expect(point(`${year - 1} · 370,00 UYU`)).toBeFocused();
+    await expect(readout).toContainText("370,00 UYU");
+    await expect(point(`${year - 1} · 370,00 UYU`)).toHaveCSS(
+      "outline-style",
+      "none",
+    );
     await expect(
-      card.getByText(`${year - 1} · 370,00 UYU`, { exact: true }),
-    ).toBeVisible();
+      point(`${year - 1} · 370,00 UYU`).locator(".gs-annual__dot"),
+    ).toHaveCSS("outline-style", "solid");
     if (testInfo.project.name === "chromium-mobile") {
       await point(current).tap();
-      await expect(card.getByText(current, { exact: true })).toBeVisible();
+      await expect(readout).toContainText("105,00 UYU");
     } else {
       await point(current).hover();
-      await expect(card.getByText(current, { exact: true })).toBeVisible();
+      await expect(readout).toContainText("105,00 UYU");
       await point(current).focus();
     }
+    // Center the card above the fixed navigation before capturing its footer.
+    await card.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
     await card.screenshot({
       path: testInfo.outputPath("evolucion-anual.jpg"),
       quality: 88,
     });
-    await card.getByText("Ver datos", { exact: true }).click();
+    await point(current).focus();
+    await page.keyboard.press("Tab");
+    const tableToggle = figure.getByText("Ver datos", { exact: true });
+    await expect(tableToggle).toBeFocused();
+    await page.keyboard.press("Enter");
+    const table = figure.getByRole("table", { name: "Gastos anuales en UYU" });
+    await expect(table).toBeVisible();
     await expect(
-      card.getByRole("row", {
-        name: new RegExp(`^${year} 105,00 UYU Año en curso$`),
+      table.getByRole("row", {
+        name: `${year} 105,00 UYU Año parcial al ${cutoff}`,
       }),
+    ).toBeVisible();
+    await expect(
+      table.getByRole("row", { name: `${year - 3} — Sin registros` }),
+    ).toBeVisible();
+    await expect(
+      table.getByRole("row", { name: `${year - 2} 0,00 UYU Sin gastos` }),
     ).toBeVisible();
     await card.getByRole("link", { name: "Años anteriores" }).click();
     await expect(point(`${year - 6} · 50,00 UYU`)).toBeVisible();
@@ -217,7 +266,8 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     await expense("7", `${year - 4}-01-03`, child, "EUR");
     await page.goto(`${path}&category=${root}`);
     await expect(point(`${year - 4} · Falta cotización`)).toBeVisible();
-    await expect(card.getByText(/Importe incompleto/)).toBeVisible();
+    await point(`${year - 4} · Falta cotización`).focus();
+    await expect(readout).toContainText("Importe incompleto");
     await expect(point(current)).toBeVisible();
 
     await page.goto(
@@ -252,11 +302,12 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     ).toHaveCount(0);
     await otherPage.goto("/estadisticas?view=todas&display=original");
     await expect(
-      otherCard.getByRole("button", { name: `${year - 3} · 999,00 UYU` }),
+      otherCard.getByRole("button", { name: `${year - 3} · 1.250,00 UYU` }),
     ).toBeVisible();
     await expect(
       otherCard.getByRole("button", { name: `${year - 4} · Sin registros` }),
     ).toBeVisible();
+    await expect(otherCard.getByText(/^1,5\s+mil$/)).toBeVisible();
     await otherPage.goto("/resumen");
     await expect(otherCard).toHaveCount(0);
   } finally {

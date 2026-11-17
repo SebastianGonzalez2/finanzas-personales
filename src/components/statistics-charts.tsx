@@ -111,7 +111,7 @@ export function StatisticsChartCard({
   chart: StatisticsCardId;
   favorite: boolean | undefined;
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
 }) {
   return (
@@ -131,7 +131,7 @@ export function StatisticsChartCard({
           <StatisticsFavoriteButton chart={chart} favorite={favorite} />
         )}
       </header>
-      <p className="lab-muted text-sm">{description}</p>
+      {description && <p className="lab-muted text-sm">{description}</p>}
       {children}
     </section>
   );

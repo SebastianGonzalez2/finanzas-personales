@@ -52,59 +52,55 @@ export function StatisticsAnnualCard({
       chart="annual-expenses"
       favorite={undefined}
       title={statisticsAnnualTitle}
-      description="El gráfico usa su propio período de años calendario."
     >
-      <div className="mt-3 grid gap-3">
-        <form
-          action={`/estadisticas${anchor}`}
-          method="get"
-          aria-label="Categoría del gráfico anual"
-          className="flex flex-wrap items-end gap-2"
-        >
-          {[...query].map(([key, value]) => (
-            <input type="hidden" key={key} name={key} value={value} />
-          ))}
-          <StatisticsCategorySelect
-            key={filters.category ?? "all"}
-            categories={categories}
-            category={categoryAvailable ? filters.category : undefined}
-            expensesOnly
-          />
-          <button type="submit" className={buttonClass("outline")}>
-            Ver categoría
-          </button>
-        </form>
-        <nav
-          aria-label="Historial anual"
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
-        >
-          <span className="font-semibold tabular-nums">
-            {first}–{last}
-          </span>
-          {result?.hasEarlier && (
-            <Link
-              href={href(first - 1)}
-              prefetch={false}
-              className="lab-link inline-flex min-h-11 items-center"
-            >
-              Años anteriores
-            </Link>
-          )}
-          {last < current && (
-            <Link
-              href={href(Math.min(current, last + statisticsAnnualWindow))}
-              prefetch={false}
-              className="lab-link inline-flex min-h-11 items-center"
-            >
-              Años recientes
-            </Link>
-          )}
-        </nav>
-        {!range.complete && (
-          <p className="lab-muted text-xs">
-            {last} en curso · hasta el {formatBankReference(today)}
-          </p>
-        )}
+      <div className="grid gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-1">
+          <form
+            action={`/estadisticas${anchor}`}
+            method="get"
+            aria-label="Categoría del gráfico anual"
+            className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 sm:w-auto"
+          >
+            {[...query].map(([key, value]) => (
+              <input type="hidden" key={key} name={key} value={value} />
+            ))}
+            <StatisticsCategorySelect
+              key={filters.category ?? "all"}
+              categories={categories}
+              category={categoryAvailable ? filters.category : undefined}
+              expensesOnly
+            />
+            <button type="submit" className={buttonClass("outline")}>
+              Ver<span className="sr-only"> categoría</span>
+            </button>
+          </form>
+          <nav
+            aria-label="Historial anual"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+          >
+            <span className="font-semibold tabular-nums">
+              {first}–{last}
+            </span>
+            {result?.hasEarlier && (
+              <Link
+                href={href(first - 1)}
+                prefetch={false}
+                className="lab-link inline-flex min-h-11 items-center"
+              >
+                Años anteriores
+              </Link>
+            )}
+            {last < current && (
+              <Link
+                href={href(Math.min(current, last + statisticsAnnualWindow))}
+                prefetch={false}
+                className="lab-link inline-flex min-h-11 items-center"
+              >
+                Años recientes
+              </Link>
+            )}
+          </nav>
+        </div>
         {filters.kind === "income" ? (
           <p className="lab-muted text-sm">
             El filtro de ingresos está activo. Elegí una categoría de gasto para
@@ -120,6 +116,7 @@ export function StatisticsAnnualCard({
               key={currency}
               currency={currency}
               points={points}
+              cutoff={formatBankReference(today)}
             />
           ))
         ) : (
