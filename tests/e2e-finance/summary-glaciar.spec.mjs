@@ -529,6 +529,8 @@ test("OPS: Resumen con un gasto y sin otros movimientos", async ({
     quality: 87,
   });
 
+  // Sacá el puntero del viewport para medir el color en reposo.
+  await page.mouse.move(-1, -1);
   const scrollBar = await page.evaluate(() => {
     const root = globalThis.document.documentElement;
     return {
