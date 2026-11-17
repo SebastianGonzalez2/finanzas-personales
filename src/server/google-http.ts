@@ -59,7 +59,15 @@ export async function handleGoogleHttp(
       )
         return failure(403);
       step = "request.body";
-      const input = await limitedJson(request);
+      let input: Awaited<ReturnType<typeof limitedJson>>;
+      try {
+        input = await limitedJson(request);
+      } catch (error) {
+        // Cierre de sesión: un cuerpo ausente, no JSON o excesivo es un error
+        // del cliente (400), no un fallo de runtime (QA-FIX-02 M-02).
+        if (joined === "sign-out") return failure(400);
+        throw error;
+      }
       if (!input || typeof input !== "object" || Array.isArray(input))
         return failure(400);
       if (

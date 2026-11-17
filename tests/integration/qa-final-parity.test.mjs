@@ -36,7 +36,7 @@ const decimal = (scaled) => {
   const padded = scaled.toString().padStart(5, "0");
   return `${padded.slice(0, -4)}.${padded.slice(-4)}`;
 };
-// Presupuestos devuelve "0" sin consumo y Estadísticas "0.0000": se normaliza el texto.
+// Estadísticas se compara normalizada; el consumo de Presupuestos se compara tal cual (QA-FIX-02 M-03).
 const normalized = (value) => decimal(units(value));
 const oracle = (pairs) => {
   const total = pairs.reduce(
@@ -63,7 +63,6 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
     const found = (
       await run((c, id) => listBudgets(c, id, month, today), ownerId)
     ).find(({ categoryId }) => categoryId === category);
-    if (found) found.progress.consumed = normalized(found.progress.consumed);
     return found;
   };
   const rate = (base, date, value) =>

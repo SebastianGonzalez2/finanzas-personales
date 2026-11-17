@@ -22,9 +22,13 @@ import type {
 const failure = (error: string, status: number) =>
   Response.json({ error }, { status, headers: googlePrivateHeaders });
 
+// Devuelve true solo si la solicitud trae una sesión vigente.
+export type MovementAuthenticate = (request: Request) => Promise<boolean>;
+
 async function readMovementRequest(
   request: Request,
   origin: string | undefined,
+  authenticate?: MovementAuthenticate,
 ) {
   if (new URL(request.url).search)
     return { response: failure("Solicitud inválida.", 400) };
@@ -36,6 +40,18 @@ async function readMovementRequest(
       return { response: failure("Solicitud no autorizada.", 403) };
   } catch {
     return { response: failure("Solicitud no autorizada.", 403) };
+  }
+
+  // Se autentica antes de leer el cuerpo: sin sesión siempre 401 (QA-FIX-02 M-01).
+  if (authenticate) {
+    try {
+      if (!(await authenticate(request)))
+        return {
+          response: movementFailure(new Error("Acceso denegado"), "registrar"),
+        };
+    } catch (error) {
+      return { response: movementFailure(error, "registrar") };
+    }
   }
 
   try {
@@ -64,8 +80,9 @@ export async function handleMovement(
       ReturnType<typeof saveMovement> | ReturnType<typeof saveBankTransfer>
     >
   >,
+  authenticate?: MovementAuthenticate,
 ) {
-  const body = await readMovementRequest(request, origin);
+  const body = await readMovementRequest(request, origin, authenticate);
   if (body.response) return body.response;
   const today = bankReferenceToday();
   const input = body.input;
