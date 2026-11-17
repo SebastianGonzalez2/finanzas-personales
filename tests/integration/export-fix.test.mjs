@@ -354,15 +354,15 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
 
     // Tarjeta A: compra, cuotas en USD, pago del ciclo y pago con conversión.
     const purchaseA = created(
-      await operation(
-        creditPurchase({
+      await operation({
+        ...creditPurchase({
           cardId: cardA.id,
           effectiveOn: d("03-12"),
           amount: "2000",
           concept: "Compra tarjeta A",
-          categoryId: cat.super,
         }),
-      ),
+        categoryId: cat.super,
+      }),
     );
     created(
       await operation({
@@ -372,8 +372,8 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
           effectiveOn: d("03-05"),
           amount: "300",
           concept: "Compra en cuotas",
-          categoryId: cat.installments,
         }),
+        categoryId: cat.installments,
         plan: { installmentAmount: "100", count: 3, firstPeriod: `${Y}-03` },
       }),
     );
