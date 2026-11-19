@@ -138,10 +138,13 @@ test("F3-05 / CA-041: dos fondos más disponible, un gasto, corrección y anulac
       (await move(c, a, expense("1200", [portion(travel, "600.0001")]))).status,
       "invalid-coverage",
     );
+    // SIMP-02: el disponible libre ya no limita el registro de un gasto.
+    await c.query("SAVEPOINT simp02_partial");
     assert.equal(
-      (await move(c, a, expense("1200", [portion(travel, "600")]))).shortfall,
-      "400.0000",
+      (await move(c, a, expense("1200", [portion(travel, "600")]))).status,
+      "created",
     );
+    await c.query("ROLLBACK TO SAVEPOINT simp02_partial");
     assert.ok(
       "error" in
         parseMovement(

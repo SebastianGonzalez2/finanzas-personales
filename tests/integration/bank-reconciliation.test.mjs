@@ -286,11 +286,18 @@ test("F1-05: confirmaciones y conciliación en PostgreSQL", async (t) => {
             .difference,
           "200.0000",
         );
-        assert.deepEqual(await revise(owner, correction(later, "901.0000")), {
-          status: "insufficient-funds",
-          shortfall: "1.0000",
-          currency: "UYU",
-        });
+        // SIMP-02: la corrección ya no depende de los fondos disponibles.
+        await assert.rejects(
+          as(owner, async (client, id) => {
+            assert.equal(
+              (await reviseMovement(client, id, correction(later, "901.0000")))
+                .status,
+              "revised",
+            );
+            throw new Error("rollback sintético");
+          }),
+          /Operación de datos rechazada/,
+        );
         assert.equal(
           (
             await revise(owner, {

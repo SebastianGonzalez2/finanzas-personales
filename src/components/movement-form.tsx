@@ -3,17 +3,9 @@
 import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  bankCurrencies,
-  formatBankReference,
-  type BankAvailability,
-} from "@/domain/bank-balances";
-import {
-  conceptLimit,
-  movementMethods,
-  noteLimit,
-  type MovementKind,
-} from "@/domain/movements";
+import { bankCurrencies, type BankAvailability } from "@/domain/bank-balances";
+import { conceptLimit, noteLimit, type MovementKind } from "@/domain/movements";
+import { formInstallmentPlan, InstallmentFields } from "./installment-fields";
 import type { Currency } from "@/domain/money";
 import type { CatalogCard } from "@/domain/cards";
 import type { CatalogCategory } from "@/domain/categories";
@@ -73,6 +65,7 @@ export function MovementForm({
   const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
   const [amount, setAmount] = useState("");
+  const [installments, setInstallments] = useState(false);
   const [effectiveOn, setEffectiveOn] = useState(today);
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
@@ -97,7 +90,8 @@ export function MovementForm({
   const configured = bankCurrencies.filter((code) =>
     balances.some((balance) => balance.currency === code),
   );
-  const selectedCurrency = currency ?? configured[0];
+  // SIMP-02: un gasto no requiere un saldo bancario configurado.
+  const selectedCurrency = currency ?? bankCurrencies[0];
   const bank = balances.find(
     (balance) => balance.currency === selectedCurrency,
   );
@@ -142,8 +136,9 @@ export function MovementForm({
     returnFocus.current = active instanceof HTMLElement ? active : null;
     if (!uncertain) {
       setKind(initialKind);
-      setCurrency(configured[0]);
+      setCurrency(undefined);
       setAmount("");
+      setInstallments(false);
       setEffectiveOn(today);
       setError("");
       setMessage("");
@@ -176,10 +171,12 @@ export function MovementForm({
         const fundPortions = formFundPortions(form, expenseFundsField);
         form.delete(expenseFundsField);
         const classification = formClassification(form);
+        const plan = formInstallmentPlan(form);
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
           ...classification,
           ...(fundPortions?.length && { fundPortions }),
+          ...(plan && { plan }),
           idempotencyKey: requestKey.current,
         });
       }
@@ -487,20 +484,6 @@ export function MovementForm({
                   });
                 }}
               />
-            ) : !configured.length ? (
-              <div className="grid gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Configurá un saldo inicial en «Disponible libre» para
-                  registrar un ingreso o gasto.
-                </p>
-                <button
-                  type="button"
-                  className="ui-btn ui-btn--ghost justify-self-start"
-                  onClick={closeForm}
-                >
-                  Cerrar formulario
-                </button>
-              </div>
             ) : (
               <form
                 method="post"
@@ -537,46 +520,49 @@ export function MovementForm({
                     <BankTransferFields currencies={configured} />
                   ) : (
                     <>
-                      <label className="space-y-1 text-sm">
-                        <span>Medio bancario</span>
-                        <select name="method" key={kind} className={control}>
-                          {income ? (
-                            <option value="deposit">
-                              {movementMethods.deposit}
-                            </option>
-                          ) : (
-                            <>
-                              <option value="debit">
-                                {movementMethods.debit}
-                              </option>
-                              <option value="transfer">
-                                {movementMethods.transfer}
-                              </option>
-                            </>
-                          )}
-                        </select>
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span>Importe</span>
-                        <input
-                          name="amount"
-                          value={amount}
-                          onChange={(event) => setAmount(event.target.value)}
-                          required
-                          inputMode="decimal"
-                          maxLength={22}
-                          autoComplete="off"
-                          placeholder="0,00"
-                          className={control}
-                          aria-describedby="importe-transaccion-ayuda"
+                      {!income && (
+                        <label className="flex min-h-11 items-center gap-2 self-end text-sm sm:col-span-2">
+                          <input
+                            type="checkbox"
+                            name="installments"
+                            checked={installments}
+                            onChange={(event) =>
+                              setInstallments(event.target.checked)
+                            }
+                            className="size-5"
+                          />
+                          <span>En cuotas</span>
+                        </label>
+                      )}
+                      {!income && installments ? (
+                        <InstallmentFields
+                          key={effectiveOn.slice(0, 7)}
+                          currency={selectedCurrency}
+                          firstPeriod={effectiveOn.slice(0, 7)}
                         />
-                        <span
-                          id="importe-transaccion-ayuda"
-                          className="block text-xs text-muted-foreground"
-                        >
-                          Sin separador de miles, hasta 4 decimales.
-                        </span>
-                      </label>
+                      ) : (
+                        <label className="space-y-1 text-sm">
+                          <span>Importe</span>
+                          <input
+                            name="amount"
+                            value={amount}
+                            onChange={(event) => setAmount(event.target.value)}
+                            required
+                            inputMode="decimal"
+                            maxLength={22}
+                            autoComplete="off"
+                            placeholder="0,00"
+                            className={control}
+                            aria-describedby="importe-transaccion-ayuda"
+                          />
+                          <span
+                            id="importe-transaccion-ayuda"
+                            className="block text-xs text-muted-foreground"
+                          >
+                            Sin separador de miles, hasta 4 decimales.
+                          </span>
+                        </label>
+                      )}
                       <label className="space-y-1 text-sm">
                         <span>Moneda</span>
                         <select
@@ -588,7 +574,7 @@ export function MovementForm({
                             setCurrency(event.target.value as Currency)
                           }
                         >
-                          {configured.map((code) => (
+                          {bankCurrencies.map((code) => (
                             <option key={code} value={code}>
                               {code}
                             </option>
@@ -615,13 +601,13 @@ export function MovementForm({
                       >
                         {transfer
                           ? "Usá la fecha real del cambio. Si un saldo confirmado cubre esa fecha, el efecto se refleja en su conciliación."
-                          : bank
-                            ? `Las fechas anteriores al ${formatBankReference(bank.asOfDate)} quedan en el historial. Para el día del saldo inicial, registrá los movimientos posteriores a ese saldo.`
+                          : installments && !income
+                            ? "Fecha de la compra. Cada cuota cuenta en su mes."
                             : "Ingresá la fecha en que ocurrió."}
                       </span>
                     </label>
                   )}
-                  {!transfer && !income && selectedCurrency && fundSources && (
+                  {!transfer && !income && !installments && fundSources && (
                     <FundPortionFields
                       key={selectedCurrency}
                       funds={fundSources}

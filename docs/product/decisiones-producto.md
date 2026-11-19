@@ -1,10 +1,12 @@
 # Aplicación de finanzas personales — Registro de decisiones del producto
 
-**Versión:** 9.50  
-**Actualizado:** 2026-11-14  
+**Versión:** 9.51  
+**Actualizado:** 2026-11-19  
 **Estado:** Documento vivo de decisiones de producto.  
 **Ubicación en el repositorio:** `docs/product/decisiones-producto.md`  
 **Referencia visual:** `docs/design/ui-identidad-visual.md` (vigente desde v9.50); `docs/fintrack-original.jpeg` y `docs/design/fintrack-visual-spec.md` quedan como referencia histórica de límites funcionales
+
+> **CAMBIO VIGENTE v9.51 (2026-11-19, SIMP-01):** la aplicación pasa a dedicarse **solo a registrar y analizar gastos**. Se conservan gastos, categorías, etiquetas, comercios, historial, estadísticas, comparaciones, presupuestos, recurrentes de gasto, UYU/USD/EUR con conversión histórica, **compras en cuotas sin tarjeta** (cada cuota cuenta una sola vez en su mes), informes útiles, autenticación y Glaciar. Se retiran por etapas cuentas bancarias y saldos, ingresos, transferencias, patrimonio/disponible, tarjetas y sus deudas, beneficios, fondos, préstamos y **reembolsos/devoluciones**. Un gasto ya no exige saldo ni medio bancario. Los datos existentes de Production **se conservan** (sin reinicio ni borrado); las tablas retiradas no se eliminan hasta una decisión posterior. Plan: SIMP-02 (núcleo y cuotas), SIMP-03 (navegación y Resumen), SIMP-04 (retiro de código y exportaciones). Las secciones anteriores sobre esos módulos quedan como constancia histórica.
 
 > **CAMBIO VIGENTE v9.49 (2026-11-08):** la autenticación se simplifica a **solo Google**, con **lista privada de 5–6 cuentas autorizadas** administrada por el titular y **Better Auth autogestionado en Next.js**; se conservan **Neon PostgreSQL, Vercel y el aislamiento financiero**. Quedan sustituidos **Neon Auth administrado**, código compartido de invitación, correo/contraseña, OTP, verificación/recuperación propias y SMTP para acceder. El texto anterior en §11.4, §11.4.2, §11.4.3, §11.4.5, §12 y el historial queda como constancia de decisiones **revocadas**, no como instrucciones actuales. Ver [ADR 0004](../adr/0004-google-only-allowlist-auth.md).
 
@@ -925,3 +927,4 @@
 - **2026-11-14 — v9.50 (UI-01, identidad visual aprobada):** el usuario aprueba la identidad «Ambient Glow + Glassmorphism» con paleta **Glaciar** fija, tipografía Plus Jakarta Sans, vidrio perceptible en tres niveles, ondas de luz animadas arriba y al final de la página con luz tenue en el medio, menú de riel expandible en escritorio y barra flotante en móvil. En Resumen: Disponible libre con pestañas por moneda (muestran el saldo real de cada moneda; **no convierten**) y aviso aclaratorio; el selector superior es la moneda de visualización de toda la app (v9.46); gráfica de flujo espejada; anillo de categorías; tarjetas de crédito dibujadas; tutorial con flechas que explica ambos selectores, «Cambio de moneda» y «Confirmar saldo». **Solo presentación:** no cambia reglas contables, cálculos, permisos ni datos. Detalle en `docs/design/ui-identidad-visual.md`; aplicación por etapas UI-02…UI-06.
 
 - **2026-11-16 — FIX-FX:** referencias automáticas en Presupuestos y referencia mensual compartida con Estadísticas para las cuotas nuevas. Las equivalencias futuras son estimaciones hasta el inicio de su mes. Se preservan las valoraciones históricas y la política de los planes anteriores.
+- **2026-11-19 — v9.51 (SIMP-01/SIMP-02):** simplificación aprobada a una app de gastos (ver aviso vigente al inicio). Decisiones: eliminar reembolsos/devoluciones; conservar los datos de Production; primera cuota en el mes de la compra (editable); gasto sin medio de pago (`unspecified`); avisos solo de presupuestos y recurrentes; series de ingreso o tarjeta heredadas inactivas; sin borrar tablas. SIMP-02: el gasto se registra sin saldo, sin medio bancario y opcionalmente en cuotas (`installment_plans` sobre el gasto, migración 0041); no se contabiliza dos veces.

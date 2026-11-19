@@ -355,17 +355,25 @@ test("F1-07: historial, revisiones completas y aislamiento", async (t) => {
           (await as(owner, listBankCheckpoints))[0].difference,
           "-500.0000",
         );
-        assert.equal(
-          (
-            await revise(
-              owner,
-              edit(
-                sameDay.id,
-                expense({ effectiveOn: "2025-03-02", amount: "8100.0000" }),
-              ),
-            )
-          ).status,
-          "insufficient-funds",
+        // SIMP-02: la edición ya no depende de los fondos disponibles.
+        await assert.rejects(
+          as(owner, async (client, id) => {
+            assert.equal(
+              (
+                await reviseMovement(
+                  client,
+                  id,
+                  edit(
+                    sameDay.id,
+                    expense({ effectiveOn: "2025-03-02", amount: "8100.0000" }),
+                  ),
+                )
+              ).status,
+              "revised",
+            );
+            throw new Error("rollback sintético");
+          }),
+          /Operación de datos rechazada/,
         );
         const after = await revise(
           owner,

@@ -119,7 +119,7 @@ test("F3-01: confirma reservas, traspasos y liberaciones sin afectar Bancos ni g
   }
 });
 
-test("F3-02: Resumen muestra el disponible y el formulario protege lo reservado", async ({
+test("F3-02/SIMP-02: Resumen muestra el disponible y registra el gasto sin validarlo contra lo reservado", async ({
   page,
   context,
 }, testInfo) => {
@@ -185,18 +185,10 @@ test("F3-02: Resumen muestra el disponible y el formulario protege lo reservado"
     .getByRole("link", { name: "Registrar movimiento" })
     .click();
   const form = page.getByRole("form", { name: "Nueva transacción" });
-  const amount = form.getByLabel("Importe");
-  await amount.fill("200,0001");
+  // SIMP-02: el gasto ya no se valida contra el disponible libre.
+  await form.getByLabel("Importe").fill("200");
   await form.getByLabel("Concepto", { exact: true }).fill("Gasto F3-02");
-  const save = form.getByRole("button", { name: "Guardar movimiento" });
-  await save.click();
-  await expect(form.getByRole("alert")).toContainText("Faltan 0,00 UYU");
-  await expect(
-    page.getByText("Los gastos registrados aparecerán acá."),
-  ).toBeVisible();
-
-  await amount.fill("200");
-  await save.click();
+  await form.getByRole("button", { name: "Guardar movimiento" }).click();
   await expect(balances.getByText("0,00 UYU", { exact: true })).toBeVisible();
   await expect(balances.getByText("Saldo bancario 1.000,00 UYU")).toBeVisible();
   await expect(balances.getByText("Reservado 1.000,00 UYU")).toBeVisible();

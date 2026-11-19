@@ -155,16 +155,7 @@ test("F2-08 · RF-025 · CA-035/036: reparto, deuda y cobros con aislamiento rea
           today,
         ),
     );
-    const insufficient = parsed(
-      parseSharedExpense,
-      expense({
-        method: "debit",
-        ...shares,
-        amount: "10000",
-        ownAmount: "7000",
-      }),
-    );
-    assert.equal((await send(insufficient)).status, "conflict");
+    // SIMP-02: el saldo bancario ya no rechaza un gasto compartido mayor.
     assert.equal(await bank(), "9000.0000");
 
     const attempts = await Promise.all([send(debit), send(debit)]);

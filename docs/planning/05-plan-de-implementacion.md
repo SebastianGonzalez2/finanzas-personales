@@ -190,6 +190,14 @@ Diseño aprobado por el usuario el 2026-11-14: [guía visual definitiva](../desi
 | QA-D02 | Presentar fechas como DD/MM/AAAA y meses con nombre en español en los formularios, manteniendo los valores ISO y las mismas reglas financieras. | RF-018/031/032/051/052; CA-024/042/043/066 como regresión. [Evidencia y límites](06-riesgos-y-pendientes.md#seguimiento-de-qa-final). |
 | QA-FIX-02 | M-01: en `POST /api/movements` autenticar antes de validar el cuerpo, de modo que una solicitud sin sesión responda 401 y no 400. M-02: `POST /api/auth/sign-out` con cuerpo vacío responde 400 (hoy 503) y no se registra como error de runtime. M-03: Presupuestos devuelve el consumo nulo con cuatro decimales (`0.0000`), igual que Estadísticas. Sin migraciones, sin cambios de diseño ni de reglas contables. | RF-001/003/031/032/044/046; CA-001/005/042/043/059/060 como regresión. Origen: [QA-FINAL-v1](QA-FINAL-v1.md) §6 (M-01 a M-03). Pruebas: respuestas anónimas con cuerpo válido, inválido y vacío; cierre de sesión con y sin cookie; paridad Presupuestos/Estadísticas en consumo nulo (reutilizar `tests/integration/qa-final-parity.test.mjs`) y UI sin cambios de texto. |
 
+## SIMP — Simplificación a gastos (v9.51)
+
+| Ticket | Entrega | Validación |
+|---|---|---|
+| SIMP-02 | Gasto sin saldo ni medio bancario; compras en cuotas sobre el gasto (migración 0041: FK del plan al evento, trigger de importe, vista `expense_installments` y `budget_expenses_base`); estadísticas, totales, historial y edición con cuotas. | 30.000 UYU en 6 cuotas suman 5.000 por mes y 30.000 en total; idempotencia, edición, anulación y RLS A/B con PostgreSQL desechable; formulario en Chromium. |
+| SIMP-03 | Navegación, Resumen de gastos y retiro de puntos de entrada de los módulos eliminados; redirecciones. | Ningún enlace a módulos retirados; Resumen con total, comparación, categorías, evolución, últimos gastos y presupuestos; móvil sin desplazamiento horizontal. |
+| SIMP-04 | Retiro del código de bancos, ingresos, tarjetas, fondos, préstamos, beneficios y reembolsos; crons; informes solo de gastos. | Build/lint/tipos; rutas retiradas 404; copia/restauración/reinicio con datos heredados; informes iguales a Estadísticas. |
+
 ## Estrategia de PR y tickets
 
 **Tamaño recomendado:** un PR entrega una capacidad vertical pequeña y probada, no varios módulos contables a la vez. **Convención obligatoria:** ver [nombres de rama, commits y PR](09-convenciones-git.md). Usar una rama `codex/F1-03-registro-movimientos`, commits `feat(F1-03): registrar gastos e ingresos`, PR `[F1-03] Registro manual de movimientos`, y completar [plantilla automática de PR](../../.github/PULL_REQUEST_TEMPLATE.md) con RF/CA, pruebas, riesgos y alcance. **El mismo ID aparece en los tres elementos**. Otros prefijos de rama solo si se documentan expresamente; no mezclar tickets en un PR. No reescribir el historial existente. Cada ticket referencia RF, CA, fuente de producto, migración y UI afectada.

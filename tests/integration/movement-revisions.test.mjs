@@ -268,18 +268,14 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
     );
 
     await t.test(
-      "impide cambios sin fondos o tras un saldo confirmado",
+      "SIMP-02: los cambios no dependen de fondos ni de un saldo confirmado",
       async () => {
         const owner = "f1-04-checkpoint";
         await init(owner, { ...opening, amount: "0.0000" });
         const income = await save(owner, { kind: "income", method: "deposit" });
         const debit = await save(owner, { amount: "4999.9999" });
         assert.equal(debit.status, "created");
-        assert.deepEqual(await revise(owner, undo(income.id)), {
-          status: "insufficient-funds",
-          currency: "UYU",
-          shortfall: "4999.9999",
-        });
+        assert.equal((await revise(owner, undo(income.id))).status, "revised");
         await as(owner, (client, id) =>
           client.query(
             `INSERT INTO finance.balance_checkpoints(owner_id,id,currency,confirmed_amount,as_of_date,created_at)
@@ -287,21 +283,13 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
             [id, randomUUID(), date],
           ),
         );
-        assert.deepEqual(await revise(owner, undo(debit.id)), {
-          status: "checkpoint",
+        const corrected = await revise(owner, {
+          ...undo(debit.id),
+          action: "correct",
+          amount: "2.0000",
         });
-        assert.deepEqual(
-          await revise(owner, {
-            ...undo(debit.id),
-            action: "correct",
-            amount: "2.0000",
-          }),
-          { status: "checkpoint" },
-        );
-        assert.deepEqual(await balances(owner), [
-          { ...opening, amount: "12345.6789" },
-        ]);
-        assert.equal((await recent(owner))[0].amount, "4999.9999");
+        assert.equal(corrected.status, "revised");
+        assert.equal((await recent(owner))[0].amount, "2.0000");
       },
     );
 

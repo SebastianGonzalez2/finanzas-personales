@@ -1,5 +1,5 @@
 import { formatBankAmount } from "./bank-balances.ts";
-import { Money, type Currency } from "./money.ts";
+import { Money, normalizeDecimalAmount, type Currency } from "./money.ts";
 
 export const maxInstallments = 120;
 
@@ -52,6 +52,36 @@ export function installmentCount(value: unknown): value is number {
     value >= 2 &&
     value <= maxInstallments
   );
+}
+
+/** Valida los términos de un plan; lanza un error si no son válidos. */
+export function parseInstallmentTerms(input: unknown): InstallmentTerms {
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    Object.keys(input).some(
+      (key) => !["installmentAmount", "count", "firstPeriod"].includes(key),
+    )
+  )
+    throw new Error("Plan inválido");
+  const { installmentAmount, count, firstPeriod } = input as Record<
+    string,
+    unknown
+  >;
+  if (
+    typeof installmentAmount !== "string" ||
+    !installmentCount(count) ||
+    !isInstallmentPeriod(firstPeriod) ||
+    !isInstallmentPeriod(installmentPeriodAt(firstPeriod, count - 1))
+  )
+    throw new Error("Plan inválido");
+  const amount = normalizeDecimalAmount(
+    installmentAmount.trim().replace(",", "."),
+  );
+  if (amount.startsWith("-") || amount === "0.0000")
+    throw new Error("Plan inválido");
+  return { installmentAmount: amount, count, firstPeriod };
 }
 
 export function installmentTotal(

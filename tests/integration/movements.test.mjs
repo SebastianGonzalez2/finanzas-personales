@@ -66,7 +66,13 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
       admin.release();
     }
 
-    assert.deepEqual(await save(a, expense), { status: "unconfigured" });
+    // SIMP-02: un gasto ya no exige un saldo bancario configurado.
+    const unconfigured = await save("f1-03-fixture-c", {
+      ...expense,
+      method: "unspecified",
+      idempotencyKey: randomUUID(),
+    });
+    assert.equal(unconfigured.status, "created");
     await as(a, async (client, ownerId) => {
       await saveOpeningBalance(client, ownerId, opening);
       await saveOpeningBalance(client, ownerId, usd);
@@ -135,26 +141,19 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
     const results = await Promise.all(
       competing.map((command) => save(b, command)),
     );
-    assert.deepEqual(results.map(({ status }) => status).sort(), [
-      "created",
-      "insufficient-funds",
-    ]);
+    // SIMP-02: el saldo disponible ya no limita el registro de gastos.
     assert.deepEqual(
-      results.find(({ status }) => status === "insufficient-funds"),
-      {
-        status: "insufficient-funds",
-        shortfall: "2000.0000",
-      },
+      results.map(({ status }) => status),
+      ["created", "created"],
     );
-    const accepted = results.findIndex(({ status }) => status === "created");
-    assert.deepEqual(await save(b, competing[accepted]), {
-      ...results[accepted],
+    assert.deepEqual(await save(b, competing[0]), {
+      ...results[0],
       status: "replayed",
     });
     assert.deepEqual(await as(b, listBankBalances), [
-      { ...opening, calculatedAmount: "4000.0000" },
+      { ...opening, calculatedAmount: "-2000.0000" },
     ]);
-    assert.equal((await recent(b, "expense")).length, 1);
+    assert.equal((await recent(b, "expense")).length, 2);
     assert.equal((await recent(a, "income"))[0].concept, "Ingreso");
     assert.equal((await recent(a, "income"))[0].category, "Sueldo");
     assert.deepEqual(
@@ -189,11 +188,11 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
         [foreign, archived].includes(id),
       ),
     );
-    assert.deepEqual(
-      await as(b, (client) =>
+    await assert.rejects(
+      as(b, (client) =>
         saveMovement(client, a, { ...expense, idempotencyKey: randomUUID() }),
       ),
-      { status: "unconfigured" },
+      /Operación de datos rechazada/,
     );
     let foreignKeyChecked = false;
     await assert.rejects(

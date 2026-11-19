@@ -81,3 +81,18 @@ export function InstallmentFields({
     </>
   );
 }
+
+/** Toma el plan del formulario y quita sus campos y el importe total. */
+export function formInstallmentPlan(form: FormData) {
+  const selected = form.get("installments") === "on";
+  form.delete("installments");
+  if (!selected) return undefined;
+  const plan = {
+    installmentAmount: form.get("installmentAmount"),
+    count: Number(form.get("count")),
+    firstPeriod: form.get("firstPeriod"),
+  };
+  for (const field of ["installmentAmount", "count", "firstPeriod", "amount"])
+    form.delete(field);
+  return plan;
+}
