@@ -20,6 +20,13 @@ export async function installmentsReady(client: pg.PoolClient) {
   return row.ready;
 }
 
+export async function expenseInstallmentsReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    "SELECT to_regclass('finance.expense_installments') IS NOT NULL AS ready",
+  );
+  return rows[0].ready;
+}
+
 export async function monthlyInstallmentFxReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
     `SELECT EXISTS (SELECT 1 FROM pg_attribute
@@ -73,6 +80,7 @@ export async function listMonthlyInstallments(
 ) {
   const mixed = await mixedPurchasesReady(client);
   const shared = await sharedExpensesReady(client);
+  const planned = await expenseInstallmentsReady(client);
   const { rows } = await client.query<MonthlyInstallment>(
     `SELECT x.id, x.concept, x.installment_ordinal AS ordinal, x.currency, x.amount::text,
             ${
@@ -85,7 +93,16 @@ export async function listMonthlyInstallments(
        FROM finance.${shared ? "credit_consumption" : "credit_expenses"} x
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
       WHERE x.owner_id = $1 AND x.effective_on = $2::date AND x.installment_ordinal IS NOT NULL ${shared ? "AND x.amount > 0" : ""}
-      ORDER BY c.name NULLS LAST, x.concept, x.id`,
+     ${
+       planned
+         ? `UNION ALL
+     SELECT x.id, x.concept, x.installment_ordinal, x.currency, x.amount::text, c.name
+       FROM finance.expense_installments x
+       LEFT JOIN finance.categories c ON (c.owner_id, c.id) = (x.owner_id, x.category_id)
+      WHERE x.owner_id = $1 AND x.effective_on = $2::date`
+         : ""
+     }
+      ORDER BY category NULLS LAST, concept, id`,
     [ownerId, monthStart],
   );
   return rows;

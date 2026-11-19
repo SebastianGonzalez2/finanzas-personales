@@ -44,6 +44,17 @@ WITH expense_rows AS (
    WHERE f.kind = 'expense' AND f.status = 'confirmed' AND f.owner_id = $1
      AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s
        WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))
+  ${
+    schema.expenseInstallments
+      ? `AND NOT EXISTS (SELECT 1 FROM finance.installment_plans p
+       WHERE (p.owner_id, p.event_id) = (f.owner_id, f.id))
+  UNION ALL
+  SELECT x.id, x.currency, x.amount, x.category_id, x.effective_on, x.method,
+         NULL, false, x.installment_ordinal
+    FROM finance.expense_installments x
+   WHERE x.owner_id = $1`
+      : ""
+  }
   UNION ALL
   SELECT s.event_id, s.currency, s.own_amount, s.category_id, f.effective_on, s.method, NULL, false, NULL
     FROM finance.current_shared_expenses s
@@ -479,6 +490,7 @@ export async function statisticsReady(client: pg.PoolClient) {
     tags: boolean;
     recurrences: boolean;
     benefits: boolean;
+    expenseInstallments: boolean;
   }>(
     `SELECT to_regclass('finance.current_shared_expenses') IS NOT NULL AS shared,
             to_regclass('finance.credit_consumption') IS NOT NULL AS credit,
@@ -490,7 +502,8 @@ export async function statisticsReady(client: pg.PoolClient) {
             (to_regclass('finance.tags') IS NOT NULL AND
              to_regclass('finance.current_event_tags') IS NOT NULL) AS tags,
             to_regclass('finance.recurring_event_lineage') IS NOT NULL AS recurrences,
-            to_regclass('finance.bank_benefits') IS NOT NULL AS benefits`,
+            to_regclass('finance.bank_benefits') IS NOT NULL AS benefits,
+            to_regclass('finance.expense_installments') IS NOT NULL AS "expenseInstallments"`,
   );
   return {
     ready:
@@ -504,6 +517,7 @@ export async function statisticsReady(client: pg.PoolClient) {
     tags: state.tags,
     recurrences: state.recurrences,
     benefits: state.benefits,
+    expenseInstallments: state.expenseInstallments,
   };
 }
 

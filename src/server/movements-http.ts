@@ -19,6 +19,9 @@ import type {
   saveMovement,
 } from "./movements.ts";
 
+const updateRequired =
+  "Actualizá la base de datos para registrar gastos sin medio bancario o en cuotas.";
+
 const failure = (error: string, status: number) =>
   Response.json({ error }, { status, headers: googlePrivateHeaders });
 
@@ -122,6 +125,8 @@ export async function handleMovement(
           "El catálogo estará disponible cuando se actualice la base de datos.",
           409,
         );
+      case "update-required":
+        return failure(updateRequired, 409);
       case "invalid-coverage":
         return failure(result.message, 409);
       case "invalid-category":
@@ -199,6 +204,13 @@ export async function handleMovementRevision(
       case "catalog-unavailable":
         return failure(
           "El catálogo estará disponible cuando se actualice la base de datos.",
+          409,
+        );
+      case "update-required":
+        return failure(updateRequired, 409);
+      case "planned":
+        return failure(
+          "Para cambiar el importe de un gasto en cuotas, editá el gasto y corregí sus cuotas.",
           409,
         );
       case "invalid-kind":

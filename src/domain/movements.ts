@@ -5,6 +5,11 @@ import {
 } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 import { parseOptionalCatalogName } from "./catalog-names.ts";
+import {
+  installmentTotal,
+  parseInstallmentTerms,
+  type InstallmentTerms,
+} from "./installments.ts";
 
 import {
   coverageSum,
@@ -22,6 +27,7 @@ export const movementMethods = {
 
 export const movementDisplayMethods = {
   ...movementMethods,
+  unspecified: "Sin medio indicado",
   credit: "Tarjeta de crédito",
   mixed: "Débito y crédito",
   third_party: "Pagado por otra persona",
@@ -29,7 +35,8 @@ export const movementDisplayMethods = {
 export type MovementDisplayMethod = keyof typeof movementDisplayMethods;
 
 export type MovementKind = "income" | "expense";
-export type MovementMethod = keyof typeof movementMethods;
+// SIMP-02: un gasto nuevo no indica medio bancario ("unspecified").
+export type MovementMethod = keyof typeof movementMethods | "unspecified";
 export type MovementCategory = { id: string; kind: MovementKind; name: string };
 
 import {
@@ -51,6 +58,7 @@ export type MovementInput = ClassificationInput & {
   idempotencyKey: string;
   fundPortions?: FundPortion[];
   merchantName?: string | null;
+  plan?: InstallmentTerms;
 };
 
 type RevisionTarget = { eventId: string; idempotencyKey: string };
@@ -116,6 +124,7 @@ const inputKeys = [
   "allocations",
   "tagIds",
   "merchantName",
+  "plan",
 ];
 
 function positiveAmount(amount: unknown) {
@@ -126,6 +135,9 @@ function positiveAmount(amount: unknown) {
     throw new Error("Importe positivo requerido");
   return decimal;
 }
+
+const installmentsError =
+  "Revisá las cuotas: entre 2 y 120, importe positivo con hasta 4 decimales y un mes válido.";
 
 const amountError =
   "Ingresá un importe positivo sin separador de miles y con hasta 4 decimales.";
@@ -280,14 +292,20 @@ export function parseMovement(
     allocations,
     tagIds,
     merchantName: rawMerchant,
+    plan: rawPlan,
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
   if (kind !== "income" && kind !== "expense")
     return { error: "Elegí ingreso o gasto." };
+  const resolvedMethod =
+    method ?? (kind === "income" ? "deposit" : "unspecified");
   if (
-    (kind === "income" && method !== "deposit") ||
-    (kind === "expense" && method !== "debit" && method !== "transfer")
+    (kind === "income" && resolvedMethod !== "deposit") ||
+    (kind === "expense" &&
+      resolvedMethod !== "unspecified" &&
+      resolvedMethod !== "debit" &&
+      resolvedMethod !== "transfer")
   )
     return { error: "Elegí un medio válido para el movimiento." };
   if (currency !== "UYU" && currency !== "USD" && currency !== "EUR")
@@ -295,14 +313,33 @@ export function parseMovement(
   if (!isBankReferenceDate(effectiveOn, today))
     return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
 
+  let plan: InstallmentTerms | undefined;
+  if (rawPlan !== undefined) {
+    if (kind !== "expense")
+      return { error: "Solo un gasto se puede registrar en cuotas." };
+    try {
+      plan = parseInstallmentTerms(rawPlan);
+    } catch {
+      return { error: installmentsError };
+    }
+  }
+
   let decimal: string;
   try {
-    decimal = positiveAmount(amount);
+    decimal = plan ? installmentTotal(plan, currency) : positiveAmount(amount);
   } catch {
-    return { error: amountError };
+    return { error: plan ? installmentsError : amountError };
+  }
+  try {
+    if (plan && amount !== undefined && positiveAmount(amount) !== decimal)
+      throw new Error();
+  } catch {
+    return { error: "El importe debe ser igual a la suma de las cuotas." };
   }
 
   let portions: FundPortion[] | undefined;
+  if (plan && fundPortions !== undefined)
+    return { error: "Un gasto en cuotas no usa fondos de ahorro." };
   if (fundPortions !== undefined) {
     try {
       portions = parseFundPortions(fundPortions);
@@ -353,6 +390,8 @@ export function parseMovement(
     (category || !allocationSumMatches(classification.allocations, decimal))
   )
     return { error: allocationError };
+  if (plan && classification.allocations?.length)
+    return { error: "Un gasto en cuotas se asigna a una sola categoría." };
 
   return {
     ...classification,
@@ -360,12 +399,13 @@ export function parseMovement(
     currency,
     amount: decimal,
     effectiveOn,
-    method: method as MovementMethod,
+    method: resolvedMethod as MovementMethod,
     concept: label.trim(),
     note: details.trim() || null,
     categoryId: category.toLowerCase() || null,
     ...(portions !== undefined && { fundPortions: portions }),
     ...(merchantName !== undefined && { merchantName }),
+    ...(plan && { plan }),
     idempotencyKey: idempotencyKey.toLowerCase(),
   };
 }

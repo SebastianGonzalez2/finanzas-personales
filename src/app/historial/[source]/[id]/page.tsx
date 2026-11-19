@@ -99,7 +99,8 @@ export default async function HistoryDetail({
           ? (await listLoanOperations(client, ownerId, { eventId: id }))[0]
           : undefined;
       const plans =
-        entry.kind === "card_purchase" && (await installmentsReady(client))
+        (entry.kind === "card_purchase" || entry.kind === "expense") &&
+        (await installmentsReady(client))
           ? await listInstallmentVersions(client, ownerId, id)
           : [];
       const mixed =
@@ -156,7 +157,7 @@ export default async function HistoryDetail({
         !shared &&
         !mixed &&
         entry.status === "confirmed" &&
-        (entry.kind === "expense" ||
+        ((entry.kind === "expense" && !plans[0]) ||
           (entry.kind === "card_purchase" &&
             (!plans[0] || plans[0].count === plans[0].activeCount)));
       const mixedEditable =
@@ -326,7 +327,9 @@ export default async function HistoryDetail({
                   : mixed
                     ? "Total de la compra"
                     : plan
-                      ? "Total financiado"
+                      ? entry.kind === "expense"
+                        ? "Total de la compra"
+                        : "Total financiado"
                       : "Importe"}
               </dt>
               <dd>
@@ -581,6 +584,14 @@ export default async function HistoryDetail({
               installmentPurchase={!!plan}
             />
           )}
+          {plan && entry.kind === "expense" && (
+            <InstallmentHistory
+              versions={plans}
+              currency={entry.currency}
+              today={today}
+              status={entry.status}
+            />
+          )}
           {plan && cardLines[0] && (
             <>
               <InstallmentHistory
@@ -778,6 +789,7 @@ export default async function HistoryDetail({
               entry={entry}
               fundSources={fundSources}
               fundPortions={fundUses}
+              plan={entry.kind === "expense" ? plan : undefined}
               categories={categories}
               currencies={currencies}
               today={today}

@@ -64,7 +64,7 @@ async function splitSource(
        LEFT JOIN finance.credit_lines l ON (l.owner_id, l.event_id) = (o.owner_id, o.event_id)
        LEFT JOIN finance.current_installment_plans p ON (p.owner_id, p.event_id) = (f.owner_id, f.id)
        WHERE f.owner_id = $1 AND f.id = $2 AND f.status = 'confirmed'
-         AND ((f.kind = 'expense' AND b.amount_signed < 0)
+         AND ((f.kind = 'expense' AND b.amount_signed < 0 AND p.event_id IS NULL)
            OR (f.kind = 'card_purchase' AND l.event_id IS NOT NULL
              AND (p.version IS NULL OR p.active_count = p.installment_count)))
          AND NOT EXISTS (SELECT 1 FROM finance.mixed_purchases m2 WHERE (m2.owner_id, m2.event_id) = (f.owner_id, f.id))

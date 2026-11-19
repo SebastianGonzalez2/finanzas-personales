@@ -14,8 +14,11 @@ import { AllocationFields, formClassification } from "./classification-fields";
 import { type HistoryEntry } from "@/domain/history";
 import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
-import { conceptLimit, movementMethods, noteLimit } from "@/domain/movements";
+import { conceptLimit, noteLimit } from "@/domain/movements";
 import type { Currency } from "@/domain/money";
+import { bankCurrencies } from "@/domain/bank-balances";
+import type { InstallmentVersion } from "@/domain/installments";
+import { formInstallmentPlan, InstallmentFields } from "./installment-fields";
 import { useFinancialCommand } from "./financial-command";
 import {
   historyButton,
@@ -66,6 +69,7 @@ export function HistoryEditor({
   today,
   fundSources,
   fundPortions,
+  plan,
 }: {
   entry: HistoryEntry;
   categories: CatalogCategory[];
@@ -77,11 +81,13 @@ export function HistoryEditor({
   today: string;
   fundSources: FundSource[] | null;
   fundPortions: FundPortion[];
+  plan?: InstallmentVersion;
 }) {
   const router = useRouter();
   const [action, setAction] = useState<"edit" | "void" | null>(null);
   const [currency, setCurrency] = useState(entry.currency);
   const [amount, setAmount] = useState(entry.amount);
+  const [installments, setInstallments] = useState(!!plan);
   const [done, setDone] = useState(false);
   const editorHeading = useRef<HTMLHeadingElement>(null);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -95,6 +101,7 @@ export function HistoryEditor({
   function begin(next: "edit" | "void") {
     setCurrency(entry.currency);
     setAmount(entry.amount);
+    setInstallments(!!plan);
     setAction(next);
     requestAnimationFrame(() => editorHeading.current?.focus());
   }
@@ -112,6 +119,7 @@ export function HistoryEditor({
     const portions = formFundPortions(form, expenseFundsField);
     form.delete(expenseFundsField);
     const fields = formClassification(form);
+    const terms = formInstallmentPlan(form);
     const allocations =
       fields.allocations ??
       (classification?.allocations.length ? [] : undefined);
@@ -120,6 +128,7 @@ export function HistoryEditor({
       ...Object.fromEntries(form),
       ...(portions && { fundPortions: portions }),
       ...(allocations && { allocations }),
+      ...(terms && { plan: terms }),
     };
     if (
       await send(
@@ -226,19 +235,44 @@ export function HistoryEditor({
                     onChange={setCurrency}
                     label="Moneda"
                     value={entry.currency}
-                    currencies={currencies}
+                    currencies={[...bankCurrencies]}
                   />
-                  <HistoryField label="Importe">
-                    <input
-                      name="amount"
-                      inputMode="decimal"
-                      required
-                      value={amount}
-                      onChange={(event) => setAmount(event.target.value)}
-                      className={historyControl}
+                  {entry.kind === "expense" && (
+                    <label className="flex min-h-11 items-center gap-2 self-end text-sm">
+                      <input
+                        type="checkbox"
+                        name="installments"
+                        checked={installments}
+                        onChange={(event) =>
+                          setInstallments(event.target.checked)
+                        }
+                        className="size-5"
+                      />
+                      <span>En cuotas</span>
+                    </label>
+                  )}
+                  {entry.kind === "expense" && installments ? (
+                    <InstallmentFields
+                      currency={currency}
+                      firstPeriod={
+                        plan?.firstPeriod ?? entry.effectiveOn.slice(0, 7)
+                      }
+                      installmentAmount={plan?.installmentAmount}
+                      count={plan?.count}
                     />
-                  </HistoryField>
-                  {entry.kind === "expense" && fundSources && (
+                  ) : (
+                    <HistoryField label="Importe">
+                      <input
+                        name="amount"
+                        inputMode="decimal"
+                        required
+                        value={amount}
+                        onChange={(event) => setAmount(event.target.value)}
+                        className={historyControl}
+                      />
+                    </HistoryField>
+                  )}
+                  {entry.kind === "expense" && !installments && fundSources && (
                     <FundPortionFields
                       key={currency}
                       funds={fundSources}
@@ -247,25 +281,12 @@ export function HistoryEditor({
                       initial={currency === entry.currency ? fundPortions : []}
                     />
                   )}
-                  <HistoryField label="Medio">
-                    <select
-                      name="method"
-                      defaultValue={entry.method ?? ""}
-                      className={historyControl}
-                    >
-                      {Object.entries(movementMethods)
-                        .filter(
-                          ([method]) =>
-                            (method === "deposit") ===
-                            (entry.kind === "income"),
-                        )
-                        .map(([method, label]) => (
-                          <option key={method} value={method}>
-                            {label}
-                          </option>
-                        ))}
-                    </select>
-                  </HistoryField>
+                  {/* Conserva el medio heredado; un gasto nuevo no lo indica. */}
+                  <input
+                    type="hidden"
+                    name="method"
+                    value={entry.method ?? ""}
+                  />
                   <HistoryField label="Concepto">
                     <input
                       name="concept"

@@ -88,7 +88,8 @@ async function findPurchase(
      LEFT JOIN finance.cards dc ON (dc.owner_id, dc.id) = (mix.owner_id, mix.debit_card_id)
      LEFT JOIN finance.cards cc ON (cc.owner_id, cc.id) = (o.owner_id, o.card_id)
      WHERE f.owner_id = $1 AND f.id = $2 AND f.status = 'confirmed'
-       AND ((f.kind = 'expense' AND m.method = 'debit' AND e.amount_signed < 0)
+       AND ((f.kind = 'expense' AND m.method = 'debit' AND e.amount_signed < 0
+           AND p.event_id IS NULL)
          OR (f.kind = 'card_purchase' AND l.event_id IS NOT NULL))
        AND NOT EXISTS (SELECT 1 FROM finance.shared_expenses s
          WHERE (s.owner_id, s.event_id) = (f.owner_id, f.id))`,
