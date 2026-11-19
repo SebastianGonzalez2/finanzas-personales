@@ -96,3 +96,6 @@ CREATE OR REPLACE VIEW finance.budget_expenses_base WITH (security_invoker = tru
               ELSE (x.created_at AT TIME ZONE 'America/Montevideo')::date END,
          x.monthly_fx
     FROM finance.expense_installments x;
+
+-- ordinary_movements e installment_plans pertenecen al inventario de copias.
+UPDATE finance_meta.account_backup_layout SET layout = finance.account_backup_layout();
