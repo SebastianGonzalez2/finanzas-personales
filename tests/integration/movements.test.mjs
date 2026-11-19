@@ -192,7 +192,7 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
       as(b, (client) =>
         saveMovement(client, a, { ...expense, idempotencyKey: randomUUID() }),
       ),
-      { code: "42501" },
+      /Operación de datos rechazada/,
     );
     let foreignKeyChecked = false;
     await assert.rejects(

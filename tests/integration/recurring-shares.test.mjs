@@ -235,15 +235,7 @@ test("F4-04: acuerdo privado, pago real y cobros por persona y período", async 
           ).status,
           "conflict",
         );
-        const tooMuch = record(seriesId, first, {
-          amount: "200000",
-          targets: [{ ...payment.targets[0], amount: "200000" }],
-          split: {
-            ownAmount: "100000",
-            parties: [{ name: "Ana de prueba", amount: "100000" }],
-          },
-        });
-        assert.equal((await apply(tooMuch)).status, "conflict");
+        // SIMP-02: el saldo bancario ya no rechaza un pago mayor al disponible.
         assert.equal(await balance(), "100000.0000");
         assert.deepEqual(await run(listLoans), []);
         const results = await Promise.all([apply(payment), apply(payment)]);

@@ -158,6 +158,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       purchaseOriginalAmount,
       installmentMonthlyReference,
       financialReset,
+      expenseInstallments,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -562,7 +563,11 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       [financialReset.version],
     );
     assert.deepEqual(
-      await migrateInTransaction(client, financialReset.sha256),
+      await migrateInTransaction(client, expenseInstallments.sha256),
+      [expenseInstallments.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, expenseInstallments.sha256),
       [],
     );
     await setOwnerContext(client, "legacy-fixture");
