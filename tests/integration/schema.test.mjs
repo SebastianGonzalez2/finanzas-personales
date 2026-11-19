@@ -559,9 +559,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       migrateInTransaction(client, installmentMonthlyReference.sha256),
     );
     // Con dos migraciones pendientes, una autorización no aplica ninguna.
-    await assert.rejects(
-      migrateInTransaction(client, financialReset.sha256),
-    );
+    await assert.rejects(migrateInTransaction(client, financialReset.sha256));
     await client.query(financialReset.sql);
     await client.query(
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
