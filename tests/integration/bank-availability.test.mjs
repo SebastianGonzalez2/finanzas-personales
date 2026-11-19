@@ -225,14 +225,19 @@ test("F3-02: las salidas vigentes respetan reservas por moneda y preservan los e
       status: "replayed",
       id: saved.id,
     });
-    assert.deepEqual(
-      await reviseMovement(
-        client,
-        owner,
-        keyed({ action: "correct", eventId: saved.id, amount: "100.0001" }),
-      ),
-      { status: "insufficient-funds", shortfall: "0.0001", currency: "UYU" },
+    // SIMP-02: corregir un gasto ya no depende del disponible libre.
+    await client.query("SAVEPOINT simp02_correction");
+    assert.equal(
+      (
+        await reviseMovement(
+          client,
+          owner,
+          keyed({ action: "correct", eventId: saved.id, amount: "100.0001" }),
+        )
+      ).status,
+      "revised",
     );
+    await client.query("ROLLBACK TO SAVEPOINT simp02_correction");
     assert.deepEqual(await balances(), [
       ["UYU", "800.0000", "800.0000", "0.0000"],
       before[1],
@@ -293,10 +298,13 @@ test("F3-02: las salidas vigentes respetan reservas por moneda y preservan los e
       (await refund({ action: "void", eventId: credited.id })).status,
       "revised",
     );
+    // SIMP-02: un déficit bancario ya no impide registrar gastos.
+    await client.query("SAVEPOINT simp02_deficit");
     assert.equal(
       (await saveMovement(client, owner, expense("0.0001"))).status,
-      "insufficient-funds",
+      "created",
     );
+    await client.query("ROLLBACK TO SAVEPOINT simp02_deficit");
     assert.deepEqual((await balances())[0], [
       "UYU",
       "800.0000",
@@ -309,7 +317,7 @@ test("F3-02: las salidas vigentes respetan reservas por moneda y preservan los e
   }
 });
 
-test("F3-02: un gasto concurrente espera la reserva y vuelve a validar antes de escribir", async () => {
+test("F3-02/SIMP-02: un gasto concurrente espera la reserva y se registra sin depender del disponible", async () => {
   const pool = new pg.Pool({ ...testDatabaseConfig(), max: 3 });
   const owner = "f3-02-concurrente";
   const asOwner = (work) =>
@@ -353,9 +361,8 @@ test("F3-02: un gasto concurrente espera la reserva y vuelve a validar antes de 
     }
     assert.ok(blocked);
     await reserving.query("COMMIT");
-    assert.deepEqual(await spending, {
-      result: { status: "insufficient-funds", shortfall: "0.0001" },
-    });
+    const spent = await spending;
+    assert.equal(spent.result?.status, "created");
     reserving.release();
     reserving = undefined;
     await asOwner(async (client) => {
@@ -363,25 +370,21 @@ test("F3-02: un gasto concurrente espera la reserva y vuelve a validar antes de 
         (await saveSavingsFund(client, owner, reservation)).status,
         "replayed",
       );
-      assert.deepEqual(amounts(await listBankAvailability(client, owner)), [
-        ["UYU", "100.0000", "60.0001", "39.9999"],
-      ]);
       assert.equal(
         (await client.query("SELECT 1 FROM finance.reserve_effects")).rowCount,
         1,
       );
       assert.equal(
         (await client.query("SELECT 1 FROM finance.financial_events")).rowCount,
-        0,
+        1,
       );
       assert.equal(
         (await client.query("SELECT 1 FROM finance.bank_effects")).rowCount,
-        0,
+        1,
       );
-      assert.deepEqual(
-        await listMovementTotals(client, owner, "2026-01-01"),
-        [],
-      );
+      assert.deepEqual(await listMovementTotals(client, owner, "2026-01-01"), [
+        { kind: "expense", currency: "UYU", amount: "40.0000" },
+      ]);
     });
   } finally {
     if (reserving) {

@@ -36,7 +36,6 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await form.getByLabel("Importe").fill("25,1234");
   await form.getByLabel("Fecha").fill("03/02/2025");
   await form.getByLabel("Concepto").fill("Consulta sintética");
-  await form.getByLabel("Medio bancario").selectOption("transfer");
 
   const category = form.getByLabel("Categoría (opcional)");
   await category.selectOption("__create__");
@@ -47,7 +46,6 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await expect(form.getByLabel("Importe")).toHaveValue("25,1234");
   await expect(form.getByLabel("Fecha")).toHaveValue("03/02/2025");
   await expect(form.getByLabel("Concepto")).toHaveValue("Consulta sintética");
-  await expect(form.getByLabel("Medio bancario")).toHaveValue("transfer");
   await expect(
     form.getByRole("combobox", { name: "Moneda", exact: true }),
   ).toHaveValue("UYU");

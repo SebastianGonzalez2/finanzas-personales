@@ -211,3 +211,38 @@ test("F1-03: rechaza datos no permitidos para un movimiento real", () => {
       JSON.stringify(invalid),
     );
 });
+
+test("SIMP-02: el gasto no exige medio bancario y reparte cuotas exactas", () => {
+  const { method, ...withoutMethod } = expense;
+  assert.equal(method, "debit");
+  assert.equal(parseMovement(withoutMethod, today).method, "unspecified");
+  assert.equal(
+    parseMovement({ ...withoutMethod, kind: "income" }, today).method,
+    "deposit",
+  );
+  assert.ok("error" in parseMovement({ ...expense, method: "deposit" }, today));
+
+  const plan = { installmentAmount: "5000", count: 6, firstPeriod: "2026-11" };
+  const { amount, ...withoutAmount } = withoutMethod;
+  assert.equal(amount, "1500,0001");
+  const parsed = parseMovement({ ...withoutAmount, plan }, today);
+  assert.equal(parsed.amount, "30000.0000");
+  assert.deepEqual(parsed.plan, { ...plan, installmentAmount: "5000.0000" });
+  assert.equal(
+    parseMovement({ ...withoutAmount, amount: "30000", plan }, today).amount,
+    "30000.0000",
+  );
+  for (const invalid of [
+    { ...withoutAmount, amount: "29999", plan },
+    { ...withoutAmount, plan: { ...plan, count: 121 } },
+    { ...withoutAmount, plan: { ...plan, firstPeriod: "2026-13" } },
+    { ...withoutAmount, plan: { ...plan, installmentAmount: "-1" } },
+    { ...withoutAmount, plan: { ...plan, extra: true } },
+    { ...withoutAmount, kind: "income", plan },
+    { ...withoutAmount, plan, fundPortions: [] },
+  ])
+    assert.ok(
+      "error" in parseMovement(invalid, today),
+      JSON.stringify(invalid),
+    );
+});
