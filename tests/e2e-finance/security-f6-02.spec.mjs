@@ -245,7 +245,7 @@ test("F6-02: páginas sin sesión redirigen al acceso sin contenido privado, tam
   request,
 }) => {
   test.skip(test.info().project.name !== "chromium-desktop", "Matriz HTTP");
-  expect(pageUrls.length).toBeGreaterThanOrEqual(17);
+  expect(pageUrls.length).toBeGreaterThanOrEqual(13);
   for (const url of pageUrls)
     for (const headers of [
       {},

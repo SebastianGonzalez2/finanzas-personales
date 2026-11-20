@@ -30,7 +30,7 @@ export type SharedExpenseCommand = { idempotencyKey: string } & (
     } & Expense)
   | ({
       action: "create";
-      method: "debit" | "transfer" | "credit";
+      method: "debit" | "transfer" | "credit" | "unspecified";
       purchase?: Purchase;
     } & Expense &
       SharedAllocation)
@@ -228,6 +228,7 @@ export function parseSharedExpense(
     ]);
     if (
       method !== "third_party" &&
+      method !== "unspecified" &&
       method !== "debit" &&
       method !== "transfer" &&
       method !== "credit"
@@ -237,7 +238,8 @@ export function parseSharedExpense(
       {
         kind: "expense",
         currency: data.currency,
-        method: method === "transfer" ? "transfer" : "debit",
+        method:
+          method === "credit" || method === "third_party" ? "debit" : method,
         amount: data.amount,
         effectiveOn: data.effectiveOn,
         merchantName: data.merchantName,

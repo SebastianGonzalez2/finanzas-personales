@@ -22,7 +22,7 @@ test(
   { timeout: 120000 },
   async () => {
     const manifest = await readProductionManifest();
-    assert.equal(manifest.entries.length, 41);
+    assert.equal(manifest.entries.length, 42);
     const client = new pg.Client(testDatabaseConfig());
     // Nunca imprimir errores de conexión: pueden incluir datos de conexión.
     try {
@@ -45,7 +45,7 @@ test(
         client,
         manifest.sha256,
       );
-      assert.equal(first.completed.length + first.alreadyApplied, 41);
+      assert.equal(first.completed.length + first.alreadyApplied, 42);
       assert.equal(first.manifestSha256, manifest.sha256);
       await client.query("COMMIT");
       const ledger = await client.query(

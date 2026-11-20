@@ -37,12 +37,24 @@ type Expense = Details & {
   currency: Currency;
   amount: string;
   effectiveOn: string;
-  method: "debit" | "transfer" | "credit" | "third_party";
+  method: "debit" | "transfer" | "credit" | "third_party" | "unspecified";
 };
 type SharedExpense = Expense & { ownAmount: string; version: number };
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 const missing = { status: "not-found" } as const;
+const sharedPaymentMethodUnavailable = conflict(
+  "Actualizá la base de datos para registrar un reparto sin medio de pago.",
+);
+
+async function sharedPaymentMethodReady(client: pg.PoolClient) {
+  const { rows } = await client.query<{ ready: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM pg_constraint
+       WHERE conrelid = 'finance.shared_expenses'::regclass
+         AND conname = 'shared_expenses_payment_method_check') AS ready`,
+  );
+  return rows[0].ready;
+}
 
 async function splitSource(
   client: pg.PoolClient,
@@ -419,6 +431,11 @@ export async function saveSharedExpense(
       return conflict("Este pago está vinculado a una recurrencia.");
     const existing = await splitSource(client, ownerId, command.eventId);
     if (!existing) return missing;
+    if (
+      existing.method === "unspecified" &&
+      !(await sharedPaymentMethodReady(client))
+    )
+      return sharedPaymentMethodUnavailable;
     if (!allocationMatches(command, existing.amount, existing.currency))
       return conflict(
         "Tu parte y las de tus amigos deben sumar el total exacto del gasto.",
@@ -440,7 +457,12 @@ export async function saveSharedExpense(
       return conflict(
         "El catálogo estará disponible cuando se actualice la base de datos.",
       );
-    if (command.method === "third_party") {
+    if (command.method === "third_party" || command.method === "unspecified") {
+      if (
+        command.method === "unspecified" &&
+        !(await sharedPaymentMethodReady(client))
+      )
+        return sharedPaymentMethodUnavailable;
       const categoryId = await resolveMovementCategory(
         client,
         ownerId,
@@ -451,8 +473,12 @@ export async function saveSharedExpense(
         return conflict("La categoría no está disponible.");
       expense = { ...command, categoryId };
       id = randomUUID();
-      ownAmount = command.amount;
-      parties = [{ ...command.creditor, amount: ownAmount }];
+      if (command.method === "third_party") {
+        ownAmount = command.amount;
+        parties = [{ ...command.creditor, amount: ownAmount }];
+      } else {
+        ({ ownAmount, parties } = command);
+      }
       await client.query(
         `INSERT INTO finance.financial_events
            (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash, created_at)

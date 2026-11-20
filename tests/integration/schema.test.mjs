@@ -97,6 +97,7 @@ test("F0-05: esquema real reproducible, aislamiento y precisión sin fixtures pe
       "0039_FIX-FX_installment_monthly_reference.sql",
       "0040_OPS-RESET_financial_reset.sql",
       "0041_SIMP-02_expense_installments.sql",
+      "0042_SIMP-03_shared_payment_method.sql",
     ]);
     assert.deepEqual(await migrateInTransaction(client), []);
     assert.ok((await schemaContract(client)).checks >= 40);

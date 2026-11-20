@@ -149,13 +149,15 @@ async function eligibleEvents(
   const { rows } = await client.query<Candidate>(
     `SELECT * FROM (
        SELECT f.id, f.effective_on::text AS "effectiveOn", f.concept,
-         abs(b.amount_signed)::text AS amount, m.method, NULL::uuid AS "cardId", s.event_id IS NOT NULL AS shared
+         coalesce(s.total, abs(b.amount_signed))::text AS amount,
+         coalesce(m.method, s.method) AS method, NULL::uuid AS "cardId", s.event_id IS NOT NULL AS shared
        FROM finance.financial_events f
-       JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
-       JOIN finance.bank_effects b ON (b.owner_id, b.id, b.event_id) = (m.owner_id, m.event_id, m.event_id)
+       LEFT JOIN finance.ordinary_movements m ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
+       LEFT JOIN finance.bank_effects b ON (b.owner_id, b.id, b.event_id) = (m.owner_id, m.event_id, m.event_id)
        LEFT JOIN finance.shared_expenses s ON (s.owner_id, s.event_id) = (f.owner_id, f.id)
        WHERE f.owner_id = $1 AND f.status = 'confirmed' AND f.kind = $2
-         AND b.currency = $3 AND ($4::uuid IS NULL OR f.id = $4)
+         AND (b.currency = $3 OR (s.method = 'unspecified' AND s.currency = $3))
+         AND ($4::uuid IS NULL OR f.id = $4)
          AND ($5::date IS NULL OR f.effective_on = $5)
          AND ($9 OR s.event_id IS NULL)
        UNION ALL

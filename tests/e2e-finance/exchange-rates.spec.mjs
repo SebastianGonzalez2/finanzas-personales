@@ -66,7 +66,7 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
       concept: "Gasto sintético del domingo",
       idempotencyKey: randomUUID(),
     });
-    const report = `/estadisticas?from=${sunday}&to=${monday}&display=USD&kind=expense`;
+    const report = `/estadisticas?from=${sunday}&to=${monday}&display=USD&category=none`;
     await page.goto(report);
     const metrics = page.getByRole("table", { name: "Indicadores en USD" });
     await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(
@@ -264,7 +264,7 @@ test("F5-06: sin cotización histórica, tasa manual reproducible y aislada", as
     );
 
     await page.goto(
-      "/estadisticas?from=2000-01-02&to=2000-01-02&display=EUR&kind=expense",
+      "/estadisticas?from=2000-01-02&to=2000-01-02&display=EUR&category=none",
     );
     await expect(
       page.getByText(/Faltan cotizaciones para consolidar el flujo/),

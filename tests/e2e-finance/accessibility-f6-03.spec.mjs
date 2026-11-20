@@ -246,7 +246,7 @@ for (const width of [360, 768, 1440]) {
 
       if (width === 360 && path === "/estadisticas") {
         const chart = page
-          .getByRole("region", { name: /^Ingresos y gastos por mes en UYU/ })
+          .getByRole("region", { name: /^Gastos por mes en UYU/ })
           .first();
         await chart.focus();
         await expect(chart).toBeFocused();

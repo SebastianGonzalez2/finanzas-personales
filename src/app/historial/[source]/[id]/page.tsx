@@ -498,11 +498,13 @@ export default async function HistoryDetail({
                 })}
               </p>
               <p className="text-sm text-muted-foreground">
-                {shared.method === "third_party"
-                  ? "El gasto se registró sin salida de Bancos."
-                  : shared.method === "credit"
-                    ? "El cargo de tarjeta figura en el detalle del medio de pago."
-                    : `Salida registrada en Bancos · ${formatBankAmount(shared)}`}
+                {shared.method === "unspecified"
+                  ? "Sin medio de pago indicado."
+                  : shared.method === "third_party"
+                    ? "El gasto se registró sin salida de Bancos."
+                    : shared.method === "credit"
+                      ? "El cargo de tarjeta figura en el detalle del medio de pago."
+                      : `Salida registrada en Bancos · ${formatBankAmount(shared)}`}
               </p>
               <ul className="divide-y">
                 {shared.loans.map((obligation) => (
@@ -521,17 +523,19 @@ export default async function HistoryDetail({
                         Fecha prevista · {formatBankReference(obligation.dueOn)}
                       </p>
                     )}
-                    <Link
-                      className="w-fit font-medium underline"
-                      href={`/deudas/${obligation.id}`}
-                    >
-                      {obligation.outstanding === "0.0000"
-                        ? "Ver obligación saldada"
-                        : obligation.direction === "payable"
-                          ? "Ver deuda y registrar pago"
-                          : "Ver saldo y registrar cobro"}
-                      <span className="sr-only"> · {obligation.concept}</span>
-                    </Link>
+                    {shared.method !== "unspecified" && (
+                      <Link
+                        className="w-fit font-medium underline"
+                        href={`/deudas/${obligation.id}`}
+                      >
+                        {obligation.outstanding === "0.0000"
+                          ? "Ver obligación saldada"
+                          : obligation.direction === "payable"
+                            ? "Ver deuda y registrar pago"
+                            : "Ver saldo y registrar cobro"}
+                        <span className="sr-only"> · {obligation.concept}</span>
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

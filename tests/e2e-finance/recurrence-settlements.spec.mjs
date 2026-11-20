@@ -231,7 +231,7 @@ test("F4-02: vincula un pago existente y lo reparte entre períodos", async ({
     .click();
   await period.getByRole("button", { name: "Buscar movimientos" }).click();
   await period.getByLabel("Movimiento registrado").selectOption({
-    label: "Pago agrupado sintético · 3.000,00 UYU · Débito bancario",
+    label: "Pago agrupado sintético · 3.000,00 UYU",
   });
   await period.getByText("Distribuir el pago entre varios períodos").click();
   await period.getByRole("button", { name: "Buscar otros períodos" }).click();
