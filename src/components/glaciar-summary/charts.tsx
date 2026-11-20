@@ -619,3 +619,201 @@ export function ProgressRing({
     </div>
   );
 }
+
+export type ExpensePoint = {
+  period: string;
+  label: string;
+  expense: string | null;
+  inProgress?: boolean;
+};
+
+/** SIMP-03 — Gastos de los últimos meses: una sola serie, barras desde el eje. */
+export function ExpenseTrendChart({
+  data: points,
+  currency = "UYU",
+  height = 240,
+}: {
+  data: readonly ExpensePoint[];
+  currency?: Currency;
+  height?: number;
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>();
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [focused, setFocused] = useState<number | null>(null);
+  const active = hovered ?? focused;
+  const gradient = useId().replace(/:/g, "");
+  const data = points.map((point) => ({
+    ...point,
+    value: point.expense === null ? 0 : Number(point.expense),
+  }));
+  const pad = { top: 16, right: 8, bottom: 28, left: 44 };
+  const plotW = Math.max(0, width - pad.left - pad.right);
+  const plotH = height - pad.top - pad.bottom;
+  const max = niceMax(Math.max(...data.map(({ value }) => value)));
+  const step = plotW / Math.max(1, data.length);
+  const scale = plotH / max;
+  const base = pad.top + plotH;
+  const ticks = [max, max / 2, 0];
+  const center = (i: number) => pad.left + step * i + step / 2;
+  const label = (d: ExpensePoint) =>
+    `${d.label}${d.inProgress ? " (mes en curso)" : ""}: gastos ${money(d.expense, currency)}`;
+
+  return (
+    <div className="lab-chart">
+      <div
+        ref={ref}
+        className="relative"
+        style={{ height }}
+        onPointerLeave={() => setHovered(null)}
+      >
+        {width > 0 && (
+          <svg
+            width={width}
+            height={height}
+            role="group"
+            aria-label={`Gastos de los últimos meses en ${currency}`}
+            className="block overflow-visible"
+          >
+            <defs>
+              <pattern
+                id={`${gradient}-hatch`}
+                width="6"
+                height="6"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect width="6" height="6" fill="currentColor" opacity="0.18" />
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="6"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  opacity="0.55"
+                />
+              </pattern>
+            </defs>
+            {ticks.map((tick, i) => {
+              const y = pad.top + (plotH / 2) * i;
+              return (
+                <g key={i} className="lab-grid">
+                  <line
+                    x1={pad.left}
+                    x2={width - pad.right}
+                    y1={y}
+                    y2={y}
+                    strokeDasharray={tick === 0 ? undefined : "2 4"}
+                  />
+                  <text x={pad.left - 10} y={y} dy="0.32em" textAnchor="end">
+                    {tick === 0 ? "0" : compact(tick)}
+                  </text>
+                </g>
+              );
+            })}
+            {active !== null && (
+              <rect
+                className="lab-hover-band"
+                x={pad.left + step * active + 4}
+                width={Math.max(1, step - 8)}
+                y={pad.top}
+                height={plotH}
+                rx="8"
+              />
+            )}
+            {data.map((d, i) => {
+              const barW = Math.min(32, Math.max(1, step - 16));
+              const barH = d.value * scale;
+              const x = center(i) - barW / 2;
+              return (
+                <g
+                  key={d.period}
+                  className={`lab-bar-group${active !== null && active !== i ? " is-muted" : ""}`}
+                >
+                  <path
+                    d={barPath(x, base - barH - 1, barW, barH, true)}
+                    fill={seriesColors.expense}
+                  />
+                  {d.inProgress && (
+                    <path
+                      d={barPath(x, base - barH - 1, barW, barH, true)}
+                      fill={`url(#${gradient}-hatch)`}
+                      className="text-[#0b1220]"
+                    />
+                  )}
+                </g>
+              );
+            })}
+            {data.map((d, i) => (
+              <g key={d.period}>
+                <text
+                  className={`lab-axis-x${active === i ? " is-active" : ""}`}
+                  x={center(i)}
+                  y={height - 8}
+                  textAnchor="middle"
+                >
+                  {d.label}
+                  {d.inProgress ? " ·" : ""}
+                </text>
+                <rect
+                  x={pad.left + step * i}
+                  y={pad.top}
+                  width={step}
+                  height={plotH}
+                  fill="transparent"
+                  tabIndex={0}
+                  role="img"
+                  aria-label={label(points[i])}
+                  className="lab-hit"
+                  onPointerEnter={() => setHovered(i)}
+                  onFocus={() => setFocused(i)}
+                  onBlur={() => setFocused(null)}
+                />
+              </g>
+            ))}
+          </svg>
+        )}
+        {active !== null && width > 0 && (
+          <Tooltip x={center(active)} width={width}>
+            <p className="lab-tooltip__title">
+              {data[active].label} {data[active].period.slice(0, 4)}
+              {data[active].inProgress ? " · en curso" : ""}
+            </p>
+            <TooltipRow
+              color={seriesColors.expense}
+              label="Gastos"
+              value={money(points[active].expense, currency)}
+            />
+          </Tooltip>
+        )}
+      </div>
+      <div className="lab-chart__foot">
+        <details className="lab-table-toggle">
+          <summary>Ver como tabla</summary>
+          <table className="lab-mini-table">
+            <caption className="sr-only">
+              Gastos mensuales en {currency}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Mes</th>
+                <th scope="col">Gastos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((d) => (
+                <tr key={d.period}>
+                  <th scope="row">
+                    {d.label}
+                    {d.inProgress ? " (en curso)" : ""}
+                  </th>
+                  <td>{money(d.expense, currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </div>
+  );
+}

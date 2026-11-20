@@ -1115,6 +1115,21 @@ export async function listRecentMovements(
   );
 }
 
+/** SIMP-03: últimos gastos del Resumen (los ingresos heredados no se muestran). */
+export async function listSummaryRecentExpenses(
+  client: pg.PoolClient,
+  ownerId: string,
+  installmentsReady: boolean,
+) {
+  return recentMovementRows<SummaryRecentMovement>(
+    client,
+    ownerId,
+    "expense",
+    installmentsReady,
+    true,
+  );
+}
+
 export async function listSummaryRecentMovements(
   client: pg.PoolClient,
   ownerId: string,

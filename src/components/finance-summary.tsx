@@ -1,26 +1,15 @@
 import { MonthField } from "./ui/date-fields";
-import {
-  bankCurrencies,
-  formatBankAmount,
-  formatBankReference,
-  type BankAvailability,
-  type BankCheckpoint,
-} from "@/domain/bank-balances";
+import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
 import {
   type MovementTotal,
   type SummaryRecentMovement,
 } from "@/domain/movements";
 import type { CatalogCategory } from "@/domain/categories";
-import type { FundSource } from "@/domain/fund-coverage";
-import type { CatalogCard } from "@/domain/cards";
 import {
   installmentPeriodAt,
   isInstallmentPeriod,
   type MonthlyInstallment,
 } from "@/domain/installments";
-import { BankBalanceRow } from "./bank-balance-row";
-import { BankCheckpointHistory } from "./bank-checkpoint-history";
-import { BalanceAdjustmentForm } from "./balance-adjustment-form";
 import Link from "next/link";
 import { Icon } from "./ui/icon";
 import { MovementForm } from "./movement-form";
@@ -28,19 +17,18 @@ import type { MovementTag } from "@/domain/classification";
 import { historyButton } from "./history-fields";
 import { Card } from "./ui/card";
 
-import { summaryMonthEnd, type summaryPeriods } from "@/domain/summary-period";
+import type { summaryPeriods } from "@/domain/summary-period";
 import type { Currency } from "@/domain/money";
-import { BalanceHero } from "./glaciar-summary/balance-hero";
-import type { HistoryEntry } from "@/domain/history";
 import { SummaryRecent } from "./glaciar-summary/summary-recent";
 import {
-  SummaryFlows,
+  SummaryExpenses,
   SummaryPlanning,
   type SummaryFx,
   type SummaryWidgets,
 } from "./glaciar-summary/summary-panels";
-import { TransferButton } from "./glaciar-summary/transfer-button";
 
+// SIMP-03 — Resumen de gastos: total del mes con comparación, categorías,
+// evolución, últimos gastos, presupuestos y próximos pagos recurrentes.
 const weekday = new Intl.DateTimeFormat("es-UY", {
   weekday: "long",
   timeZone: "UTC",
@@ -70,57 +58,33 @@ function headerMonth(period: string) {
 }
 
 export function FinanceSummary({
-  balances,
-  fundSources,
-  checkpoints,
-  reconciliationReady,
   today,
   period,
   categories,
   tags,
-  registrationCards,
-  debitCards,
-  installmentsReady,
-  sharedExpensesReady,
   monthlyInstallments,
   totals,
-  refundTotals,
   recent,
-  activity,
-  bankTransfersReady,
   movementRegistrationReady,
   currency,
   periods,
   fx,
   panels,
   movementReadable,
-  cardsReady,
 }: {
-  balances: BankAvailability[];
-  fundSources?: FundSource[] | null;
-  checkpoints: BankCheckpoint[];
-  reconciliationReady: boolean;
   today: string;
   period: string;
   categories: CatalogCategory[];
   tags?: MovementTag[] | null;
-  registrationCards: CatalogCard[];
-  debitCards?: CatalogCard[];
-  installmentsReady: boolean;
-  sharedExpensesReady: boolean;
   monthlyInstallments: MonthlyInstallment[];
   totals: MovementTotal[];
-  refundTotals: Pick<MovementTotal, "currency" | "amount">[];
   recent: SummaryRecentMovement[];
-  activity: HistoryEntry[];
-  bankTransfersReady: boolean;
   movementRegistrationReady: boolean;
   currency: Currency;
   periods: ReturnType<typeof summaryPeriods>;
   fx: SummaryFx;
   panels: SummaryWidgets | null;
   movementReadable: boolean;
-  cardsReady: boolean;
 }) {
   const stepper = (offset: number) => {
     const target = installmentPeriodAt(period, offset);
@@ -161,7 +125,7 @@ export function FinanceSummary({
             <time dateTime={today}>{headerDate(today)}</time>
           </p>
           <h1 id="titulo-pagina" tabIndex={-1} className="f-title">
-            Resumen financiero
+            Resumen de gastos
           </h1>
         </div>
         <div className="lab-stepper" role="group" aria-label="Mes del reporte">
@@ -195,141 +159,62 @@ export function FinanceSummary({
         </div>
       </div>
       {movementRegistrationReady ? (
-        <MovementForm
-          bankTransfersReady={bankTransfersReady}
-          today={today}
-          balances={balances}
-          fundSources={fundSources}
-          categories={categories}
-          tags={tags}
-          creditCards={registrationCards}
-          debitCards={debitCards}
-          installmentsReady={installmentsReady}
-          sharedExpensesReady={sharedExpensesReady}
-        />
+        <MovementForm today={today} categories={categories} tags={tags} />
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
-          El registro de movimientos todavía no está disponible.
+          El registro de gastos todavía no está disponible.
         </p>
       )}
 
-      <section aria-label="Indicadores financieros" className="b-grid">
-        <BalanceHero
-          hint
-          balances={bankCurrencies.map((currency) => {
-            const history = checkpoints.filter(
-              (checkpoint) => checkpoint.currency === currency,
-            );
-            const firstDate = history.at(-1)?.asOfDate;
-            return {
-              currency,
-              content: (
-                <BankBalanceRow
-                  currency={currency}
-                  initialBalance={balances.find(
-                    (balance) => balance.currency === currency,
-                  )}
-                  today={today}
-                  transfer={
-                    <TransferButton
-                      available={
-                        bankTransfersReady && movementRegistrationReady
-                      }
-                    />
-                  }
-                  history={
-                    history.length > 0 && (
-                      <BankCheckpointHistory checkpoints={history} />
-                    )
-                  }
-                >
-                  {firstDate && reconciliationReady && (
-                    <BalanceAdjustmentForm
-                      currency={currency}
-                      today={today}
-                      firstDate={firstDate}
-                    />
-                  )}
-                </BankBalanceRow>
-              ),
-            };
-          })}
-        />
-        <SummaryFlows
+      <section aria-label="Indicadores de gastos" className="b-grid">
+        <SummaryExpenses
           currency={currency}
           fx={fx}
           periods={periods}
           totals={totals}
           today={today}
         />
-        <SummaryPlanning
-          panels={panels}
-          today={today}
-          period={period}
-          cardsReady={cardsReady}
-        />
+        <SummaryPlanning panels={panels} today={today} period={period} />
         <SummaryRecent
           recent={recent}
-          activity={activity}
           available={movementReadable}
-          canCorrect={movementRegistrationReady && reconciliationReady}
+          canCorrect={movementRegistrationReady}
         />
       </section>
-      {(refundTotals.length > 0 || monthlyInstallments.length > 0) && (
-        <section aria-label="Detalle financiero">
-          {refundTotals.length > 0 && (
-            <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
-              <h3 className="font-semibold">
-                Devoluciones recibidas en el mes
-              </h3>
-              <ul className="flex flex-wrap gap-3">
-                {refundTotals.map((refund) => (
-                  <li key={refund.currency}>{formatBankAmount(refund)}</li>
-                ))}
-              </ul>
-              <a
-                className="w-fit underline"
-                href={`/historial?kind=purchase_refund&status=confirmed&from=${period}-01&to=${period}-${summaryMonthEnd(period).slice(-2)}`}
-              >
-                Ver devoluciones en el historial
-              </a>
-            </Card>
-          )}
-          {monthlyInstallments.length > 0 && (
-            <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
-              <h3 className="font-semibold">
-                Cuotas incluidas en los gastos del mes
-              </h3>
-              <p className="text-muted-foreground">
-                {period > today.slice(0, 7)
-                  ? "Proyección según el calendario vigente."
-                  : "Importes imputados al mes según el calendario vigente."}{" "}
-                La facturación y los pagos se registran aparte.
-              </p>
-              <ul aria-label="Cuotas del mes" className="divide-y">
-                {monthlyInstallments.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex flex-wrap justify-between gap-x-3 py-2 wrap-anywhere"
-                  >
-                    <span>
-                      <a
-                        href={`/historial/movimientos/${item.id}`}
-                        className="underline"
-                      >
-                        {item.concept}
-                      </a>{" "}
-                      · Cuota {item.ordinal} ·{" "}
-                      {item.category ?? "Sin categorizar"}
-                    </span>
-                    <span className="font-semibold">
-                      {formatBankAmount(item)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
+      {monthlyInstallments.length > 0 && (
+        <section aria-label="Detalle de gastos">
+          <Card className="mt-4 min-w-0 gap-3 rounded-2xl p-4 text-sm shadow-none">
+            <h3 className="font-semibold">
+              Cuotas incluidas en los gastos del mes
+            </h3>
+            <p className="text-muted-foreground">
+              {period > today.slice(0, 7)
+                ? "Proyección según el calendario vigente."
+                : "Importes imputados al mes según el calendario vigente."}
+            </p>
+            <ul aria-label="Cuotas del mes" className="divide-y">
+              {monthlyInstallments.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap justify-between gap-x-3 py-2 wrap-anywhere"
+                >
+                  <span>
+                    <a
+                      href={`/historial/movimientos/${item.id}`}
+                      className="underline"
+                    >
+                      {item.concept}
+                    </a>{" "}
+                    · Cuota {item.ordinal} ·{" "}
+                    {item.category ?? "Sin categorizar"}
+                  </span>
+                  <span className="font-semibold">
+                    {formatBankAmount(item)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
         </section>
       )}
     </div>

@@ -943,7 +943,8 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .b-span-4 {
+    .b-span-4,
+    .b-span-6 {
       grid-column: span 6 !important;
     }
   }
