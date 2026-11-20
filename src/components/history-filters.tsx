@@ -4,7 +4,6 @@ import { DateInput } from "./ui/date-fields";
 import { useRef, useState, type ReactNode } from "react";
 import { bankCurrencies } from "@/domain/bank-balances";
 import {
-  historyKinds,
   historyPeriods,
   historySearch,
   historyStates,
@@ -14,7 +13,6 @@ import {
   savedFilterCriteria,
   type SavedFilter,
 } from "@/domain/history-filters";
-import { movementDisplayMethods } from "@/domain/movements";
 import { TagFields } from "./classification-fields";
 import type { MovementTag } from "@/domain/classification";
 import type { CatalogEntry } from "@/domain/catalog";
@@ -46,7 +44,6 @@ const filterKeys = [
 
 const advancedKeys = [
   "status",
-  "method",
   "category",
   "merchant",
   "min",
@@ -241,20 +238,6 @@ function HistoryFilterForm({
           ))}
         </SelectField>
         <SelectField
-          id="historial-kind"
-          label="Tipo"
-          name="kind"
-          defaultValue={values.kind ?? ""}
-          onChange={applyOnChange}
-        >
-          <option value="">Todos</option>
-          {Object.entries(historyKinds).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
           id="historial-currency"
           label="Moneda"
           name="currency"
@@ -325,20 +308,6 @@ function HistoryFilterForm({
           ))}
         </SelectField>
         <SelectField
-          id="historial-method"
-          label="Medio"
-          name="method"
-          defaultValue={values.method ?? ""}
-          onChange={applyOnChange}
-        >
-          <option value="">Todos</option>
-          {Object.entries(movementDisplayMethods).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
           id="historial-category"
           label="Categoría"
           name="category"
@@ -352,9 +321,9 @@ function HistoryFilterForm({
             !categories.some(({ id }) => id === values.category) && (
               <option value={values.category}>Categoría del enlace</option>
             )}
-          {categories.map(({ id, name, kind }) => (
+          {categories.map(({ id, name }) => (
             <option key={id} value={id}>
-              {name} ({historyKinds[kind].toLowerCase()})
+              {name}
             </option>
           ))}
         </SelectField>

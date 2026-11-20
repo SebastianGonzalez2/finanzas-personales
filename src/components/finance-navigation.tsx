@@ -1,9 +1,10 @@
 import { Icon, type IconName } from "./ui/icon";
 
-// UI-02 — Destinos reales de la aplicación agrupados según la guía visual
-// (General / Planificación / Crédito / Catálogos; Avisos, Ayuda y Mi cuenta
-// abajo). Solo presentación: no cambia rutas ni permisos. Sin hooks, para
-// usarse en el riel (servidor) y en el cajón móvil (cliente).
+// SIMP-03 — Navegación de la aplicación dedicada a gastos. Los destinos
+// retirados conservan su clave para que las páginas heredadas sigan
+// compilando mientras SIMP-04 elimina el código, pero ya no se muestran.
+// Solo presentación: no cambia rutas ni permisos. Sin hooks, para usarse en
+// el riel (servidor) y en el cajón móvil (cliente).
 
 export type Destination =
   | "resumen"
@@ -12,15 +13,17 @@ export type Destination =
   | "informes"
   | "presupuestos"
   | "recurrentes"
+  | "categorias"
+  | "etiquetas"
+  | "catalogo"
+  | "ayuda"
+  | "account"
+  // Destinos heredados: sus páginas aún existen hasta SIMP-04.
   | "fondos"
   | "tarjetas"
   | "deudas"
   | "beneficios"
-  | "categorias"
-  | "catalogo"
-  | "avisos"
-  | "ayuda"
-  | "account";
+  | "avisos";
 
 type NavItem = {
   key: Destination;
@@ -55,7 +58,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "Planificación",
+    title: "Control",
     items: [
       {
         key: "presupuestos",
@@ -69,40 +72,22 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
         label: "Recurrentes",
         icon: "recurring",
       },
-      {
-        key: "fondos",
-        href: "/fondos",
-        label: "Fondos de ahorro",
-        icon: "funds",
-      },
     ],
   },
   {
-    title: "Crédito",
-    items: [
-      { key: "tarjetas", href: "/tarjetas", label: "Tarjetas", icon: "cards" },
-      {
-        key: "deudas",
-        href: "/deudas",
-        label: "Deudas y préstamos",
-        icon: "debts",
-      },
-      {
-        key: "beneficios",
-        href: "/beneficios",
-        label: "Beneficios bancarios",
-        icon: "benefits",
-      },
-    ],
-  },
-  {
-    title: "Catálogos",
+    title: "Organización",
     items: [
       {
         key: "categorias",
         href: "/categorias",
         label: "Categorías",
         icon: "categories",
+      },
+      {
+        key: "etiquetas",
+        href: "/etiquetas",
+        label: "Etiquetas",
+        icon: "tags",
       },
       {
         key: "catalogo",
@@ -114,8 +99,8 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-// F6-06: Ayuda al final, separada de las funciones principales y junto a
-// «Mi cuenta».
+// SIMP-03: Avisos (presupuestos y recurrentes), Ayuda y Mi cuenta cierran la
+// navegación.
 export const footerItems: NavItem[] = [
   { key: "avisos", href: "/avisos", label: "Avisos", icon: "notices" },
   { key: "ayuda", href: "/ayuda", label: "Ayuda", icon: "help" },

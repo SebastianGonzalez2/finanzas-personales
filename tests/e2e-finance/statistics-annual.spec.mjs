@@ -90,7 +90,7 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     await bank("UYU", isolated.request);
 
     await expense("50", `${year - 6}-02-10`);
-    const { id: refunded } = await expense("110.0123", reference);
+    await expense("110.0123", reference);
     await expense("5", reference, child, "USD");
     // Keep the historical rate private so the shared test database has no
     // public USD/UYU rate from this scenario for later tests to pick up.
@@ -100,12 +100,6 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
     });
     expect(quote.status()).toBe(200);
     await expense("40", `${year - 2}-02-10`, otherCategory);
-    await create("refunds", {
-      action: "credit",
-      purchaseId: refunded,
-      effectiveOn: `${year - 2}-02-10`,
-      parts: [{ method: "debit", categoryId: child, amount: "10" }],
-    });
     await expense("290", `${year - 1}-12-05`);
     await expense("25", `${year}-01-01`);
     await expense(
@@ -116,40 +110,10 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
       isolated.request,
     );
 
-    const { id: cardId } = await create("cards", {
-      action: "create",
-      kind: "credit",
-      name: "Crédito anual sintético",
-      currencies: [{ currency: "UYU", limit: null }],
-    });
-    await create("cards/operations", {
-      action: "purchase",
-      cardId,
-      currency: "UYU",
-      amount: "160",
-      categoryId: child,
-      concept: "Dos cuotas sintéticas",
-      covered: false,
-      effectiveOn: `${year - 1}-12-05`,
-      plan: {
-        installmentAmount: "80",
-        count: 2,
-        firstPeriod: `${year - 1}-12`,
-      },
-    });
-    await create("cards/operations", {
-      action: "payment",
-      cardId,
-      effectiveOn: today,
-      lines: [
-        {
-          currency: "UYU",
-          amount: "10",
-          bankCurrency: "UYU",
-          bankAmount: "10",
-        },
-      ],
-    });
+    // SIMP-03: las cuotas se siembran como gastos directos (80 en diciembre y
+    // 80 en enero) en lugar de una compra con tarjeta.
+    await expense("80", `${year - 1}-12-05`);
+    await expense("80", `${year}-01-01`);
 
     const path = "/estadisticas?view=todas&display=UYU";
     await page.goto(path);

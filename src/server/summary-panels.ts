@@ -130,3 +130,20 @@ export async function summaryBudgets(
   if (!(await budgetsReady(client))) return null;
   return readBudgets(client, ownerId, period);
 }
+
+/** SIMP-03: avisos del Resumen limitados a recurrentes de gasto. */
+export async function summaryRecurrenceNotices(
+  client: pg.PoolClient,
+  ownerId: string,
+  today: string,
+) {
+  const upcomingDays = 30;
+  const horizon = new Date(`${today}T00:00:00Z`);
+  horizon.setUTCDate(horizon.getUTCDate() + upcomingDays);
+  return {
+    recurrences: (
+      await listRecurrenceDueNotices(client, ownerId, today, upcomingDays)
+    ).filter(({ isPayment }) => isPayment),
+    upcomingThrough: horizon.toISOString().slice(0, 10),
+  };
+}

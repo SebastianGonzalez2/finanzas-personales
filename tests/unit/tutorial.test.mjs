@@ -9,16 +9,14 @@ import {
   tutorialSteps,
 } from "../../src/domain/tutorial.ts";
 
-test("UI-06: el tutorial tiene los ocho pasos aprobados, únicos y con textos cortos", () => {
+test("SIMP-03: el tutorial tiene los seis pasos de la app de gastos, únicos y con textos cortos", () => {
   assert.deepEqual(
     tutorialSteps.map((step) => step.title),
     [
       "Bienvenido a Finanzas personales",
       "Moneda de toda la app",
-      "Tus cuentas por moneda",
-      "Cambio de moneda",
-      "Confirmar saldo",
-      "Registrar un movimiento",
+      "Gastos del mes",
+      "Registrar un gasto",
       "Menú de secciones",
       "Ayuda cuando la necesites",
     ],
@@ -36,9 +34,7 @@ test("UI-06: el tutorial tiene los ocho pasos aprobados, únicos y con textos co
 test("UI-06: los objetivos `data-tour` existen en los componentes reales", () => {
   const sources = [
     "src/components/display-currency-selector.tsx",
-    "src/components/glaciar-summary/balance-hero.tsx",
-    "src/components/glaciar-summary/transfer-button.tsx",
-    "src/components/balance-adjustment-form.tsx",
+    "src/components/glaciar-summary/pieces.tsx",
     "src/components/register-movement-link.tsx",
   ]
     .map((file) => readFileSync(file, "utf8"))
@@ -50,13 +46,7 @@ test("UI-06: los objetivos `data-tour` existen en los componentes reales", () =>
         [...selector.matchAll(/data-tour="([^"]+)"/g)].map((match) => match[1]),
       ),
   );
-  assert.deepEqual([...used].sort(), [
-    "cambio-moneda",
-    "confirmar-saldo",
-    "moneda-app",
-    "moneda-cuenta",
-    "registrar",
-  ]);
+  assert.deepEqual([...used].sort(), ["gastos-mes", "moneda-app", "registrar"]);
   for (const name of used) assert.ok(sources.includes(`data-tour="${name}"`));
 });
 

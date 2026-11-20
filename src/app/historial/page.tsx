@@ -43,7 +43,15 @@ const monthNames = [
 export default async function HistoryPage({
   searchParams,
 }: PageProps<"/historial">) {
-  const query = parseHistoryParams(await searchParams);
+  const parsed = parseHistoryParams(await searchParams);
+  // SIMP-03: el historial muestra solo gastos; el tipo y el medio ya no se filtran.
+  const query =
+    "error" in parsed
+      ? parsed
+      : {
+          ...parsed,
+          filters: { ...parsed.filters, kind: undefined, method: undefined },
+        };
   const today = historyToday();
   const data = await withGoogleOwner(
     new Request("https://internal.invalid", { headers: await headers() }),
@@ -58,15 +66,23 @@ export default async function HistoryPage({
       // «mes actual» consulta el mes vigente, no el de su creación (CA-058).
       const period = historyPeriodFilter(query.filters.period);
       const range = period ? historyPeriodRange(period, today) : null;
-      const page = await listHistory(client, ownerId, {
-        ...query,
-        filters: range
-          ? { ...query.filters, from: range.from, to: range.to }
-          : query.filters,
-      });
+      const page = await listHistory(
+        client,
+        ownerId,
+        {
+          ...query,
+          filters: range
+            ? { ...query.filters, from: range.from, to: range.to }
+            : query.filters,
+        },
+        undefined,
+        true,
+      );
       return {
         ...page,
-        categories: await listHistoryCategories(client, ownerId),
+        categories: (await listHistoryCategories(client, ownerId)).filter(
+          ({ kind }) => kind === "expense",
+        ),
         savedFilters: (await savedFiltersReady(client))
           ? await listSavedFilters(client, ownerId)
           : null,

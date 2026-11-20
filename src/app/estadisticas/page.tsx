@@ -19,6 +19,7 @@ import {
   statisticsAnnualRange,
   statisticsHistoryRange,
   statisticsSearch,
+  retiredStatisticsCharts,
 } from "@/domain/statistics";
 import { withGoogleOwner } from "@/server/google-auth";
 import { refreshOwnerReferences } from "@/server/exchange-rate-http";
@@ -31,7 +32,6 @@ import {
   loadStatistics,
   loadStatisticsAnnual,
   prepareStatisticsFx,
-  listStatisticsCards,
   statisticsReady,
   statisticsReferenceDates,
 } from "@/server/statistics";
@@ -44,7 +44,21 @@ export default async function StatisticsPage(
 ) {
   await requireGoogleOwnerPage();
   const today = bankReferenceToday();
-  const parsed = parseStatisticsParams(await props.searchParams, today);
+  const raw = parseStatisticsParams(await props.searchParams, today);
+  // SIMP-03: las estadísticas solo consideran gastos; el tipo, el medio de
+  // pago y la tarjeta ya no se filtran.
+  const parsed =
+    "error" in raw
+      ? raw
+      : {
+          ...raw,
+          filters: {
+            ...raw.filters,
+            kind: undefined,
+            method: undefined,
+            card: undefined,
+          },
+        };
   if ("error" in parsed)
     return (
       <FinanceShell current="estadisticas">
@@ -64,6 +78,7 @@ export default async function StatisticsPage(
       </FinanceShell>
     );
 
+  const scoped = { ...parsed.filters, kind: "expense" } as const;
   const historyRange = statisticsHistoryRange(parsed.range, today);
   const annualRange = statisticsAnnualRange(today, parsed.filters.annualEnd);
   const request = new Request("https://internal.invalid", {
@@ -92,7 +107,7 @@ export default async function StatisticsPage(
             parsed.range,
             parsed.previous,
             historyRange,
-            parsed.filters,
+            scoped,
             schema,
             currency,
             showAnnual ? annualRange : undefined,
@@ -113,7 +128,7 @@ export default async function StatisticsPage(
           parsed.range,
           parsed.previous,
           historyRange,
-          parsed.filters,
+          scoped,
           schema,
           conversion.currency,
           today,
@@ -128,7 +143,9 @@ export default async function StatisticsPage(
       if (!ready.ready) return { ready: false as const };
       const favoritesReady = ready.favorites;
       const favorites = favoritesReady
-        ? await listStatisticsFavorites(client, ownerId)
+        ? (await listStatisticsFavorites(client, ownerId)).filter(
+            (id) => !retiredStatisticsCharts.includes(id),
+          )
         : [];
       const view =
         parsed.filters.view ?? (favorites.length > 0 ? "favoritos" : "todas");
@@ -146,12 +163,11 @@ export default async function StatisticsPage(
               client,
               ownerId,
               annualRange,
-              parsed.filters,
+              scoped,
               ready,
               target,
             )
           : undefined;
-      const cards = await listStatisticsCards(client, ownerId);
       const tags = ready.tags ? await listTags(client, ownerId) : [];
       const snapshot = await loadStatistics(
         client,
@@ -159,7 +175,7 @@ export default async function StatisticsPage(
         parsed.range,
         parsed.previous,
         historyRange,
-        parsed.filters,
+        scoped,
         ready,
         target,
       );
@@ -168,7 +184,6 @@ export default async function StatisticsPage(
         favorites,
         favoritesReady,
         categories,
-        cards,
         tags,
         snapshot,
         annual,
@@ -250,7 +265,6 @@ export default async function StatisticsPage(
           filters={filters}
           display={target ?? "original"}
           categories={data.categories}
-          cards={data.cards}
           tags={data.tags}
         />
         {data.snapshot.fx ? (

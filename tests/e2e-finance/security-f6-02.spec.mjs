@@ -65,6 +65,8 @@ const pageUrls = walk(appRoot, (p) => p.endsWith(`${sep}page.tsx`))
   )
   .map((url) => url || "/")
   .filter((url) => url !== "/auth/sign-in" && url !== "/")
+  // SIMP-03: los módulos retirados redirigen a /resumen antes de llegar a la página.
+  .filter((url) => !/^\/(fondos|tarjetas|deudas|beneficios)(\/|$)/.test(url))
   .sort();
 
 const test = base.extend({
@@ -243,7 +245,7 @@ test("F6-02: páginas sin sesión redirigen al acceso sin contenido privado, tam
   request,
 }) => {
   test.skip(test.info().project.name !== "chromium-desktop", "Matriz HTTP");
-  expect(pageUrls.length).toBeGreaterThanOrEqual(17);
+  expect(pageUrls.length).toBeGreaterThanOrEqual(13);
   for (const url of pageUrls)
     for (const headers of [
       {},
@@ -627,13 +629,9 @@ test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni c
   for (const url of [
     `/historial/movimientos/${movement}`,
     `/historial/movimientos/${purchase}`,
-    `/deudas/${loan}`,
-    `/tarjetas/${card}/resumen`,
     `/historial?q=${encodeURIComponent(concept)}`,
     "/resumen",
     "/historial",
-    "/tarjetas",
-    "/deudas",
     "/categorias",
   ]) {
     const response = await b.request.get(url, { maxRedirects: 0 });

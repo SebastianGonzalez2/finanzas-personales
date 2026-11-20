@@ -4,8 +4,8 @@ import { useEffect, type MouseEvent } from "react";
 import { usePathname } from "next/navigation";
 import { Icon } from "./ui/icon";
 
-// UI-02 — Acceso global «Registrar movimiento». No registra nada por sí mismo:
-// abre el formulario existente de Resumen («Nueva transacción», F1-03), que
+// UI-02 — Acceso global «Registrar gasto». No registra nada por sí mismo:
+// abre el formulario de gasto de Resumen (F1-03 / SIMP-03), que
 // conserva todas sus validaciones e idempotencia. Desde otra pantalla navega a
 // Resumen con `?registrar=1` y el formulario se abre al llegar.
 
@@ -83,14 +83,14 @@ export function RegisterMovementLink({
       href={target}
       className={className}
       onClick={onClick}
-      aria-label={compact ? "Registrar movimiento" : undefined}
+      aria-label={compact ? "Registrar gasto" : undefined}
       data-tour="registrar"
     >
       <Icon name="plus" duotone={false} className={compact ? "" : "size-4"} />
       {!compact && (
         <>
-          <span className="hidden sm:inline">Registrar movimiento</span>
-          <span className="sr-only sm:hidden">Registrar movimiento</span>
+          <span className="hidden sm:inline">Registrar gasto</span>
+          <span className="sr-only sm:hidden">Registrar gasto</span>
         </>
       )}
     </a>

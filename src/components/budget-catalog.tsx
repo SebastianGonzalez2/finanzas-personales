@@ -187,7 +187,7 @@ export function BudgetCatalog({
       <PageHead
         eyebrow="Planificación"
         title="Presupuestos"
-        description="Límites mensuales opcionales por categoría, sin arrastre de saldos."
+        description="Límites mensuales opcionales por categoría."
         actions={
           <Button
             ref={add}
@@ -937,8 +937,8 @@ function RemoveEditor({
       >
         <p className="gs-confirm">
           Se quita el límite de {money(budget.monthlyLimit, budget.currency)}{" "}
-          mensuales para {budget.categoryName}. No se modifican gastos, saldos
-          ni movimientos.
+          mensuales para {budget.categoryName}. No se modifican gastos ni
+          movimientos.
         </p>
         <p role="alert" className={error ? "text-sm" : "sr-only"}>
           {error}

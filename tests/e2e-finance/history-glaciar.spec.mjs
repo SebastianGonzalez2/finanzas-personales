@@ -26,45 +26,29 @@ async function seed(request) {
     expect(response.status(), `${path}: ${await response.text()}`).toBe(201);
     return response.json();
   };
-  for (const currency of ["UYU", "USD"])
-    await send("/api/bank-balances", {
-      currency,
-      amount: "10000",
-      asOfDate: daysBefore(today, 6),
-    });
   const movement = (data) =>
-    send("/api/movements", { idempotencyKey: randomUUID(), ...data });
+    send("/api/movements", {
+      idempotencyKey: randomUUID(),
+      kind: "expense",
+      ...data,
+    });
   await movement({
-    kind: "income",
-    method: "deposit",
     currency: "UYU",
-    amount: "5000",
+    amount: "80",
     effectiveOn: daysBefore(today, 5),
-    concept: "Sueldo sintético UI-04",
+    concept: "Almuerzo sintético UI-04",
   });
   await movement({
-    kind: "expense",
-    method: "debit",
     currency: "UYU",
     amount: "250.50",
     effectiveOn: daysBefore(today, 3),
     concept: "Café sintético UI-04",
   });
   await movement({
-    kind: "expense",
-    method: "debit",
     currency: "USD",
     amount: "30",
     effectiveOn: daysBefore(today, 2),
     concept: "Suscripción sintética UI-04",
-  });
-  await movement({
-    kind: "bank_transfer",
-    sourceCurrency: "UYU",
-    sourceAmount: "4000",
-    destinationCurrency: "USD",
-    destinationAmount: "100",
-    effectiveOn: daysBefore(today, 1),
   });
 }
 
@@ -83,25 +67,21 @@ test("UI-04: buscador, filtros, chips, orden y filtros guardados con datos reale
   await page.goto("/historial");
   await expect(page.getByRole("heading", { name: "Historial" })).toBeVisible();
   const table = page.getByRole("table");
-  // Orden del servidor: fecha descendente (saldos iniciales al final).
-  expect((await rowTitles(page)).slice(0, 4)).toEqual([
-    "Cambio de moneda",
+  // Orden del servidor: fecha descendente. SIMP-03: solo gastos.
+  expect((await rowTitles(page)).slice(0, 3)).toEqual([
     "Suscripción sintética UI-04",
     "Café sintético UI-04",
-    "Sueldo sintético UI-04",
+    "Almuerzo sintético UI-04",
   ]);
   await expect(
     table.getByRole("columnheader", { name: "Fecha" }),
   ).toHaveAttribute("aria-sort", "descending");
-  // Iconografía, signo y moneda original; el cambio muestra lo recibido.
+  // Signo y moneda original.
   const row = (concept) => table.getByRole("row").filter({ hasText: concept });
-  await expect(row("Sueldo sintético")).toContainText("+5.000,00 UYU");
+  await expect(row("Almuerzo sintético")).toContainText("−80,00 UYU");
   await expect(row("Café sintético")).toContainText("−250,50 UYU");
   await expect(row("Suscripción sintética")).toContainText("−30,00 USD");
-  await expect(row("Cambio de moneda")).toContainText("+100,00 USD");
-  await expect(row("Cambio de moneda")).toContainText("4.000,00 UYU");
   await expect(row("Café sintético")).toContainText("Confirmado");
-  await expect(row("Café sintético")).toContainText("Débito bancario");
 
   // Orden por importe (solo esta página, exacto con decimales).
   const amount = table.getByRole("button", { name: "Importe" });
@@ -113,8 +93,8 @@ test("UI-04: buscador, filtros, chips, orden y filtros guardados con datos reale
     table.getByRole("columnheader", { name: "Fecha" }),
   ).toHaveAttribute("aria-sort", "none");
   expect((await rowTitles(page)).slice(0, 2)).toEqual([
-    "Saldo inicial",
-    "Saldo inicial",
+    "Café sintético UI-04",
+    "Almuerzo sintético UI-04",
   ]);
   await amount.click();
   await expect(
@@ -122,7 +102,7 @@ test("UI-04: buscador, filtros, chips, orden y filtros guardados con datos reale
   ).toHaveAttribute("aria-sort", "ascending");
   expect((await rowTitles(page))[0]).toBe("Suscripción sintética UI-04");
   await table.getByRole("button", { name: "Fecha" }).click();
-  expect((await rowTitles(page))[0]).toBe("Cambio de moneda");
+  expect((await rowTitles(page))[0]).toBe("Suscripción sintética UI-04");
 
   // Búsqueda real en el servidor con Enter; el foco vuelve al buscador.
   const search = page.getByRole("searchbox", { name: "Buscar texto" });
@@ -134,26 +114,21 @@ test("UI-04: buscador, filtros, chips, orden y filtros guardados con datos reale
   const chips = page.getByRole("list", { name: "Filtros activos" });
   await expect(chips).toContainText("Texto: «Café»");
 
-  // Desplegable principal: aplica al cambiar y conserva la búsqueda.
-  await page
-    .getByRole("combobox", { name: "Tipo", exact: true })
-    .selectOption("expense");
-  await expect(page).toHaveURL(/kind=expense/);
-  await expect(page).toHaveURL(/q=Caf/);
-  await expect(chips).toContainText("Tipo: Gasto");
-
   // Quitar un chip conserva los demás filtros y lleva el foco a resultados.
   await page
     .getByRole("button", { name: "Quitar filtro Texto: «Café»" })
     .click();
   await expect(page).not.toHaveURL(/q=/);
-  await expect(page).toHaveURL(/kind=expense/);
   await expect(
     page.getByRole("heading", { name: "Movimientos", exact: true }),
   ).toBeFocused();
   await expect
     .poll(() => rowTitles(page))
-    .toEqual(["Suscripción sintética UI-04", "Café sintético UI-04"]);
+    .toEqual([
+      "Suscripción sintética UI-04",
+      "Café sintético UI-04",
+      "Almuerzo sintético UI-04",
+    ]);
 
   await page
     .getByRole("combobox", { name: "Moneda", exact: true })
@@ -180,7 +155,6 @@ test("UI-04: buscador, filtros, chips, orden y filtros guardados con datos reale
   await expect(savedSelect.locator("option:checked")).toHaveText("Ninguno");
   await savedSelect.selectOption({ label: "Gastos en dólares" });
   await expect(page).toHaveURL(/currency=USD/);
-  await expect(page).toHaveURL(/kind=expense/);
   await expect(savedSelect).toBeFocused();
   await expect
     .poll(() => rowTitles(page))

@@ -41,7 +41,8 @@ export function RecurrenceForm({
     "/api/recurrences",
     "POST",
   );
-  const [kind, setKind] = useState("expense");
+  // SIMP-03: solo se crean recurrentes de gasto.
+  const kind = "expense";
   const [frequency, setFrequency] = useState(defaultRecurrenceFrequency);
   const [firstPeriod, setFirstPeriod] = useState(today);
   const [dateMode, setDateMode] = useState("none");
@@ -75,7 +76,6 @@ export function RecurrenceForm({
       })
     ) {
       form.reset();
-      setKind("expense");
       setShared(false);
       setFrequency(defaultRecurrenceFrequency);
       setFirstPeriod(today);
@@ -103,15 +103,6 @@ export function RecurrenceForm({
         disabled={pending || uncertain}
         className="gs-form__grid min-w-0 border-0 p-0"
       >
-        <Field label="Tipo">
-          <Select
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-          >
-            <option value="expense">Gasto</option>
-            <option value="income">Ingreso</option>
-          </Select>
-        </Field>
         <Field label="Concepto">
           <Input name="concept" required maxLength={conceptLimit} />
         </Field>

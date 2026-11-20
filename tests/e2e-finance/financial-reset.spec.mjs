@@ -111,7 +111,7 @@ test("OPS-RESET: reinicia desde Mi cuenta sin pedir copia y permite volver a reg
     await section.getByRole("link", { name: "Ir a Resumen" }).click();
     await expect(page).toHaveURL(/resumen$/);
     await expect(
-      page.getByText("Todavía no hay movimientos registrados."),
+      page.getByText("Todavía no hay gastos registrados."),
     ).toBeVisible();
     const secondPage = await second.newPage();
     await secondPage.goto("/account");

@@ -3,28 +3,19 @@
 import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { bankCurrencies, type BankAvailability } from "@/domain/bank-balances";
-import { conceptLimit, noteLimit, type MovementKind } from "@/domain/movements";
+import { bankCurrencies } from "@/domain/bank-balances";
+import { conceptLimit, noteLimit } from "@/domain/movements";
 import { formInstallmentPlan, InstallmentFields } from "./installment-fields";
 import type { Currency } from "@/domain/money";
-import type { CatalogCard } from "@/domain/cards";
 import type { CatalogCategory } from "@/domain/categories";
 import { CategorySelect } from "./category-select";
 import { catalogNameLimit } from "@/domain/catalog";
-import { SharedExpenseForm } from "./shared-expense-form";
-import { CreditOperationForm } from "./credit-operation-form";
 import type { MovementTag } from "@/domain/classification";
 import {
   AllocationFields,
   TagFields,
   formClassification,
 } from "./classification-fields";
-import type { FundSource } from "@/domain/fund-coverage";
-import {
-  expenseFundsField,
-  formFundPortions,
-  FundPortionFields,
-} from "./fund-portion-fields";
 import { connectionAwareMessage } from "./connection";
 import { useWarnOnUnconfirmedCommand } from "./unconfirmed-command";
 import { NameAutocomplete } from "./name-autocomplete";
@@ -35,34 +26,19 @@ const control =
 const primary =
   "min-h-11 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60";
 
+// SIMP-03 — Formulario de gasto: sin saldo, medio bancario, ingresos,
+// cambio de moneda, tarjetas ni fondos. El servidor sigue validando todo.
 export function MovementForm({
   today,
-  balances,
-  fundSources,
   categories,
   tags,
-  bankTransfersReady,
-  creditCards,
-  debitCards,
-  installmentsReady,
-  sharedExpensesReady,
 }: {
   today: string;
-  balances: BankAvailability[];
-  fundSources?: FundSource[] | null;
   categories: CatalogCategory[];
   tags?: MovementTag[] | null;
-  bankTransfersReady: boolean;
-  creditCards: CatalogCard[];
-  debitCards?: CatalogCard[];
-  installmentsReady: boolean;
-  sharedExpensesReady: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [creditOpen, setCreditOpen] = useState(false);
-  const [sharedOpen, setSharedOpen] = useState(false);
-  const [kind, setKind] = useState<MovementKind | "bank_transfer">("expense");
   const [currency, setCurrency] = useState<Currency>();
   const [amount, setAmount] = useState("");
   const [installments, setInstallments] = useState(false);
@@ -87,17 +63,7 @@ export function MovementForm({
   const correctionTrigger = useRef<HTMLButtonElement>(null);
   const retryRevision = useRef<HTMLButtonElement>(null);
   const save = useRef<HTMLButtonElement>(null);
-  const configured = bankCurrencies.filter((code) =>
-    balances.some((balance) => balance.currency === code),
-  );
-  // SIMP-02: un gasto no requiere un saldo bancario configurado.
   const selectedCurrency = currency ?? bankCurrencies[0];
-  const bank = balances.find(
-    (balance) => balance.currency === selectedCurrency,
-  );
-  const income = kind === "income";
-  const transfer = kind === "bank_transfer";
-  const needsBalances = transfer && configured.length < 2;
 
   useWarnOnUnconfirmedCommand(pending || uncertain || revisionUncertain);
 
@@ -125,9 +91,8 @@ export function MovementForm({
     focusRegistrationTrigger();
   }
 
-  function openForm(initialKind: "expense" | "bank_transfer" = "expense") {
-    if (creditOpen || sharedOpen || submitLock.current || revisionUncertain)
-      return;
+  function openForm() {
+    if (submitLock.current || revisionUncertain) return;
     if (open) {
       heading.current?.focus();
       return;
@@ -135,7 +100,6 @@ export function MovementForm({
     const active = document.activeElement;
     returnFocus.current = active instanceof HTMLElement ? active : null;
     if (!uncertain) {
-      setKind(initialKind);
       setCurrency(undefined);
       setAmount("");
       setInstallments(false);
@@ -168,14 +132,11 @@ export function MovementForm({
       if (!uncertain) {
         requestKey.current ??= crypto.randomUUID();
         const form = new FormData(event.currentTarget);
-        const fundPortions = formFundPortions(form, expenseFundsField);
-        form.delete(expenseFundsField);
         const classification = formClassification(form);
         const plan = formInstallmentPlan(form);
         sentBody.current = JSON.stringify({
           ...Object.fromEntries(form),
           ...classification,
-          ...(fundPortions?.length && { fundPortions }),
           ...(plan && { plan }),
           idempotencyKey: requestKey.current,
         });
@@ -189,13 +150,7 @@ export function MovementForm({
       if (response.ok && data.id) {
         setUncertain(false);
         setSavedId(data.id);
-        setMessage(
-          transfer
-            ? "Cambio de moneda registrado."
-            : income
-              ? "Ingreso registrado."
-              : "Gasto registrado.",
-        );
+        setMessage("Gasto registrado.");
         closeForm();
         router.refresh();
       } else if (
@@ -289,21 +244,11 @@ export function MovementForm({
         hidden
         aria-expanded={open}
         aria-controls="nueva-transaccion"
-        aria-disabled={pending || revisionUncertain || creditOpen || sharedOpen}
+        aria-disabled={pending || revisionUncertain}
         onClick={() => openForm()}
       >
-        + Nueva transacción
+        + Nuevo gasto
       </button>
-      {bankTransfersReady && (
-        <button
-          type="button"
-          hidden
-          data-open-bank-transfer
-          onClick={() => openForm("bank_transfer")}
-        >
-          Cambio de moneda
-        </button>
-      )}
       <p role="status" className={message ? "mt-2 text-sm" : "sr-only"}>
         {message}
       </p>
@@ -380,23 +325,19 @@ export function MovementForm({
               >
                 Deshacer
               </button>
-              {!transfer && (
-                <button
-                  ref={correctionTrigger}
-                  type="button"
-                  disabled={pending}
-                  className="min-h-11 rounded-lg px-2 font-semibold hover:bg-accent"
-                  onClick={() => {
-                    setRevisionError("");
-                    setEditing(true);
-                    requestAnimationFrame(() =>
-                      correctionInput.current?.focus(),
-                    );
-                  }}
-                >
-                  Corregir importe
-                </button>
-              )}
+              <button
+                ref={correctionTrigger}
+                type="button"
+                disabled={pending}
+                className="min-h-11 rounded-lg px-2 font-semibold hover:bg-accent"
+                onClick={() => {
+                  setRevisionError("");
+                  setEditing(true);
+                  requestAnimationFrame(() => correctionInput.current?.focus());
+                }}
+              >
+                Corregir importe
+              </button>
             </div>
           )}
           <p role="alert" className={revisionError ? "" : "sr-only"}>
@@ -413,388 +354,164 @@ export function MovementForm({
               id="titulo-transaccion"
               className="text-lg font-semibold"
             >
-              Nueva transacción
+              Nuevo gasto
             </h2>
-            {!sharedOpen &&
-              !creditOpen &&
-              !pending &&
-              !uncertain &&
-              creditCards.length > 0 && (
-                <button
-                  type="button"
-                  className="min-h-11 justify-self-start rounded-lg border px-3 text-sm font-semibold"
-                  onClick={() => {
-                    setMessage("");
-                    setCreditOpen(true);
-                  }}
-                >
-                  Compra con tarjeta de crédito
-                </button>
-              )}
-            {sharedExpensesReady &&
-              !creditOpen &&
-              !sharedOpen &&
-              !pending &&
-              !uncertain && (
-                <button
-                  type="button"
-                  className="min-h-11 justify-self-start rounded-lg border px-3 text-sm font-semibold"
-                  onClick={() => {
-                    setMessage("");
-                    setSharedOpen(true);
-                  }}
-                >
-                  Gasto con otras personas
-                </button>
-              )}
-            {sharedOpen ? (
-              <SharedExpenseForm
-                today={today}
-                categories={categories}
-                cards={creditCards}
-                banks={configured}
-                plansReady={installmentsReady}
-                onClose={() => {
-                  setSharedOpen(false);
-                  requestAnimationFrame(() => heading.current?.focus());
-                }}
-              />
-            ) : creditOpen ? (
-              <CreditOperationForm
-                action="purchase"
-                cards={creditCards}
-                banks={configured}
-                categories={categories}
-                tags={tags}
-                fundSources={fundSources}
-                bankAvailability={balances}
-                debitCards={debitCards}
-                today={today}
-                installmentsReady={installmentsReady}
-                close={(result) => {
-                  setCreditOpen(false);
-                  if (result) {
-                    setMessage(result);
-                    setOpen(false);
-                    router.refresh();
-                  }
-                  requestAnimationFrame(() => {
-                    if (result) focusRegistrationTrigger();
-                    else heading.current?.focus();
-                  });
-                }}
-              />
-            ) : (
-              <form
-                method="post"
-                action="/api/movements"
-                aria-labelledby="titulo-transaccion"
-                onSubmit={submit}
+            <form
+              method="post"
+              action="/api/movements"
+              aria-labelledby="titulo-transaccion"
+              onSubmit={submit}
+            >
+              <input type="hidden" name="kind" value="expense" />
+              <fieldset
+                disabled={pending || uncertain}
+                className="grid min-w-0 gap-3 sm:grid-cols-2"
               >
-                <fieldset
-                  disabled={pending || uncertain}
-                  onChange={transfer ? () => setError("") : undefined}
-                  className="grid min-w-0 gap-3 sm:grid-cols-2"
-                >
-                  <label
-                    className={`space-y-1 text-sm ${transfer ? "sm:col-span-2" : ""}`}
-                  >
-                    <span>Tipo de movimiento</span>
-                    <select
-                      name="kind"
+                <label className="flex min-h-11 items-center gap-2 self-end text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    name="installments"
+                    checked={installments}
+                    onChange={(event) => setInstallments(event.target.checked)}
+                    className="size-5"
+                  />
+                  <span>En cuotas</span>
+                </label>
+                {installments ? (
+                  <InstallmentFields
+                    key={effectiveOn.slice(0, 7)}
+                    currency={selectedCurrency}
+                    firstPeriod={effectiveOn.slice(0, 7)}
+                  />
+                ) : (
+                  <label className="space-y-1 text-sm">
+                    <span>Importe</span>
+                    <input
+                      name="amount"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      required
+                      inputMode="decimal"
+                      maxLength={22}
+                      autoComplete="off"
+                      placeholder="0,00"
                       className={control}
-                      value={kind}
-                      onChange={(event) => {
-                        setKind(event.target.value as typeof kind);
-                        setError("");
-                      }}
-                    >
-                      <option value="expense">Gasto</option>
-                      <option value="income">Ingreso</option>
-                      {bankTransfersReady && (
-                        <option value="bank_transfer">Cambio de moneda</option>
-                      )}
-                    </select>
-                  </label>
-                  {transfer ? (
-                    <BankTransferFields currencies={configured} />
-                  ) : (
-                    <>
-                      {!income && (
-                        <label className="flex min-h-11 items-center gap-2 self-end text-sm sm:col-span-2">
-                          <input
-                            type="checkbox"
-                            name="installments"
-                            checked={installments}
-                            onChange={(event) =>
-                              setInstallments(event.target.checked)
-                            }
-                            className="size-5"
-                          />
-                          <span>En cuotas</span>
-                        </label>
-                      )}
-                      {!income && installments ? (
-                        <InstallmentFields
-                          key={effectiveOn.slice(0, 7)}
-                          currency={selectedCurrency}
-                          firstPeriod={effectiveOn.slice(0, 7)}
-                        />
-                      ) : (
-                        <label className="space-y-1 text-sm">
-                          <span>Importe</span>
-                          <input
-                            name="amount"
-                            value={amount}
-                            onChange={(event) => setAmount(event.target.value)}
-                            required
-                            inputMode="decimal"
-                            maxLength={22}
-                            autoComplete="off"
-                            placeholder="0,00"
-                            className={control}
-                            aria-describedby="importe-transaccion-ayuda"
-                          />
-                          <span
-                            id="importe-transaccion-ayuda"
-                            className="block text-xs text-muted-foreground"
-                          >
-                            Sin separador de miles, hasta 4 decimales.
-                          </span>
-                        </label>
-                      )}
-                      <label className="space-y-1 text-sm">
-                        <span>Moneda</span>
-                        <select
-                          name="currency"
-                          required
-                          value={selectedCurrency}
-                          className={control}
-                          onChange={(event) =>
-                            setCurrency(event.target.value as Currency)
-                          }
-                        >
-                          {bankCurrencies.map((code) => (
-                            <option key={code} value={code}>
-                              {code}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </>
-                  )}
-                  {!needsBalances && (
-                    <label className="space-y-1 text-sm">
-                      <span>Fecha</span>
-                      <DateInput
-                        name="effectiveOn"
-                        required
-                        max={today}
-                        value={effectiveOn}
-                        onValueChange={setEffectiveOn}
-                        className={control}
-                        aria-describedby="fecha-transaccion-ayuda"
-                      />
-                      <span
-                        id="fecha-transaccion-ayuda"
-                        className="block text-xs text-muted-foreground"
-                      >
-                        {transfer
-                          ? "Usá la fecha real del cambio. Si un saldo confirmado cubre esa fecha, el efecto se refleja en su conciliación."
-                          : installments && !income
-                            ? "Fecha de la compra. Cada cuota cuenta en su mes."
-                            : "Ingresá la fecha en que ocurrió."}
-                      </span>
-                    </label>
-                  )}
-                  {!transfer && !income && !installments && fundSources && (
-                    <FundPortionFields
-                      key={selectedCurrency}
-                      funds={fundSources}
-                      currency={selectedCurrency}
-                      amount={amount}
-                      available={
-                        bank && effectiveOn >= bank.asOfDate
-                          ? bank.availableAmount
-                          : undefined
-                      }
+                      aria-describedby="importe-transaccion-ayuda"
                     />
-                  )}
-                  {!transfer && (
-                    <>
-                      <AllocationFields
-                        key={kind}
-                        categories={categories.filter(
-                          (category) => category.kind === kind,
-                        )}
-                        available={!!tags}
-                      >
-                        <CategorySelect
-                          key={kind}
-                          kind={kind}
-                          categories={categories}
-                          controlClassName={control}
-                        />
-                      </AllocationFields>
-                      {tags && <TagFields tags={tags} />}
-                      <label className="space-y-1 text-sm sm:col-span-2">
-                        <span>
-                          {income ? "Concepto (opcional)" : "Concepto"}
-                        </span>
-                        <input
-                          name="concept"
-                          required={!income}
-                          maxLength={conceptLimit}
-                          className={control}
-                        />
-                      </label>
-                      {!income && (
-                        <NameAutocomplete
-                          kind="merchant"
-                          name="merchantName"
-                          label="Comercio (opcional)"
-                          maxLength={catalogNameLimit}
-                          className={control}
-                        />
-                      )}
-                      <label className="space-y-1 text-sm sm:col-span-2">
-                        <span>Nota (opcional)</span>
-                        <textarea
-                          name="note"
-                          rows={2}
-                          maxLength={noteLimit}
-                          className={`${control} py-2`}
-                        />
-                      </label>
-                    </>
-                  )}
-                </fieldset>
-                <p role="alert" className={error ? "mt-3 text-sm" : "sr-only"}>
-                  {error}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {!needsBalances && (
-                    <button
-                      ref={save}
-                      type="submit"
-                      disabled={pending}
-                      className={primary}
+                    <span
+                      id="importe-transaccion-ayuda"
+                      className="block text-xs text-muted-foreground"
                     >
-                      {pending
-                        ? "Guardando…"
-                        : uncertain
-                          ? "Reintentar guardado"
-                          : transfer
-                            ? "Guardar cambio de moneda"
-                            : "Guardar movimiento"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={pending}
-                    className="min-h-11 rounded-lg px-2 text-sm hover:bg-accent"
-                    onClick={closeForm}
+                      Sin separador de miles, hasta 4 decimales.
+                    </span>
+                  </label>
+                )}
+                <label className="space-y-1 text-sm">
+                  <span>Moneda</span>
+                  <select
+                    name="currency"
+                    required
+                    value={selectedCurrency}
+                    className={control}
+                    onChange={(event) =>
+                      setCurrency(event.target.value as Currency)
+                    }
                   >
-                    {uncertain ? "Cerrar formulario" : "Cancelar"}
-                  </button>
-                </div>
-              </form>
-            )}
+                    {bankCurrencies.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span>Fecha</span>
+                  <DateInput
+                    name="effectiveOn"
+                    required
+                    max={today}
+                    value={effectiveOn}
+                    onValueChange={setEffectiveOn}
+                    className={control}
+                    aria-describedby="fecha-transaccion-ayuda"
+                  />
+                  <span
+                    id="fecha-transaccion-ayuda"
+                    className="block text-xs text-muted-foreground"
+                  >
+                    {installments
+                      ? "Fecha de la compra. Cada cuota cuenta en su mes."
+                      : "Ingresá la fecha en que ocurrió."}
+                  </span>
+                </label>
+                <AllocationFields
+                  categories={categories.filter(
+                    (category) => category.kind === "expense",
+                  )}
+                  available={!!tags}
+                >
+                  <CategorySelect
+                    kind="expense"
+                    categories={categories}
+                    controlClassName={control}
+                  />
+                </AllocationFields>
+                {tags && <TagFields tags={tags} />}
+                <label className="space-y-1 text-sm sm:col-span-2">
+                  <span>Concepto</span>
+                  <input
+                    name="concept"
+                    required
+                    maxLength={conceptLimit}
+                    className={control}
+                  />
+                </label>
+                <NameAutocomplete
+                  kind="merchant"
+                  name="merchantName"
+                  label="Comercio (opcional)"
+                  maxLength={catalogNameLimit}
+                  className={control}
+                />
+                <label className="space-y-1 text-sm sm:col-span-2">
+                  <span>Nota (opcional)</span>
+                  <textarea
+                    name="note"
+                    rows={2}
+                    maxLength={noteLimit}
+                    className={`${control} py-2`}
+                  />
+                </label>
+              </fieldset>
+              <p role="alert" className={error ? "mt-3 text-sm" : "sr-only"}>
+                {error}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  ref={save}
+                  type="submit"
+                  disabled={pending}
+                  className={primary}
+                >
+                  {pending
+                    ? "Guardando…"
+                    : uncertain
+                      ? "Reintentar guardado"
+                      : "Guardar gasto"}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className="min-h-11 rounded-lg px-2 text-sm hover:bg-accent"
+                  onClick={closeForm}
+                >
+                  {uncertain ? "Cerrar formulario" : "Cancelar"}
+                </button>
+              </div>
+            </form>
           </Card>
         )}
       </div>
     </div>
-  );
-}
-
-function BankTransferFields({ currencies }: { currencies: Currency[] }) {
-  const [source, setSource] = useState(currencies[0]);
-  const [destination, setDestination] = useState<Currency | "">("");
-  if (currencies.length < 2)
-    return (
-      <p className="text-sm text-muted-foreground sm:col-span-2">
-        Configurá el saldo inicial de ambas monedas en «Disponible libre».
-      </p>
-    );
-
-  return (
-    <>
-      <p className="text-sm text-muted-foreground sm:col-span-2">
-        Cargá los dos importes reales. Las transferencias entre bancos propios
-        de la misma moneda ya están incluidas en el saldo agregado.
-      </p>
-      <label className="space-y-1 text-sm">
-        <span>Moneda de origen</span>
-        <select
-          name="sourceCurrency"
-          value={source}
-          onChange={(event) => {
-            const code = event.target.value as Currency;
-            setSource(code);
-            if (destination === code) setDestination("");
-          }}
-          className={control}
-        >
-          {currencies.map((code) => (
-            <option key={code}>{code}</option>
-          ))}
-        </select>
-      </label>
-      <label className="space-y-1 text-sm">
-        <span>Importe entregado</span>
-        <input
-          key={source}
-          name="sourceAmount"
-          required
-          inputMode="decimal"
-          maxLength={22}
-          autoComplete="off"
-          placeholder="0,00"
-          className={control}
-          aria-describedby="cambio-importes-ayuda"
-        />
-      </label>
-      <label className="space-y-1 text-sm">
-        <span>Moneda de destino</span>
-        <select
-          name="destinationCurrency"
-          required
-          value={destination}
-          onChange={(event) =>
-            setDestination(event.target.value as Currency | "")
-          }
-          className={control}
-        >
-          <option value="" disabled>
-            Elegí una moneda
-          </option>
-          {currencies
-            .filter((code) => code !== source)
-            .map((code) => (
-              <option key={code}>{code}</option>
-            ))}
-        </select>
-      </label>
-      <label className="space-y-1 text-sm">
-        <span>Importe recibido</span>
-        <input
-          key={destination}
-          name="destinationAmount"
-          required
-          inputMode="decimal"
-          maxLength={22}
-          autoComplete="off"
-          placeholder="0,00"
-          className={control}
-          aria-describedby="cambio-importes-ayuda"
-        />
-      </label>
-      <p
-        id="cambio-importes-ayuda"
-        className="text-xs text-muted-foreground sm:col-span-2"
-      >
-        Sin separador de miles, hasta 4 decimales.
-      </p>
-    </>
   );
 }

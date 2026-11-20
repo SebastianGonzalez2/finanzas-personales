@@ -7,7 +7,6 @@ import {
   statisticsSearch,
   type StatisticsFilters,
 } from "@/domain/statistics";
-import { movementDisplayMethods } from "@/domain/movements";
 import { buttonClass } from "./ui/button";
 import { Field, Select } from "./ui/field";
 import { Icon } from "./ui/icon";
@@ -52,13 +51,11 @@ export function StatisticsFiltersForm({
   filters,
   display,
   categories,
-  cards,
   tags,
 }: {
   filters: StatisticsFilters;
   display: Currency | "original";
   categories: StatisticsCategoryOption[];
-  cards: { id: string; name: string }[];
   tags: MovementTag[];
 }) {
   const custom = filters.period === "personalizado";
@@ -83,11 +80,6 @@ export function StatisticsFiltersForm({
       text: `Moneda original: ${filters.currency}`,
       href: clear({ currency: undefined }),
     },
-    filters.kind && {
-      key: "kind",
-      text: `Tipo: ${filters.kind === "income" ? "Ingresos" : "Gastos"}`,
-      href: clear({ kind: undefined }),
-    },
     filters.category && {
       key: "category",
       text: `Categoría: ${
@@ -98,24 +90,8 @@ export function StatisticsFiltersForm({
       }`,
       href: clear({ category: undefined }),
     },
-    filters.method && {
-      key: "method",
-      text: `Medio de pago: ${movementDisplayMethods[filters.method] ?? filters.method}`,
-      href: clear({ method: undefined }),
-    },
-    filters.card && {
-      key: "card",
-      text: `Tarjeta: ${cards.find(({ id }) => id === filters.card)?.name ?? "Tarjeta no disponible"}`,
-      href: clear({ card: undefined }),
-    },
   ].filter(Boolean) as { key: string; text: string; href: string }[];
-  const moreOpen = Boolean(
-    filters.category ||
-    filters.method ||
-    filters.card ||
-    custom ||
-    filters.compareFrom,
-  );
+  const moreOpen = Boolean(filters.category || custom || filters.compareFrom);
   return (
     <section className="lab-panel lab-panel--dense">
       <form
@@ -156,13 +132,6 @@ export function StatisticsFiltersForm({
               ))}
             </Select>
           </Field>
-          <Field label="Tipo de movimiento">
-            <Select name="kind" defaultValue={filters.kind}>
-              <option value="">Todos</option>
-              <option value="income">Ingresos</option>
-              <option value="expense">Gastos</option>
-            </Select>
-          </Field>
           <div className="gs-filterbar__actions">
             <button type="submit" className={buttonClass("primary")}>
               Aplicar filtros
@@ -179,28 +148,6 @@ export function StatisticsFiltersForm({
               categories={categories}
               category={filters.category}
             />
-            <Field label="Medio de pago">
-              <Select name="method" defaultValue={filters.method}>
-                <option value="">Todos</option>
-                {Object.entries(movementDisplayMethods).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {cards.length > 0 && (
-              <Field label="Tarjeta">
-                <Select name="card" defaultValue={filters.card}>
-                  <option value="">Todas</option>
-                  {cards.map(({ id, name }) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            )}
             <Field label="Desde">
               <DateInput name="from" defaultValue={filters.from} />
             </Field>

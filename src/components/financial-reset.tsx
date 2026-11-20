@@ -86,8 +86,8 @@ export function FinancialReset({ proof }: { proof: string }) {
         Reiniciar datos
       </h2>
       <p className="lab-muted max-w-[70ch] text-sm">
-        Empezá de cero. Se borrarán tus saldos, movimientos, pagos, tarjetas,
-        historial y configuraciones financieras. Vas a seguir entrando con la
+        Empezá de cero. Se borrarán tus gastos, presupuestos, recurrentes,
+        categorías, historial y configuraciones. Vas a seguir entrando con la
         misma cuenta de Google.
       </p>
       {!revision && (

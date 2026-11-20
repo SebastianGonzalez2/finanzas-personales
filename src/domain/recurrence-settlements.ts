@@ -35,7 +35,7 @@ export type Settlement = {
       targets: SettlementTarget[];
       amount: string;
       effectiveOn: string;
-      method: "deposit" | "debit" | "transfer" | "credit";
+      method: "deposit" | "debit" | "transfer" | "credit" | "unspecified";
       cardId: string | null;
       distinct: boolean;
       split?: SharedAllocation;
@@ -63,7 +63,7 @@ export type SettlementEvent = {
   id: string;
   effectiveOn: string;
   amount: string;
-  method: "deposit" | "debit" | "transfer" | "credit";
+  method: "deposit" | "debit" | "transfer" | "credit" | "unspecified";
   shared?: boolean;
 };
 
@@ -245,6 +245,7 @@ export function parseSettlement(
       !isBankReferenceDate(effectiveOn, today) ||
       typeof distinct !== "boolean" ||
       (method !== "deposit" &&
+        method !== "unspecified" &&
         method !== "debit" &&
         method !== "transfer" &&
         method !== "credit") ||

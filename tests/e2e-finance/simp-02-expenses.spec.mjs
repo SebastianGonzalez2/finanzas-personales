@@ -18,9 +18,9 @@ test("SIMP-02: registrar un gasto en cuotas sin saldo ni medio bancario", async 
   await page.goto("/resumen");
   await page
     .getByRole("banner")
-    .getByRole("link", { name: "Registrar movimiento" })
+    .getByRole("link", { name: "Registrar gasto" })
     .click();
-  const form = page.getByRole("form", { name: "Nueva transacción" });
+  const form = page.getByRole("form", { name: "Nuevo gasto" });
   await expect(form.getByLabel("Medio bancario")).toHaveCount(0);
   await expect(
     form
@@ -43,7 +43,7 @@ test("SIMP-02: registrar un gasto en cuotas sin saldo ni medio bancario", async 
       response.url().endsWith("/api/movements") &&
       response.request().method() === "POST",
   );
-  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  await form.getByRole("button", { name: "Guardar gasto" }).click();
   const response = await saved;
   expect(response.status()).toBe(201);
   const { id } = await response.json();

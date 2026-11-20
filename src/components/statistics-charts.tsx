@@ -244,9 +244,7 @@ export function StatisticsMonthlyChart({
       </p>
     );
   const widths = chartScale(
-    rows.flatMap((row) =>
-      row.missing ? ["0.0000", "0.0000"] : [row.income, row.expense],
-    ),
+    rows.flatMap((row) => (row.missing ? ["0.0000"] : [row.expense])),
   );
   const width = Math.max(384, 60 + rows.length * 72);
   const height = 230;
@@ -263,17 +261,14 @@ export function StatisticsMonthlyChart({
   return (
     <figure className="grid gap-2">
       <ChartLegend
-        items={[
-          { label: "Ingresos", color: "var(--data-income)" },
-          { label: "Gastos", color: "var(--data-expense)" },
-        ]}
+        items={[{ label: "Gastos", color: "var(--data-expense)" }]}
       />
       <ChartPlot
         labelledBy={`${titleId} ${descriptionId}`}
         width={width}
         height={height}
       >
-        <title id={titleId}>{`Ingresos y gastos por mes en ${currency}`}</title>
+        <title id={titleId}>{`Gastos por mes en ${currency}`}</title>
         <desc id={descriptionId}>
           Período {range.label}. Las columnas sin datos se marcan como faltantes
           y no se interpolan.
@@ -334,9 +329,8 @@ export function StatisticsMonthlyChart({
                 </text>
               </g>
             );
-          const incomeHeight = (widths[index * 2] / 100) * scaleHeight;
-          const expenseHeight = (widths[index * 2 + 1] / 100) * scaleHeight;
-          const groupLabel = `${row.label}: ingresos ${formatStatisticsAmount(row.income, currency)}, gastos ${formatStatisticsAmount(row.expense, currency)}${row.complete ? "" : ", período incompleto"}`;
+          const expenseHeight = (widths[index] / 100) * scaleHeight;
+          const groupLabel = `${row.label}: gastos ${formatStatisticsAmount(row.expense, currency)}${row.complete ? "" : ", período incompleto"}`;
           return (
             <g
               key={row.period}
@@ -355,14 +349,7 @@ export function StatisticsMonthlyChart({
                 rx={6}
               />
               <rect
-                x={x - bar - 2}
-                y={height - bottom - incomeHeight}
-                width={bar}
-                height={incomeHeight}
-                className="fill-income"
-              />
-              <rect
-                x={x + 2}
+                x={x - bar / 2}
                 y={height - bottom - expenseHeight}
                 width={bar}
                 height={expenseHeight}
@@ -379,9 +366,7 @@ export function StatisticsMonthlyChart({
               {!row.complete && (
                 <text
                   x={x}
-                  y={
-                    height - bottom - Math.max(incomeHeight, expenseHeight) - 5
-                  }
+                  y={height - bottom - expenseHeight - 5}
                   textAnchor="middle"
                   className="fill-(--glaciar-muted) text-[0.9375rem]"
                 >
@@ -395,9 +380,6 @@ export function StatisticsMonthlyChart({
                 textAnchor="middle"
               >
                 <tspan x={x}>
-                  {formatStatisticsAmount(row.income, currency)}
-                </tspan>
-                <tspan x={x} dy="1.25em">
                   {formatStatisticsAmount(row.expense, currency)}
                 </tspan>
               </text>
@@ -406,14 +388,13 @@ export function StatisticsMonthlyChart({
         })}
       </ChartPlot>
       <StatisticsChartTable
-        caption={`Datos de ingresos y gastos por mes en ${currency}`}
-        headings={["Período", "Ingresos", "Gastos", "Estado"]}
+        caption={`Datos de gastos por mes en ${currency}`}
+        headings={["Período", "Gastos", "Estado"]}
         rows={rows.map((row) =>
           row.missing
-            ? [row.label, "Sin datos", "Sin datos", "Sin datos"]
+            ? [row.label, "Sin datos", "Sin datos"]
             : [
                 row.label,
-                formatStatisticsAmount(row.income, currency),
                 formatStatisticsAmount(row.expense, currency),
                 row.complete ? "Completo" : "Incompleto",
               ],

@@ -49,7 +49,7 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
   const tour = page.getByRole("dialog", { name: "Tutorial introductorio" });
   await expect(tour).toBeVisible();
   await expect(tour).toBeFocused();
-  await expect(tour).toContainText("Paso 1 de 8");
+  await expect(tour).toContainText("Paso 1 de 6");
   await expect(tour.getByRole("button", { name: "Anterior" })).toHaveAttribute(
     "aria-disabled",
     "true",
@@ -57,11 +57,11 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
 
   // El teclado permite recorrer los pasos mientras la tarjeta cambia de posición.
   await tour.getByRole("button", { name: "Siguiente" }).press("Enter");
-  await expect(tour).toContainText("Paso 2 de 8");
+  await expect(tour).toContainText("Paso 2 de 6");
   await expect(tour).toContainText("Moneda de toda la app");
   await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
   await tour.getByRole("button", { name: "Anterior" }).press("Enter");
-  await expect(tour).toContainText("Paso 1 de 8");
+  await expect(tour).toContainText("Paso 1 de 6");
 
   // La navegación sigue disponible mientras el tutorial está abierto.
   await expect(
@@ -70,9 +70,9 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
       .getByRole("link", { name: "Historial", exact: true }),
   ).toBeEnabled();
 
-  for (let next = 2; next <= 8; next += 1) {
+  for (let next = 2; next <= 6; next += 1) {
     await tour.getByRole("button", { name: "Siguiente" }).press("Enter");
-    await expect(tour).toContainText(`Paso ${next} de 8`);
+    await expect(tour).toContainText(`Paso ${next} de 6`);
   }
   await expect(tour).toContainText("Ayuda cuando la necesites");
   await expectHighlightToCover(
@@ -85,7 +85,7 @@ test("F6-06: primera entrada, avanzar, retroceder y completar", async ({
 
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Resumen financiero" }),
+    page.getByRole("heading", { name: "Resumen de gastos" }),
   ).toBeVisible();
   await expect(
     page.getByRole("dialog", { name: "Tutorial introductorio" }),
@@ -109,7 +109,7 @@ test("F6-06: Escape y Omitir cierran sin guardar la preferencia permanente", asy
   // Omitido en esta pestaña: no reaparece al volver a Resumen.
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Resumen financiero" }),
+    page.getByRole("heading", { name: "Resumen de gastos" }),
   ).toBeVisible();
   await expect(tour).toHaveCount(0);
 
@@ -135,7 +135,7 @@ test("F6-06: «No volver a mostrar» persiste y Ayuda permite reabrir", async ({
   expect(await preference(page)).toBe("hidden");
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Resumen financiero" }),
+    page.getByRole("heading", { name: "Resumen de gastos" }),
   ).toBeVisible();
   await expect(
     page.getByRole("dialog", { name: "Tutorial introductorio" }),
@@ -159,9 +159,9 @@ test("F6-06: móvil resalta el botón del menú y no hay desbordes", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/resumen");
   const tour = page.getByRole("dialog", { name: "Tutorial introductorio" });
-  for (let next = 2; next <= 7; next += 1) {
+  for (let next = 2; next <= 5; next += 1) {
     await tour.getByRole("button", { name: "Siguiente" }).press("Enter");
-    await expect(tour).toContainText(`Paso ${next} de 8`);
+    await expect(tour).toContainText(`Paso ${next} de 6`);
   }
   await expect(tour).toContainText("Menú de secciones");
   await expectHighlightToCover(
@@ -178,6 +178,6 @@ test("F6-06: móvil resalta el botón del menú y no hay desbordes", async ({
   await page.keyboard.press("Escape");
   await expect(tour).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: "Resumen financiero" }),
+    page.getByRole("heading", { name: "Resumen de gastos" }),
   ).toBeFocused();
 });

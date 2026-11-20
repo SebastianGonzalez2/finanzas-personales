@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
+import pg from "pg";
 import { formatInstallmentPeriod } from "../../src/domain/installments.ts";
 import {
   bankReferenceToday,
   formatBankReference,
 } from "../../src/domain/bank-balances.ts";
-import {
-  financeBrowserFixtures,
-  financeTestOrigin,
-} from "../support/finance-browser.mjs";
+import { financeBrowserFixtures } from "../support/finance-browser.mjs";
+import { testDatabaseConfig } from "../support/test-database.mjs";
 
 // UI-05E: «Nueva recurrencia» es un disclosure; se abre solo si está cerrado.
 async function openCreator(page) {
@@ -16,22 +15,17 @@ async function openCreator(page) {
     await creator.locator("summary").click();
 }
 
-test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
+test("CA-048: pagar un alquiler compartido con reparto habitual", async ({
   page,
   context,
 }, testInfo) => {
-  const { cookies } = await financeBrowserFixtures();
+  const { cookies, owners } = await financeBrowserFixtures();
   await context.addCookies([cookies.a1]);
   const today = bankReferenceToday();
   const [year, month] = today.split("-").map(Number);
   const previous = new Date(Date.UTC(year, month - 2, 1))
     .toISOString()
     .slice(0, 10);
-  const opening = await context.request.post("/api/bank-balances", {
-    headers: { origin: financeTestOrigin },
-    data: { currency: "UYU", amount: "30000", asOfDate: previous },
-  });
-  expect(opening.status()).toBe(201);
   await page.goto("/recurrentes");
   await openCreator(page);
   const creation = page.getByRole("form", { name: "Nueva recurrencia" });
@@ -62,9 +56,6 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await expect(past).toContainText("Sin pago confirmado");
   await expect(current).toContainText("Sin pago confirmado");
   await expect(series).toContainText("Ana de prueba · 50 %");
-  await page.goto("/deudas");
-  await expect(page.getByText("Ana de prueba", { exact: true })).toHaveCount(0);
-  await page.goto("/recurrentes");
 
   await past
     .getByRole("button", { name: "Registrar pago", exact: true })
@@ -90,34 +81,33 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await past.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect(past.getByText("Pagado", { exact: true })).toBeVisible();
   await expect(current).toContainText("Sin pago confirmado");
-  await past.getByRole("link", { name: /Ver reparto y cobros/ }).click();
-  await expect(page.getByText("Gasto propio · 10.000,00 UYU")).toBeVisible();
-  await expect(
-    page.getByText("Salida registrada en Bancos · 20.000,00 UYU"),
-  ).toBeVisible();
-  await page
-    .getByRole("link", { name: /registrar cobro · Ana de prueba/ })
-    .click();
-  await page.getByLabel("Importe cobrado en Bancos (UYU)").fill("3000");
-  await page.getByRole("button", { name: "Confirmar cobro" }).click();
-  await expect(page.getByText("7.000,00 UYU", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Ver gasto de origen" }).click();
-  await expect(page.getByText("Pendiente · 7.000,00 UYU")).toBeVisible();
+  await expect(series).toContainText("Ana de prueba · 50 %");
 
-  await page.getByText("Corregir reparto del pago", { exact: true }).click();
-  const correction = page.getByRole("form", {
-    name: "Corregir reparto del pago",
-  });
-  await correction.getByLabel("Tu parte del pago").fill("12000");
-  await correction.getByLabel(/Parte de Ana de prueba/).fill("8000");
-  await correction
-    .getByRole("button", { name: "Guardar corrección del reparto" })
+  await past
+    .getByRole("list", { name: "Movimientos vinculados" })
+    .getByRole("link")
     .click();
-  await expect(page.getByText("Gasto propio · 12.000,00 UYU")).toBeVisible();
-  await expect(page.getByText("Pendiente · 5.000,00 UYU")).toBeVisible();
-  await expect(page.getByText(/Reparto corregido/)).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath("F4-04-cobro-parcial.png"),
-    fullPage: true,
-  });
+  const reparto = page.getByRole("region", { name: "Obligaciones del gasto" });
+  await expect(reparto).toContainText("Gasto propio · 10.000,00 UYU");
+  await expect(reparto).toContainText("Pendiente · 10.000,00 UYU");
+  await expect(reparto.locator('a[href^="/deudas/"]')).toHaveCount(0);
+  await page.goto("/resumen");
+  await expect(page.getByRole("list", { name: "Gastos del mes" })).toHaveText(
+    "10.000,00 UYU",
+  );
+  const admin = new pg.Client(testDatabaseConfig());
+  await admin.connect();
+  try {
+    const { rows } = await admin.query(
+      `SELECT s.method, count(b.id)::int AS bank_effects
+         FROM finance.shared_expenses s
+         LEFT JOIN finance.bank_effects b
+           ON (s.owner_id, s.event_id) = (b.owner_id, b.event_id)
+        WHERE s.owner_id = $1 GROUP BY s.event_id, s.method`,
+      [owners.a],
+    );
+    expect(rows).toEqual([{ method: "unspecified", bank_effects: 0 }]);
+  } finally {
+    await admin.end();
+  }
 });
