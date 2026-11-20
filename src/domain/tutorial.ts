@@ -15,7 +15,7 @@ export type TutorialStep = {
   targets: readonly string[];
 };
 
-// UI-06: recorrido de ocho pasos (docs/design/ui-identidad-visual.md, §5). Los
+// UI-06 / SIMP-03: recorrido de seis pasos sobre la aplicación de gastos. Los
 // objetivos son los elementos reales del shell y de Resumen (`data-tour` o
 // selectores estables); un paso sin objetivo visible se muestra sin foco.
 export const tutorialSteps: readonly TutorialStep[] = [
@@ -32,27 +32,15 @@ export const tutorialSteps: readonly TutorialStep[] = [
     targets: ['.finance-topbar [data-tour="moneda-app"]'],
   },
   {
-    id: "moneda-cuenta",
-    title: "Tus cuentas por moneda",
-    text: "Pasá de tu cuenta en pesos a la de dólares o euros. Muestra lo que tenés en cada una; no convierte una en otra.",
-    targets: ['[data-tour="moneda-cuenta"]'],
-  },
-  {
-    id: "cambio-moneda",
-    title: "Cambio de moneda",
-    text: "Registrá cuando pasás plata entre tus cuentas del banco, por ejemplo de pesos a dólares. Baja una, sube la otra y no cuenta como gasto ni ingreso.",
-    targets: ['[data-tour="cambio-moneda"]'],
-  },
-  {
-    id: "confirmar-saldo",
-    title: "Confirmar saldo",
-    text: "Anotá el saldo exacto que te muestra tu banco. Queda como punto de control y la app toma esa cifra como referencia.",
-    targets: ['[data-tour="confirmar-saldo"]'],
+    id: "gastos-mes",
+    title: "Gastos del mes",
+    text: "Acá ves cuánto gastaste en el mes y cómo se compara con el anterior. Con las flechas cambiás de mes.",
+    targets: ['[data-tour="gastos-mes"]'],
   },
   {
     id: "nueva-transaccion",
-    title: "Registrar un movimiento",
-    text: "Desde acá cargás gastos, ingresos y el resto de las operaciones.",
+    title: "Registrar un gasto",
+    text: "Desde acá cargás un gasto: importe, moneda, fecha, categoría y, si querés, en cuotas.",
     targets: [
       '.finance-topbar [data-tour="registrar"]',
       '.finance-dock [data-tour="registrar"]',
@@ -61,7 +49,7 @@ export const tutorialSteps: readonly TutorialStep[] = [
   {
     id: "menu",
     title: "Menú de secciones",
-    text: "Historial, Tarjetas, Fondos, Presupuestos, Estadísticas y más. En computadora se abre al pasar el mouse.",
+    text: "Historial, Estadísticas, Presupuestos, Recurrentes y más. En el móvil se abre con el botón de menú.",
     targets: [".finance-sidebar", ".finance-dock"],
   },
   {
