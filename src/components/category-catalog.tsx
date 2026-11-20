@@ -13,7 +13,6 @@ import { connectionAwareMessage } from "./connection";
 import { buttonClass } from "./ui/button";
 import { Field, Input, Select } from "./ui/field";
 import { Icon } from "./ui/icon";
-import { Segmented, SegmentedOption } from "./ui/segmented";
 
 const kinds = {
   income: "Ingresos",
@@ -31,7 +30,7 @@ export function CategoryCatalog({
 }) {
   const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
-  const [kind, setKind] = useState<MovementKind>("expense");
+  const kind: MovementKind = "expense";
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
   const [pending, setPending] = useState(false);
@@ -176,24 +175,6 @@ export function CategoryCatalog({
         >
           <form method="post" onSubmit={submit} className="grid gap-4">
             <div className="gs-form__grid gs-form__grid--3">
-              <div className="ui-field">
-                <span className="ui-field__label">Tipo</span>
-                <Segmented label="Tipo" className="self-start">
-                  {(["expense", "income"] as const).map((value) => (
-                    <SegmentedOption
-                      key={value}
-                      pressed={kind === value}
-                      disabled={pending}
-                      onClick={() => {
-                        setKind(value);
-                        setParentId("");
-                      }}
-                    >
-                      {value === "expense" ? "Gasto" : "Ingreso"}
-                    </SegmentedOption>
-                  ))}
-                </Segmented>
-              </div>
               <Field label="Nombre">
                 <Input
                   value={name}
@@ -240,7 +221,7 @@ export function CategoryCatalog({
         {message}
       </p>
       <div className="gs-grid">
-        {(["expense", "income"] as const).map((section) => {
+        {(["expense"] as const).map((section) => {
           const sectionTops = tops.filter((top) => top.kind === section);
           const subCount = sectionTops.reduce(
             (sum, top) => sum + childrenOf(top.id).length,
@@ -249,7 +230,7 @@ export function CategoryCatalog({
           return (
             <section
               key={section}
-              className={`lab-panel ${section === "expense" ? "gs-span-8" : "gs-span-4"}`}
+              className="lab-panel gs-span-12"
               aria-labelledby={`cat-${section}`}
             >
               <header className="lab-panel__head">

@@ -73,7 +73,7 @@ export default async function BudgetsPage({
             <PageHead
               eyebrow="Planificación"
               title="Presupuestos"
-              description="Límites mensuales opcionales por categoría, sin arrastre de saldos."
+              description="Límites mensuales opcionales por categoría."
             />
             <PageNotice
               tone={"retry" in result ? "critical" : "info"}

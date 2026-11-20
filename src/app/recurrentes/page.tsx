@@ -33,7 +33,6 @@ import {
 } from "@/domain/recurrence-plan";
 import type { TrackedPeriod } from "@/domain/recurrence-settlements";
 import { listPeople, recurringSharesReady } from "@/server/recurring-shares";
-import { listCards } from "@/server/cards";
 import { recurrenceTrackingReady } from "@/server/recurrence-links";
 import {
   trackedPeriodPage,
@@ -101,8 +100,7 @@ type Loaded = Definition & {
   latestPeriod: TrackedPeriod | null;
 };
 
-const description =
-  "Gastos e ingresos que se repiten, con seguimiento de cada período.";
+const description = "Gastos que se repiten, con seguimiento de cada período.";
 
 export default async function RecurrencesPage({
   searchParams,
@@ -125,21 +123,12 @@ export default async function RecurrencesPage({
         };
       const tracking = await recurrenceTrackingReady(client);
       const sharing = tracking && (await recurringSharesReady(client));
-      const definitions = await listRecurrences(
-        client,
-        ownerId,
-        today,
-        tracking,
-        sharing,
-      );
+      // SIMP-03: las series de ingreso heredadas no se muestran.
+      const definitions = (
+        await listRecurrences(client, ownerId, today, tracking, sharing)
+      ).filter(({ kind }) => kind === "expense");
       const controls =
         tracking && (await recurrenceSeriesControlsReady(client));
-      const cards =
-        tracking && definitions.some(({ kind }) => kind === "expense")
-          ? (await listCards(client, ownerId)).filter(
-              ({ archived, kind }) => !archived && kind === "credit",
-            )
-          : [];
       // P-06: el detalle muestra una sola serie: la indicada por `serie` o, si
       // no hay una válida, la primera de la lista. Las demás solo cargan su
       // último período (para la etiqueta de estado de la lista).
@@ -188,7 +177,6 @@ export default async function RecurrencesPage({
         selectedId,
         tracking,
         controls,
-        cards,
         people: sharing ? await listPeople(client, ownerId) : null,
         categories: await listCatalogCategories(client, ownerId),
       };
@@ -250,7 +238,6 @@ export default async function RecurrencesPage({
                     tracking={data.tracking}
                     controls={data.controls}
                     people={data.people}
-                    cards={data.cards}
                     today={today}
                   />
                 </div>
@@ -260,9 +247,9 @@ export default async function RecurrencesPage({
                 icon="recurring"
                 title="Todavía no tenés recurrencias"
               >
-                Para conceptos que se repiten, como alquiler o sueldo. Cada
-                período se confirma con un movimiento real; nada se registra
-                solo.
+                Para gastos que se repiten, como el alquiler o una suscripción.
+                Cada período se confirma con un movimiento real; nada se
+                registra solo.
               </EmptyState>
             )}
           </>
@@ -379,14 +366,12 @@ function SeriesDetail({
   tracking,
   controls,
   people,
-  cards,
   today,
 }: {
   series: Loaded;
   tracking: boolean;
   controls: boolean;
   people: Awaited<ReturnType<typeof listPeople>> | null;
-  cards: Awaited<ReturnType<typeof listCards>>;
   today: string;
 }) {
   const title = `detalle-${series.id}`;
@@ -542,13 +527,6 @@ function SeriesDetail({
                     today={today}
                     usualShares={series.usualShares}
                     people={people ?? []}
-                    cards={cards
-                      .filter(({ currencies }) =>
-                        currencies.some(
-                          ({ currency }) => currency === series.currency,
-                        ),
-                      )
-                      .map(({ id, name }) => ({ id, name }))}
                   />
                 </div>
               </li>

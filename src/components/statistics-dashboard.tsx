@@ -3,12 +3,12 @@ import { Fragment, type ReactNode } from "react";
 import {
   amountUnits,
   formatStatisticsAmount,
+  retiredStatisticsCharts,
   statisticsChartIdList,
   statisticsChartIds,
   statisticsSearch,
   statisticsDaysBetween,
   statisticsSummary,
-  unitsDecimal,
   type StatisticsChartId,
   type StatisticsFilters,
   type StatisticsSnapshot,
@@ -36,12 +36,7 @@ import {
   StatisticsMonthlyChart,
 } from "./statistics-charts";
 
-const laneMain: StatisticsChartId[] = [
-  "income-expense",
-  "methods",
-  "income-categories",
-  "history",
-];
+const laneMain: StatisticsChartId[] = ["income-expense"];
 const laneSide: StatisticsChartId[] = ["expense-categories", "summary"];
 
 function currencies(values: { currency: Currency }[]) {
@@ -155,29 +150,12 @@ function StatisticsMetrics({
   favorite: boolean | undefined;
 }) {
   const periods = [snapshot.range, snapshot.previous];
-  const net = (row: TotalRow) =>
-    unitsDecimal(amountUnits(row.income) - amountUnits(row.expense));
   const metrics = [
-    {
-      label: "Ingresos",
-      get: (row: TotalRow) => row.income,
-      good: "up" as const,
-    },
     {
       label: "Gastos",
       get: (row: TotalRow) => row.expense,
       good: "down" as const,
-    },
-    {
-      label: "Resultado del período",
-      get: net,
-      good: "up" as const,
       hero: true,
-    },
-    {
-      label: "Devoluciones acreditadas",
-      get: (row: TotalRow) => row.refunds,
-      good: null,
     },
   ];
   const available = currencies([
@@ -688,7 +666,11 @@ export function StatisticsDashboard({
       />
     ),
   };
-  const visible = view === "favoritos" ? favorites : statisticsChartIdList;
+  const shown = statisticsChartIdList.filter(
+    (id) => !retiredStatisticsCharts.includes(id),
+  );
+  const visible =
+    view === "favoritos" ? favorites.filter((id) => shown.includes(id)) : shown;
   const main = visible.filter((id) => laneMain.includes(id));
   const side = visible.filter((id) => laneSide.includes(id));
   const head = visible.filter((id) => id === "metrics");

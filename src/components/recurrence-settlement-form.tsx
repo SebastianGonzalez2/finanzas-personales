@@ -1,11 +1,11 @@
 "use client";
 
 import { recurrencePeriodLabel } from "@/lib/recurrence-period-label";
-import { MonthField, DateInput } from "./ui/date-fields";
+import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { formatBankAmount, formatBankReference } from "@/domain/bank-balances";
-import { movementDisplayMethods, type MovementKind } from "@/domain/movements";
+import type { MovementKind } from "@/domain/movements";
 import {
   duplicateSettlement,
   settlementLimit,
@@ -13,7 +13,6 @@ import {
   type TrackedPeriod,
 } from "@/domain/recurrence-settlements";
 import type { Currency } from "@/domain/money";
-import { maxInstallments } from "@/domain/installments";
 import type { Person, UsualShare } from "@/domain/recurring-shares";
 import {
   RecurringPaymentSplitFields,
@@ -40,7 +39,6 @@ export function RecurrenceSettlementForm({
   currency,
   kind,
   today,
-  cards,
   usualShares,
   people,
 }: {
@@ -51,7 +49,6 @@ export function RecurrenceSettlementForm({
   currency: Currency;
   kind: MovementKind;
   today: string;
-  cards: { id: string; name: string }[];
   usualShares: UsualShare[];
   people: Person[];
 }) {
@@ -60,8 +57,6 @@ export function RecurrenceSettlementForm({
   const defaultAmount =
     period.remaining && period.recorded !== "0.0000" ? period.remaining : "";
   const [paidAmount, setPaidAmount] = useState(defaultAmount);
-  const [installments, setInstallments] = useState(false);
-  const [method, setMethod] = useState("debit");
   const [date, setDate] = useState(today);
   const [events, setEvents] = useState<Candidate[] | null>(null);
   const [selected, setSelected] = useState("");
@@ -87,8 +82,6 @@ export function RecurrenceSettlementForm({
   const needsSplit =
     shared &&
     (mode === "record" || (mode === "link" && event && !event.shared));
-  const financing =
-    shared && mode === "record" && method === "credit" && installments;
   const options = new Map(
     [...additional, ...others].map((entry) => [entry.index, entry]),
   );
@@ -106,7 +99,6 @@ export function RecurrenceSettlementForm({
     setMode(next);
     setExtra([]);
     setPaidAmount(defaultAmount);
-    setInstallments(false);
     setAdditional([]);
     setCursor(olderCursor);
     setPeriodError("");
@@ -194,23 +186,13 @@ export function RecurrenceSettlementForm({
         targets,
         amount,
         ...(needsSplit && { split: recurringPaymentSplit(data) }),
-        ...(financing && {
-          installment: {
-            cardAmount: data.get("cardAmount"),
-            plan: {
-              count: Number(data.get("count")),
-              installmentAmount: data.get("installmentAmount"),
-              firstPeriod: data.get("firstPeriod"),
-            },
-          },
-        }),
         ...(mode === "link"
           ? { eventId: selected }
           : {
               effectiveOn: date,
-              method: income ? "deposit" : method,
-              cardId:
-                !income && method === "credit" ? data.get("cardId") : null,
+              // SIMP-03: el gasto no indica medio de pago.
+              method: income ? "deposit" : "unspecified",
+              cardId: null,
               distinct: allowDistinct,
             }),
       };
@@ -345,83 +327,6 @@ export function RecurrenceSettlementForm({
                 />
               </HistoryField>
             )}
-            {mode === "record" && !income && (
-              <>
-                <HistoryField label="Medio de pago">
-                  <select
-                    className={historyControl}
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                  >
-                    <option value="debit">Débito bancario</option>
-                    <option value="transfer">Transferencia bancaria</option>
-                    {cards.length > 0 && (
-                      <option value="credit">Tarjeta de crédito</option>
-                    )}
-                  </select>
-                </HistoryField>
-                {method === "credit" && (
-                  <HistoryField label="Tarjeta de crédito">
-                    <select
-                      className={historyControl}
-                      name="cardId"
-                      required
-                      defaultValue=""
-                    >
-                      <option value="" disabled>
-                        Elegí la tarjeta
-                      </option>
-                      {cards.map(({ id, name }) => (
-                        <option key={id} value={id}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </HistoryField>
-                )}
-                {shared && method === "credit" && (
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={installments}
-                      onChange={(event) =>
-                        setInstallments(event.target.checked)
-                      }
-                    />
-                    Compra en cuotas
-                  </label>
-                )}
-                {financing && (
-                  <>
-                    <HistoryField label="Cargo real en la tarjeta hoy">
-                      <AmountInput name="cardAmount" required />
-                    </HistoryField>
-                    <HistoryField label="Cantidad de cuotas">
-                      <input
-                        className={historyControl}
-                        name="count"
-                        type="number"
-                        min={2}
-                        max={maxInstallments}
-                        required
-                      />
-                    </HistoryField>
-                    <HistoryField label="Importe de cada cuota">
-                      <AmountInput name="installmentAmount" required />
-                    </HistoryField>
-                    <MonthField
-                      label="Mes de la primera cuota"
-                      variant="history"
-                      name="firstPeriod"
-                      min="0001-01"
-                      max="9999-12"
-                      defaultValue={date.slice(0, 7)}
-                      required
-                    />
-                  </>
-                )}
-              </>
-            )}
             {mode === "link" && (
               <>
                 <div className="self-end">
@@ -451,10 +356,9 @@ export function RecurrenceSettlementForm({
                       <option value="" disabled>
                         Elegí el movimiento
                       </option>
-                      {events.map(({ id, concept, amount, method, shared }) => (
+                      {events.map(({ id, concept, amount, shared }) => (
                         <option key={id} value={id}>
-                          {concept} · {formatBankAmount({ amount, currency })} ·{" "}
-                          {movementDisplayMethods[method]}
+                          {concept} · {formatBankAmount({ amount, currency })}
                           {shared && " · Con reparto registrado"}
                         </option>
                       ))}
@@ -552,11 +456,10 @@ export function RecurrenceSettlementForm({
                 <option value="" disabled>
                   Elegí el movimiento
                 </option>
-                {detachable.map(({ id, effectiveOn, amount, method }) => (
+                {detachable.map(({ id, effectiveOn, amount }) => (
                   <option key={id} value={id}>
                     {formatBankReference(effectiveOn)} ·{" "}
-                    {formatBankAmount({ amount, currency })} ·{" "}
-                    {movementDisplayMethods[method]}
+                    {formatBankAmount({ amount, currency })}
                   </option>
                 ))}
               </select>

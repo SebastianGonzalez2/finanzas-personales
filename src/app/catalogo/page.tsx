@@ -63,7 +63,7 @@ export default async function CatalogPage({
         <PageHead
           eyebrow="Catálogos"
           title="Comercios y contactos"
-          description="Catálogo privado para autocompletar gastos y deudas."
+          description="Catálogo privado para autocompletar gastos y repartos."
         />
         {result.entries ? (
           <NameCatalog

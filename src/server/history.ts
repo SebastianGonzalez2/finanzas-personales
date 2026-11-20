@@ -116,6 +116,9 @@ export async function listHistory(
   ownerId: string,
   query: HistoryQuery,
   pageSize = 20,
+  // SIMP-03: la pantalla Historial solo muestra gastos (los demás eventos
+  // heredados se conservan en la base, pero ya no se listan).
+  expensesOnly = false,
 ) {
   const { filters, minimum, maximum, cursor } = query;
   const credit = await creditOperationsReady(client);
@@ -123,8 +126,8 @@ export async function listHistory(
   const withMixed = credit && (await mixedPurchasesReady(client));
   const loans = await loansReady(client);
   const shared = loans && (await sharedExpensesReady(client));
-  const refunds = await refundsReady(client);
-  const benefits = await bankBenefitsReady(client);
+  const refunds = !expensesOnly && (await refundsReady(client));
+  const benefits = !expensesOnly && (await bankBenefitsReady(client));
   const merchantMatches =
     filters.merchant && (await nameCatalogReady(client))
       ? `AND EXISTS (
@@ -178,6 +181,7 @@ export async function listHistory(
        FROM (
        (SELECT ${eventFields} ${eventSource}
          WHERE f.owner_id = $1 AND (m.event_id IS NOT NULL OR f.kind = 'bank_transfer')
+           ${expensesOnly ? "AND f.kind = 'expense'" : ""}
            ${shared ? excludeShared : ""}
            ${merchantMatches}
            AND ($2::text IS NULL OR strpos(lower(f.concept), lower($2)) > 0
@@ -194,7 +198,10 @@ export async function listHistory(
            AND ($12::date IS NULL OR ((f.effective_on, f.id) <= ($12, $13::uuid)
              AND (f.effective_on, f.id, f.kind) < ($12, $13, $14::text)))
          ORDER BY f.effective_on DESC, f.id DESC LIMIT $15)
-       UNION ALL
+       ${
+         expensesOnly
+           ? ""
+           : `       UNION ALL
        (SELECT ${checkpointFields} ${checkpointSource}
          WHERE b.owner_id = $1 AND ($5 IS NULL OR $5 = 'checkpoint') AND ($6 IS NULL OR $6 = 'confirmed')
            AND $7 IS NULL AND $8 IS NULL AND $16::uuid[] IS NULL AND $17::uuid IS NULL
@@ -204,7 +211,8 @@ export async function listHistory(
            AND ($11 IS NULL OR b.confirmed_amount <= $11)
            AND ($12 IS NULL OR ((b.as_of_date, b.id) <= ($12, $13)
              AND (b.as_of_date, b.id, 'checkpoint'::text) < ($12, $13, $14)))
-         ORDER BY b.as_of_date DESC, b.id DESC LIMIT $15)
+         ORDER BY b.as_of_date DESC, b.id DESC LIMIT $15)`
+       }
        ${
          shared
            ? `UNION ALL
@@ -227,7 +235,7 @@ export async function listHistory(
            : ""
        }
        ${
-         loans
+         loans && !expensesOnly
            ? `UNION ALL
        (SELECT ${loanFields} ${loanSource}
          WHERE f.owner_id = $1 AND ($5 IS NULL OR f.kind = $5) AND ($6 IS NULL OR f.status = $6)
@@ -249,7 +257,7 @@ export async function listHistory(
          credit
            ? `UNION ALL
        (SELECT ${cardFields(withMixed)} ${cardSource(withPlans, withMixed)}
-         WHERE f.owner_id = $1 AND f.kind IN ('card_purchase', 'card_payment', 'card_opening', 'card_adjustment')
+         WHERE f.owner_id = $1 AND f.kind IN (${expensesOnly ? "'card_purchase'" : "'card_purchase', 'card_payment', 'card_opening', 'card_adjustment'"})
            ${shared ? excludeShared : ""}
            ${merchantMatches}
            AND ($2 IS NULL OR strpos(lower(f.concept), lower($2)) > 0

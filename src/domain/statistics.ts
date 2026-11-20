@@ -43,7 +43,7 @@ export type StatisticsFilters = {
 
 export const statisticsChartIds = {
   metrics: "Indicadores del período",
-  "income-expense": "Ingresos y gastos por mes",
+  "income-expense": "Gastos por mes",
   "expense-categories": "Gastos por categoría",
   "income-categories": "Ingresos por categoría",
   methods: "Medios de pago",
@@ -52,6 +52,13 @@ export const statisticsChartIds = {
 } as const;
 
 export type StatisticsChartId = keyof typeof statisticsChartIds;
+// SIMP-03: gráficos de ingresos, medios de pago e histórico de balance ya no
+// se muestran (los identificadores se conservan para los favoritos guardados).
+export const retiredStatisticsCharts: readonly StatisticsChartId[] = [
+  "income-categories",
+  "methods",
+  "history",
+];
 export const statisticsChartIdList = Object.keys(
   statisticsChartIds,
 ) as StatisticsChartId[];
