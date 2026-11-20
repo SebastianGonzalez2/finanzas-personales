@@ -23,7 +23,7 @@ export default async function TagsPage() {
     return null;
   });
   return (
-    <FinanceShell current="historial">
+    <FinanceShell current="etiquetas">
       <Screen>
         <Link className="gs-back" href="/historial">
           <Icon name="chevronLeft" duotone={false} className="size-4" />
