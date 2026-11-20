@@ -13,7 +13,7 @@ import {
 } from "../../src/server/neon-production-config.mts";
 
 // PostgreSQL real desechable y aislado (nunca Neon ni production). Ejercita el
-// flujo completo del migrador de production: 41 DDL reales con ledger de
+// flujo completo del migrador de production, con DDL reales y ledger de
 // checksums, idempotencia, rechazo de autorización inválida y de historial
 // divergente. La guarda de identidad de producción debe fallar en esta base:
 // la sesión local no es la del titular ni está en la rama de Neon.
@@ -45,7 +45,10 @@ test(
         client,
         manifest.sha256,
       );
-      assert.equal(first.completed.length + first.alreadyApplied, 42);
+      assert.equal(
+        first.completed.length + first.alreadyApplied,
+        manifest.entries.length,
+      );
       assert.equal(first.manifestSha256, manifest.sha256);
       await client.query("COMMIT");
       const ledger = await client.query(
@@ -63,7 +66,7 @@ test(
         manifest.sha256,
       );
       assert.deepEqual(second.completed, []);
-      assert.equal(second.alreadyApplied, 41);
+      assert.equal(second.alreadyApplied, manifest.entries.length);
       await client.query("COMMIT");
 
       // Autorización inválida: rechaza sin ejecutar DDL ni alterar el ledger.

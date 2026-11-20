@@ -160,6 +160,7 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
       installmentMonthlyReference,
       financialReset,
       expenseInstallments,
+      sharedPaymentMethod,
     ] = await readMigrations();
     await assert.rejects(migrateInTransaction(client, movement.sha256), {
       message: "La migración pendiente no coincide con el SQL autorizado",
@@ -559,19 +560,27 @@ test("OPS: aplica solo el SQL autorizado y conserva el historial previo", async 
     await assert.rejects(
       migrateInTransaction(client, installmentMonthlyReference.sha256),
     );
-    // Con dos migraciones pendientes, una autorización no aplica ninguna.
+    // Con varias migraciones pendientes, una autorización no aplica ninguna.
     await assert.rejects(migrateInTransaction(client, financialReset.sha256));
     await client.query(financialReset.sql);
     await client.query(
       "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
       [financialReset.version, financialReset.sha256],
     );
-    assert.deepEqual(
-      await migrateInTransaction(client, expenseInstallments.sha256),
-      [expenseInstallments.version],
+    await assert.rejects(
+      migrateInTransaction(client, expenseInstallments.sha256),
+    );
+    await client.query(expenseInstallments.sql);
+    await client.query(
+      "INSERT INTO finance_meta.schema_migrations(version,sha256) VALUES ($1,$2)",
+      [expenseInstallments.version, expenseInstallments.sha256],
     );
     assert.deepEqual(
-      await migrateInTransaction(client, expenseInstallments.sha256),
+      await migrateInTransaction(client, sharedPaymentMethod.sha256),
+      [sharedPaymentMethod.version],
+    );
+    assert.deepEqual(
+      await migrateInTransaction(client, sharedPaymentMethod.sha256),
       [],
     );
     await setOwnerContext(client, "legacy-fixture");
