@@ -133,22 +133,13 @@ test("FIX-FX: referencia de la cuota compartida y mes futuro estimado", async ({
       amount: "5000",
       categoryId,
     });
-    const card = await create("cards", {
-      action: "create",
-      kind: "credit",
-      name: "Tarjeta sintética FIX-FX",
-      issuer: null,
-      currencies: [{ currency: "EUR", limit: null }],
-    });
-    await create("cards/operations", {
-      action: "purchase",
-      cardId: card.id,
+    // SIMP-03: la compra en cuotas es un gasto con plan, sin tarjeta.
+    await create("movements", {
+      kind: "expense",
       currency: "EUR",
-      amount: "600",
       categoryId,
       concept: "Compra sintética FIX-FX",
       effectiveOn: today,
-      covered: false,
       plan: { installmentAmount: "100", count: 6, firstPeriod: month },
     });
 

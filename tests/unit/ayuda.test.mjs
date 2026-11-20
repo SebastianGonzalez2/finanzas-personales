@@ -14,18 +14,12 @@ test("F6-06: la ayuda cubre los temas previstos con contenido único", () => {
   assert.equal(new Set(titles).size, titles.length);
   for (const expected of [
     "primeros-pasos",
-    "bancos",
-    "movimientos",
-    "tarjetas",
+    "gastos",
     "cuotas",
     "presupuestos",
-    "fondos",
-    "prestamos",
     "recurrentes",
     "categorias",
     "estadisticas",
-    "devoluciones",
-    "beneficios",
     "correcciones",
     "copias",
     "cuenta",
@@ -37,6 +31,9 @@ test("F6-06: la ayuda cubre los temas previstos con contenido único", () => {
   );
   assert.ok(questions.length >= 30);
   assert.equal(new Set(questions).size, questions.length);
+  // SIMP-03: la ayuda ya no describe los módulos retirados.
+  for (const removed of ["bancos", "tarjetas", "fondos", "prestamos"])
+    assert.ok(!ids.includes(removed), `Tema retirado: ${removed}`);
   for (const group of ayudaGroups) {
     assert.ok(group.entries.length > 0, `Tema vacío: ${group.id}`);
     for (const entry of group.entries) {
@@ -71,33 +68,32 @@ test("F6-06: la consulta filtra preguntas y respuestas por tema", () => {
       group.entries.some((entry) => entry.question.includes("cuotas")),
     ),
   );
-  const saldos = filterAyudaGroups("saldo inicial", ayudaGroups);
+  const recibos = filterAyudaGroups("recibo", ayudaGroups);
   assert.ok(
-    saldos.some((group) =>
+    recibos.some((group) =>
       group.entries.some((entry) =>
-        `${entry.question} ${entry.answer}`
-          .toLowerCase()
-          .includes("saldo inicial"),
+        `${entry.question} ${entry.answer}`.toLowerCase().includes("recibo"),
       ),
     ),
   );
 });
 
 test("F6-06: la consulta sin tildes encuentra respuestas con tildes", () => {
-  const devolucion = filterAyudaGroups("devolucion", ayudaGroups);
-  assert.ok(devolucion.length > 0);
-  assert.ok(devolucion.some((group) => group.id === "devoluciones"));
+  const categorias = filterAyudaGroups("categorias", ayudaGroups);
+  assert.ok(categorias.length > 0);
+  assert.ok(categorias.some((group) => group.id === "categorias"));
 });
 
 test("F6-06: los términos se combinan y las consultas sin resultados quedan vacías", () => {
-  const combinada = filterAyudaGroups("préstamo capital", ayudaGroups);
+  const combinada = filterAyudaGroups("presupuesto límite", ayudaGroups);
+  assert.ok(combinada.length > 0);
   assert.ok(
     combinada.every((group) =>
       group.entries.every((entry) => {
         const haystack = normalizeAyudaText(
           `${group.title} ${entry.question} ${entry.answer}`,
         );
-        return ["prestamo", "capital"].every((token) =>
+        return ["presupuesto", "limite"].every((token) =>
           haystack.includes(token),
         );
       }),

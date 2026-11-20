@@ -65,8 +65,8 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
   });
 
   const data = {
-    kind: "income",
-    concept: "Ingreso sintético",
+    kind: "expense",
+    concept: "Gasto sintético ajeno",
     currency: "USD",
     firstPeriod: today,
     frequency: "weekly",
@@ -105,8 +105,8 @@ test("F4-01: el primer período futuro se guarda sin pendientes y es privado", a
     const foreignList = foreign.getByRole("list", {
       name: "Recurrencias guardadas",
     });
-    await expect(foreignList).toContainText("Ingreso sintético");
-    await expect(foreignList).toContainText("Sin cobro confirmado");
+    await expect(foreignList).toContainText("Gasto sintético ajeno");
+    await expect(foreignList).toContainText("Sin pago confirmado");
     await expect(foreignList).not.toContainText(/Seguro sintético|Vence el/);
   } finally {
     await other.close();

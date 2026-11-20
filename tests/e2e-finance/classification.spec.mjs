@@ -34,7 +34,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
     await page.goto("/resumen");
     await page
       .getByRole("banner")
-      .getByRole("link", { name: "Registrar movimiento" })
+      .getByRole("link", { name: "Registrar gasto" })
       .click();
     await page
       .getByRole("textbox", { name: /^Importe Sin separador/ })
@@ -61,7 +61,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
       fullPage: true,
     });
     await page.getByLabel("Importe 2").fill("124,9998");
-    await page.getByRole("button", { name: "Guardar movimiento" }).click();
+    await page.getByRole("button", { name: "Guardar gasto" }).click();
     await expect(
       page.getByRole("alert").filter({ hasText: /suma debe coincidir/ }),
     ).toBeVisible();
@@ -69,7 +69,7 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
     const pending = page.waitForResponse((response) =>
       response.url().endsWith("/api/movements"),
     );
-    await page.getByRole("button", { name: "Guardar movimiento" }).click();
+    await page.getByRole("button", { name: "Guardar gasto" }).click();
     const response = await pending;
     expect(response.status()).toBe(201);
     const { id } = await response.json();

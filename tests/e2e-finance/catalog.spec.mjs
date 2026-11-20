@@ -80,7 +80,7 @@ test("F5-03: autocompletar, unificar y consultar las compras de un comercio", as
     await page.goto("/resumen");
     await page
       .getByRole("banner")
-      .getByRole("link", { name: "Registrar movimiento" })
+      .getByRole("link", { name: "Registrar gasto" })
       .click();
     const merchant = page.getByRole("combobox", {
       name: "Comercio (opcional)",

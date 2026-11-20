@@ -30,9 +30,9 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await page.goto("/resumen");
   await page
     .getByRole("banner")
-    .getByRole("link", { name: "Registrar movimiento" })
+    .getByRole("link", { name: "Registrar gasto" })
     .click();
-  const form = page.getByRole("form", { name: "Nueva transacción" });
+  const form = page.getByRole("form", { name: "Nuevo gasto" });
   await form.getByLabel("Importe").fill("25,1234");
   await form.getByLabel("Fecha").fill("03/02/2025");
   await form.getByLabel("Concepto").fill("Consulta sintética");
@@ -49,16 +49,13 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await expect(
     form.getByRole("combobox", { name: "Moneda", exact: true }),
   ).toHaveValue("UYU");
-  await expect(
-    page.getByRole("list", { name: "Saldos bancarios por moneda" }),
-  ).toContainText("1.000,00 UYU");
 
   const saved = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/movements") &&
       response.request().method() === "POST",
   );
-  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  await form.getByRole("button", { name: "Guardar gasto" }).click();
   const response = await saved;
   expect(response.status()).toBe(201);
   const { id: eventId } = await response.json();
@@ -94,7 +91,7 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
   await page.goto("/resumen");
   await page
     .getByRole("banner")
-    .getByRole("link", { name: "Registrar movimiento" })
+    .getByRole("link", { name: "Registrar gasto" })
     .click();
   await expect(category.locator(`option[value="${id}"]`)).toHaveCount(0);
 

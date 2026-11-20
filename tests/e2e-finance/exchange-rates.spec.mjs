@@ -138,7 +138,7 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     });
     await expect(categories).toContainText("15,00 USD");
     const flow = page.getByRole("region", {
-      name: "Flujo de los últimos seis meses",
+      name: "Evolución de los últimos seis meses",
     });
     await flow.getByText("Ver como tabla", { exact: true }).click();
     await expect(flow.getByRole("row").last()).toContainText("15,00 USD");
@@ -156,13 +156,6 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
     await expect(
       selector.getByRole("button", { name: "USD", pressed: false }),
     ).toBeVisible();
-    await page
-      .getByRole("tablist", { name: "Moneda del saldo" })
-      .getByRole("tab", { name: "EUR" })
-      .click();
-    await expect(page.getByRole("tabpanel", { name: "EUR" })).toContainText(
-      "Saldo bancario 90,00 EUR",
-    );
     await expect(categories).toContainText("10,00 EUR");
     await page.screenshot({ path: testInfo.outputPath("resumen-moneda.png") });
 

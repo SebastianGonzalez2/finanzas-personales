@@ -85,60 +85,33 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
       VALUES ($1,$2,NULL,'expense','Compras sintéticas'), ($1,$3,$2,'expense','Equipamiento sintético')`,
       [owners.a, root, child],
     );
-    await created("bank-balances", {
+    // SIMP-03: la aplicación es solo de gastos; sin saldos, tarjetas ni devoluciones.
+    const { id: purchaseId } = await created("movements", {
+      kind: "expense",
       currency: "UYU",
-      amount: "1000",
-      asOfDate: `${previous}-01`,
-    });
-    const { id: cardId } = await created("cards", {
-      action: "create",
-      kind: "credit",
-      name: "Crédito sintético",
-      currencies: [{ currency: "UYU", limit: null }],
-      idempotencyKey: randomUUID(),
-    });
-    const { id: purchaseId } = await created("cards/operations", {
-      action: "purchase",
-      cardId,
-      currency: "UYU",
-      amount: "200.0002",
+      amount: "100",
+      effectiveOn: today,
       categoryId: child,
       concept,
-      covered: false,
-      effectiveOn: `${previous}-02`,
       idempotencyKey: randomUUID(),
-      plan: { installmentAmount: "100.0001", count: 2, firstPeriod: previous },
     });
-    await created("cards/operations", {
-      action: "payment",
-      cardId,
-      effectiveOn: today,
-      idempotencyKey: randomUUID(),
-      lines: [
-        {
-          currency: "UYU",
-          amount: "60",
-          bankCurrency: "UYU",
-          bankAmount: "60",
-        },
-      ],
-    });
-    const { id: debitPurchaseId } = await created("movements", {
+    await created("movements", {
       kind: "expense",
-      method: "debit",
+      currency: "UYU",
+      amount: "100",
+      effectiveOn: `${previous}-02`,
+      categoryId: child,
+      concept: "Compra anterior",
+      idempotencyKey: randomUUID(),
+    });
+    await created("movements", {
+      kind: "expense",
       currency: "UYU",
       amount: "40",
       effectiveOn: `${previous}-02`,
       categoryId: child,
       concept: "Compra de otro mes",
       idempotencyKey: randomUUID(),
-    });
-    await created("refunds", {
-      action: "credit",
-      purchaseId: debitPurchaseId,
-      effectiveOn: today,
-      idempotencyKey: randomUUID(),
-      parts: [{ method: "debit", categoryId: child, amount: "15" }],
     });
 
     await page.goto(
@@ -151,29 +124,8 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     await expect(metrics.getByRole("row", { name: /^Gastos/ })).toContainText(
       "140,00 UYU",
     );
-    await expect(
-      metrics.getByRole("row", { name: /^Devoluciones/ }),
-    ).toContainText("15,00 UYU");
     await expect(page.getByText(/Muestra insuficiente/)).toBeVisible();
     await expect(page.getByText(/Marcá con una estrella/)).toBeVisible();
-    const positions = page.getByRole("table", {
-      name: "Saldos y patrimonio por fecha",
-    });
-    const current = positions.getByRole("row", { name: /Período elegido/ });
-    await expect(current).toContainText("915,00 UYU");
-    await expect(current).toContainText("140,00 UYU");
-    await expect(current).toContainText("775,00 UYU");
-    await expect(
-      positions.getByRole("row", { name: /Comparación/ }),
-    ).toContainText("760,00 UYU");
-    await page
-      .getByText("Ver evolución de saldos y patrimonio", { exact: true })
-      .click();
-    await expect(
-      page
-        .locator("figcaption")
-        .filter({ hasText: "Patrimonio registrado · UYU" }),
-    ).toBeVisible();
     // Sin desborde horizontal; si falla, lista los elementos que se salen.
     expect(
       await page.evaluate(() => {
@@ -223,17 +175,8 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
       "href",
       `/historial/movimientos/${purchaseId}#titulo-pagina`,
     );
-    const cardFilter = page.getByRole("combobox", {
-      name: "Tarjeta",
-      exact: true,
-    });
-    await cardFilter.selectOption({ label: "Crédito sintético" });
-    await expect(cardFilter).toHaveValue(cardId);
-    await page.getByRole("button", { name: "Aplicar filtros" }).click();
-    await expect(page).toHaveURL(new RegExp(`card=${cardId}`));
-    await expect(entry).toBeVisible();
     const unknownTag = randomUUID();
-    await page.goto(`/estadisticas?tag=${unknownTag}&card=${cardId}`);
+    await page.goto(`/estadisticas?tag=${unknownTag}`);
     await page.getByText(/Filtrar por etiquetas/).click();
     await expect(
       page.getByRole("checkbox", { name: "Etiqueta no disponible" }),
@@ -306,20 +249,18 @@ test("F5-05: partidas exactas, histórico y favoritos privados entre sesiones", 
     ).toHaveCount(0);
     await saved.goto("/resumen");
     await expect(
-      saved.getByRole("list", { name: "Gastos del mes" }),
-    ).toHaveText("100,00 UYU");
+      saved.getByRole("region", { name: "Gastos del mes" }),
+    ).toContainText("100,00");
     await expect(
       saved.getByRole("link", { name: "Mis favoritos" }),
     ).toHaveCount(0);
     await saved.goto("/estadisticas");
     const isolated = await other.newPage();
-    await isolated.goto(
-      `/estadisticas?category=${child}&card=${cardId}&view=favoritos`,
-    );
+    await isolated.goto(`/estadisticas?category=${child}&view=favoritos`);
     await expect(
       isolated.getByText(/Todavía no elegiste estadísticas favoritas/),
     ).toBeVisible();
-    await isolated.goto(`/estadisticas?category=${child}&card=${cardId}`);
+    await isolated.goto(`/estadisticas?category=${child}`);
     await expect(isolated.getByText(concept, { exact: true })).toHaveCount(0);
     await expect(
       isolated.getByRole("link", { name: "Todas las estadísticas" }),

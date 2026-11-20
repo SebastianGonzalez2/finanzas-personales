@@ -24,12 +24,8 @@ const screens = [
   "/recurrentes",
   "/presupuestos",
   "/categorias",
-  "/tarjetas",
   "/catalogo",
-  "/fondos",
   "/avisos",
-  "/deudas",
-  "/beneficios",
   "/informes",
   "/account",
   "/ayuda",
@@ -106,8 +102,8 @@ test("CA-066: navegación de escritorio con nombre, foco visible y salto al tít
   await page.keyboard.press("Enter");
   await expect(page.getByRole("main")).toBeFocused();
   const nav = page.getByRole("navigation", { name: "Navegación principal" });
-  // UI-02: riel agrupado (General / Planificación / Crédito / Catálogos y,
-  // abajo, Avisos, Ayuda y Mi cuenta). Se verifican todos los destinos en orden.
+  // SIMP-03: riel agrupado (General / Control / Organización y, abajo, Avisos,
+  // Ayuda y Mi cuenta). Se verifican todos los destinos en orden.
   await expect(nav.getByRole("link")).toHaveText([
     "Resumen",
     "Historial",
@@ -115,17 +111,14 @@ test("CA-066: navegación de escritorio con nombre, foco visible y salto al tít
     "Informes",
     "Presupuestos",
     "Recurrentes",
-    "Fondos de ahorro",
-    "Tarjetas",
-    "Deudas y préstamos",
-    "Beneficios bancarios",
     "Categorías",
+    "Etiquetas",
     "Comercios y contactos",
     "Avisos",
     "Ayuda",
     "Mi cuenta",
   ]);
-  for (const group of ["General", "Planificación", "Crédito", "Catálogos"])
+  for (const group of ["General", "Control", "Organización"])
     await expect(nav.getByText(group, { exact: true })).toBeAttached();
   await expect(nav.getByRole("link", { name: "Resumen" })).toHaveAttribute(
     "aria-current",
@@ -161,19 +154,9 @@ for (const width of [360, 768, 1440]) {
       });
     expect(
       (
-        await send("/api/bank-balances", {
-          currency: "UYU",
-          amount: "1234567.89",
-          asOfDate: today,
-        })
-      ).status(),
-    ).toBe(201);
-    expect(
-      (
         await send("/api/movements", {
           kind: "expense",
           currency: "UYU",
-          method: "debit",
           amount: "987654.32",
           effectiveOn: today,
           concept: "ConceptoSinteticoMuyLargoSinEspacios".repeat(2),
@@ -290,130 +273,6 @@ for (const width of [360, 768, 1440]) {
   });
 }
 
-test("QA-D01: el pago de Tarjetas se puede recorrer entero con Tab sin que la barra tape el foco", async ({
-  page,
-  fixtures,
-}, info) => {
-  void fixtures;
-  const today = bankReferenceToday();
-  const create = async (path, data) => {
-    const response = await page.request.post(`/api/${path}`, {
-      data,
-      headers: { origin: financeTestOrigin },
-    });
-    expect(response.status(), await response.text()).toBe(201);
-    return response.json();
-  };
-  await create("bank-balances", {
-    currency: "UYU",
-    amount: "10000",
-    asOfDate: today,
-  });
-  const card = await create("cards", {
-    action: "create",
-    kind: "credit",
-    name: "Tarjeta sintética de teclado",
-    currencies: [{ currency: "UYU" }, { currency: "USD" }],
-    idempotencyKey: randomUUID(),
-  });
-  await create("cards/operations", {
-    action: "purchase",
-    cardId: card.id,
-    currency: "UYU",
-    concept: "Compra sintética de teclado",
-    effectiveOn: today,
-    amount: "4000",
-    covered: false,
-    idempotencyKey: randomUUID(),
-  });
-
-  const widths =
-    info.project.name === "chromium-mobile"
-      ? [
-          [375, 667],
-          [390, 844],
-          [360, 640],
-        ]
-      : [[1440, 900]];
-  for (const [width, height] of widths) {
-    await page.setViewportSize({ width, height });
-    await page.goto(
-      `/tarjetas/${card.id}/resumen?ciclo=${today.slice(0, 7)}&accion=pago`,
-    );
-    await page.evaluate(() => document.fonts.ready);
-    const heading = page.getByRole("heading", {
-      name: "Registrar pago · Tarjeta sintética de teclado",
-    });
-    const date = page.getByRole("textbox", { name: "Fecha", exact: true });
-    const debt = page.getByRole("checkbox", { name: /Abonar deuda en UYU/ });
-    const submit = page.getByRole("button", {
-      name: "Registrar pago",
-      exact: true,
-    });
-    const expectExposedFocus = () =>
-      expect
-        .poll(() =>
-          page.evaluate(() => {
-            const el = document.activeElement;
-            const rect = el.getBoundingClientRect();
-            const dock = document.querySelector(".finance-dock");
-            const lowerEdge = dock.getClientRects().length
-              ? dock.getBoundingClientRect().top
-              : window.innerHeight;
-            const hit = document.elementFromPoint(
-              (rect.left + rect.right) / 2,
-              (rect.top + rect.bottom) / 2,
-            );
-            return (
-              rect.top >= 0 && rect.bottom <= lowerEdge && el.contains(hit)
-            );
-          }),
-        )
-        .toBe(true);
-
-    async function tabTo(control, maxSteps) {
-      for (let step = 0; step < maxSteps; step += 1) {
-        await page.keyboard.press("Tab");
-        await expectExposedFocus();
-        if (await control.evaluate((el) => el === document.activeElement))
-          return;
-      }
-      await expect(control).toBeFocused();
-    }
-
-    await expect(heading).toBeFocused();
-    await tabTo(date, 1);
-    // El control nativo de fecha puede tener varias paradas de Tab.
-    await tabTo(debt, 6);
-    await tabTo(submit, 1);
-    expect(
-      await submit.evaluate((el) => window.getComputedStyle(el).outlineStyle),
-    ).toBe("solid");
-    if (width === 375 || width === 1440)
-      await page.screenshot({
-        path: info.outputPath(`pago-teclado-${width}.png`),
-        animations: "disabled",
-      });
-
-    await page.keyboard.press("Shift+Tab");
-    await expect(debt).toBeFocused();
-    await page.keyboard.press("Space");
-    await expect(debt).toBeChecked();
-    const amount = page.getByRole("textbox", {
-      name: "Deuda cancelada en UYU",
-    });
-    await page.keyboard.press("Tab");
-    await expect(amount).toBeFocused();
-    await expectExposedFocus();
-    await page.keyboard.press("Tab");
-    await expect(
-      page.getByRole("combobox", { name: /Saldo bancario para deuda/ }),
-    ).toBeFocused();
-    await expectExposedFocus();
-    await tabTo(submit, 12);
-  }
-});
-
 test("CA-065/066: validación nativa marca el campo y, sin conexión, no se informa éxito ni se pierde el formulario", async ({
   page,
   fixtures,
@@ -430,17 +289,17 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   await page.goto("/resumen");
   const open = page
     .getByRole("banner")
-    .getByRole("link", { name: "Registrar movimiento" });
-  const form = page.getByRole("form", { name: "Nueva transacción" });
+    .getByRole("link", { name: "Registrar gasto" });
+  const form = page.getByRole("form", { name: "Nuevo gasto" });
   await open.focus();
   await open.press("Enter");
   await expect(
-    page.getByRole("heading", { name: "Nueva transacción" }),
+    page.getByRole("heading", { name: "Nuevo gasto" }),
   ).toBeFocused();
 
   // Importe vacío: el navegador rechaza el envío y el control queda marcado.
   const amount = form.getByLabel("Importe");
-  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  await form.getByRole("button", { name: "Guardar gasto" }).click();
   await expect(amount).toHaveAttribute("aria-invalid", "true");
   await amount.fill("500");
   await expect(amount).not.toHaveAttribute("aria-invalid", "true");
@@ -451,7 +310,7 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   const context = page.context();
   await context.setOffline(true);
   try {
-    await form.getByRole("button", { name: "Guardar movimiento" }).click();
+    await form.getByRole("button", { name: "Guardar gasto" }).click();
     const alert = form.getByRole("alert");
     await expect(alert).toContainText("Sin conexión");
     await expect(alert).toContainText("Tus datos siguen en el formulario");
@@ -484,7 +343,6 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   await form.getByRole("button", { name: "Reintentar guardado" }).click();
   expect((await submitted).status()).toBe(201);
   await expect(page.getByText("Gasto registrado.")).toBeVisible();
-  await expect(page.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
 });
 
 test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimiento ya confirmado sin duplicarlo", async ({
@@ -508,9 +366,9 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
   await page.goto("/resumen");
   await page
     .getByRole("banner")
-    .getByRole("link", { name: "Registrar movimiento" })
+    .getByRole("link", { name: "Registrar gasto" })
     .click();
-  const form = page.getByRole("form", { name: "Nueva transacción" });
+  const form = page.getByRole("form", { name: "Nuevo gasto" });
   const amount = form.getByLabel("Importe");
   await amount.fill("500");
   await form.getByLabel("Concepto", { exact: true }).fill(concept);
@@ -546,7 +404,7 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
   const failed = page.waitForEvent("requestfailed", (request) =>
     request.url().endsWith("/api/movements"),
   );
-  await form.getByRole("button", { name: "Guardar movimiento" }).click();
+  await form.getByRole("button", { name: "Guardar gasto" }).click();
   expect((await failed).failure()?.errorText).toBe("net::ERR_CONNECTION_RESET");
   expect(committed?.status).toBe(201);
   expect(await page.evaluate(() => navigator.onLine)).toBe(true);
@@ -554,7 +412,6 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
     "No pudimos confirmar el guardado",
   );
   await expect(page.getByText("Gasto registrado.")).toHaveCount(0);
-  await expect(page.getByText("Saldo bancario 10.000,00 UYU")).toBeVisible();
   await expect(amount).toHaveValue("500");
   await expect(amount).toBeDisabled();
   expect(refreshes).toBe(0);
@@ -567,7 +424,6 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
     await observer.addCookies([fixtures.cookies.a2]);
     const check = await observer.newPage();
     await check.goto("/resumen");
-    await expect(check.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
     await check.goto(history);
     const entries = check.getByRole("link", { name: new RegExp(concept) });
     await expect(entries).toHaveCount(1);
@@ -591,7 +447,6 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
     expect(response.request().postData()).toBe(originalBody);
     expect(await response.json()).toEqual(committed.body);
     await expect(page.getByText("Gasto registrado.")).toBeVisible();
-    await expect(page.getByText("Saldo bancario 9.500,00 UYU")).toBeVisible();
     await check.reload();
     await expect(entries).toHaveCount(1);
     // Tras la confirmación, la recarga vuelve a funcionar sin advertencia.

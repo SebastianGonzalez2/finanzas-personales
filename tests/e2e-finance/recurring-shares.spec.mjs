@@ -16,7 +16,7 @@ async function openCreator(page) {
     await creator.locator("summary").click();
 }
 
-test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
+test("CA-048: pagar un alquiler compartido con reparto habitual", async ({
   page,
   context,
 }, testInfo) => {
@@ -62,9 +62,6 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await expect(past).toContainText("Sin pago confirmado");
   await expect(current).toContainText("Sin pago confirmado");
   await expect(series).toContainText("Ana de prueba · 50 %");
-  await page.goto("/deudas");
-  await expect(page.getByText("Ana de prueba", { exact: true })).toHaveCount(0);
-  await page.goto("/recurrentes");
 
   await past
     .getByRole("button", { name: "Registrar pago", exact: true })
@@ -90,34 +87,7 @@ test("CA-048: pagar alquiler compartido y cobrar una parte más tarde", async ({
   await past.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect(past.getByText("Pagado", { exact: true })).toBeVisible();
   await expect(current).toContainText("Sin pago confirmado");
-  await past.getByRole("link", { name: /Ver reparto y cobros/ }).click();
-  await expect(page.getByText("Gasto propio · 10.000,00 UYU")).toBeVisible();
-  await expect(
-    page.getByText("Salida registrada en Bancos · 20.000,00 UYU"),
-  ).toBeVisible();
-  await page
-    .getByRole("link", { name: /registrar cobro · Ana de prueba/ })
-    .click();
-  await page.getByLabel("Importe cobrado en Bancos (UYU)").fill("3000");
-  await page.getByRole("button", { name: "Confirmar cobro" }).click();
-  await expect(page.getByText("7.000,00 UYU", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Ver gasto de origen" }).click();
-  await expect(page.getByText("Pendiente · 7.000,00 UYU")).toBeVisible();
-
-  await page.getByText("Corregir reparto del pago", { exact: true }).click();
-  const correction = page.getByRole("form", {
-    name: "Corregir reparto del pago",
-  });
-  await correction.getByLabel("Tu parte del pago").fill("12000");
-  await correction.getByLabel(/Parte de Ana de prueba/).fill("8000");
-  await correction
-    .getByRole("button", { name: "Guardar corrección del reparto" })
-    .click();
-  await expect(page.getByText("Gasto propio · 12.000,00 UYU")).toBeVisible();
-  await expect(page.getByText("Pendiente · 5.000,00 UYU")).toBeVisible();
-  await expect(page.getByText(/Reparto corregido/)).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath("F4-04-cobro-parcial.png"),
-    fullPage: true,
-  });
+  // SIMP-03: el cobro de las partes ajenas (Bancos / Deudas) ya no está en la
+  // interfaz; la serie compartida conserva su reparto en Recurrentes.
+  await expect(series).toContainText("Ana de prueba · 50 %");
 });
