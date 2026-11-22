@@ -18,7 +18,6 @@ import {
   type StatisticsSnapshot,
   type StatisticsTotal,
 } from "../domain/statistics.ts";
-import { listStatisticsPositions } from "./statistics-positions.ts";
 import {
   type HistoricalFxKey,
   pendingHistoricalDates,
@@ -26,7 +25,6 @@ import {
   prepareHistoricalQuotes,
 } from "./exchange-rates.ts";
 import { monthlyInstallmentFxReady } from "./installments.ts";
-import { consolidatePositions, positionKeys } from "./statistics-fx.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
 
@@ -86,33 +84,8 @@ WITH expense_rows AS (
       ON (f.owner_id, f.id) = (o.owner_id, o.event_id)
    WHERE o.owner_id = $1 AND o.expense > 0 AND f.status = 'confirmed'
 ),
-income_rows AS (
-  SELECT f.id AS event_id, e.currency, e.amount_signed AS amount,
-         m.category_id, f.effective_on, m.method, NULL::uuid AS card_id, false AS mixed,
-         NULL::integer AS installment_ordinal
-    FROM finance.financial_events f
-    JOIN finance.ordinary_movements m
-      ON (m.owner_id, m.event_id) = (f.owner_id, f.id)
-    JOIN finance.bank_effects e
-      ON (e.owner_id, e.event_id, e.id) = (f.owner_id, f.id, f.id)
-   WHERE f.kind = 'income' AND f.status = 'confirmed' AND f.owner_id = $1
-  ${
-    schema.benefits
-      ? `UNION ALL
-  SELECT b.event_id, b.currency, b.amount, NULL::uuid, f.effective_on,
-         CASE b.destination WHEN 'card' THEN 'credit' ELSE 'deposit' END,
-         b.card_id, false, NULL
-    FROM finance.bank_benefits b
-    JOIN finance.financial_events f
-      ON (f.owner_id, f.id) = (b.owner_id, b.event_id)
-   WHERE b.owner_id = $1 AND f.status = 'confirmed'`
-      : ""
-  }
-),
 base_rows AS (
   SELECT 'expense'::text AS kind, * FROM expense_rows
-  UNION ALL
-  SELECT 'income'::text, * FROM income_rows
 ),
 rows AS (
   ${
@@ -126,20 +99,6 @@ rows AS (
       : "SELECT * FROM base_rows"
   }
 ),
-refund_rows AS (
-  SELECT 'refund'::text AS kind, r.event_id, r.currency, p.amount,
-         p.category_id, f.effective_on, p.method,
-         CASE WHEN p.method = 'credit' THEN o.card_id ELSE m.debit_card_id END AS card_id,
-         m.event_id IS NOT NULL AS mixed, NULL::integer AS installment_ordinal
-    FROM finance.purchase_refunds r
-    JOIN finance.financial_events f
-      ON (f.owner_id, f.id) = (r.owner_id, r.event_id)
-    JOIN finance.refund_parts p
-      ON (p.owner_id, p.event_id) = (r.owner_id, r.event_id)
-    LEFT JOIN finance.credit_operations o ON (o.owner_id, o.event_id) = (r.owner_id, r.purchase_id)
-    LEFT JOIN finance.mixed_purchases m ON (m.owner_id, m.event_id) = (r.owner_id, r.purchase_id)
-   WHERE r.owner_id = $1 AND r.action = 'credit' AND f.status = 'confirmed'
-),
 category_scope AS (
   SELECT id FROM finance.categories
    WHERE owner_id = $1 AND (id::text = $5 OR parent_id::text = $5)
@@ -151,7 +110,7 @@ filtered_rows AS (
     WHERE (r.owner_id, r.event_id) = ($1, x.event_id))`
       : "NULL::boolean"
   } AS recurring
-    FROM (SELECT * FROM rows UNION ALL SELECT * FROM refund_rows) x
+    FROM rows x
    WHERE x.effective_on BETWEEN $2::date AND $3::date
      AND ($4::text IS NULL OR x.currency = $4)
      AND ($6::text IS NULL OR ($6 = 'mixed' AND x.mixed) OR x.method = $6)
@@ -280,31 +239,22 @@ async function statisticsFxKeys(
     filters,
     target,
   );
-  const positions = await listStatisticsPositions(
-    client,
-    ownerId,
-    history,
-    previous,
-    range,
-    filters.currency,
-  );
-  const annualFlows =
-    annualRange && filters.kind !== "income"
-      ? await flowKeys(
-          client,
-          ownerId,
-          source,
-          annualRange,
-          null,
-          null,
-          {
-            ...filters,
-            kind: "expense",
-          },
-          target,
-        )
-      : [];
-  return [...flows, ...positionKeys(positions), ...annualFlows];
+  const annualFlows = annualRange
+    ? await flowKeys(
+        client,
+        ownerId,
+        source,
+        annualRange,
+        null,
+        null,
+        {
+          ...filters,
+          kind: "expense",
+        },
+        target,
+      )
+    : [];
+  return [...flows, ...annualFlows];
 }
 
 export async function prepareStatisticsFx(
@@ -484,39 +434,29 @@ export async function statisticsReady(client: pg.PoolClient) {
     credit: boolean;
     mixed: boolean;
     loans: boolean;
-    refunds: boolean;
     favorites: boolean;
     allocations: boolean;
     tags: boolean;
     recurrences: boolean;
-    benefits: boolean;
     expenseInstallments: boolean;
   }>(
     `SELECT to_regclass('finance.current_shared_expenses') IS NOT NULL AS shared,
             to_regclass('finance.credit_consumption') IS NOT NULL AS credit,
             to_regclass('finance.mixed_purchase_expenses') IS NOT NULL AS mixed,
             to_regclass('finance.loan_operations') IS NOT NULL AS loans,
-            to_regclass('finance.purchase_refunds') IS NOT NULL AS refunds,
             to_regclass('finance.statistics_favorites') IS NOT NULL AS favorites,
             to_regclass('finance.current_movement_allocations') IS NOT NULL AS allocations,
             (to_regclass('finance.tags') IS NOT NULL AND
              to_regclass('finance.current_event_tags') IS NOT NULL) AS tags,
             to_regclass('finance.recurring_event_lineage') IS NOT NULL AS recurrences,
-            to_regclass('finance.bank_benefits') IS NOT NULL AS benefits,
             to_regclass('finance.expense_installments') IS NOT NULL AS "expenseInstallments"`,
   );
   return {
-    ready:
-      state.shared &&
-      state.credit &&
-      state.mixed &&
-      state.loans &&
-      state.refunds,
+    ready: state.shared && state.credit && state.mixed && state.loans,
     favorites: state.favorites,
     allocations: state.allocations,
     tags: state.tags,
     recurrences: state.recurrences,
-    benefits: state.benefits,
     expenseInstallments: state.expenseInstallments,
   };
 }
@@ -584,7 +524,7 @@ async function categories(
            AND ($5::text IS NULL OR source.parent_id::text = $5)
        ) group_category
        LEFT JOIN finance.categories c ON (c.owner_id, c.id) = ($1, group_category.id)
-      WHERE x.kind <> 'refund'
+     
       GROUP BY x.kind, x.currency, group_category.id, c.parent_id, c.name
       ORDER BY x.kind, x.currency, sum(x.amount) DESC, c.name NULLS LAST, group_category.id`,
     params,
@@ -596,7 +536,7 @@ async function methods(client: pg.PoolClient, cte: string, params: unknown[]) {
   const { rows } = await client.query<StatisticsMethodTotal>(
     `${cte} SELECT kind, currency, method, round(sum(amount), 4)::text AS amount,
             count(DISTINCT event_id)::int AS count
-       FROM scoped WHERE kind <> 'refund'
+       FROM scoped
       GROUP BY kind, currency, method
       ORDER BY kind, currency, sum(amount) DESC, method`,
     params,
@@ -645,7 +585,7 @@ async function entries(
     `${cte} SELECT f.id, x.kind, x.currency, to_char(x.effective_on, 'YYYY-MM-DD') AS date,
        CASE WHEN f.kind = 'card_payment' THEN 'Comisión bancaria'
             ELSE coalesce(s.concept, f.concept) END AS concept,
-       sum(x.amount)::text AS amount
+       sum(x.amount)::numeric(20,4)::text AS amount
        FROM scoped_source x
        JOIN finance.financial_events f ON (f.owner_id, f.id) = ($1, x.event_id)
        LEFT JOIN finance.current_shared_expenses s ON (s.owner_id, s.event_id) = ($1, x.event_id)
@@ -668,8 +608,6 @@ export async function loadStatisticsAnnual(
   schema: StatisticsSchema,
   target?: Currency,
 ): Promise<StatisticsAnnual> {
-  if (filters.kind === "income") return { series: [], hasEarlier: false };
-
   const source = statisticsCte(schema, false);
   const expenseFilters = { ...filters, kind: "expense" } as const;
   // Coverage uses all reportable rows under the payment, currency and tag
@@ -756,14 +694,6 @@ export async function loadStatistics(
   target?: Currency,
 ): Promise<StatisticsSnapshot> {
   const source = statisticsCte(schema);
-  const positions = await listStatisticsPositions(
-    client,
-    ownerId,
-    historyRange,
-    previous,
-    range,
-    filters.currency,
-  );
   const flowInputs = target
     ? await flowKeys(
         client,
@@ -776,21 +706,10 @@ export async function loadStatistics(
         target,
       )
     : [];
-  const positionInputs = target
-    ? positionKeys(positions).filter(({ base }) => base !== target)
-    : [];
   const quotes = target
-    ? await pinnedQuotes(
-        client,
-        ownerId,
-        [...flowInputs, ...positionInputs],
-        target,
-      )
+    ? await pinnedQuotes(client, ownerId, flowInputs, target)
     : new Map<string, FxQuote>();
   const missingFlows = flowInputs.filter((key) => !quotes.has(fxKey(key)));
-  const missingPositions = positionInputs.filter(
-    (key) => !quotes.has(fxKey(key)),
-  );
   const flowCurrency = missingFlows.length ? undefined : target;
   const cte = displayCte(source, flowCurrency);
   const currentParams = parameters(ownerId, range, filters, flowCurrency);
@@ -824,7 +743,6 @@ export async function loadStatistics(
     filters.category ||
     filters.kind ||
     filters.method ||
-    filters.card ||
     filters.tag ||
     filters.tags
       ? await entries(
@@ -837,7 +755,7 @@ export async function loadStatistics(
   const {
     rows: [sample],
   } = await client.query<{ count: number }>(
-    `${cte} SELECT count(DISTINCT event_id)::int AS count FROM scoped WHERE kind <> 'refund'`,
+    `${cte} SELECT count(DISTINCT event_id)::int AS count FROM scoped`,
     currentParams,
   );
   return {
@@ -851,10 +769,6 @@ export async function loadStatistics(
     methods: methodRows,
     previousMethods,
     months: monthRows,
-    positions:
-      target && !missingPositions.length
-        ? consolidatePositions(positions, quotes, target)
-        : positions,
     entries: entryRows.map((entry) => ({
       ...entry,
       quote: quotes.get(fxKey({ date: entry.date, base: entry.currency })),
@@ -864,7 +778,6 @@ export async function loadStatistics(
           target,
           quotes: [...quotes.values()],
           missingFlows,
-          missingPositions,
         }
       : undefined,
     hasNextPage,
@@ -879,17 +792,6 @@ export async function statisticsFavoritesReady(client: pg.PoolClient) {
     "SELECT to_regclass('finance.statistics_favorites') IS NOT NULL AS ready",
   );
   return state.ready;
-}
-
-export async function listStatisticsCards(
-  client: pg.PoolClient,
-  ownerId: string,
-) {
-  const { rows } = await client.query<{ id: string; name: string }>(
-    `SELECT id, name FROM finance.cards WHERE owner_id = $1 ORDER BY name, id`,
-    [ownerId],
-  );
-  return rows;
 }
 
 export async function listStatisticsFavorites(

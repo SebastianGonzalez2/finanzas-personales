@@ -10,8 +10,6 @@ import {
   type RecurrenceSchedule,
 } from "./recurrences.ts";
 
-import { parseUsualShares, type ShareInput } from "./recurring-shares.ts";
-
 export const recurrenceDateModes = ["none", "approximate", "exact"] as const;
 type DateMode = (typeof recurrenceDateModes)[number];
 
@@ -31,7 +29,6 @@ export type RecurrenceDefinition = {
 
 export type CreateRecurrence = RecurrenceDefinition & {
   idempotencyKey: string;
-  usualShares?: ShareInput[];
 };
 
 export function recurrenceSchedule(
@@ -59,7 +56,6 @@ const allowed = new Set([
   "dueDay",
   "endDate",
   "idempotencyKey",
-  "usualShares",
 ]);
 
 export function parseRecurrence(
@@ -86,11 +82,10 @@ export function parseRecurrence(
     dueDay = null,
     endDate = null,
     idempotencyKey,
-    usualShares,
   } = input as Record<string, unknown>;
 
   if (
-    (kind !== "income" && kind !== "expense") ||
+    kind !== "expense" ||
     typeof idempotencyKey !== "string" ||
     idempotencyKey.length !== 36 ||
     !movementUuid.test(idempotencyKey)
@@ -153,21 +148,7 @@ export function parseRecurrence(
     }
   }
 
-  let shares: ShareInput[] | undefined;
-  if (usualShares !== undefined) {
-    try {
-      if (kind !== "expense") throw new Error();
-      shares = parseUsualShares(usualShares);
-    } catch {
-      return {
-        error:
-          "Indicá personas y porcentajes positivos que en total no superen el 100 %.",
-      };
-    }
-  }
-
   return {
-    ...(shares && { usualShares: shares }),
     kind,
     concept: concept.trim(),
     categoryId: categoryId?.toLowerCase() ?? null,

@@ -104,19 +104,39 @@ test("F6-04 CA-062/063: recuperación controlada del dominio financiero completo
     // The rehearsal is only meaningful when most of the inventory has rows.
     const original = await dump(owners.a);
     const empty = tables.filter((table) => original[table].length === 0);
-    // Tables not exercised by the synthetic domain are listed explicitly, so
+    // SIMP-04: las tablas de módulos retirados ya no se escriben; solo se siembran
+    // tarjetas, saldos y beneficios heredados. Tables not exercised are listed explicitly, so
     // a new inventory table cannot silently skip the rehearsal.
     assert.deepEqual(empty, [
       "balance_adjustments",
+      "card_changes",
+      "credit_operations",
+      "credit_lines",
+      "credit_allocations",
+      "card_cycle_changes",
+      "mixed_purchases",
       "mixed_purchase_categories",
+      "shared_expenses",
+      "shared_expense_details",
+      "loans",
+      "loan_operations",
+      "purchase_refunds",
+      "refund_parts",
       "refund_installments",
+      "card_credit_changes",
+      "savings_funds",
+      "fund_changes",
+      "reserve_effects",
       "contribution_plans",
       "contribution_periods",
       "contribution_changes",
       "fund_event_allocations",
       "fund_payment_allocations",
+      "budget_rates",
       "budget_notices",
+      "people",
       "recurring_share_participants",
+      "loan_people",
       "name_catalog_changes",
       "bulk_classification_changes",
       "statistics_favorites",

@@ -1,6 +1,6 @@
 import type { Budget } from "./budgets.ts";
 
-// F3-07 (RF-032/038): avisos internos de presupuestos y metas de fondos.
+// F3-07 (RF-032/038): avisos internos de presupuestos.
 // Cálculo y mensajes compartidos por el servidor y la interfaz.
 
 const scale = BigInt(10000);

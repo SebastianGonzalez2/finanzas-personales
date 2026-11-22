@@ -22,15 +22,6 @@ test("F5-03: autocompletar, unificar y consultar las compras de un comercio", as
       headers: { origin: financeTestOrigin },
     });
   try {
-    expect(
-      (
-        await post("bank-balances", {
-          currency: "UYU",
-          amount: "100",
-          asOfDate: effectiveOn,
-        })
-      ).status(),
-    ).toBe(201);
     const spend = (merchantName, concept, amount) =>
       post("movements", {
         kind: "expense",

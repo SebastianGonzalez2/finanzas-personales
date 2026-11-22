@@ -6,36 +6,18 @@ import test from "node:test";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
 import { parseBudgetCommand } from "../../src/domain/budgets.ts";
-import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
-import { parseCycleCommand } from "../../src/domain/card-cycles.ts";
 import { parseMovement } from "../../src/domain/movements.ts";
-import { parseRefundCommand } from "../../src/domain/refunds.ts";
 import { REPORT_SECTIONS } from "../../src/lib/export/report-format.ts";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { saveBudget } from "../../src/server/budgets.ts";
-import { saveCardCycle } from "../../src/server/card-cycles.ts";
-import { saveCard } from "../../src/server/cards.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { saveMovement } from "../../src/server/movements.ts";
 import {
   loadPeriodReport,
   prepareReportBudgets,
   reportReferenceDates,
 } from "../../src/server/period-report.ts";
-import { saveRefund } from "../../src/server/refunds.ts";
 import { generateReport } from "../../src/server/report-files.ts";
-import { saveSavingsFund } from "../../src/server/savings-funds.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
-import {
-  cardCommand,
-  creditPayment,
-  creditPurchase,
-} from "../support/f2-10-fixtures.mjs";
 import {
   parseCsvReport,
   parseXlsxReport,
@@ -99,17 +81,11 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
     super: randomUUID(),
     home: randomUUID(),
     installments: randomUUID(),
-    salary: randomUUID(),
-    extraA: randomUUID(),
-    extraB: randomUUID(),
   };
   const names = {
     [cat.super]: "Supermercado QA",
     [cat.home]: "Hogar QA",
     [cat.installments]: "Cuotas QA",
-    [cat.salary]: "Sueldo QA",
-    [cat.extraA]: "Extra A QA",
-    [cat.extraB]: "Extra B QA",
   };
   const movement = (ownerId, input) =>
     run(
@@ -141,20 +117,6 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       concept,
       ...extra,
     });
-  const income = (concept, amount, date, extra = {}) =>
-    movement(owner, {
-      kind: "income",
-      method: "deposit",
-      currency: "UYU",
-      amount,
-      effectiveOn: d(date),
-      concept,
-      ...extra,
-    });
-  const operation = (command) =>
-    run((c, id) =>
-      saveCreditOperation(c, id, ok(parseCreditCommand(command, today))),
-    );
   // Mismos pasos que POST /api/export: referencias pendientes, captura de las
   // cotizaciones históricas (las proveedoras ya están vigentes en la prueba) y
   // lectura del informe.
@@ -192,18 +154,11 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
         [base, date, value],
       );
 
-    const { cardA, cardB } = await run(async (c, id) => {
-      for (const [categoryId, kind] of [
-        [cat.super, "expense"],
-        [cat.home, "expense"],
-        [cat.installments, "expense"],
-        [cat.salary, "income"],
-        [cat.extraA, "income"],
-        [cat.extraB, "income"],
-      ])
+    await run(async (c, id) => {
+      for (const categoryId of [cat.super, cat.home, cat.installments])
         await c.query(
-          "INSERT INTO finance.categories(owner_id,id,name,kind) VALUES ($1,$2,$3,$4)",
-          [id, categoryId, names[categoryId], kind],
+          "INSERT INTO finance.categories(owner_id,id,name,kind) VALUES ($1,$2,$3,'expense')",
+          [id, categoryId, names[categoryId]],
         );
       for (const [categoryId, limit] of [
         [cat.super, "10000"],
@@ -228,56 +183,9 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
             `${Y}-01-15`,
           ),
         );
-      for (const [currency, amount] of [
-        ["UYU", "100000.0000"],
-        ["USD", "5000.0000"],
-        ["EUR", "3000.0000"],
-      ])
-        await saveOpeningBalance(c, id, {
-          currency,
-          amount,
-          asOfDate: `${Y}-01-01`,
-        });
-      const cardA = await saveCard(c, id, {
-        ...cardCommand({ name: "Tarjeta A QA" }),
-        currencies: [
-          { currency: "UYU", limit: null },
-          { currency: "USD", limit: null },
-        ],
-      });
-      const cardB = await saveCard(
-        c,
-        id,
-        cardCommand({ name: "Tarjeta B QA" }),
-      );
-      created(
-        await saveCardCycle(
-          c,
-          id,
-          ok(
-            parseCycleCommand({
-              cardId: cardA.id,
-              version: 0,
-              idempotencyKey: randomUUID(),
-              scope: "schedule",
-              closingDay: 25,
-              dueDay: 10,
-              leadDays: 3,
-            }),
-          ),
-        ),
-      );
-      return { cardA, cardB };
     });
 
     // Titular B: nada de esto puede aparecer en el informe de A.
-    await run(async (c, id) => {
-      await saveOpeningBalance(c, id, {
-        currency: "UYU",
-        amount: "999.0000",
-        asOfDate: `${Y}-01-01`,
-      });
-    }, other);
     await movement(other, {
       kind: "expense",
       method: "debit",
@@ -287,30 +195,6 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       concept: "Exclusiva del titular B",
     });
 
-    // Ingresos: sueldo, un ingreso dividido entre dos categorías y uno anterior.
-    created(
-      await income("Sueldo marzo", "50000.0000", "03-05", {
-        categoryId: cat.salary,
-      }),
-    );
-    created(
-      await income("Ingreso dividido", "1000.0000", "03-10", {
-        allocations: [
-          { categoryId: cat.extraA, amount: "600.0000" },
-          { categoryId: cat.extraB, amount: "400.0000" },
-        ],
-      }),
-    );
-    created(
-      await movement(owner, {
-        kind: "income",
-        method: "deposit",
-        currency: "USD",
-        amount: "200.5000",
-        effectiveOn: d("02-20"),
-        concept: "Ingreso USD anterior",
-      }),
-    );
     // Gastos: bordes del rango, fuera del rango, USD y una compra dividida.
     created(
       await expense("Fuera antes", "777.0000", "02-28", {
@@ -352,112 +236,23 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       }),
     );
 
-    // Tarjeta A: compra, cuotas en USD, pago del ciclo y pago con conversión.
-    const purchaseA = created(
-      await operation({
-        ...creditPurchase({
-          cardId: cardA.id,
-          effectiveOn: d("03-12"),
-          amount: "2000",
-          concept: "Compra tarjeta A",
-        }),
-        categoryId: cat.super,
-      }),
-    );
+    // Gasto sin categoría y compras en cuotas (independientes de tarjetas):
+    // 300 USD en 3 cuotas de 100 y 30.000 UYU en 6 cuotas de 5.000.
+    created(await expense("Sin categoría QA", "802.0000", "03-15"));
     created(
-      await operation({
-        ...creditPurchase({
-          cardId: cardA.id,
-          currency: "USD",
-          effectiveOn: d("03-05"),
-          amount: "300",
-          concept: "Compra en cuotas",
-        }),
+      await expense("Compra en cuotas", "300", "03-05", {
+        currency: "USD",
+        method: "unspecified",
         categoryId: cat.installments,
         plan: { installmentAmount: "100", count: 3, firstPeriod: `${Y}-03` },
       }),
     );
-    const cyclePayment = creditPayment({
-      cardId: cardA.id,
-      amount: "1000",
-      effectiveOn: d("03-20"),
-      allocations: [{ purchaseId: purchaseA.id, amount: "1000" }],
-    });
-    cyclePayment.lines[0].statementPeriod = `${Y}-03`;
-    created(await operation(cyclePayment));
     created(
-      await operation({
-        action: "payment",
-        cardId: cardA.id,
-        effectiveOn: d("03-25"),
-        idempotencyKey: randomUUID(),
-        lines: [
-          {
-            currency: "USD",
-            amount: "50",
-            bankCurrency: "UYU",
-            bankAmount: "2150",
-            fee: "25",
-            allocations: [],
-          },
-        ],
+      await expense("Heladera", "30000", "03-02", {
+        method: "unspecified",
+        categoryId: cat.home,
+        plan: { installmentAmount: "5000", count: 6, firstPeriod: `${Y}-03` },
       }),
-    );
-    // Tarjeta B sin cierre configurado: la compra no pertenece a ningún ciclo.
-    created(
-      await operation(
-        creditPurchase({
-          cardId: cardB.id,
-          effectiveOn: d("03-15"),
-          amount: "777",
-          concept: "Compra sin ciclo",
-        }),
-      ),
-    );
-    created(
-      await run((c, id) =>
-        saveCardCycle(
-          c,
-          id,
-          ok(
-            parseCycleCommand({
-              cardId: cardA.id,
-              version: 0,
-              idempotencyKey: randomUUID(),
-              scope: "statement",
-              period: `${Y}-03`,
-              currency: "UYU",
-              officialAmount: "2500",
-              minimumAmount: "",
-              dueOn: "",
-            }),
-          ),
-        ),
-      ),
-    );
-    // Reembolso acreditado en abril por una compra de marzo: va aparte, en abril.
-    created(
-      await run((c, id) =>
-        saveRefund(
-          c,
-          id,
-          ok(
-            parseRefundCommand(
-              {
-                action: "credit",
-                effectiveOn: d("04-10"),
-                purchaseId: purchaseA.id,
-                idempotencyKey: randomUUID(),
-                parts: [
-                  { method: "credit", categoryId: cat.super, amount: "100" },
-                ],
-              },
-              today,
-            ),
-          ),
-          today,
-        ),
-      ),
     );
 
     const data = await report();
@@ -471,7 +266,7 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
     };
 
     await t.test(
-      "Resumen: totales, tramos, categorías y reembolso separado",
+      "Resumen: totales por moneda y categoría, con cuotas en su mes",
       () => {
         const rows = map(rowsOf(data, "resumen"), [1, 0]);
         const want = (key, total, first, second) =>
@@ -480,37 +275,18 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
             [total, first, second],
             key,
           );
-        want("UYU|Ingreso", "51000.0000", "51000.0000", "0.0000");
-        want(
-          "UYU|Ingreso por categoría · Sueldo QA",
-          "50000.0000",
-          "50000.0000",
-          "0.0000",
-        );
-        want(
-          "UYU|Ingreso por categoría · Extra A QA",
-          "600.0000",
-          "600.0000",
-          "0.0000",
-        );
-        want(
-          "UYU|Ingreso por categoría · Extra B QA",
-          "400.0000",
-          "400.0000",
-          "0.0000",
-        );
-        want("UYU|Gasto", "4469.5678", "4147.5678", "322.0000");
+        want("UYU|Gasto", "12469.5678", "7147.5678", "5322.0000");
         want(
           "UYU|Gasto por categoría · Supermercado QA",
-          "3433.0000",
-          "3111.0000",
+          "1433.0000",
+          "1111.0000",
           "322.0000",
         );
         want(
           "UYU|Gasto por categoría · Hogar QA",
-          "234.5678",
-          "234.5678",
-          "0.0000",
+          "10234.5678",
+          "5234.5678",
+          "5000.0000",
         );
         want(
           "UYU|Gasto por categoría · Sin categoría",
@@ -518,8 +294,6 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
           "802.0000",
           "0.0000",
         );
-        want("UYU|Resultado", "46530.4322", "46852.4322", "-322.0000");
-        want("UYU|Reembolso acreditado", "100.0000", "0.0000", "100.0000");
         want("USD|Gasto", "210.0100", "110.0100", "100.0000");
         want(
           "USD|Gasto por categoría · Supermercado QA",
@@ -533,139 +307,112 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
           "100.0000",
           "100.0000",
         );
-        want("USD|Resultado", "-210.0100", "-110.0100", "-100.0000");
         assert.equal(
-          rows.has("USD|Ingreso"),
+          [...rows.keys()].some((key) =>
+            /Ingreso|Resultado|Reembolso/.test(key),
+          ),
           false,
-          "el ingreso de febrero queda fuera",
+          "el informe solo contiene gastos",
         );
       },
     );
 
     await t.test(
-      "Movimientos: rango inclusivo, sin duplicados ni datos de otro titular",
+      "Evolución mensual: cada cuota cuenta una vez, en su mes",
+      () => {
+        const rows = map(rowsOf(data, "evolucion"), [1, 0]);
+        assert.deepEqual(rows.get(`UYU|${Y}-03`).slice(2), ["7147.5678", ""]);
+        assert.deepEqual(rows.get(`UYU|${Y}-04`).slice(2), [
+          "5322.0000",
+          "-1825.5678",
+        ]);
+        assert.deepEqual(rows.get(`USD|${Y}-03`).slice(2), ["110.0100", ""]);
+        assert.deepEqual(rows.get(`USD|${Y}-04`).slice(2), [
+          "100.0000",
+          "-10.0100",
+        ]);
+      },
+    );
+
+    await t.test(
+      "Cuotas: 30.000 UYU en 6 cuotas son 5.000 por mes, sin duplicados",
+      async () => {
+        const rows = rowsOf(data, "cuotas");
+        const fridge = rows.filter((row) => row[1] === "Heladera");
+        assert.deepEqual(
+          fridge.map((row) => [row[0], row[2], row[4], row[5]]),
+          [
+            [`${Y}-03`, "1 de 6", "UYU", "5000.0000"],
+            [`${Y}-04`, "2 de 6", "UYU", "5000.0000"],
+          ],
+        );
+        const dollars = rows.filter((row) => row[1] === "Compra en cuotas");
+        assert.deepEqual(
+          dollars.map((row) => [row[0], row[2], row[4], row[5]]),
+          [
+            [`${Y}-03`, "1 de 3", "USD", "100.0000"],
+            [`${Y}-04`, "2 de 3", "USD", "100.0000"],
+          ],
+        );
+        // Un período que abarca todo el plan suma exactamente el total.
+        const whole = rowsOf(
+          await report({ from: `${Y}-03-01`, to: `${Y}-08-31` }),
+          "cuotas",
+        ).filter((row) => row[1] === "Heladera");
+        assert.equal(whole.length, 6);
+        assert.equal(new Set(whole.map((row) => row[6])).size, 1);
+        assert.ok(whole.every((row) => row[5] === "5000.0000"));
+        assert.equal(sum(...whole.map((row) => row[5])), "30000.0000");
+        assert.equal(
+          rowsOf(data, "movimientos").filter((row) => row[2] === "Heladera")
+            .length,
+          1,
+          "la compra figura una sola vez en Gastos",
+        );
+      },
+    );
+
+    await t.test(
+      "Gastos: rango inclusivo, sin duplicados ni datos de otro titular",
       () => {
         const rows = rowsOf(data, "movimientos");
         const concepts = rows.map((row) => row[2]);
         for (const inside of [
           "Borde inicial",
           "@borde final",
-          "Sueldo marzo",
           "Compra dividida",
-          "Compra tarjeta A",
-          "Compra sin ciclo",
+          "Compra en cuotas",
+          "Heladera",
         ])
           assert.ok(concepts.includes(inside), `falta ${inside}`);
         for (const outside of [
           "Fuera antes",
           "Fuera después",
-          "Ingreso USD anterior",
           "Exclusiva del titular B",
         ])
           assert.ok(!concepts.includes(outside), `sobra ${outside}`);
         assert.ok(
           rows.every((row) => row[0] >= period.from && row[0] <= period.to),
         );
-        const ids = rows.map((row) => `${row[10]}|${row[7]}|${row[1]}`);
+        assert.ok(rows.every((row) => row[1] === "Gasto"));
+        const ids = rows.map((row) => `${row[8]}|${row[5]}`);
         assert.equal(new Set(ids).size, ids.length, "filas duplicadas");
-      },
-    );
-
-    await t.test(
-      "Movimientos: la categoría refleja el desglose vigente",
-      () => {
-        const rows = rowsOf(data, "movimientos");
         assert.equal(
           rows.find((row) => row[2] === "Compra dividida")[3],
           "Hogar QA, Supermercado QA",
         );
-        assert.equal(
-          rows.find((row) => row[2] === "Ingreso dividido")[3],
-          "Extra A QA, Extra B QA",
-        );
+        assert.equal(rows.find((row) => row[2] === "Heladera")[4], "6");
       },
     );
-
-    await t.test(
-      "Movimientos: el pago con conversión muestra el débito bancario y la comisión",
-      () => {
-        const rows = rowsOf(data, "movimientos").filter(
-          (row) => row[0] === d("03-25"),
-        );
-        const amounts = rows
-          .map((row) => `${row[1]}|${row[7]}|${row[8]}`)
-          .sort();
-        assert.deepEqual(amounts, [
-          "Comisión bancaria de pago|UYU|25.0000",
-          "Pago de tarjeta (débito bancario)|UYU|2150.0000",
-          "Pago de tarjeta|USD|50.0000",
-        ]);
-      },
-    );
-
-    await t.test("Saldos: confirmado y proyección al cierre", async () => {
-      const rows = map(rowsOf(data, "saldos"), [1]);
-      const balances = await run((c, id) =>
-        listBankBalances(c, id, ["UYU", "USD", "EUR"], undefined, period.to),
-      );
-      const projection = (currency) =>
-        balances.find((b) => b.currency === currency).calculatedAmount;
-      assert.deepEqual(rows.get("USD").slice(2, 5), [
-        "5000.0000",
-        d("01-01"),
-        "5190.4900",
-      ]);
-      assert.equal(projection("USD"), "5190.4900");
-      assert.deepEqual(
-        rows.get("EUR").slice(2, 5),
-        ["3000.0000", d("01-01"), "3000.0000"],
-        "sin movimientos la proyección es el saldo confirmado",
-      );
-      // 100000 + 51000 - 777 - 111 - 1234.5678 - 100 - 222 - 1000 - (2150 + 25)
-      assert.equal(rows.get("UYU")[4], "145380.4322");
-      assert.equal(rows.get("UYU")[4], projection("UYU"));
-    });
-
-    await t.test("Tarjetas: ciclos, compras sin ciclo y monto oficial", () => {
-      const rows = map(rowsOf(data, "tarjetas"), [0, 1, 2]);
-      const columns = REPORT_SECTIONS.find(
-        ({ id }) => id === "tarjetas",
-      ).columns.map(({ id }) => id);
-      const row = (key) =>
-        Object.fromEntries(columns.map((id, i) => [id, rows.get(key)?.[i]]));
-      assert.deepEqual(
-        { ...row(`Tarjeta A QA|${Y}-03|UYU`) },
-        {
-          tarjeta: "Tarjeta A QA",
-          ciclo: `${Y}-03`,
-          moneda: "UYU",
-          compras: "2000.0000",
-          pagos: "1000.0000",
-          saldo_pendiente: "1500.0000",
-          abonos: "0.0000",
-          sin_ciclo: "0.0000",
-          oficial: "2500.0000",
-        },
-      );
-      assert.deepEqual(row(`Tarjeta A QA|${Y}-04|UYU`).abonos, "100.0000");
-      assert.deepEqual(row(`Tarjeta A QA|${Y}-03|USD`).compras, "100.0000");
-      assert.deepEqual(row(`Tarjeta A QA|${Y}-04|USD`).compras, "100.0000");
-      assert.equal(
-        rows.has(`Tarjeta A QA|${Y}-05|USD`),
-        false,
-        "la cuota de mayo queda fuera del rango",
-      );
-      assert.equal(row(`Tarjeta B QA|${Y}-03|UYU`).sin_ciclo, "777.0000");
-    });
 
     await t.test(
       "Presupuestos: consumo convertido con las cotizaciones históricas",
       () => {
         const rows = map(rowsOf(data, "presupuestos"), [0, 1]);
         const budget = (month, name) => rows.get(`${Y}-${month}|${name}`);
-        // Consumo de marzo: 111 + 1000 + 2000 en UYU y 10,01 USD a 41,5.
-        const superMarch = sum("3111", converted([["10.0100", "41.5"]]));
-        assert.equal(superMarch, "3526.4150");
+        // Consumo de marzo: 111 + 1000 en UYU y 10,01 USD a 41,5.
+        const superMarch = sum("1111", converted([["10.0100", "41.5"]]));
+        assert.equal(superMarch, "1526.4150");
         assert.deepEqual(budget("03", "Supermercado QA").slice(2, 6), [
           "UYU",
           "10000.0000",
@@ -770,55 +517,6 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       },
     );
 
-    await t.test("Fondos de ahorro al cierre del período", async () => {
-      const closing = bankReferenceToday();
-      const range = { from: closing.slice(0, 8) + "01", to: closing };
-      const fund = created(
-        await run((c, id) =>
-          saveSavingsFund(c, id, {
-            action: "create",
-            name: "Fondo QA",
-            currency: "UYU",
-            idempotencyKey: randomUUID(),
-          }),
-        ),
-      );
-      created(
-        await run((c, id) =>
-          saveSavingsFund(c, id, {
-            action: "reserve",
-            fundId: fund.id,
-            amount: "700.0001",
-            version: 1,
-            idempotencyKey: randomUUID(),
-          }),
-        ),
-      );
-      created(
-        await run((c, id) =>
-          saveSavingsFund(c, id, {
-            action: "release",
-            fundId: fund.id,
-            amount: "200.0000",
-            version: 2,
-            idempotencyKey: randomUUID(),
-          }),
-        ),
-      );
-      const funds = rowsOf(await report(range), "fondos");
-      assert.deepEqual(funds, [
-        ["Fondo QA", "UYU", "700.0001", "", "500.0001"],
-      ]);
-      assert.deepEqual(
-        rowsOf(
-          await report({ from: "2020-01-01", to: "2020-01-31" }),
-          "fondos",
-        ),
-        [],
-        "el fondo no existía al cierre",
-      );
-    });
-
     await t.test(
       "Período sin movimientos: secciones vacías y archivos válidos",
       async () => {
@@ -839,6 +537,12 @@ test("EXPORT-FIX: informes CSV, Excel y PDF completos, exactos y consistentes", 
       },
     );
   } finally {
-    await pool.end();
+    try {
+      await pool.query(
+        "DROP SCHEMA finance, finance_meta CASCADE; DROP ROLE finanzas_app",
+      );
+    } finally {
+      await pool.end();
+    }
   }
 });

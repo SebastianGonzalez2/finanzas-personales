@@ -88,3 +88,22 @@ export class Money {
     return { amount: this.toDecimal(), currency: this.#currency };
   }
 }
+
+/** Importe decimal exacto como entero en diezmilésimas (cuatro decimales). */
+export function decimalToUnits(amount: string) {
+  const [whole, fraction = ""] = amount.replace(/^-/, "").split(".");
+  return (
+    (BigInt(whole) * BigInt(10000) + BigInt(fraction.padEnd(4, "0"))) *
+    (amount.startsWith("-") ? -BigInt(1) : BigInt(1))
+  );
+}
+
+export function unitsToDecimal(units: bigint) {
+  const value = units < BigInt(0) ? -units : units;
+  return (
+    (units < BigInt(0) ? "-" : "") +
+    value / BigInt(10000) +
+    "." +
+    (value % BigInt(10000)).toString().padStart(4, "0")
+  );
+}

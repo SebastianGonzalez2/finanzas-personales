@@ -4,10 +4,7 @@ import test from "node:test";
 import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
+import { parseMovement } from "../../src/domain/movements.ts";
 import {
   listMovementCategories,
   listMovementTotals,
@@ -22,15 +19,11 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
     withOwnerTransaction(pool, async () => ({ ownerId }), work);
   const a = "f1-03-fixture-a";
   const b = "f1-03-fixture-b";
+  const today = "2026-11-08";
   const opening = {
     currency: "UYU",
     amount: "10000.0000",
     asOfDate: "2026-02-01",
-  };
-  const usd = {
-    currency: "USD",
-    amount: "100.0000",
-    asOfDate: opening.asOfDate,
   };
   const expense = {
     kind: "expense",
@@ -45,7 +38,6 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
   };
   const save = (owner, command) =>
     as(owner, (client, ownerId) => saveMovement(client, ownerId, command));
-  const balances = () => as(a, listBankBalances);
   const recent = (owner, kind) =>
     as(owner, (client, ownerId) => listRecentMovements(client, ownerId, kind));
   const totals = () =>
@@ -73,13 +65,6 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
       idempotencyKey: randomUUID(),
     });
     assert.equal(unconfigured.status, "created");
-    await as(a, async (client, ownerId) => {
-      await saveOpeningBalance(client, ownerId, opening);
-      await saveOpeningBalance(client, ownerId, usd);
-    });
-    await as(b, (client, ownerId) =>
-      saveOpeningBalance(client, ownerId, opening),
-    );
 
     const [first, second] = await Promise.all([
       save(a, expense),
@@ -93,10 +78,6 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
     assert.deepEqual(await save(a, { ...expense, amount: "1.0000" }), {
       status: "conflict",
     });
-    assert.deepEqual(await balances(), [
-      { ...opening, calculatedAmount: "8500.0000" },
-      usd,
-    ]);
     assert.deepEqual(await totals(), [
       { kind: "expense", currency: "UYU", amount: "1500.0000" },
     ]);
@@ -114,25 +95,14 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
       },
     ]);
     assert.deepEqual(await recent(b, "expense"), []);
-    assert.deepEqual(await as(b, listBankBalances), [opening]);
 
     const categories = await as(a, listMovementCategories);
     const salary = categories.find(({ name }) => name === "Sueldo");
-    const income = {
-      ...expense,
-      kind: "income",
-      method: "deposit",
-      concept: "",
-      note: null,
-      amount: "5000.0000",
-      categoryId: salary.id,
-      idempotencyKey: randomUUID(),
-    };
-    assert.equal((await save(a, income)).status, "created");
-    assert.deepEqual(await balances(), [
-      { ...opening, calculatedAmount: "13500.0000" },
-      usd,
-    ]);
+    // Solo se registran gastos: un ingreso se rechaza antes de llegar al servidor.
+    assert.ok(
+      "error" in
+        parseMovement({ ...expense, kind: "income", method: "deposit" }, today),
+    );
     const competing = Array.from({ length: 2 }, () => ({
       ...expense,
       amount: "6000.0000",
@@ -150,19 +120,10 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
       ...results[0],
       status: "replayed",
     });
-    assert.deepEqual(await as(b, listBankBalances), [
-      { ...opening, calculatedAmount: "-2000.0000" },
-    ]);
     assert.equal((await recent(b, "expense")).length, 2);
-    assert.equal((await recent(a, "income"))[0].concept, "Ingreso");
-    assert.equal((await recent(a, "income"))[0].category, "Sueldo");
-    assert.deepEqual(
-      (await totals()).sort((x, y) => x.kind.localeCompare(y.kind)),
-      [
-        { kind: "expense", currency: "UYU", amount: "1500.0000" },
-        { kind: "income", currency: "UYU", amount: "5000.0000" },
-      ],
-    );
+    assert.deepEqual(await totals(), [
+      { kind: "expense", currency: "UYU", amount: "1500.0000" },
+    ]);
 
     const foreign = randomUUID();
     const archived = randomUUID();
@@ -238,10 +199,6 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
     assert.equal((await recent(a, "expense")).length, 1);
     assert.equal((await save(a, historical)).status, "created");
     assert.equal((await recent(a, "expense")).length, 2);
-    assert.deepEqual(await balances(), [
-      { ...opening, calculatedAmount: "13500.0000" },
-      usd,
-    ]);
     await as(a, async (client) => {
       const {
         rows: [counts],
@@ -252,10 +209,10 @@ test("F1-03: CA-008 a CA-010, aislamiento, reintentos y anclas con PostgreSQL", 
                (SELECT count(*)::int FROM finance.audit_changes WHERE change_type = 'created') AS audits
       `);
       assert.deepEqual(counts, {
-        events: 3,
-        movements: 3,
-        effects: 3,
-        audits: 3,
+        events: 2,
+        movements: 2,
+        effects: 2,
+        audits: 2,
       });
     });
   } finally {

@@ -54,24 +54,6 @@ test("Resumen no entrega el tablero ante una visita directa con sesión inválid
   await expect(page.getByText("Resumen financiero")).toHaveCount(0);
 });
 
-test("F1-02: la ruta de saldos rechaza POST anónimo y de otro origen", async ({
-  request,
-}) => {
-  const data = { currency: "USD", amount: "100.00", asOfDate: "2024-02-29" };
-  for (const [origin, status] of [
-    ["https://other.example", 403],
-    ["http://localhost:3106", 401],
-  ] as const) {
-    const response = await request.post("/api/bank-balances", {
-      data,
-      headers: { origin, cookie: "better-auth.session_token=invalid" },
-    });
-    expect(response.status()).toBe(status);
-    expect(response.headers()["cache-control"]).toBe("private, no-store");
-    expect(await response.json()).toHaveProperty("error");
-  }
-});
-
 test("F1-07: historial, detalle y edición requieren una sesión propia", async ({
   request,
 }) => {
@@ -161,55 +143,32 @@ test("F1-04: la revisión exige sesión y origen propios", async ({
   }
 });
 
-test("F1-05: confirmar saldo requiere sesión, mismo origen y datos sin titular externo", async ({
+test("SIMP-04: las rutas de módulos retirados ya no existen", async ({
   request,
 }) => {
-  const data = {
-    currency: "UYU",
-    amount: "8700.0000",
-    asOfDate: "2026-03-01",
-    note: "Estado de cuenta de prueba",
-    idempotencyKey: "8c9c069f-679a-4d1e-b7f4-7e0408b0fadd",
-  };
-  for (const [origin, payload, status] of [
-    ["https://other.example", data, 403],
-    ["http://localhost:3106", data, 401],
-    ["http://localhost:3106", { ...data, ownerId: "B" }, 400],
-  ] as const) {
-    const response = await request.post("/api/bank-balances/adjustments", {
-      data: payload,
-      headers: { origin },
-    });
-    expect(response.status()).toBe(status);
-    expect(response.headers()["cache-control"]).toBe("private, no-store");
-    expect(await response.json()).toHaveProperty("error");
-  }
-});
-
-test("F1-06: el cambio requiere sesión, mismo origen y dos monedas distintas", async ({
-  request,
-}) => {
-  const data = {
-    kind: "bank_transfer",
-    sourceCurrency: "UYU",
-    sourceAmount: "4000",
-    destinationCurrency: "USD",
-    destinationAmount: "100",
-    effectiveOn: "2024-02-29",
-    idempotencyKey: "8c9c069f-679a-4d1e-b7f4-7e0408b0fadd",
-  };
-  for (const [origin, payload, status] of [
-    ["https://other.example", data, 403],
-    ["http://localhost:3106", data, 401],
-    ["http://localhost:3106", { ...data, ownerId: "B" }, 401],
-    ["http://localhost:3106", { ...data, destinationCurrency: "UYU" }, 401],
-  ] as const) {
-    const response = await request.post("/api/movements", {
-      data: payload,
-      headers: { origin },
-    });
-    expect(response.status()).toBe(status);
-    expect(response.headers()["cache-control"]).toBe("private, no-store");
-    expect(await response.json()).toHaveProperty("error");
+  for (const path of [
+    "/api/bank-balances",
+    "/api/bank-balances/adjustments",
+    "/api/bank-benefits",
+    "/api/cards",
+    "/api/cards/operations",
+    "/api/cards/cycles",
+    "/api/funds",
+    "/api/funds/contributions",
+    "/api/loans",
+    "/api/refunds",
+    "/api/shared-expenses",
+    "/api/avisos/push",
+    "/api/cron/card-push",
+    "/api/cron/contributions",
+  ]) {
+    for (const method of ["GET", "POST"] as const) {
+      const response = await request.fetch(path, {
+        method,
+        headers: { origin: "http://localhost:3106" },
+        data: method === "POST" ? {} : undefined,
+      });
+      expect(response.status(), `${method} ${path}`).toBe(404);
+    }
   }
 });

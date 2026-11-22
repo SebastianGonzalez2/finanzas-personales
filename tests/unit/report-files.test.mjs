@@ -21,51 +21,47 @@ const rowOf = (id, values) => Object.assign(blank(id), values);
 const report = Object.fromEntries(REPORT_SECTIONS.map(({ id }) => [id, []]));
 report.resumen = [
   ["Gasto", "USD", "1234.5678", "0.0001", "1234.5677"],
-  ["Resultado", "UYU", "-322.0000", "0.0000", "-322.0000"],
+  ["Gasto por categoría · Hogar", "UYU", "322.0000", "0.0000", "322.0000"],
+];
+// Gastos: fecha, tipo, descripción, categoría, cuotas, moneda, importe,
+// confirmación e identificador.
+const expense = (concept, currency, amount, extra = {}) =>
+  rowOf("movimientos", {
+    1: "Gasto",
+    2: concept,
+    5: currency,
+    6: amount,
+    ...extra,
+  });
+report.evolucion = [
+  ["2026-02", "UYU", "1000.0000", ""],
+  ["2026-03", "UYU", "5000.0000", "4000.0000"],
+];
+report.cuotas = [
+  [
+    "2026-03",
+    "Heladera",
+    "3 de 6",
+    "Hogar",
+    "UYU",
+    "5000.0000",
+    "00000000-0000-4000-8000-000000000002",
+  ],
 ];
 report.movimientos = [
-  rowOf("movimientos", {
+  expense('=1+1; "fórmula"', "UYU", "9999999999999.9999", {
     0: "2026-03-31",
-    1: "Gasto",
-    2: '=1+1; "fórmula"',
     3: "Hogar, Supermercado",
-    7: "UYU",
-    8: "9999999999999.9999",
-    9: "Confirmado",
-    10: "00000000-0000-4000-8000-000000000001",
+    4: "6",
+    7: "Confirmado",
+    8: "00000000-0000-4000-8000-000000000001",
   }),
-  rowOf("movimientos", { 1: "Gasto", 2: "+54", 7: "UYU", 8: "1.0000" }),
-  rowOf("movimientos", { 1: "Gasto", 2: "−1", 7: "UYU", 8: "2.0000" }),
-  rowOf("movimientos", { 1: "Gasto", 2: "  @SUM(A1)", 7: "UYU", 8: "3.0000" }),
-  rowOf("movimientos", { 1: "Gasto", 2: "\t-cmd", 7: "UYU", 8: "4.0000" }),
-  rowOf("movimientos", {
-    1: "Gasto",
-    2: "línea\ncon salto",
-    7: "UYU",
-    8: "5.0000",
-  }),
-  rowOf("movimientos", {
-    1: "Gasto",
-    2: 'Ñandú, año; "comillas"',
-    7: "EUR",
-    8: "6.0000",
-  }),
-];
-report.saldos = [
-  ["Saldo bancario", "UYU", "100.0000", "2026-01-01", "100.0000"],
-];
-report.tarjetas = [
-  [
-    "Tarjeta A",
-    "2026-03",
-    "UYU",
-    "2000.0000",
-    "1000.0000",
-    "1500.0000",
-    "0.0000",
-    "0.0000",
-    "2500.0000",
-  ],
+  expense("+54", "UYU", "1.0000"),
+  expense("−1", "UYU", "2.0000"),
+  expense("  @SUM(A1)", "UYU", "3.0000"),
+  expense("\t-cmd", "UYU", "4.0000"),
+  expense("línea\ncon salto", "UYU", "5.0000"),
+  expense('Ñandú, año; "comillas"', "EUR", "6.0000"),
 ];
 report.presupuestos = [
   [
@@ -135,10 +131,7 @@ test("EXPORT-FIX: CSV y Excel neutralizan prefijos de fórmula sin alterar impor
   for (const formula of ["=1+1", "+54", "−1", "  @SUM(A1)", "\t-cmd"])
     assert.ok(csv.includes(`"'${formula}`), formula);
   assert.ok(csv.includes('"9999999999999.9999"'));
-  assert.ok(
-    csv.includes('"-322.0000"'),
-    "los importes negativos no llevan apóstrofo",
-  );
+  assert.ok(csv.includes('"322.0000"'), "los importes no llevan apóstrofo");
   assert.ok(csv.startsWith("﻿"));
   const xlsx = parseXlsxReport(
     Buffer.from(await generateReport("excel", period, report)),
@@ -179,7 +172,7 @@ test("EXPORT-FIX: el PDF no corrompe ni oculta caracteres fuera de Latin-1", asy
     Zażółć: "Za?ó??",
   };
   const rows = Object.keys(samples).map((concept) =>
-    rowOf("movimientos", { 1: "Gasto", 2: concept, 7: "UYU", 8: "1.0000" }),
+    expense(concept, "UYU", "1.0000"),
   );
   const data = { ...report, movimientos: rows };
   const pdf = pdfText(
@@ -195,7 +188,9 @@ test("EXPORT-FIX: el PDF no corrompe ni oculta caracteres fuera de Latin-1", asy
   // CSV y Excel conservan el texto original.
   const csv = parseCsvReport(await generateReport("csv", period, data));
   assert.deepEqual(
-    csv.sections[1].rows.map((row) => row[2]),
+    csv.sections[
+      REPORT_SECTIONS.findIndex(({ id }) => id === "movimientos")
+    ].rows.map((row) => row[2]),
     Object.keys(samples),
   );
 });

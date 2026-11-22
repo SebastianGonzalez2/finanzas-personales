@@ -7,10 +7,6 @@ import {
   budgetAlertState,
 } from "../../src/domain/notices.ts";
 
-import { fundTargetNotices } from "../../src/domain/savings-funds.ts";
-
-const today = "2026-11-11";
-
 test("F3-07: umbral de presupuesto advierte al 80% y alerta al 100% (CA-042)", () => {
   assert.equal(budgetAlertPercent("8000", "10000"), 80);
   assert.equal(budgetAlertState(80), "warning");
@@ -95,79 +91,5 @@ test("F3-07: lista de avisos de presupuesto ordenada y sin repetición por fila"
       ["b1", "danger", 100],
       ["b2", "warning", 88],
     ],
-  );
-});
-
-test("F3-07: meta incumplida cuando la fecha venció y falta reservado (CA-050)", () => {
-  const fund = {
-    name: "Vacaciones",
-    currency: "UYU",
-    reservedAmount: "1600",
-    targetAmount: "2000",
-    targetDate: "2026-10-31",
-    status: "active",
-  };
-  assert.equal(fundTargetNotices(fund, today).overdue, true);
-  assert.equal(fundTargetNotices(fund, today).remaining, "400.0000");
-  assert.equal(
-    fundTargetNotices({ ...fund, reservedAmount: "2000" }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, reservedAmount: "2500" }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, targetDate: "2026-11-11" }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, targetDate: "2026-11-12" }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, targetAmount: null }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, targetDate: null }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, status: "closed" }, today).overdue,
-    false,
-  );
-  assert.equal(
-    fundTargetNotices({ ...fund, targetDate: "" }, today).overdue,
-    false,
-  );
-});
-
-test("F3-07: lista de metas incumplidas ignora fondos sin problema", () => {
-  const funds = [
-    {
-      id: "f1",
-      name: "Vacaciones",
-      currency: "UYU",
-      reservedAmount: "1600",
-      targetAmount: "2000",
-      targetDate: "2026-10-31",
-      status: "active",
-    },
-    {
-      id: "f2",
-      name: "Colchón",
-      currency: "USD",
-      reservedAmount: "0",
-      targetAmount: null,
-      targetDate: null,
-      status: "active",
-    },
-  ];
-  assert.deepEqual(
-    funds
-      .filter((fund) => fundTargetNotices(fund, today).overdue)
-      .map(({ id }) => id),
-    ["f1"],
   );
 });

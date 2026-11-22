@@ -18,11 +18,6 @@ export type Destination =
   | "catalogo"
   | "ayuda"
   | "account"
-  // Destinos heredados: sus páginas aún existen hasta SIMP-04.
-  | "fondos"
-  | "tarjetas"
-  | "deudas"
-  | "beneficios"
   | "avisos";
 
 type NavItem = {

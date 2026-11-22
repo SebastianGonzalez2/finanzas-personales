@@ -10,7 +10,6 @@ import {
   historyToday,
   parseHistoryParams,
 } from "../../src/domain/history.ts";
-import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import {
   listSavedFilters,
   saveSavedFilterCommand,
@@ -48,13 +47,6 @@ test("F5-04: filtros guardados idempotentes, aislados y con período vigente", a
       month === 1
         ? `${year - 1}-12-28`
         : `${year}-${String(month - 1).padStart(2, "0")}-28`;
-    await as(a, (client, owner) =>
-      saveOpeningBalance(client, owner, {
-        currency: "UYU",
-        amount: "10000.0000",
-        asOfDate: previous,
-      }),
-    );
     await as(a, (client) =>
       client.query(
         `INSERT INTO finance.categories (owner_id, id, kind, name)

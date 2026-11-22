@@ -30,15 +30,6 @@ test("F3-07: el centro conserva los avisos de presupuestos y los aísla por titu
     );
     expect(
       (
-        await send("/api/bank-balances", {
-          currency: "UYU",
-          amount: "50000",
-          asOfDate: today,
-        })
-      ).status(),
-    ).toBe(201);
-    expect(
-      (
         await send("/api/budgets", {
           action: "save",
           categoryId: category,

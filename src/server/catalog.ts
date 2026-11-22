@@ -148,36 +148,6 @@ export async function recordEventMerchant(
   );
 }
 
-export async function recordLoanPerson(
-  client: pg.PoolClient,
-  ownerId: string,
-  loanId: string,
-  name: string,
-) {
-  const personId = await resolveCatalogName(client, ownerId, "person", name);
-  await client.query(
-    "INSERT INTO finance.loan_people (owner_id, loan_id, person_id) VALUES ($1, $2, $3)",
-    [ownerId, loanId, personId],
-  );
-}
-
-export async function findLoanPerson(
-  client: pg.PoolClient,
-  ownerId: string,
-  loanId: string,
-) {
-  if (!(await nameCatalogReady(client))) return null;
-  const {
-    rows: [entry],
-  } = await client.query<{ id: string; name: string }>(
-    `SELECT p.id, p.name FROM finance.loan_people ref
-      JOIN finance.people p ON (p.owner_id, p.id) = (ref.owner_id, ref.person_id)
-      WHERE ref.owner_id = $1 AND ref.loan_id = $2`,
-    [ownerId, loanId],
-  );
-  return entry ?? null;
-}
-
 export async function copyEventMerchant(
   client: pg.PoolClient,
   ownerId: string,

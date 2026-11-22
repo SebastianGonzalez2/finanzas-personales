@@ -3,49 +3,10 @@ import test from "node:test";
 import {
   dueNoticeWindow,
   dueNoticeTimingText,
-  loanDueNotice,
   recurrenceDueNotice,
-  defaultNoticeLeadDays,
 } from "../../src/domain/due-notices.ts";
 
 const today = "2026-11-17";
-
-test("F4-05/CA-049: cuota con fecha cierta 20 y día 17 pendiente genera aviso", () => {
-  const notice = loanDueNotice({
-    loanId: "0b3fd9f2-1f4a-4a2e-9d1a-3f2b7c6d5e01",
-    concept: "Préstamo familiar",
-    direction: "payable",
-    currency: "UYU",
-    dueOn: "2026-11-20",
-    outstanding: "5000.0000",
-    today,
-  });
-  assert.ok(notice);
-  assert.equal(notice.kind, "loan");
-  assert.match(notice.timing, /Vence el 20\/11\/2026, en 3 días/);
-  assert.match(notice.amount ?? "", /5\.000,00 UYU/);
-});
-
-test("F4-05: sin fecha cierta no inventa vencimiento ni aviso", () => {
-  for (const dueOn of [null, undefined, ""]) {
-    assert.equal(
-      dueNoticeWindow({ today, dueOn, leadDays: defaultNoticeLeadDays }),
-      null,
-    );
-    assert.equal(
-      loanDueNotice({
-        loanId: "0b3fd9f2-1f4a-4a2e-9d1a-3f2b7c6d5e01",
-        concept: "Deuda",
-        direction: "payable",
-        currency: "UYU",
-        dueOn: null,
-        outstanding: "1000.0000",
-        today,
-      }),
-      null,
-    );
-  }
-});
 
 test("F4-05: la ventana respeta la antelación configurada por obligación", () => {
   const dueOn = "2026-11-20";
@@ -74,21 +35,6 @@ test("F4-05: estados del aviso — vence hoy y pendiente sin confirmar", () => {
   ]) {
     assert.doesNotMatch(text, /atras|mora/i);
   }
-});
-
-test("F4-05: deuda saldada no genera aviso", () => {
-  assert.equal(
-    loanDueNotice({
-      loanId: "0b3fd9f2-1f4a-4a2e-9d1a-3f2b7c6d5e01",
-      concept: "Deuda",
-      direction: "payable",
-      currency: "UYU",
-      dueOn: "2026-11-20",
-      outstanding: "0.0000",
-      today,
-    }),
-    null,
-  );
 });
 
 test("F4-05: período recurrente con fecha cierta pendiente genera un aviso único", () => {

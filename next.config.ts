@@ -12,24 +12,10 @@ const csp = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-// SIMP-03: los módulos retirados (fondos, tarjetas, deudas y beneficios)
-// redirigen al Resumen. Su código se elimina en SIMP-04.
-const retiredModules = ["fondos", "tarjetas", "deudas", "beneficios"];
-
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
   serverExternalPackages: ["pdfkit"],
-  async redirects() {
-    return retiredModules.flatMap((name) => [
-      { source: `/${name}`, destination: "/resumen", permanent: false },
-      {
-        source: `/${name}/:path*`,
-        destination: "/resumen",
-        permanent: false,
-      },
-    ]);
-  },
   async headers() {
     return [
       {

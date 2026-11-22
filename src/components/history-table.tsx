@@ -11,24 +11,14 @@ import { Icon, type IconName } from "./ui/icon";
 // el laboratorio UI-01 (retirado en UI-06; diseño aprobado). Solo
 // presentan los datos que entrega el servidor: no recalculan importes.
 
-type Tone = "income" | "expense" | "neutral";
+type Tone = "expense" | "neutral";
 
 export const historyKindVisual: Record<
   HistoryKind,
   { icon: IconName; tone: Tone }
 > = {
-  income: { icon: "income", tone: "income" },
   expense: { icon: "expense", tone: "expense" },
-  bank_transfer: { icon: "swap", tone: "neutral" },
-  checkpoint: { icon: "check", tone: "neutral" },
   card_purchase: { icon: "cards", tone: "expense" },
-  card_payment: { icon: "cards", tone: "neutral" },
-  card_opening: { icon: "cards", tone: "neutral" },
-  card_adjustment: { icon: "cards", tone: "neutral" },
-  loan_operation: { icon: "debts", tone: "neutral" },
-  purchase_refund: { icon: "income", tone: "income" },
-  card_credit_return: { icon: "income", tone: "income" },
-  bank_benefit: { icon: "benefits", tone: "income" },
 };
 
 const statusIcon: Record<HistoryEntry["status"], IconName> = {
@@ -38,19 +28,10 @@ const statusIcon: Record<HistoryEntry["status"], IconName> = {
   voided: "close",
 };
 
-// Signo del importe según el sentido del registro, como en el prototipo.
-// Los registros sin un sentido único (saldo confirmado, deuda inicial o
-// ajuste de tarjeta, deudas y préstamos) se muestran sin signo: no se
-// inventa una dirección que el dato no informa.
-const amountSign: Partial<Record<HistoryKind, "+" | "−">> = {
-  income: "+",
-  purchase_refund: "+",
-  card_credit_return: "+",
-  bank_benefit: "+",
-  bank_transfer: "+",
+// Signo del importe: los gastos se muestran con signo negativo.
+const amountSign: Partial<Record<HistoryKind, "−">> = {
   expense: "−",
   card_purchase: "−",
-  card_payment: "−",
 };
 
 export function KindBadge({ kind }: { kind: HistoryKind }) {
@@ -73,23 +54,15 @@ export function StatusPill({ status }: { status: HistoryEntry["status"] }) {
 
 const unsigned = (amount: string) => amount.replace(/^-/, "");
 
-// Importe principal que se muestra (y por el que se ordena): en un cambio de
-// moneda es lo recibido; en tarjeta, la primera moneda de la operación.
+// Importe principal que se muestra (y por el que se ordena): en tarjeta, la
+// primera moneda de la operación.
 export function historyDisplayAmount(entry: HistoryEntry) {
-  if (
-    entry.kind === "bank_transfer" &&
-    entry.otherCurrency &&
-    entry.otherAmount
-  )
-    return { currency: entry.otherCurrency, amount: entry.otherAmount };
   return entry.cardAmounts?.[0] ?? entry;
 }
 
 export function HistoryTableAmount({ entry }: { entry: HistoryEntry }) {
   const sign = amountSign[entry.kind];
   const tone = historyAmountTones[entry.kind];
-  const transfer =
-    entry.kind === "bank_transfer" && entry.otherCurrency && entry.otherAmount;
   const signed = (line: {
     currency: HistoryEntry["currency"];
     amount: string;
@@ -112,25 +85,6 @@ export function HistoryTableAmount({ entry }: { entry: HistoryEntry }) {
           {signed(line)}
         </span>
       ))}
-      {transfer && (
-        <span className="lab-amount__other">
-          {formatBankAmount({
-            currency: entry.currency,
-            amount: unsigned(entry.amount),
-          })}
-        </span>
-      )}
-      {entry.kind === "loan_operation" &&
-        entry.otherCurrency &&
-        entry.otherAmount && (
-          <span className="lab-amount__note">
-            Bancos{" "}
-            {formatBankAmount({
-              currency: entry.otherCurrency,
-              amount: entry.otherAmount,
-            })}
-          </span>
-        )}
     </span>
   );
 }

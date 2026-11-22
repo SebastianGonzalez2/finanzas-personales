@@ -4,13 +4,9 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import pg from "pg";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
-import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { decodeBackup, encodeBackup } from "../../src/server/backup-format.ts";
-import { saveCard } from "../../src/server/cards.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
-import { creditHistoryDetail } from "../../src/server/history.ts";
+import { saveMovement } from "../../src/server/movements.ts";
 import { loadPeriodReport } from "../../src/server/period-report.ts";
-import { cardCommand, creditPurchase } from "../support/f2-10-fixtures.mjs";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 import prepareDatabase, {
   financeBrowserFixtures,
@@ -83,39 +79,35 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
     const report = await tx(owners.a, (client, owner) =>
       loadPeriodReport(client, owner, { from: "2025-03-01", to: "2025-03-31" }),
     );
-    assert.deepEqual(report.saldos, [
-      [
-        "Saldo bancario",
-        "UYU",
-        "9999999999999999.9999",
-        "2025-01-01",
-        "9999999999999999.9999",
-      ],
+    assert.deepEqual(Object.keys(report), [
+      "resumen",
+      "evolucion",
+      "movimientos",
+      "cuotas",
+      "presupuestos",
     ]);
-    const createPurchase = (reference = {}) =>
-      tx(owners.a, async (client, ownerId) => {
-        const { id: cardId } = await saveCard(
-          client,
-          ownerId,
-          cardCommand({ name: randomUUID(), currency: "USD" }),
-        );
-        const command = parseCreditCommand({
-          ...creditPurchase({ cardId, currency: "USD", amount: "58" }),
-          ...reference,
-        });
-        assert.ok(!("error" in command), command.error);
-        const result = await saveCreditOperation(client, ownerId, command);
-        assert.equal(result.status, "created");
-        return result.id;
+    // SIMP-04: gasto en cuotas independiente de tarjetas, con decimales exactos.
+    await tx(owners.a, async (client, ownerId) => {
+      const result = await saveMovement(client, ownerId, {
+        kind: "expense",
+        currency: "USD",
+        amount: "150.0003",
+        effectiveOn: "2025-03-10",
+        method: "unspecified",
+        concept: "Cuotas sintéticas",
+        note: null,
+        categoryId: null,
+        plan: {
+          installmentAmount: "50.0001",
+          count: 3,
+          firstPeriod: "2025-03",
+        },
+        idempotencyKey: randomUUID(),
       });
-    const ordinary = await createPurchase();
-    const referenced = await createPurchase({
-      originalCurrency: "EUR",
-      originalAmount: "50.0001",
+      assert.equal(result.status, "created");
     });
     const saved = await snapshot(owners.a);
-    assert.match(saved.payload, /"original_amount": 50\.0001/);
-    assert.match(saved.payload, /"original_currency": "EUR"/);
+    assert.match(saved.payload, /50.0001/);
     const key = Buffer.alloc(32, 1);
     const plain = JSON.parse(
       (await encodeBackup(saved.payload, owners.a, key)).file,
@@ -178,20 +170,6 @@ test("F5-07: inventario completo, decimales exactos, rollback, aislamiento y rei
     ]);
     assert.deepEqual(outcomes.toSorted(), ["changed", "restored"]);
     assert.equal((await snapshot(owners.a)).payload, saved.payload);
-    await tx(owners.a, async (client, ownerId) => {
-      const [line] = await creditHistoryDetail(client, ownerId, referenced);
-      assert.equal(line.amount, "58.0000");
-      assert.equal(line.debtDelta, "58.0000");
-      assert.deepEqual(line.originalPurchase, {
-        amount: "50.0001",
-        currency: "EUR",
-      });
-      assert.equal(
-        (await creditHistoryDetail(client, ownerId, ordinary))[0]
-          .originalPurchase,
-        null,
-      );
-    });
     assert.deepEqual(await snapshot(owners.b), other);
     assert.equal(
       await runRestore(

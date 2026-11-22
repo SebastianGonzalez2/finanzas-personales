@@ -18,15 +18,6 @@ test("F5-01 CA-051: crear desde un gasto, archivar y conservar el historial", as
     (await context.request.post(path, { headers, data: parent })).status(),
   ).toBe(401);
   await context.addCookies([cookies.a1]);
-  expect(
-    (
-      await context.request.post("/api/bank-balances", {
-        headers,
-        data: { currency: "UYU", amount: "1000", asOfDate: "2025-01-01" },
-      })
-    ).status(),
-  ).toBe(201);
-
   await page.goto("/resumen");
   await page
     .getByRole("banner")

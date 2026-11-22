@@ -5,17 +5,13 @@ import pg from "pg";
 import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { formatBankAmount } from "../../src/domain/bank-balances.ts";
-import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import {
   formatStatisticsAmount,
   parseStatisticsParams,
   statisticsAnnualRange,
   statisticsHistoryRange,
 } from "../../src/domain/statistics.ts";
-import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import { listBudgets, saveBudget } from "../../src/server/budgets.ts";
-import { saveCard } from "../../src/server/cards.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { saveMovement } from "../../src/server/movements.ts";
 import {
   loadStatistics,
@@ -149,7 +145,7 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
     ])
       await rate(base, date, value);
 
-    const card = await run(async (c, id) => {
+    await run(async (c, id) => {
       for (const [categoryId, name, limit] of [
         [categories.super, "Supermercado QA", "10000"],
         [categories.trips, "Viajes QA", "20000"],
@@ -177,23 +173,6 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
           "created",
         );
       }
-      for (const currency of ["UYU", "USD", "EUR"])
-        await saveOpeningBalance(c, id, {
-          currency,
-          amount: "100000.0000",
-          asOfDate: "2024-12-01",
-        });
-      return saveCard(c, id, {
-        action: "create",
-        kind: "credit",
-        name: "Tarjeta QA",
-        issuer: null,
-        currencies: [
-          { currency: "USD", limit: null },
-          { currency: "EUR", limit: null },
-        ],
-        idempotencyKey: randomUUID(),
-      });
     });
 
     // Gastos en tres monedas; Diciembre de 2024 queda a más de 12 meses de la fase 2.
@@ -216,26 +195,21 @@ test("QA-FINAL: Presupuestos y Estadísticas coinciden con UYU, USD y EUR, cuota
       ["USD", "300", "100", 3, "2025-02", "2025-02-10"],
       ["EUR", "80", "40", 2, "2025-03", "2025-03-05"],
     ]) {
-      const purchase = parseCreditCommand(
-        {
-          action: "purchase",
-          cardId: card.id,
+      const result = await run((c, id) =>
+        saveMovement(c, id, {
+          kind: "expense",
           currency,
           amount: total,
-          concept: `Cuotas ${currency} QA`,
-          categoryId: categories.installments,
           effectiveOn: date,
-          covered: false,
+          method: "unspecified",
+          concept: `Cuotas ${currency} QA`,
+          note: null,
+          categoryId: categories.installments,
           plan: { installmentAmount: installment, count, firstPeriod: period },
           idempotencyKey: randomUUID(),
-        },
-        phase1,
+        }),
       );
-      assert.ok(!("error" in purchase), JSON.stringify(purchase));
-      assert.equal(
-        (await run((c, id) => saveCreditOperation(c, id, purchase))).status,
-        "created",
-      );
+      assert.equal(result.status, "created");
     }
 
     // Esperado por mes: [categoría, mes, hasta, importes y cotizaciones].

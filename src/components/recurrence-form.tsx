@@ -13,11 +13,6 @@ import {
   recurrencePeriodAt,
   type RecurrenceFrequency,
 } from "@/domain/recurrences";
-import type { Person } from "@/domain/recurring-shares";
-import {
-  RecurringAgreementFields,
-  recurringAgreement,
-} from "./recurring-share-fields";
 import type { CatalogCategory } from "@/domain/categories";
 import { useFinancialCommand } from "./financial-command";
 import { CategorySelect } from "./category-select";
@@ -29,12 +24,10 @@ export function RecurrenceForm({
   today,
   categories,
   frequencies,
-  people,
 }: {
   today: string;
   categories: CatalogCategory[];
   frequencies: Record<RecurrenceFrequency, string>;
-  people: Person[] | null;
 }) {
   const router = useRouter();
   const { send, pending, uncertain, error } = useFinancialCommand(
@@ -46,7 +39,6 @@ export function RecurrenceForm({
   const [frequency, setFrequency] = useState(defaultRecurrenceFrequency);
   const [firstPeriod, setFirstPeriod] = useState(today);
   const [dateMode, setDateMode] = useState("none");
-  const [shared, setShared] = useState(false);
   const [saved, setSaved] = useState(false);
   const first = isRecurrenceDate(firstPeriod)
     ? recurrencePeriodAt({ frequency, firstPeriod }, 0)
@@ -61,8 +53,6 @@ export function RecurrenceForm({
     if (
       await send({
         kind,
-        ...(kind === "expense" &&
-          shared && { usualShares: recurringAgreement(data) }),
         frequency,
         firstPeriod,
         dateMode,
@@ -76,7 +66,6 @@ export function RecurrenceForm({
       })
     ) {
       form.reset();
-      setShared(false);
       setFrequency(defaultRecurrenceFrequency);
       setFirstPeriod(today);
       setDateMode("none");
@@ -174,19 +163,6 @@ export function RecurrenceForm({
               placeholder={firstPeriod.slice(8)}
             />
           </Field>
-        )}
-        {kind === "expense" && people && (
-          <>
-            <label className="gs-check gs-form__full">
-              <input
-                type="checkbox"
-                checked={shared}
-                onChange={(event) => setShared(event.target.checked)}
-              />
-              Compartida
-            </label>
-            {shared && <RecurringAgreementFields people={people} />}
-          </>
         )}
         <Field label="Nota (opcional)" className="gs-form__full">
           <Textarea name="note" maxLength={noteLimit} rows={2} />

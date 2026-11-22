@@ -96,7 +96,7 @@ test("OPS-RESET: purga del dominio completo con rollback, sesiones intactas y pr
     const originalB = await inspect(owners.b);
     const originalIdentity = await identity();
     assert.ok(
-      Object.values(originalA).filter((rows) => rows.length).length >= 45,
+      Object.values(originalA).filter((rows) => rows.length).length >= 25,
     );
     assert.equal(originalA["finance.card_push_attempts"].length, 1);
     assert.equal(originalA["finance.card_push_subscriptions"].length, 1);

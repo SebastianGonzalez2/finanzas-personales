@@ -2,10 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { RefObject } from "react";
-import {
-  isCalendarDate,
-  isContributionMonth,
-} from "@/domain/scheduled-contributions";
+import { isCalendarDate, isCalendarMonth } from "@/domain/bank-balances";
 import { cn } from "@/lib/utils";
 import { formatBankReference as displayDate } from "@/domain/bank-balances";
 
@@ -183,7 +180,7 @@ export function MonthField({
   const monthErrorId = useId();
   const yearErrorId = useId();
   const candidate = `${year}-${month}`;
-  const iso = isContributionMonth(candidate) ? candidate : "";
+  const iso = isCalendarMonth(candidate) ? candidate : "";
   const monthError =
     !month && (required || year)
       ? "Elegí un mes."

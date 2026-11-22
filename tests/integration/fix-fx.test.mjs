@@ -14,17 +14,13 @@ import {
   statisticsReady,
   statisticsReferenceDates,
 } from "../../src/server/statistics.ts";
-import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
 import {
   budgetReferenceDates,
   listBudgetNotices,
   listBudgets,
   saveBudget,
 } from "../../src/server/budgets.ts";
-import { saveCard } from "../../src/server/cards.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
 import { saveMovement } from "../../src/server/movements.ts";
-import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos", async () => {
@@ -85,7 +81,7 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
       ["2025-06-01", "45"],
     ])
       await rate(date, value, source);
-    const card = await run(async (c, id) => {
+    await run(async (c, id) => {
       for (const [categoryId, name] of [
         [installmentCategory, "Cuotas sintéticas"],
         [ordinaryCategory, "Compras sintéticas"],
@@ -112,42 +108,22 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
           "created",
         );
       }
-      await saveOpeningBalance(c, id, {
-        currency: "USD",
-        amount: "2000.0000",
-        asOfDate: "2025-01-01",
-      });
-      await saveOpeningBalance(c, id, {
-        currency: "UYU",
-        amount: "10000.0000",
-        asOfDate: "2025-01-01",
-      });
-      return saveCard(c, id, {
-        action: "create",
-        kind: "credit",
-        name: "Tarjeta sintética",
-        issuer: null,
-        currencies: [{ currency: "USD", limit: null }],
-        idempotencyKey: randomUUID(),
-      });
     });
-    const purchase = parseCreditCommand(
-      {
-        action: "purchase",
-        cardId: card.id,
+    // SIMP-04: la compra en seis cuotas es un gasto independiente de tarjetas.
+    const result = await run((c, id) =>
+      saveMovement(c, id, {
+        kind: "expense",
         currency: "USD",
         amount: "600",
-        concept: "Compra de seis cuotas",
-        categoryId: installmentCategory,
         effectiveOn: "2025-01-19",
-        covered: false,
+        method: "unspecified",
+        concept: "Compra de seis cuotas",
+        note: null,
+        categoryId: installmentCategory,
         plan: { installmentAmount: "100", count: 6, firstPeriod: "2025-01" },
         idempotencyKey: randomUUID(),
-      },
-      fixtureToday,
+      }),
     );
-    assert.ok(!("error" in purchase));
-    const result = await run((c, id) => saveCreditOperation(c, id, purchase));
     assert.equal(result.status, "created");
     assert.equal((await expense("80.0000")).status, "created");
     assert.equal(
@@ -301,39 +277,9 @@ test("FIX-FX: seis cuotas, compra retroactiva, estimaciones, fijación y avisos"
       ),
     );
     assert.deepEqual(original.rows, [
-      { currency: "USD", installment_amount: "100.0000", monthly_fx: true },
+      { currency: "USD", installment_amount: "100", monthly_fx: true },
     ]);
 
-    const payment = parseCreditCommand(
-      {
-        action: "payment",
-        cardId: card.id,
-        effectiveOn: "2025-06-21",
-        lines: [
-          {
-            currency: "USD",
-            amount: "100",
-            bankCurrency: "UYU",
-            bankAmount: "4367",
-            allocations: [{ purchaseId: result.id, amount: "100" }],
-          },
-        ],
-        idempotencyKey: randomUUID(),
-      },
-      fixedToday,
-    );
-    assert.ok(!("error" in payment));
-    const paid = await run((c, id) => saveCreditOperation(c, id, payment));
-    assert.equal(paid.status, "created");
-    const effects = await run((c) =>
-      c.query(
-        "SELECT currency,amount_signed::text FROM finance.bank_effects WHERE event_id=$1",
-        [paid.id],
-      ),
-    );
-    assert.deepEqual(effects.rows, [
-      { currency: "UYU", amount_signed: "-4367.0000" },
-    ]);
     assert.equal(
       (await budget("2025-06", installmentCategory)).progress.consumed,
       "4500.0000",

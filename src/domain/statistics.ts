@@ -137,7 +137,6 @@ export type StatisticsSnapshot = {
   previousMethods: StatisticsMethodTotal[];
   recurrencesReady: boolean;
   months: StatisticsMonthTotal[];
-  positions: StatisticsPosition[];
   entries: StatisticsEntry[];
   hasNextPage: boolean;
   movementCount: number;
@@ -145,7 +144,6 @@ export type StatisticsSnapshot = {
     target: Currency;
     quotes: FxQuote[];
     missingFlows: FxKey[];
-    missingPositions: FxKey[];
   };
 };
 
@@ -157,21 +155,6 @@ export type StatisticsEntry = {
   concept: string;
   amount: string;
   quote?: FxQuote;
-};
-
-export type StatisticsPosition = {
-  date: string;
-  currency: Currency;
-  bank: string | null;
-  bankStatus: "confirmed" | "calculated" | "unknown";
-  adjustment: boolean;
-  reserved: string;
-  available: string | null;
-  cardDebt: string;
-  loanDebt: string;
-  receivables: string;
-  cardCredit: string;
-  netWorth: string | null;
 };
 
 export type Comparison = {
@@ -630,21 +613,8 @@ export function statisticsSummary(input: {
       (row) => row.currency === total.currency,
     );
     paragraphs.push(
-      `En ${input.range.label} registraste ${formatStatisticsAmount(total.income, total.currency)} de ingresos y ${formatStatisticsAmount(total.expense, total.currency)} de gastos.`,
+      `En ${input.range.label} registraste ${formatStatisticsAmount(total.expense, total.currency)} de gastos.`,
     );
-    if (amountUnits(total.income) > BigInt(0)) {
-      const ratio = divideRounded(
-        amountUnits(total.expense) * BigInt(1000),
-        amountUnits(total.income),
-      );
-      paragraphs.push(
-        `Los gastos representan ${formatPercentage(ratio)} de los ingresos registrados${ratio > BigInt(1000) ? " y superan los ingresos" : ""}.`,
-      );
-    } else {
-      paragraphs.push(
-        "Sin ingresos registrados para calcular la relación gastos/ingresos.",
-      );
-    }
     if (
       input.previous?.complete &&
       input.range.complete &&
@@ -659,11 +629,6 @@ export function statisticsSummary(input: {
         input.previous.label,
       );
       paragraphs.push(`Gastos: ${change.label}`);
-    }
-    if (amountUnits(total.refunds) > BigInt(0)) {
-      paragraphs.push(
-        `Devoluciones registradas: ${formatStatisticsAmount(total.refunds, total.currency)}. Se informan por separado y no reducen compras de otros períodos.`,
-      );
     }
   }
   paragraphs.push(

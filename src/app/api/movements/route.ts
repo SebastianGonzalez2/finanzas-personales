@@ -1,10 +1,6 @@
 import { freshGoogleSession, withGoogleOwner } from "@/server/google-auth";
 import { refreshBudgetNotices } from "@/server/budgets";
-import {
-  reviseMovement,
-  saveBankTransfer,
-  saveMovement,
-} from "@/server/movements";
+import { reviseMovement, saveMovement } from "@/server/movements";
 import {
   handleMovement,
   handleMovementRevision,
@@ -18,10 +14,8 @@ export function POST(request: Request) {
     process.env.GOOGLE_AUTH_ORIGIN,
     (movement) =>
       withGoogleOwner(request, async (client, ownerId) => {
-        if (movement.kind === "bank_transfer")
-          return saveBankTransfer(client, ownerId, movement);
         const result = await saveMovement(client, ownerId, movement);
-        if (movement.kind === "expense" && result.status === "created")
+        if (result.status === "created")
           await refreshBudgetNotices(client, ownerId);
         return result;
       }),

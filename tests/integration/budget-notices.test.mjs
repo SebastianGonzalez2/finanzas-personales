@@ -7,10 +7,6 @@ import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { formatBankAmount } from "../../src/domain/bank-balances.ts";
 import { parseBudgetCommand } from "../../src/domain/budgets.ts";
 import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
-import {
   listBudgetNotices,
   listBudgets,
   refreshBudgetNotices,
@@ -71,12 +67,6 @@ test("QA-F01: redondeo del total convertido y cruces de los umbrales de presupue
       admin.release();
     }
     const categories = await run(async (c, id) => {
-      for (const currency of ["UYU", "EUR"])
-        await saveOpeningBalance(c, id, {
-          currency,
-          amount: "10",
-          asOfDate: range.from,
-        });
       const categories = [];
       for (const { day, rate, limit } of cases) {
         const categoryId = randomUUID();
@@ -123,7 +113,6 @@ test("QA-F01: redondeo del total convertido y cruces de los umbrales de presupue
       }
       return categories;
     });
-    const balances = await run(listBankBalances);
     const budgets = await run((c, id) => listBudgets(c, id, month));
     for (const [index, { categoryId }] of categories.entries()) {
       const { total, visible } = cases[index];
@@ -156,7 +145,6 @@ test("QA-F01: redondeo del total convertido y cruces de los umbrales de presupue
     const near80 = categories[2];
     const near100 = categories[3];
     assert.deepEqual(await thresholds(), [[near100.budgetId, 80]]);
-    assert.deepEqual(await run(listBankBalances), balances);
     for (const { categoryId, date } of [near80, near100]) {
       const result = await run((c, id) =>
         saveMovement(c, id, {
@@ -229,11 +217,6 @@ test("F3-07: cruces concurrentes, deduplicación, meses y RLS en PostgreSQL", as
       admin.release();
     }
     const budget = await run(async (c, id) => {
-      await saveOpeningBalance(c, id, {
-        currency: "UYU",
-        amount: "50000.0000",
-        asOfDate: "2026-01-01",
-      });
       const budgets = [];
       for (const [key, name] of [
         [category, "Alimentación"],
@@ -277,7 +260,6 @@ test("F3-07: cruces concurrentes, deduplicación, meses y RLS en PostgreSQL", as
     ]);
     const directCrossing = expense("11000.0000", direct);
     assert.equal(await spend(directCrossing), "created");
-    const bankBefore = await run(listBankBalances);
     const expected = [
       ["Transporte", 100, 110],
       ["Alimentación", 100, 100],
@@ -292,7 +274,6 @@ test("F3-07: cruces concurrentes, deduplicación, meses y RLS en PostgreSQL", as
         ]),
         expected,
       );
-    assert.deepEqual(await run(listBankBalances), bankBefore);
     assert.deepEqual(await notices(month, foreign), []);
     assert.equal(
       await run(

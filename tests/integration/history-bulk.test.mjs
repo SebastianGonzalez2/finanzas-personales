@@ -6,10 +6,7 @@ import { migrateInTransaction } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseBulkClassification } from "../../src/domain/history-bulk.ts";
 import { parseHistoryParams } from "../../src/domain/history.ts";
-import {
-  lockBankWrites,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
+import { lockOwnerWrites } from "../../src/server/owner-lock.ts";
 import {
   readClassification,
   saveClassification,
@@ -47,11 +44,6 @@ test("F5-04: clasificación masiva atómica, versionada y aislada (CA-057)", asy
   };
   const movements = (owner, n) =>
     as(owner, async (client, id) => {
-      await saveOpeningBalance(client, id, {
-        currency: "UYU",
-        amount: "5000.0000",
-        asOfDate: date,
-      });
       const entries = [];
       for (let index = 0; index < n; index++) {
         const kind = "expense";
@@ -248,7 +240,7 @@ test("F5-04: clasificación masiva atómica, versionada y aislada (CA-057)", asy
       continueEdit = resolve;
     });
     const first = as(a, async (client, owner) => {
-      await lockBankWrites(client, owner);
+      await lockOwnerWrites(client, owner);
       beginRace();
       await editMayCommit;
       return saveClassification(client, owner, {

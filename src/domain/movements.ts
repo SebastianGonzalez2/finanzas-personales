@@ -1,8 +1,4 @@
-import {
-  bankCurrencies,
-  bankReferenceToday,
-  isBankReferenceDate,
-} from "./bank-balances.ts";
+import { bankReferenceToday, isBankReferenceDate } from "./bank-balances.ts";
 import { normalizeDecimalAmount, type Currency } from "./money.ts";
 import { parseOptionalCatalogName } from "./catalog-names.ts";
 import {
@@ -10,14 +6,6 @@ import {
   parseInstallmentTerms,
   type InstallmentTerms,
 } from "./installments.ts";
-
-import {
-  coverageSum,
-  coverageUnits,
-  fundPortionsError,
-  parseFundPortions,
-  type FundPortion,
-} from "./fund-coverage.ts";
 
 export const movementMethods = {
   deposit: "Acreditación bancaria",
@@ -56,7 +44,6 @@ export type MovementInput = ClassificationInput & {
   note: string | null;
   categoryId: string | null;
   idempotencyKey: string;
-  fundPortions?: FundPortion[];
   merchantName?: string | null;
   plan?: InstallmentTerms;
 };
@@ -68,7 +55,7 @@ export type MovementRevision = RevisionTarget &
     | { action: "correct"; amount: string }
     | {
         action: "edit";
-        movement: MovementInput | BankTransfer;
+        movement: MovementInput;
         classificationVersion?: number;
       }
   );
@@ -89,23 +76,6 @@ export type SummaryRecentMovement = RecentMovement & {
 
 export type MovementTotal = Pick<MovementInput, "kind" | "currency" | "amount">;
 
-export type BankTransfer = {
-  kind: "bank_transfer";
-  sourceCurrency: Currency;
-  sourceAmount: string;
-  destinationCurrency: Currency;
-  destinationAmount: string;
-  effectiveOn: string;
-  idempotencyKey: string;
-};
-
-export type RecentBankTransfer = Omit<
-  BankTransfer,
-  "kind" | "idempotencyKey"
-> & {
-  id: string;
-};
-
 export const conceptLimit = 200;
 export const noteLimit = 500;
 export const movementUuid =
@@ -120,7 +90,6 @@ const inputKeys = [
   "note",
   "categoryId",
   "idempotencyKey",
-  "fundPortions",
   "allocations",
   "tagIds",
   "merchantName",
@@ -141,55 +110,6 @@ const installmentsError =
 
 const amountError =
   "Ingresá un importe positivo sin separador de miles y con hasta 4 decimales.";
-
-export function parseBankTransfer(
-  input: object,
-  today: string,
-): BankTransfer | { error: string } {
-  const {
-    kind,
-    sourceCurrency,
-    sourceAmount,
-    destinationCurrency,
-    destinationAmount,
-    effectiveOn,
-    idempotencyKey,
-    ...extra
-  } = input as Record<string, unknown>;
-  if (
-    kind !== "bank_transfer" ||
-    Object.keys(extra).length ||
-    typeof idempotencyKey !== "string" ||
-    !movementUuid.test(idempotencyKey)
-  )
-    return { error: "Solicitud inválida." };
-  const source = bankCurrencies.find((code) => code === sourceCurrency);
-  const destination = bankCurrencies.find(
-    (code) => code === destinationCurrency,
-  );
-  if (!source || !destination) return { error: "Elegí dos monedas válidas." };
-  if (source === destination)
-    return {
-      error:
-        "Los movimientos entre bancos propios en la misma moneda ya están incluidos en el saldo agregado.",
-    };
-  if (!isBankReferenceDate(effectiveOn, today))
-    return { error: "Ingresá una fecha válida que no sea posterior a hoy." };
-
-  try {
-    return {
-      kind,
-      sourceCurrency: source,
-      sourceAmount: positiveAmount(sourceAmount),
-      destinationCurrency: destination,
-      destinationAmount: positiveAmount(destinationAmount),
-      effectiveOn,
-      idempotencyKey: idempotencyKey.toLowerCase(),
-    };
-  } catch {
-    return { error: `Revisá los dos importes. ${amountError}` };
-  }
-}
 
 export function parseMovementRevision(
   input: unknown,
@@ -237,10 +157,7 @@ export function parseMovementRevision(
     )
       return { error: "Solicitud inválida." };
     const replacement = { ...movement, idempotencyKey: target.idempotencyKey };
-    const parsed =
-      "kind" in movement && movement.kind === "bank_transfer"
-        ? parseBankTransfer(replacement, today)
-        : parseMovement(replacement, today);
+    const parsed = parseMovement(replacement, today);
     if (
       classificationVersion !== undefined &&
       (typeof classificationVersion !== "number" ||
@@ -288,7 +205,6 @@ export function parseMovement(
     note,
     categoryId,
     idempotencyKey,
-    fundPortions,
     allocations,
     tagIds,
     merchantName: rawMerchant,
@@ -296,16 +212,12 @@ export function parseMovement(
   } = input as Record<string, unknown>;
   if (typeof idempotencyKey !== "string" || !movementUuid.test(idempotencyKey))
     return { error: "Solicitud inválida." };
-  if (kind !== "income" && kind !== "expense")
-    return { error: "Elegí ingreso o gasto." };
-  const resolvedMethod =
-    method ?? (kind === "income" ? "deposit" : "unspecified");
+  if (kind !== "expense") return { error: "Solo se registran gastos." };
+  const resolvedMethod = method ?? "unspecified";
   if (
-    (kind === "income" && resolvedMethod !== "deposit") ||
-    (kind === "expense" &&
-      resolvedMethod !== "unspecified" &&
-      resolvedMethod !== "debit" &&
-      resolvedMethod !== "transfer")
+    resolvedMethod !== "unspecified" &&
+    resolvedMethod !== "debit" &&
+    resolvedMethod !== "transfer"
   )
     return { error: "Elegí un medio válido para el movimiento." };
   if (currency !== "UYU" && currency !== "USD" && currency !== "EUR")
@@ -315,8 +227,6 @@ export function parseMovement(
 
   let plan: InstallmentTerms | undefined;
   if (rawPlan !== undefined) {
-    if (kind !== "expense")
-      return { error: "Solo un gasto se puede registrar en cuotas." };
     try {
       plan = parseInstallmentTerms(rawPlan);
     } catch {
@@ -337,19 +247,6 @@ export function parseMovement(
     return { error: "El importe debe ser igual a la suma de las cuotas." };
   }
 
-  let portions: FundPortion[] | undefined;
-  if (plan && fundPortions !== undefined)
-    return { error: "Un gasto en cuotas no usa fondos de ahorro." };
-  if (fundPortions !== undefined) {
-    try {
-      portions = parseFundPortions(fundPortions);
-      if (kind !== "expense" || coverageSum(portions) > coverageUnits(decimal))
-        return { error: fundPortionsError };
-    } catch {
-      return { error: fundPortionsError };
-    }
-  }
-
   const label = concept ?? "";
   if (
     typeof label !== "string" ||
@@ -359,13 +256,10 @@ export function parseMovement(
     return {
       error: `Ingresá un concepto de hasta ${conceptLimit} caracteres.`,
     };
-  if (kind === "expense" && !label.trim())
-    return { error: "Ingresá el concepto del gasto." };
+  if (!label.trim()) return { error: "Ingresá el concepto del gasto." };
   let merchantName: string | null | undefined;
   try {
     merchantName = parseOptionalCatalogName(rawMerchant);
-    if (kind !== "expense" && merchantName !== undefined)
-      return { error: "El comercio solo se puede indicar en un gasto." };
   } catch {
     return { error: "Revisá el nombre del comercio." };
   }
@@ -403,7 +297,6 @@ export function parseMovement(
     concept: label.trim(),
     note: details.trim() || null,
     categoryId: category.toLowerCase() || null,
-    ...(portions !== undefined && { fundPortions: portions }),
     ...(merchantName !== undefined && { merchantName }),
     ...(plan && { plan }),
     idempotencyKey: idempotencyKey.toLowerCase(),

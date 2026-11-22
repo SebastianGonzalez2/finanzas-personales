@@ -11,10 +11,6 @@ import {
   resolveMovementCategory,
   setCategoryArchived,
 } from "../../src/server/categories.ts";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { findHistoryEntry } from "../../src/server/history.ts";
 import { saveMovement } from "../../src/server/movements.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
@@ -197,13 +193,6 @@ test("F5-01: catálogo por titular, subcategorías, duplicados y archivo", async
   ]);
 
   const effectiveOn = "2026-02-01";
-  await run((c, id) =>
-    saveOpeningBalance(c, id, {
-      currency: "UYU",
-      asOfDate: effectiveOn,
-      amount: "1000.0000",
-    }),
-  );
   const expense = {
     kind: "expense",
     method: "debit",
@@ -218,7 +207,6 @@ test("F5-01: catálogo por titular, subcategorías, duplicados y archivo", async
   const save = (movement) => run((c, id) => saveMovement(c, id, movement));
   const original = await save(expense);
   assert.equal(original.status, "created");
-  const before = await run(listBankBalances);
 
   let competing;
   await run(async (c, id) => {
@@ -245,7 +233,6 @@ test("F5-01: catálogo por titular, subcategorías, duplicados y archivo", async
   );
   assert.equal(historical.categoryId, sub.id);
   assert.equal(historical.category, "Veterinario");
-  assert.deepEqual(await run(listBankBalances), before);
   assert.equal(await archive(top.id, false), "saved");
   assert.equal(await category(sub.id), sub.id);
 

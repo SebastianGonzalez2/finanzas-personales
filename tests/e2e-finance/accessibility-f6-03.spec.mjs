@@ -278,14 +278,6 @@ test("CA-065/066: validación nativa marca el campo y, sin conexión, no se info
   fixtures,
 }) => {
   void fixtures;
-  const today = bankReferenceToday();
-  const configured = await page.request.fetch("/api/bank-balances", {
-    method: "POST",
-    headers: { origin: financeTestOrigin },
-    data: { currency: "UYU", amount: "10000", asOfDate: today },
-  });
-  expect(configured.status()).toBe(201);
-
   await page.goto("/resumen");
   const open = page
     .getByRole("banner")
@@ -350,19 +342,9 @@ test("CA-065: al perder la respuesta del alta, el formulario reintenta el movimi
   fixtures,
 }) => {
   const context = page.context();
-  const origin = { origin: financeTestOrigin };
-  const today = bankReferenceToday();
   const concept = "Gasto sintético con respuesta perdida";
   const movement = "**/api/movements";
   const history = `/historial?q=${encodeURIComponent(concept)}`;
-  expect(
-    (
-      await page.request.post("/api/bank-balances", {
-        headers: origin,
-        data: { currency: "UYU", amount: "10000", asOfDate: today },
-      })
-    ).status(),
-  ).toBe(201);
   await page.goto("/resumen");
   await page
     .getByRole("banner")

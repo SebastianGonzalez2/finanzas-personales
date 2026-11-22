@@ -3,12 +3,6 @@
 import { DateInput } from "./ui/date-fields";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
-import { type FundPortion, type FundSource } from "@/domain/fund-coverage";
-import {
-  expenseFundsField,
-  formFundPortions,
-  FundPortionFields,
-} from "./fund-portion-fields";
 import type { CategoryAllocation } from "@/domain/classification";
 import { AllocationFields, formClassification } from "./classification-fields";
 import { type HistoryEntry } from "@/domain/history";
@@ -65,10 +59,7 @@ export function HistoryEditor({
   entry,
   classification,
   categories,
-  currencies,
   today,
-  fundSources,
-  fundPortions,
   plan,
 }: {
   entry: HistoryEntry;
@@ -77,10 +68,7 @@ export function HistoryEditor({
     version: number;
     allocations: (CategoryAllocation & { category: string | null })[];
   } | null;
-  currencies: Currency[];
   today: string;
-  fundSources: FundSource[] | null;
-  fundPortions: FundPortion[];
   plan?: InstallmentVersion;
 }) {
   const router = useRouter();
@@ -96,7 +84,6 @@ export function HistoryEditor({
     "/api/movements",
     "PATCH",
   );
-  const transfer = entry.kind === "bank_transfer";
 
   function begin(next: "edit" | "void") {
     setCurrency(entry.currency);
@@ -116,8 +103,6 @@ export function HistoryEditor({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const portions = formFundPortions(form, expenseFundsField);
-    form.delete(expenseFundsField);
     const fields = formClassification(form);
     const terms = formInstallmentPlan(form);
     const allocations =
@@ -126,7 +111,6 @@ export function HistoryEditor({
     const movement = {
       kind: entry.kind,
       ...Object.fromEntries(form),
-      ...(portions && { fundPortions: portions }),
       ...(allocations && { allocations }),
       ...(terms && { plan: terms }),
     };
@@ -195,40 +179,7 @@ export function HistoryEditor({
                   className={historyControl}
                 />
               </HistoryField>
-              {transfer ? (
-                <>
-                  <CurrencyField
-                    name="sourceCurrency"
-                    label="Moneda entregada"
-                    value={entry.currency}
-                    currencies={currencies}
-                  />
-                  <HistoryField label="Importe entregado">
-                    <input
-                      name="sourceAmount"
-                      inputMode="decimal"
-                      required
-                      defaultValue={entry.amount}
-                      className={historyControl}
-                    />
-                  </HistoryField>
-                  <CurrencyField
-                    name="destinationCurrency"
-                    label="Moneda recibida"
-                    value={entry.otherCurrency}
-                    currencies={currencies}
-                  />
-                  <HistoryField label="Importe recibido">
-                    <input
-                      name="destinationAmount"
-                      inputMode="decimal"
-                      required
-                      defaultValue={entry.otherAmount ?? ""}
-                      className={historyControl}
-                    />
-                  </HistoryField>
-                </>
-              ) : (
+              {
                 <>
                   <CurrencyField
                     name="currency"
@@ -272,15 +223,6 @@ export function HistoryEditor({
                       />
                     </HistoryField>
                   )}
-                  {entry.kind === "expense" && !installments && fundSources && (
-                    <FundPortionFields
-                      key={currency}
-                      funds={fundSources}
-                      currency={currency}
-                      amount={amount}
-                      initial={currency === entry.currency ? fundPortions : []}
-                    />
-                  )}
                   {/* Conserva el medio heredado; un gasto nuevo no lo indica. */}
                   <input
                     type="hidden"
@@ -302,7 +244,7 @@ export function HistoryEditor({
                     initial={classification?.allocations}
                   >
                     <CategorySelect
-                      kind={entry.kind === "income" ? "income" : "expense"}
+                      kind="expense"
                       categories={categories}
                       labelClassName="grid min-w-0 gap-1 text-sm font-medium"
                       labelText="Categoría"
@@ -327,17 +269,15 @@ export function HistoryEditor({
                     />
                   </HistoryField>
                 </>
-              )}
+              }
             </fieldset>
           ) : (
             <p className="text-sm">
-              El registro quedará anulado en la app y conservará su traza. La
-              operación en el banco sigue vigente.
+              El registro quedará anulado y conservará su traza.
             </p>
           )}
           <p className="text-sm text-muted-foreground">
-            Bancos y los totales se recalculan cuando corresponde. Los saldos
-            confirmados se conservan y las diferencias quedan en Conciliación.
+            Estadísticas y presupuestos se recalculan con el cambio.
           </p>
           {error && (
             <p role="alert" className="text-sm">

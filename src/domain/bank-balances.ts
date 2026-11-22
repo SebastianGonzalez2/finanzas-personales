@@ -38,6 +38,19 @@ const montevideoDate = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+const monthPattern = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/;
+const datePattern = /^(?!0000)\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+export function isCalendarMonth(value: unknown): value is string {
+  return typeof value === "string" && monthPattern.test(value);
+}
+
+export function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !datePattern.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 export function bankReferenceToday(now = new Date()): string {
   const parts = montevideoDate.formatToParts(now);
   const part = (type: string) =>

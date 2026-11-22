@@ -8,21 +8,12 @@ import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
 import { parseRecurrenceSeriesCommand } from "../../src/domain/recurrence-pause.ts";
 import { latestTrackedIndex } from "../../src/domain/recurrence-plan.ts";
 import { parseSettlement } from "../../src/domain/recurrence-settlements.ts";
-import {
-  listBankBalances,
-  saveBalanceAdjustment,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { listRecurrenceDueNotices } from "../../src/server/due-notices.ts";
 import {
   listMovementTotals,
   reviseMovement,
   saveMovement,
 } from "../../src/server/movements.ts";
-import {
-  listPositions,
-  saveCreditOperation,
-} from "../../src/server/credit-operations.ts";
 import { recurrenceEventPeriods } from "../../src/server/recurrence-links.ts";
 import {
   applySettlement,
@@ -54,7 +45,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
   const create = async (kind, fields = {}, user = owner) => {
     const definition = parseRecurrence({
       kind,
-      concept: kind === "income" ? "Sueldo sintético" : "Servicio sintético",
+      concept: "Servicio sintético",
       firstPeriod: "2026-11-01",
       currency: "UYU",
       referenceAmount: "50000",
@@ -77,10 +68,6 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     (await run((c, id) => listMovementTotals(c, id, date))).find(
       (row) => row.kind === kind,
     )?.amount;
-  const balance = async () => {
-    const [bank] = await run((c, id) => listBankBalances(c, id));
-    return bank.calculatedAmount ?? bank.amount;
-  };
   const apply = (series, fields, user = owner, at = today) => {
     const command = parseSettlement(
       { idempotencyKey: randomUUID(), ...fields, seriesId: series.id },
@@ -89,7 +76,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     assert.ok(!("error" in command), JSON.stringify(command));
     return run((c, id) => applySettlement(c, id, command, at), user);
   };
-  const record = (period, amount, date, fields = {}, method = "deposit") => ({
+  const record = (period, amount, date, fields = {}, method = "debit") => ({
     action: "record",
     targets: [target(period, { amount, ...fields })],
     amount,
@@ -113,27 +100,13 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
       await admin.query("ROLLBACK");
       admin.release();
     }
-    const opening = {
-      currency: "UYU",
-      amount: "10000.0000",
-      asOfDate: "2026-10-01",
-    };
-    for (const user of [owner, other])
-      assert.equal(
-        await run((c, id) => saveOpeningBalance(c, id, opening), user),
-        "created",
-      );
 
     await t.test(
       "CA-047: omisión, pausa y edición conservan el seguimiento y Bancos",
       async () => {
         const subscriber = randomUUID();
         const read = (work) => run(work, subscriber);
-        assert.equal(
-          await read((c, id) => saveOpeningBalance(c, id, opening)),
-          "created",
-        );
-        const series = await create("income", {}, subscriber);
+        const series = await create("expense", {}, subscriber);
         const periods = (plan) =>
           read((c, id) => trackedPeriods(c, id, plan, [0, 1]));
         const [november, december] = await periods(series);
@@ -239,13 +212,11 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           (await settle(duringPause, subscriber, "2027-04-01")).status,
           "not-found",
         );
-        const [bank] = await read((c, id) => listBankBalances(c, id));
-        assert.equal(bank.calculatedAmount, "10100.0000");
         assert.deepEqual(
           (await read((c, id) => listMovementTotals(c, id, today))).map(
             ({ kind, amount }) => [kind, amount],
           ),
-          [["income", "100.0000"]],
+          [["expense", "100.0000"]],
         );
       },
     );
@@ -253,13 +224,12 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     await t.test(
       "CA-046: dos depósitos en un mes y reintento concurrente",
       async () => {
-        const series = await create("income");
+        const series = await create("expense");
         assert.equal(latestTrackedIndex(series, today), 1);
         let [nov, dec] = await state(series, 0, 1);
         assert.equal(dec.status, "expected");
         assert.equal(dec.dueOn, "2026-12-25");
-        assert.equal(await balance(), "10000.0000");
-        assert.equal(await total("2026-11-01", "income"), undefined);
+        assert.equal(await total("2026-11-01", "expense"), undefined);
         const command = {
           ...record(nov, "30000", "2026-11-03"),
           idempotencyKey: randomUUID(),
@@ -276,7 +246,6 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           }),
           { message: "Operación de datos rechazada" },
         );
-        assert.equal(await balance(), "10000.0000");
         assert.equal((await state(series, 0))[0].version, 0);
         const attempts = await Promise.all([
           apply(series, command),
@@ -315,9 +284,8 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           ["2026-11-08", "2026-11-03"],
         );
         assert.equal(dec.recorded, "0.0000");
-        assert.equal(await balance(), "60000.0000");
-        assert.equal(await total("2026-11-01", "income"), "50000.0000");
-        assert.equal(await total("2026-12-01", "income"), undefined);
+        assert.equal(await total("2026-11-01", "expense"), "50000.0000");
+        assert.equal(await total("2026-12-01", "expense"), undefined);
         assert.deepEqual(
           await run((c, id) => recurrenceEventPeriods(c, id, second.id)),
           [{ seriesId: series.id, key: "2026-11", index: 0 }],
@@ -328,7 +296,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     await t.test(
       "CA-045: cierre explícito por debajo de referencia y corrección conciliada",
       async () => {
-        const series = await create("income");
+        const series = await create("expense");
         let [nov] = await state(series, 0);
         let dec;
         const payment = await apply(series, record(nov, "47000", "2026-12-03"));
@@ -350,21 +318,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         assert.equal(nov.confirmedTotal, "47000.0000");
         assert.equal(nov.remaining, "0.0000");
         assert.equal(dec.referenceAmount, "50000.0000");
-        assert.equal(await balance(), "107000.0000");
-        assert.equal(await total("2026-12-01", "income"), "47000.0000");
-        assert.equal(
-          (
-            await run((c, id) =>
-              saveBalanceAdjustment(c, id, {
-                currency: "UYU",
-                amount: "107000.0000",
-                asOfDate: "2026-12-12",
-                idempotencyKey: randomUUID(),
-              }),
-            )
-          ).status,
-          "created",
-        );
+        assert.equal(await total("2026-12-01", "expense"), "47000.0000");
         const correction = await revise({
           action: "correct",
           eventId: payment.id,
@@ -375,8 +329,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         assert.equal(nov.status, "partial");
         assert.equal(nov.events[0].id, correction.id);
         assert.equal(nov.remaining, null);
-        assert.equal(await balance(), "107000.0000");
-        assert.equal(await total("2026-12-01", "income"), "46000.0000");
+        assert.equal(await total("2026-12-01", "expense"), "46000.0000");
         assert.equal(
           (
             await apply(series, {
@@ -422,9 +375,8 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         assert.equal(nov.status, "completed");
         assert.equal(dec.status, "completed");
         assert.equal(nov.events[0].id, dec.events[0].id);
-        assert.equal(await total("2026-11-01", "expense"), "800.0000");
-        assert.equal(await total("2026-12-01", "expense"), "2500.0000");
-        assert.equal(await balance(), "104500.0000");
+        assert.equal(await total("2026-11-01", "expense"), "50800.0000");
+        assert.equal(await total("2026-12-01", "expense"), "48500.0000");
         assert.equal(
           (
             await revise({
@@ -442,8 +394,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         [nov, dec] = await state(series, 0, 1);
         assert.equal(nov.status, "partial");
         assert.equal(dec.status, "expected");
-        assert.equal(await balance(), "107000.0000");
-        assert.equal(await total("2026-12-01", "expense"), undefined);
+        assert.equal(await total("2026-12-01", "expense"), "46000.0000");
         assert.equal(
           (await apply(series, { action: "omit", target: target(nov) })).status,
           "conflict",
@@ -481,20 +432,20 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     await t.test(
       "vincular un movimiento existente respeta titular, moneda e idempotencia",
       async () => {
-        const series = await create("income");
-        const foreignSeries = await create("income", {}, other);
-        const income = {
-          kind: "income",
-          concept: "Depósito cargado en Historial",
+        const series = await create("expense");
+        const foreignSeries = await create("expense", {}, other);
+        const linked = {
+          kind: "expense",
+          concept: "Gasto cargado en Historial",
           note: null,
           categoryId: null,
           currency: "UYU",
-          method: "deposit",
+          method: "debit",
           amount: "212.1234",
           effectiveOn: "2026-12-15",
           idempotencyKey: randomUUID(),
         };
-        const saved = await run((c, id) => saveMovement(c, id, income));
+        const saved = await run((c, id) => saveMovement(c, id, linked));
         assert.equal(saved.status, "created");
         const [nov, dec] = await state(series, 0, 1);
         const foreign = await run(
@@ -504,8 +455,8 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         const link = {
           action: "link",
           eventId: saved.id,
-          amount: income.amount,
-          targets: [target(nov, { amount: income.amount, final: true })],
+          amount: linked.amount,
+          targets: [target(nov, { amount: linked.amount, final: true })],
         };
         assert.equal(
           (
@@ -513,7 +464,7 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
               foreignSeries,
               {
                 ...link,
-                targets: [target(foreign[0], { amount: income.amount })],
+                targets: [target(foreign[0], { amount: linked.amount })],
               },
               other,
             )
@@ -529,22 +480,21 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           true,
         );
         assert.equal(
-          (await apply(series, record(nov, income.amount, today))).status,
+          (await apply(series, record(nov, linked.amount, today))).status,
           "duplicate",
         );
         const attempts = await Promise.all([
           apply(series, link),
           apply(series, {
             ...link,
-            targets: [target(dec, { amount: income.amount })],
+            targets: [target(dec, { amount: linked.amount })],
           }),
         ]);
         assert.deepEqual(attempts.map(({ status }) => status).sort(), [
           "created",
           "not-found",
         ]);
-        assert.equal(await balance(), "107212.1234");
-        assert.equal(await total("2026-12-01", "income"), "46212.1234");
+        assert.equal(await total("2026-12-01", "expense"), "46212.1234");
         const beforeDetach = await state(series, 0, 1);
         const assigned = beforeDetach.find(({ events }) =>
           events.some(({ id }) => id === saved.id),
@@ -567,14 +517,13 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
             await apply(series, {
               ...link,
               targets: [
-                target(otherPeriod, { amount: income.amount, final: true }),
+                target(otherPeriod, { amount: linked.amount, final: true }),
               ],
             })
           ).status,
           "created",
         );
-        assert.equal(await balance(), "107212.1234");
-        assert.equal(await total("2026-12-01", "income"), "46212.1234");
+        assert.equal(await total("2026-12-01", "expense"), "46212.1234");
         for (const table of [
           "recurring_periods",
           "recurring_commands",
@@ -611,57 +560,6 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
     );
 
     await t.test(
-      "cargo de tarjeta y pago del resumen con un solo gasto",
-      async () => {
-        const series = await create("expense");
-        const cardId = randomUUID();
-        await run(async (c, id) => {
-          await c.query(
-            "INSERT INTO finance.cards(owner_id,id,kind,name) VALUES($1,$2,'credit','Tarjeta sintética')",
-            [id, cardId],
-          );
-          await c.query(
-            "INSERT INTO finance.card_currencies(owner_id,card_id,kind,currency) VALUES($1,$2,'credit','UYU')",
-            [id, cardId],
-          );
-        });
-        const [period] = await state(series, 1);
-        const command = {
-          ...record(period, "1234", "2026-12-14", { final: true }, "credit"),
-          cardId,
-        };
-        assert.equal((await apply(series, command)).status, "created");
-        assert.equal(await balance(), "107212.1234");
-        assert.equal(
-          (await run((c, id) => listPositions(c, id, cardId))).get("UYU").debt,
-          "1234.0000",
-        );
-        assert.equal(await total("2026-12-01", "expense"), "1234.0000");
-        const paid = await run((c, id) =>
-          saveCreditOperation(c, id, {
-            action: "payment",
-            cardId,
-            effectiveOn: today,
-            idempotencyKey: randomUUID(),
-            lines: [
-              {
-                currency: "UYU",
-                amount: "1234.0000",
-                bankCurrency: "UYU",
-                bankAmount: "1234.0000",
-                fee: "0.0000",
-                allocations: [],
-              },
-            ],
-          }),
-        );
-        assert.equal(paid.status, "created");
-        assert.equal(await balance(), "105978.1234");
-        assert.equal(await total("2026-12-01", "expense"), "1234.0000");
-      },
-    );
-
-    await t.test(
       "F4-06: diciembre omitido y factura de enero pagada en febrero bisiesto",
       async () => {
         const payer = randomUUID();
@@ -676,22 +574,13 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           read((c, id) => trackedPeriods(c, id, series, [0, 1, 2]));
         const notices = () =>
           read((c, id) => listRecurrenceDueNotices(c, id, at));
-        const bank = async () => {
-          const [row] = await read(listBankBalances);
-          return row.calculatedAmount ?? row.amount;
-        };
         const settle = (fields, user = payer) =>
           apply(series, fields, user, at);
-        assert.equal(
-          await read((c, id) => saveOpeningBalance(c, id, opening)),
-          "created",
-        );
         const [december, january] = await periods();
         assert.equal(
           (await settle({ action: "omit", target: target(december) })).status,
           "created",
         );
-        assert.equal(await bank(), "10000.0000");
         assert.deepEqual(
           (await notices()).map(({ dueOn }) => dueOn),
           ["2028-01-31", "2028-02-29"],
@@ -722,7 +611,6 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
         assert.equal(partial.status, "partial");
         assert.equal(partial.confirmedTotal, null);
         assert.equal(partial.remaining, null);
-        assert.equal(await bank(), "9874.8766");
         const [januaryNotice] = await notices();
         assert.equal(januaryNotice.dueOn, "2028-01-31");
         assert.equal(januaryNotice.amount, null);
@@ -761,7 +649,6 @@ test("F4-02: confirmación real, vínculos, concurrencia, aislamiento y correcci
           ],
         );
         assert.equal(february.status, "expected");
-        assert.equal(await bank(), "9800.0000");
         assert.deepEqual(
           (await notices()).map(({ dueOn }) => dueOn),
           ["2028-02-29"],

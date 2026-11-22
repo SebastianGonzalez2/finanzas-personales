@@ -7,29 +7,19 @@ import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { parseClassificationCommand } from "../../src/domain/classification.ts";
 import { parseHistoryParams } from "../../src/domain/history.ts";
 import { parseMovement } from "../../src/domain/movements.ts";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { listBudgets, saveBudget } from "../../src/server/budgets.ts";
-import { categoryTotals } from "../../src/server/category-totals.ts";
 import {
   listTags,
   readClassification,
   saveClassification,
   saveTag,
 } from "../../src/server/classification.ts";
-import {
-  listPositions,
-  saveCreditOperation,
-} from "../../src/server/credit-operations.ts";
 import { listHistory } from "../../src/server/history.ts";
 import {
   listMovementTotals,
   reviseMovement,
   saveMovement,
 } from "../../src/server/movements.ts";
-import { getPurchaseRefunds } from "../../src/server/refunds.ts";
 import { testDatabaseConfig } from "../support/test-database.mjs";
 
 test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiquetas y aislamiento A/B", async () => {
@@ -39,13 +29,13 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
     b,
     parent,
     child,
-    bonus,
     salary,
     italy,
     vacation,
     foreignTag,
     foreignCategory,
-    cardId,
+    opsA,
+    opsB,
   ] = Array.from({ length: 11 }, () => randomUUID());
   const as = (work, ownerId = a) =>
     withOwnerTransaction(pool, async () => ({ ownerId }), work);
@@ -88,15 +78,11 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
       admin.release();
     }
     await as(async (c, owner) => {
-      await saveOpeningBalance(c, owner, {
-        currency: "UYU",
-        amount: "100.0000",
-        asOfDate: "2026-02-01",
-      });
       for (const [id, name, kind, root] of [
         [parent, "Viajes", "expense", null],
         [child, "Transporte", "expense", parent],
-        [bonus, "Bonificación", "income", null],
+        [opsA, "Operación A", "expense", null],
+        [opsB, "Operación B", "expense", null],
         [salary, "Sueldo", "income", null],
       ])
         await c.query(
@@ -126,14 +112,6 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
         );
         assert.equal(result.status, "created");
       }
-      await c.query(
-        "INSERT INTO finance.cards(owner_id,id,kind,name) VALUES($1,$2,'credit','Tarjeta sintética')",
-        [owner, cardId],
-      );
-      await c.query(
-        "INSERT INTO finance.card_currencies(owner_id,card_id,kind,currency) VALUES($1,$2,'credit','UYU')",
-        [owner, cardId],
-      );
     });
     await as(async (c, owner) => {
       await saveTag(c, owner, {
@@ -149,13 +127,11 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
 
     const receipt = randomUUID();
     const income = {
-      kind: "income",
-      method: "deposit",
       amount: "55000",
       idempotencyKey: receipt,
       allocations: [
-        { categoryId: salary, amount: "50000" },
-        { categoryId: bonus, amount: "5000" },
+        { categoryId: opsA, amount: "50000" },
+        { categoryId: opsB, amount: "5000" },
       ],
     };
     const retries = await Promise.all([save(income), save(income)]);
@@ -168,7 +144,7 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
       (
         await save({
           ...income,
-          allocations: [{ categoryId: salary, amount: "55000" }],
+          allocations: [{ categoryId: opsA, amount: "55000" }],
         })
       ).status,
       "conflict",
@@ -199,27 +175,39 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
     });
     assert.equal(spend.status, "created");
     const eventId = spend.id;
-    const opening = await as((c, owner) => listBankBalances(c, owner));
-    assert.equal(opening[0].calculatedAmount, "54600.0000");
+    // Gasto del mes por categoría (misma fuente que Estadísticas y Presupuestos).
     const group = (tags = []) =>
-      as((c, owner) => categoryTotals(c, owner, "2026-02-01", tags));
+      as(
+        async (c, owner) =>
+          (
+            await c.query(
+              `SELECT x.category_id AS "categoryId", grouping(x.category_id) = 1 AS total,
+                    sum(x.amount)::text AS amount
+               FROM finance.budget_expenses x
+              WHERE x.owner_id = $1 AND x.effective_on >= '2026-02-01'
+                AND x.effective_on < '2026-03-01'
+                AND (cardinality($2::uuid[]) = 0 OR EXISTS (
+                  SELECT 1 FROM finance.current_event_tags t
+                   WHERE (t.owner_id, t.event_id) = ($1, x.event_id) AND t.tag_id = ANY($2)))
+              GROUP BY ROLLUP (x.category_id)`,
+              [owner, tags],
+            )
+          ).rows,
+      );
     const global = (rows) =>
       rows
         .filter(({ total }) => total)
-        .map(({ kind, amount }) => [kind, amount]);
-    assert.deepEqual(global(await group()), [
-      ["expense", "500.0000"],
-      ["income", "55000.0000"],
-    ]);
+        .map(({ amount }) => ["expense", amount]);
+    assert.deepEqual(global(await group()), [["expense", "55500.0000"]]);
     assert.deepEqual(global(await group([italy, vacation])), [
       ["expense", "500.0000"],
     ]);
     assert.equal(
-      (await group()).find(({ categoryId }) => categoryId === bonus).amount,
+      (await group()).find(({ categoryId }) => categoryId === opsB).amount,
       "5000.0000",
     );
     assert.equal(
-      (await group()).find(({ categoryId }) => categoryId === salary).amount,
+      (await group()).find(({ categoryId }) => categoryId === opsA).amount,
       "50000.0000",
     );
     const budgetRows = () => as((c, owner) => listBudgets(c, owner, "2026-02"));
@@ -281,10 +269,6 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
       (await edit({ ...revision, idempotencyKey: randomUUID() })).status,
       409,
     );
-    assert.deepEqual(
-      await as((c, owner) => listBankBalances(c, owner)),
-      opening,
-    );
     const updated = await budgetRows();
     assert.equal(
       updated.find(({ categoryId }) => categoryId === parent).progress.consumed,
@@ -293,16 +277,6 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
     assert.equal(
       updated.find(({ categoryId }) => categoryId === child).progress.consumed,
       "80.0000",
-    );
-    const refund = await as((c, owner) =>
-      getPurchaseRefunds(c, owner, eventId),
-    );
-    assert.deepEqual(
-      refund.parts.map(({ categoryId, amount }) => [categoryId, amount]),
-      [
-        [child, "80.0000"],
-        [parent, "420.0000"],
-      ],
     );
     assert.deepEqual(
       await as((c, owner) =>
@@ -349,35 +323,12 @@ test("F5-02 CA-052/056: asignaciones exactas, un efecto real, presupuestos, etiq
     assert.deepEqual(snapshot.tagIds, [italy, vacation].sort());
     assert.equal(snapshot.allocations[0].amount, "501.0000");
     assert.deepEqual(global(await group([italy])), [["expense", "501.0000"]]);
-    const credit = await as((c, owner) =>
-      saveCreditOperation(c, owner, {
-        action: "purchase",
-        cardId,
-        amount: "12.0000",
-        currency: "UYU",
-        effectiveOn: today,
-        concept: "Compra crédito",
-        categoryId: null,
-        note: null,
-        covered: false,
-        idempotencyKey: randomUUID(),
-        allocations: [
-          { categoryId: child, amount: "2.0000" },
-          { categoryId: parent, amount: "10.0000" },
-        ],
-      }),
-    );
-    assert.equal(credit.status, "created");
-    assert.equal(
-      (await as((c, owner) => listPositions(c, owner, cardId))).get("UYU").debt,
-      "12.0000",
-    );
     const totals = await as((c, owner) =>
       listMovementTotals(c, owner, "2026-02-01"),
     );
     assert.equal(
       totals.find(({ kind }) => kind === "expense").amount,
-      "513.0000",
+      "55501.0000",
     );
 
     const effects = await as(
