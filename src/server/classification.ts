@@ -12,6 +12,7 @@ import {
 import type { MovementKind } from "../domain/movements.ts";
 import { lockOwnerWrites } from "./owner-lock.ts";
 import { commandHash, resolveMovementCategory } from "./movements.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 type CommandResult = { id: string } | { error: string; status: number };
 type Snapshot = {
@@ -34,12 +35,13 @@ export const emptyClassification: Snapshot = {
 };
 
 export async function classificationReady(client: pg.PoolClient) {
+  if (schemaKnown.has("classificationReady")) return true;
   const {
     rows: [row],
   } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.current_classifications') IS NOT NULL AS ready",
   );
-  return row.ready;
+  return rememberSchema("classificationReady", row.ready);
 }
 
 export async function listTags(client: pg.PoolClient, ownerId: string) {

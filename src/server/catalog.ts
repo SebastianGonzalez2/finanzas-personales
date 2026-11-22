@@ -9,6 +9,7 @@ import {
   type MerchantMergePreview,
   type MerchantPair,
 } from "../domain/catalog.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 const tables = {
   merchant: "finance.merchants",
@@ -19,10 +20,11 @@ const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 
 export async function nameCatalogReady(client: pg.PoolClient) {
+  if (schemaKnown.has("nameCatalogReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     `SELECT to_regclass('finance.canonical_event_merchants') IS NOT NULL AS ready`,
   );
-  return rows[0].ready;
+  return rememberSchema("nameCatalogReady", rows[0].ready);
 }
 
 export async function listNameCatalog(client: pg.PoolClient, ownerId: string) {

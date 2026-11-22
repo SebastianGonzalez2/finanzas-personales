@@ -6,15 +6,17 @@ import {
   type SavedFilter,
   type SavedFilterCommand,
 } from "../domain/history-filters.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 const conflict = (message: string) =>
   ({ status: "conflict", message }) as const;
 
 export async function savedFiltersReady(client: pg.PoolClient) {
+  if (schemaKnown.has("savedFiltersReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     `SELECT to_regclass('finance.saved_history_filters') IS NOT NULL AS ready`,
   );
-  return rows[0].ready;
+  return rememberSchema("savedFiltersReady", rows[0].ready);
 }
 
 export async function listSavedFilters(client: pg.PoolClient, ownerId: string) {

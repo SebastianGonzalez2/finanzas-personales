@@ -103,7 +103,7 @@ test("HOTFIX: con GPU y movimiento permitido la aurora se anima", async ({
   await expect.poll(() => ready(page)).toContain("true");
   await page.waitForTimeout(1500);
   const motion = await frames(page);
-  // 30 fps como máximo por lienzo: en 1,5 s hay decenas de cuadros.
+  // ~22 fps como máximo por lienzo: en 1,5 s hay decenas de cuadros.
   expect(motion.draws).toBeGreaterThan(10);
   expect(motion.changed).toBe(true);
   expect(await glow(page)).toBe("ambient-drift");

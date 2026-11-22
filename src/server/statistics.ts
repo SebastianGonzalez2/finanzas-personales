@@ -25,6 +25,7 @@ import {
   prepareHistoricalQuotes,
 } from "./exchange-rates.ts";
 import { monthlyInstallmentFxReady } from "./installments.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 type StatisticsSchema = Awaited<ReturnType<typeof statisticsReady>>;
 
@@ -426,7 +427,29 @@ export async function summaryFlowFx(
   };
 }
 
+let statisticsSchemaKnown: ReturnType<typeof statisticsSchemaOf> | undefined;
+const statisticsSchemaOf = (state: {
+  shared: boolean;
+  credit: boolean;
+  mixed: boolean;
+  loans: boolean;
+  favorites: boolean;
+  allocations: boolean;
+  tags: boolean;
+  recurrences: boolean;
+  expenseInstallments: boolean;
+}) => ({
+  ready: state.shared && state.credit && state.mixed && state.loans,
+  favorites: state.favorites,
+  allocations: state.allocations,
+  tags: state.tags,
+  recurrences: state.recurrences,
+  expenseInstallments: state.expenseInstallments,
+});
+
 export async function statisticsReady(client: pg.PoolClient) {
+  // PERF-01: con el esquema completo el resultado no cambia (solo se agregan tablas).
+  if (statisticsSchemaKnown) return statisticsSchemaKnown;
   const {
     rows: [state],
   } = await client.query<{
@@ -451,14 +474,9 @@ export async function statisticsReady(client: pg.PoolClient) {
             to_regclass('finance.recurring_event_lineage') IS NOT NULL AS recurrences,
             to_regclass('finance.expense_installments') IS NOT NULL AS "expenseInstallments"`,
   );
-  return {
-    ready: state.shared && state.credit && state.mixed && state.loans,
-    favorites: state.favorites,
-    allocations: state.allocations,
-    tags: state.tags,
-    recurrences: state.recurrences,
-    expenseInstallments: state.expenseInstallments,
-  };
+  const schema = statisticsSchemaOf(state);
+  if (Object.values(schema).every(Boolean)) statisticsSchemaKnown = schema;
+  return schema;
 }
 
 const zero = "0.0000";
@@ -786,12 +804,13 @@ export async function loadStatistics(
   };
 }
 export async function statisticsFavoritesReady(client: pg.PoolClient) {
+  if (schemaKnown.has("statisticsFavoritesReady")) return true;
   const {
     rows: [state],
   } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.statistics_favorites') IS NOT NULL AS ready",
   );
-  return state.ready;
+  return rememberSchema("statisticsFavoritesReady", state.ready);
 }
 
 export async function listStatisticsFavorites(

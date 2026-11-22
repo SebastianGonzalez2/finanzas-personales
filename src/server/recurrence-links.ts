@@ -1,12 +1,14 @@
 import "server-only";
 import type pg from "pg";
 import { decimalToUnits, type Currency } from "../domain/money.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function recurrenceTrackingReady(client: pg.PoolClient) {
+  if (schemaKnown.has("recurrenceTrackingReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.recurring_active_allocations') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("recurrenceTrackingReady", rows[0].ready);
 }
 
 export async function recurrenceEventPeriods(

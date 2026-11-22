@@ -8,12 +8,14 @@ import {
 } from "../domain/exchange-rates.ts";
 import type { Currency } from "../domain/money.ts";
 import { fetchReferenceYear } from "./exchange-rate-providers.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function exchangeRatesReady(client: pg.PoolClient) {
+  if (schemaKnown.has("exchangeRatesReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.fx_valuations') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("exchangeRatesReady", rows[0].ready);
 }
 
 export async function displayCurrency(client: pg.PoolClient, ownerId: string) {

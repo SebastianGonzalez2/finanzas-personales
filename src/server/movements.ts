@@ -41,8 +41,11 @@ import {
   expenseInstallmentsReady,
   insertInstallmentVersion,
 } from "./installments.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function movementAvailability(client: pg.PoolClient) {
+  if (schemaKnown.has("movementAvailability"))
+    return { readable: true, writable: true };
   const {
     rows: [state],
   } = await client.query<{
@@ -52,6 +55,7 @@ export async function movementAvailability(client: pg.PoolClient) {
     `SELECT to_regclass('finance.ordinary_movements') IS NOT NULL AS readable,
             to_regclass('finance.audit_void_command_key') IS NOT NULL AS writable`,
   );
+  rememberSchema("movementAvailability", state.readable && state.writable);
   return state;
 }
 
@@ -381,12 +385,13 @@ export async function reviseMovement(
 }
 
 export async function historyReady(client: pg.PoolClient) {
+  if (schemaKnown.has("historyReady")) return true;
   const {
     rows: [state],
   } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.financial_events_history') IS NOT NULL AS ready",
   );
-  return state.ready;
+  return rememberSchema("historyReady", state.ready);
 }
 
 async function editMovement(

@@ -13,7 +13,7 @@ import {
 // ondas de luz WebGL arriba y al final de la página y, en el medio, luz difusa
 // tenue que deriva despacio. Siempre hay una capa CSS estática debajo del
 // lienzo (sin WebGL, mientras carga o con el contexto perdido). El shader se
-// dibuja a la mitad de la resolución, a 30 fps como máximo, y se detiene con
+// dibuja a la mitad de la resolución, a ~22 fps como máximo, y se detiene con
 // la pestaña oculta o fuera de la vista. Con GPU y `prefers-reduced-motion`
 // queda un fotograma fijo de las mismas ondas; con WebGL por software o sin
 // WebGL, la capa CSS (ver `ambient-render.ts`). Solo decoración:
@@ -153,6 +153,204 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
   return shader;
 }
 
+type WaveLayer = {
+  canvas: HTMLCanvasElement;
+  /** Cambia entre ondas animadas y un fotograma fijo sin recrear el contexto. */
+  setAnimate(animate: boolean): void;
+  dispose(): void;
+};
+
+// Milisegundos mínimos entre dibujos de las ondas. El movimiento es muy lento
+// (unos 4 px/s como máximo): ~22 fotogramas por segundo se ven igual de suaves
+// que 30 y reducen el trabajo de GPU y de compositor.
+const frameInterval = 45;
+
+function createWaveLayer(
+  position: "top" | "bottom",
+  scale: number,
+  initialAnimate: boolean,
+): WaveLayer | null {
+  const element = document.createElement("canvas");
+  element.className = "ambient__canvas";
+  const gl = element.getContext("webgl", {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    powerPreference: "low-power",
+    preserveDrawingBuffer: false,
+    failIfMajorPerformanceCaveat: true,
+  });
+  if (!gl) return null; // Sin WebGL acelerado: queda la capa CSS.
+
+  const vs = compile(gl, gl.VERTEX_SHADER, vertex);
+  const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
+  const program = gl.createProgram();
+  if (!vs || !fs || !program) return null;
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+  gl.useProgram(program);
+
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 3, -1, -1, 3]),
+    gl.STATIC_DRAW,
+  );
+  const vertexPosition = gl.getAttribLocation(program, "a_pos");
+  gl.enableVertexAttribArray(vertexPosition);
+  gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
+  const resolution = gl.getUniformLocation(program, "u_res");
+  const time = gl.getUniformLocation(program, "u_time");
+  const setColor = (name: string, [r, g, b]: Rgb) =>
+    gl.uniform3f(gl.getUniformLocation(program, name), r, g, b);
+  setColor("u_base", glaciar.base);
+  glaciar.bands.forEach((band, index) => setColor(`u_c${index}`, band));
+  gl.uniform1f(gl.getUniformLocation(program, "u_gain"), glaciar.gain);
+  const bottom = position === "bottom";
+  gl.uniform1f(gl.getUniformLocation(program, "u_flip"), bottom ? 1 : 0);
+  // Otra fase para que abajo no sea un espejo exacto de arriba.
+  gl.uniform1f(gl.getUniformLocation(program, "u_seed"), bottom ? 7.3 : 0);
+  // Abajo, las ondas se apoyan cerca del borde inferior (el espacio libre
+  // bajo el último panel) en lugar de quedar detrás del contenido.
+  gl.uniform1f(gl.getUniformLocation(program, "u_offset"), bottom ? 0.17 : 0);
+
+  let animate = initialAnimate;
+  let frame = 0;
+  let last = 0;
+  let lost = false;
+  let onScreen = true;
+  // Punto de partida estable: el fotograma estático siempre es el mismo. El
+  // reloj vive con la capa (no con la página): al navegar, las ondas siguen
+  // desde donde estaban en lugar de reiniciarse.
+  const origin = performance.now() - 40_000;
+  const still = origin + 40_000;
+
+  function resize() {
+    const width = Math.max(1, Math.round(element.clientWidth * scale));
+    const height = Math.max(1, Math.round(element.clientHeight * scale));
+    if (element.width !== width || element.height !== height) {
+      element.width = width;
+      element.height = height;
+      gl!.viewport(0, 0, width, height);
+    }
+  }
+
+  function draw(now: number) {
+    if (lost || !element.isConnected) return;
+    resize();
+    gl!.uniform2f(resolution, element.width, element.height);
+    gl!.uniform1f(time, (now - origin) / 1000);
+    gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+    // Solo la primera vez: reescribir el atributo cada cuadro invalida estilos.
+    if (element.dataset.ready !== "true") element.dataset.ready = "true";
+  }
+
+  function loop(now: number) {
+    frame = requestAnimationFrame(loop);
+    if (now - last < frameInterval) return;
+    last = now;
+    draw(now);
+  }
+
+  function start() {
+    cancelAnimationFrame(frame);
+    if (!onScreen) return; // Fuera de la vista o sin página: no se dibuja.
+    if (animate && !document.hidden) frame = requestAnimationFrame(loop);
+    else draw(still);
+  }
+
+  const visibility = new IntersectionObserver(([entry]) => {
+    onScreen = entry.isIntersecting;
+    start();
+  });
+  visibility.observe(element);
+
+  function onVisibility() {
+    if (document.hidden) cancelAnimationFrame(frame);
+    else start();
+  }
+
+  function onLost(event: Event) {
+    event.preventDefault();
+    lost = true;
+    cancelAnimationFrame(frame);
+    delete element.dataset.ready;
+  }
+
+  const observer = new ResizeObserver(() => {
+    if (!animate && onScreen) draw(still);
+  });
+  observer.observe(element);
+  document.addEventListener("visibilitychange", onVisibility);
+  element.addEventListener("webglcontextlost", onLost);
+
+  return {
+    canvas: element,
+    setAnimate(next) {
+      if (next === animate) return;
+      animate = next;
+      start();
+    },
+    dispose() {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      visibility.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      element.removeEventListener("webglcontextlost", onLost);
+      gl.deleteProgram(program);
+      gl.deleteShader(vs);
+      gl.deleteShader(fs);
+      gl.deleteBuffer(buffer);
+      release(gl);
+      element.remove();
+    },
+  };
+}
+
+// Cada página del shell monta su propio fondo. Para no crear de nuevo el
+// contexto WebGL, compilar el shader y reiniciar la animación en cada
+// navegación, las capas viven a nivel de módulo: la página que se desmonta
+// suelta el lienzo y la siguiente lo reutiliza (si nadie lo reclama en unos
+// segundos, se libera el contexto).
+const layers: Partial<Record<"top" | "bottom", WaveLayer | null>> = {};
+const holders = { top: 0, bottom: 0 };
+const disposals: Partial<Record<"top" | "bottom", number>> = {};
+const layerGrace = 3000;
+
+function acquireWaveLayer(
+  position: "top" | "bottom",
+  scale: number,
+  animate: boolean,
+) {
+  window.clearTimeout(disposals[position]);
+  holders[position] += 1;
+  let layer = layers[position];
+  if (layer === undefined) {
+    layer = createWaveLayer(position, scale, animate);
+    layers[position] = layer;
+  } else layer?.setAnimate(animate);
+  return layer;
+}
+
+// Con la transición de Next la página nueva puede montarse antes de que la
+// anterior termine de desmontarse: solo se suelta el lienzo si sigue en el
+// contenedor que se va, y solo se libera el contexto sin ningún titular.
+function releaseWaveLayer(position: "top" | "bottom", host: HTMLElement) {
+  holders[position] -= 1;
+  const layer = layers[position];
+  if (!layer) return;
+  if (layer.canvas.parentElement === host) layer.canvas.remove();
+  if (holders[position] > 0) return;
+  disposals[position] = window.setTimeout(() => {
+    layer.dispose();
+    delete layers[position];
+  }, layerGrace);
+}
+
 function AmbientWaves({
   position,
   render,
@@ -165,148 +363,29 @@ function AmbientWaves({
   /** Fracción de la resolución CSS que se renderiza (la luz difusa tolera poca). */
   scale?: number;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const host = useRef<HTMLDivElement>(null);
   const animate = render === "animated";
   const enabled = render !== "css";
 
   useEffect(() => {
-    const element = canvas.current;
+    const element = host.current;
     if (!element || !enabled) return;
-    const gl = element.getContext("webgl", {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: "low-power",
-      preserveDrawingBuffer: false,
-      failIfMajorPerformanceCaveat: true,
-    });
-    if (!gl) return; // Sin WebGL acelerado: queda la capa CSS.
-
-    const vs = compile(gl, gl.VERTEX_SHADER, vertex);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
-    const program = gl.createProgram();
-    if (!vs || !fs || !program) return;
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-    gl.useProgram(program);
-
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 3, -1, -1, 3]),
-      gl.STATIC_DRAW,
-    );
-    const vertexPosition = gl.getAttribLocation(program, "a_pos");
-    gl.enableVertexAttribArray(vertexPosition);
-    gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
-    const resolution = gl.getUniformLocation(program, "u_res");
-    const time = gl.getUniformLocation(program, "u_time");
-    const setColor = (name: string, [r, g, b]: Rgb) =>
-      gl.uniform3f(gl.getUniformLocation(program, name), r, g, b);
-    setColor("u_base", glaciar.base);
-    glaciar.bands.forEach((band, index) => setColor(`u_c${index}`, band));
-    gl.uniform1f(gl.getUniformLocation(program, "u_gain"), glaciar.gain);
-    const bottom = position === "bottom";
-    gl.uniform1f(gl.getUniformLocation(program, "u_flip"), bottom ? 1 : 0);
-    // Otra fase para que abajo no sea un espejo exacto de arriba.
-    gl.uniform1f(gl.getUniformLocation(program, "u_seed"), bottom ? 7.3 : 0);
-    // Abajo, las ondas se apoyan cerca del borde inferior (el espacio libre
-    // bajo el último panel) en lugar de quedar detrás del contenido.
-    gl.uniform1f(gl.getUniformLocation(program, "u_offset"), bottom ? 0.17 : 0);
-
-    let frame = 0;
-    let last = 0;
-    let lost = false;
-    let onScreen = true;
-    // Punto de partida estable: el fotograma estático siempre es el mismo.
-    const origin = performance.now() - 40_000;
-    const still = origin + 40_000;
-
-    function resize() {
-      if (!element || !gl) return;
-      const width = Math.max(1, Math.round(element.clientWidth * scale));
-      const height = Math.max(1, Math.round(element.clientHeight * scale));
-      if (element.width !== width || element.height !== height) {
-        element.width = width;
-        element.height = height;
-        gl.viewport(0, 0, width, height);
-      }
-    }
-
-    function draw(now: number) {
-      if (!gl || !element || lost) return;
-      resize();
-      gl.uniform2f(resolution, element.width, element.height);
-      gl.uniform1f(time, (now - origin) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      element.dataset.ready = "true";
-    }
-
-    function loop(now: number) {
-      frame = requestAnimationFrame(loop);
-      if (now - last < 1000 / 30) return;
-      last = now;
-      draw(now);
-    }
-
-    function start() {
-      cancelAnimationFrame(frame);
-      if (!onScreen) return; // Fuera de la vista: no se dibuja.
-      if (animate && !document.hidden) frame = requestAnimationFrame(loop);
-      else draw(still);
-    }
-
-    const visibility = new IntersectionObserver(([entry]) => {
-      onScreen = entry.isIntersecting;
-      start();
-    });
-    visibility.observe(element);
-
-    function onVisibility() {
-      if (document.hidden) cancelAnimationFrame(frame);
-      else start();
-    }
-
-    function onLost(event: Event) {
-      event.preventDefault();
-      lost = true;
-      cancelAnimationFrame(frame);
-      delete element?.dataset.ready;
-    }
-
-    const observer = new ResizeObserver(() => {
-      if (!animate && onScreen) draw(still);
-    });
-    observer.observe(element);
-    document.addEventListener("visibilitychange", onVisibility);
-    element.addEventListener("webglcontextlost", onLost);
-    start();
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      visibility.disconnect();
-      document.removeEventListener("visibilitychange", onVisibility);
-      element.removeEventListener("webglcontextlost", onLost);
-      gl.deleteProgram(program);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buffer);
-    };
+    const layer = acquireWaveLayer(position, scale, animate);
+    if (!layer) return;
+    element.appendChild(layer.canvas);
+    return () => releaseWaveLayer(position, element);
   }, [animate, enabled, position, scale]);
 
   return (
     <div
+      ref={host}
       aria-hidden="true"
       data-ambient={position}
       data-render={render}
       className={`ambient${position === "bottom" ? " ambient--bottom" : ""}`}
     >
-      <canvas ref={canvas} className="ambient__canvas" />
+      {/* Sin WebGL acelerado el lienzo queda inerte (opacidad 0): se ve la capa CSS. */}
+      {!enabled && <canvas className="ambient__canvas" />}
     </div>
   );
 }

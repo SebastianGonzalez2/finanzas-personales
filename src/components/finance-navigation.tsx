@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Icon, type IconName } from "./ui/icon";
 
 // SIMP-03 — Navegación de la aplicación dedicada a gastos. Los destinos
@@ -121,8 +122,11 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   return (
-    <a
+    // PERF-01: navegación del lado del cliente (sin recargar el documento, el
+    // JavaScript ni el fondo). Las pantallas son dinámicas: sin prefetch.
+    <Link
       href={navHref(item.href)}
+      prefetch={false}
       aria-current={item.key === current ? "page" : undefined}
       className="finance-nav__item"
       onClick={onNavigate}
@@ -131,7 +135,7 @@ function NavLink({
         <Icon name={item.icon} />
       </span>
       <span className="finance-nav__label">{item.label}</span>
-    </a>
+    </Link>
   );
 }
 
