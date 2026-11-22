@@ -18,12 +18,14 @@ import {
 } from "./exchange-rates.ts";
 import { monthlyInstallmentFxReady } from "./installments.ts";
 import { resolveMovementCategory } from "./movements.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function budgetsReady(client: pg.PoolClient) {
+  if (schemaKnown.has("budgetsReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.budget_expenses') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("budgetsReady", rows[0].ready);
 }
 
 const conflict = (message: string) =>
@@ -422,12 +424,14 @@ export async function refreshBudgetNotices(
   ownerId: string,
   month = bankReferenceToday().slice(0, 7),
 ) {
-  const {
-    rows: [schema],
-  } = await client.query<{ ready: boolean }>(
-    "SELECT to_regclass('finance.budget_notices') IS NOT NULL AS ready",
-  );
-  if (!schema.ready) return false;
+  if (!schemaKnown.has("budgetNotices")) {
+    const {
+      rows: [schema],
+    } = await client.query<{ ready: boolean }>(
+      "SELECT to_regclass('finance.budget_notices') IS NOT NULL AS ready",
+    );
+    if (!rememberSchema("budgetNotices", schema.ready)) return false;
+  }
 
   const alerts = budgetAlerts(await listBudgets(client, ownerId, month), month);
   if (alerts.length) {

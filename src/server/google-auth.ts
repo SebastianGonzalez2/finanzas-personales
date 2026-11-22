@@ -6,6 +6,7 @@ import { assertGoogleRuntime, googlePool } from "./google-database.ts";
 import { GoogleStageError } from "./google-diagnostics.ts";
 import { withOwnerTransaction } from "../db/owner-context.ts";
 import type pg from "pg";
+import { cache } from "react";
 export const googleAuthEnabled = () => process.env.GOOGLE_AUTH_READY === "true";
 let auth: ReturnType<typeof createGoogleAuth> | undefined;
 export function googleAuth() {
@@ -43,7 +44,14 @@ export function googleAuth() {
   }
   return auth;
 }
-export async function freshGoogleSession(request: Request) {
+// PERF-01: una pantalla llama a `withGoogleOwner` varias veces (página, menú,
+// widgets). `cache` de React memoiza por petición del servidor (nunca entre
+// peticiones ni usuarios) la sesión fresca de la misma cookie.
+export function freshGoogleSession(request: Request) {
+  return sessionForCookie(request.headers.get("cookie") ?? "");
+}
+
+const sessionForCookie = cache(async (cookie: string) => {
   if (!googleAuthEnabled()) return null;
   const client = await googlePool("auth").connect();
   try {
@@ -52,7 +60,7 @@ export async function freshGoogleSession(request: Request) {
     client.release();
   }
   const session = await googleAuth().api.getSession({
-    headers: new Headers({ cookie: request.headers.get("cookie") ?? "" }),
+    headers: new Headers({ cookie }),
     query: { disableCookieCache: true },
   });
   if (
@@ -63,7 +71,7 @@ export async function freshGoogleSession(request: Request) {
   )
     return null;
   return session;
-}
+});
 export async function withGoogleOwner<T>(
   request: Request,
   work: (

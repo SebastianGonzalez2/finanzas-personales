@@ -10,14 +10,16 @@ import {
   readClassification,
 } from "./classification.ts";
 import { commandHash } from "./movements.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 const conflict = (error: string) => ({ error, status: 409 }) as const;
 
 export async function bulkClassificationReady(client: pg.PoolClient) {
+  if (schemaKnown.has("bulkClassificationReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.bulk_classification_changes') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("bulkClassificationReady", rows[0].ready);
 }
 
 export async function saveBulkClassification(

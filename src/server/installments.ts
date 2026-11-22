@@ -7,30 +7,34 @@ import type {
 } from "../domain/installments.ts";
 import type { Currency } from "../domain/money.ts";
 import { mixedPurchasesReady, sharedExpensesReady } from "./schema-ready.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function installmentsReady(client: pg.PoolClient) {
+  if (schemaKnown.has("installmentsReady")) return true;
   const {
     rows: [row],
   } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.current_installment_plans') IS NOT NULL AS ready",
   );
-  return row.ready;
+  return rememberSchema("installmentsReady", row.ready);
 }
 
 export async function expenseInstallmentsReady(client: pg.PoolClient) {
+  if (schemaKnown.has("expenseInstallmentsReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.expense_installments') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("expenseInstallmentsReady", rows[0].ready);
 }
 
 export async function monthlyInstallmentFxReady(client: pg.PoolClient) {
+  if (schemaKnown.has("monthlyInstallmentFxReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     `SELECT EXISTS (SELECT 1 FROM pg_attribute
       WHERE attrelid = to_regclass('finance.installment_plans')
         AND attname = 'monthly_fx' AND NOT attisdropped) AS ready`,
   );
-  return rows[0].ready;
+  return rememberSchema("monthlyInstallmentFxReady", rows[0].ready);
 }
 
 const versionFields = `p.version, p.installment_amount::text AS "installmentAmount",

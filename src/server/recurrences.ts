@@ -26,12 +26,14 @@ import {
   findReplay,
   resolveMovementCategory,
 } from "./movements.ts";
+import { rememberSchema, schemaKnown } from "./schema-ready.ts";
 
 export async function recurrencesReady(client: pg.PoolClient) {
+  if (schemaKnown.has("recurrencesReady")) return true;
   const { rows } = await client.query<{ ready: boolean }>(
     "SELECT to_regclass('finance.recurring_series') IS NOT NULL AS ready",
   );
-  return rows[0].ready;
+  return rememberSchema("recurrencesReady", rows[0].ready);
 }
 
 // The creation receipt is the immutable v1 definition itself. Serializing

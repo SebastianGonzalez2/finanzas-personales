@@ -85,12 +85,23 @@ export function assertGoogleRuntimeRow(
   if (stage) throw new GoogleStageError(stage, "Runtime no autorizado");
 }
 
+// PERF-01: rama, base y rol son fijos durante toda la vida de una conexión
+// física, y el pool conserva el mismo objeto cliente. Se vuelve a comprobar al
+// abrir una conexión nueva y cada minuto (privilegios del rol); antes se hacía
+// en cada petición, hasta 15 veces por pantalla.
+const runtimeVerifiedAt = new WeakMap<object, number>();
+const runtimeRecheckMs = 60_000;
+
 export async function assertGoogleRuntime(
   client: pg.PoolClient,
   kind: GoogleKind,
   env: Environment = process.env,
 ) {
   const target = neonTargetFor(env);
+  const cacheable = env === process.env;
+  const verifiedAt = cacheable ? runtimeVerifiedAt.get(client) : undefined;
+  if (verifiedAt !== undefined && Date.now() - verifiedAt < runtimeRecheckMs)
+    return;
   const {
     rows: [r],
   } =
@@ -103,4 +114,5 @@ export async function assertGoogleRuntime(
     ) SELECT 1 FROM memberships m JOIN pg_roles r ON r.oid=m.oid WHERE r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR EXISTS(SELECT 1 FROM pg_class c WHERE c.relowner=r.oid)) AS owns
     FROM pg_roles WHERE rolname=current_user`);
   assertGoogleRuntimeRow(r, kind, target);
+  if (cacheable) runtimeVerifiedAt.set(client, Date.now());
 }

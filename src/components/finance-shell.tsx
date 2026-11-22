@@ -14,6 +14,7 @@ import {
 } from "./finance-navigation";
 import { IntroTour } from "./intro-tour";
 import { RegisterMovementLink } from "./register-movement-link";
+import { RouteFocus } from "./route-focus";
 import { buttonClass } from "./ui/button";
 import { Icon } from "./ui/icon";
 
@@ -100,6 +101,7 @@ export function FinanceShellView({
         </main>
       </div>
       <FinanceMobileNav current={current} />
+      <RouteFocus />
       {current === "resumen" && <IntroTour />}
     </div>
   );
