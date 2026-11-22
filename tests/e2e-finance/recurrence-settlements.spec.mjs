@@ -32,15 +32,6 @@ test.describe("Calendario de Montevideo", () => {
     const today = bankReferenceToday();
     const firstPeriod = monthBefore(today, 1);
     const concept = "Factura variable sintética";
-    expect(
-      (
-        await post(context, "/api/bank-balances", {
-          currency: "UYU",
-          amount: "1000",
-          asOfDate: firstPeriod,
-        })
-      ).status(),
-    ).toBe(201);
     const definition = await post(context, "/api/recurrences", {
       kind: "expense",
       concept,
@@ -195,15 +186,6 @@ test("F4-02: vincula un pago existente y lo reparte entre períodos", async ({
   const today = bankReferenceToday();
   const old = monthBefore(today, 7);
   const recent = monthBefore(today, 1);
-  expect(
-    (
-      await post(context, "/api/bank-balances", {
-        currency: "UYU",
-        amount: "10000",
-        asOfDate: old,
-      })
-    ).status(),
-  ).toBe(201);
   const definition = await post(context, "/api/recurrences", {
     kind: "expense",
     concept: "Seguro sintético F4-02",

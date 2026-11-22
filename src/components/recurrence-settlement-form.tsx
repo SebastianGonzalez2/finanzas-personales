@@ -13,11 +13,6 @@ import {
   type TrackedPeriod,
 } from "@/domain/recurrence-settlements";
 import type { Currency } from "@/domain/money";
-import type { Person, UsualShare } from "@/domain/recurring-shares";
-import {
-  RecurringPaymentSplitFields,
-  recurringPaymentSplit,
-} from "./recurring-share-fields";
 import { useFinancialCommand } from "./financial-command";
 import {
   AmountInput,
@@ -39,8 +34,6 @@ export function RecurrenceSettlementForm({
   currency,
   kind,
   today,
-  usualShares,
-  people,
 }: {
   seriesId: string;
   period: TrackedPeriod;
@@ -49,8 +42,6 @@ export function RecurrenceSettlementForm({
   currency: Currency;
   kind: MovementKind;
   today: string;
-  usualShares: UsualShare[];
-  people: Person[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode | null>(null);
@@ -74,14 +65,10 @@ export function RecurrenceSettlementForm({
   );
 
   const income = kind === "income";
-  const shared = usualShares.length > 0;
-  const detachable = period.events.filter(({ shared }) => !shared);
+  const detachable = period.events;
   const ready = period.status === "expected" || period.status === "partial";
   const monetary = mode === "record" || mode === "link";
   const event = events?.find(({ id }) => id === selected);
-  const needsSplit =
-    shared &&
-    (mode === "record" || (mode === "link" && event && !event.shared));
   const options = new Map(
     [...additional, ...others].map((entry) => [entry.index, entry]),
   );
@@ -185,14 +172,12 @@ export function RecurrenceSettlementForm({
         action: mode,
         targets,
         amount,
-        ...(needsSplit && { split: recurringPaymentSplit(data) }),
         ...(mode === "link"
           ? { eventId: selected }
           : {
               effectiveOn: date,
               // SIMP-03: el gasto no indica medio de pago.
-              method: income ? "deposit" : "unspecified",
-              cardId: null,
+              method: "unspecified",
               distinct: allowDistinct,
             }),
       };
@@ -356,10 +341,9 @@ export function RecurrenceSettlementForm({
                       <option value="" disabled>
                         Elegí el movimiento
                       </option>
-                      {events.map(({ id, concept, amount, shared }) => (
+                      {events.map(({ id, concept, amount }) => (
                         <option key={id} value={id}>
                           {concept} · {formatBankAmount({ amount, currency })}
-                          {shared && " · Con reparto registrado"}
                         </option>
                       ))}
                     </select>
@@ -369,64 +353,49 @@ export function RecurrenceSettlementForm({
             )}
           </div>
         )}
-        {needsSplit && (
-          <RecurringPaymentSplitFields
-            key={mode === "link" ? selected : "record"}
-            shares={usualShares}
-            people={people}
-            amount={mode === "link" ? (event?.amount ?? "") : paidAmount}
-            currency={currency}
-          />
+        {monetary && !income && (choices.length > 0 || cursor >= 0) && (
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">
+              Distribuir el pago entre varios períodos
+            </summary>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {choices.map(({ index, key }) => (
+                <label key={index} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={extra.includes(index)}
+                    disabled={
+                      !extra.includes(index) &&
+                      periods.length >= settlementLimit
+                    }
+                    onChange={(e) =>
+                      setExtra(
+                        e.target.checked
+                          ? [...extra, index]
+                          : extra.filter((value) => value !== index),
+                      )
+                    }
+                  />
+                  {recurrencePeriodLabel(key)}
+                </label>
+              ))}
+            </div>
+            {cursor >= 0 && (
+              <button
+                type="button"
+                className={historyButton + " mt-2"}
+                onClick={loadPeriods}
+              >
+                Buscar otros períodos
+              </button>
+            )}
+            {periodError && (
+              <p role="alert" className="text-sm">
+                {periodError}
+              </p>
+            )}
+          </details>
         )}
-        {monetary &&
-          !income &&
-          !shared &&
-          (choices.length > 0 || cursor >= 0) && (
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                Distribuir el pago entre varios períodos
-              </summary>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {choices.map(({ index, key }) => (
-                  <label
-                    key={index}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={extra.includes(index)}
-                      disabled={
-                        !extra.includes(index) &&
-                        periods.length >= settlementLimit
-                      }
-                      onChange={(e) =>
-                        setExtra(
-                          e.target.checked
-                            ? [...extra, index]
-                            : extra.filter((value) => value !== index),
-                        )
-                      }
-                    />
-                    {recurrencePeriodLabel(key)}
-                  </label>
-                ))}
-              </div>
-              {cursor >= 0 && (
-                <button
-                  type="button"
-                  className={historyButton + " mt-2"}
-                  onClick={loadPeriods}
-                >
-                  Buscar otros períodos
-                </button>
-              )}
-              {periodError && (
-                <p role="alert" className="text-sm">
-                  {periodError}
-                </p>
-              )}
-            </details>
-          )}
         {(monetary || mode === "total") &&
           periods.map((entry) => (
             <PeriodAmounts

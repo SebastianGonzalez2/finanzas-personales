@@ -273,7 +273,6 @@ export default async function StatisticsPage(
               target={data.snapshot.fx.target}
               quotes={data.snapshot.fx.quotes}
               missing={data.snapshot.fx.missingFlows}
-              missingPositions={data.snapshot.fx.missingPositions}
             />
           </section>
         ) : (

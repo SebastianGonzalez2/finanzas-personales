@@ -376,7 +376,7 @@ test("F4-06 pagos tardíos: se registran con la fecha real sin mover el período
       action: "record",
       amount: "1200,50",
       effectiveOn: "2026-01-15",
-      method: "deposit",
+      method: "transfer",
       targets: [
         {
           index: 0,
@@ -400,7 +400,7 @@ test("F4-06 pagos tardíos: se registran con la fecha real sin mover el período
       action: "record",
       amount: "500",
       effectiveOn: "2025-12-31",
-      method: "deposit",
+      method: "transfer",
       targets: [
         {
           index: 0,

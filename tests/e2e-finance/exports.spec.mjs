@@ -8,26 +8,12 @@ import {
   financeBrowserFixtures,
   financeTestOrigin,
 } from "../support/finance-browser.mjs";
-import {
-  cardCommand,
-  creditPayment,
-  creditPurchase,
-} from "../support/f2-10-fixtures.mjs";
 
 const report = "/api/export";
 const backup = "/api/account/backup";
 const period = { from: "2025-03-01", to: "2025-03-31" };
 const post = (context, path, data, origin = financeTestOrigin) =>
   context.request.post(path, { data, headers: { origin } });
-
-async function opening(context) {
-  const response = await post(context, "/api/bank-balances", {
-    currency: "UYU",
-    amount: "10000.0001",
-    asOfDate: "2025-01-01",
-  });
-  expect(response.status()).toBe(201);
-}
 
 async function expense(context, concept, effectiveOn = "2025-03-11") {
   const response = await post(context, "/api/movements", {
@@ -57,36 +43,21 @@ test("F5-07 CA-061: descarga tres formatos privados y conserva las reglas contab
     ).toBe(401);
     await context.addCookies([cookies.a1]);
     await other.addCookies([cookies.b]);
-    await opening(context);
-    await opening(other);
     await expense(context, '=1+2; "Compra A"');
     await expense(context, "Fuera del rango A", "2025-04-01");
     await expense(other, "Exclusiva del titular B");
 
-    const card = await post(context, "/api/cards", cardCommand());
-    expect(card.status()).toBe(201);
-    const { id: cardId } = await card.json();
-    const purchase = await post(
-      context,
-      "/api/cards/operations",
-      creditPurchase({
-        cardId,
-        effectiveOn: "2025-03-12",
-        amount: "200",
-        concept: "Crédito de prueba A",
-      }),
-    );
+    // Compra en cuotas independiente de tarjetas: 30.000 UYU en 6 cuotas.
+    const purchase = await post(context, "/api/movements", {
+      kind: "expense",
+      method: "unspecified",
+      currency: "UYU",
+      concept: "Cuotas de prueba A",
+      effectiveOn: "2025-03-12",
+      plan: { installmentAmount: "5000", count: 6, firstPeriod: "2025-03" },
+      idempotencyKey: randomUUID(),
+    });
     expect(purchase.status()).toBe(201);
-    const payment = await post(
-      context,
-      "/api/cards/operations",
-      creditPayment({
-        cardId,
-        effectiveOn: "2025-03-13",
-        amount: "100",
-      }),
-    );
-    expect(payment.status()).toBe(201);
     expect(
       (
         await post(
@@ -117,9 +88,10 @@ test("F5-07 CA-061: descarga tres formatos privados y conserva las reglas contab
     );
     const csv = await readFile(await download.path(), "utf8");
     expect(csv).toContain(`"'=1+2; ""Compra A"""`);
-    expect(csv).toContain('"Gasto";"UYU";"212.3456"');
-    expect(csv).toContain("Pago de tarjeta");
-    expect(csv).toContain("Crédito de prueba A");
+    // 12,3456 del gasto simple y la primera cuota de 5.000 en marzo.
+    expect(csv).toContain('"Gasto";"UYU";"5012.3456"');
+    expect(csv).toContain('"Cuotas de prueba A";"1 de 6"');
+    expect(csv).not.toMatch(/Pago de tarjeta|Ingreso|Reembolso/);
     expect(csv).not.toMatch(
       /Exclusiva del titular B|Fuera del rango A|command_hash|session/,
     );
@@ -164,8 +136,6 @@ test("F5-07 CA-062/063: contraseña, reemplazo explícito, cambios concurrentes 
     await context.addCookies([cookies.a1]);
     await second.addCookies([cookies.a2]);
     await other.addCookies([cookies.b]);
-    await opening(context);
-    await opening(other);
     await expense(context, "Movimiento anterior A");
     await expense(other, "Movimiento privado B");
     await page.goto("/account");

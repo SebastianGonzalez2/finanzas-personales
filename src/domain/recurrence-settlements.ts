@@ -1,12 +1,9 @@
 import { isBankReferenceDate } from "./bank-balances.ts";
-import { installmentTerms } from "./credit-operations.ts";
-import type { InstallmentTerms } from "./installments.ts";
 import {
-  parseSharedAllocation,
-  type SharedAllocation,
-} from "./shared-expenses.ts";
-import { coverageDecimal, coverageUnits } from "./fund-coverage.ts";
-import { normalizeDecimalAmount } from "./money.ts";
+  decimalToUnits,
+  normalizeDecimalAmount,
+  unitsToDecimal,
+} from "./money.ts";
 import { movementUuid } from "./movements.ts";
 import type {
   RecurrencePeriod,
@@ -35,18 +32,14 @@ export type Settlement = {
       targets: SettlementTarget[];
       amount: string;
       effectiveOn: string;
-      method: "deposit" | "debit" | "transfer" | "credit" | "unspecified";
-      cardId: string | null;
+      method: "debit" | "transfer" | "unspecified";
       distinct: boolean;
-      split?: SharedAllocation;
-      installment?: { cardAmount: string; plan: InstallmentTerms };
     }
   | {
       action: "link";
       targets: SettlementTarget[];
       amount: string;
       eventId: string;
-      split?: SharedAllocation;
     }
   | {
       action: "detach";
@@ -64,7 +57,6 @@ export type SettlementEvent = {
   effectiveOn: string;
   amount: string;
   method: "deposit" | "debit" | "transfer" | "credit" | "unspecified";
-  shared?: boolean;
 };
 
 export type TrackedPeriod = RecurrencePeriod & {
@@ -155,10 +147,7 @@ export function parseSettlement(
       "amount",
       "effectiveOn",
       "method",
-      "cardId",
       "distinct",
-      "split",
-      "installment",
       "eventId",
     ]);
     const command = {
@@ -187,13 +176,12 @@ export function parseSettlement(
         : { ...command, action, target: period };
     }
     if (action !== "record" && action !== "link") throw new Error();
-    const { targets, amount, eventId, split, installment } = fields(input, [
+    const { targets, amount, eventId } = fields(input, [
       ...base,
       "targets",
       "amount",
-      "split",
       ...(action === "record"
-        ? ["effectiveOn", "method", "cardId", "distinct", "installment"]
+        ? ["effectiveOn", "method", "distinct"]
         : ["eventId"]),
     ]);
     if (
@@ -209,28 +197,19 @@ export function parseSettlement(
     if (
       new Set(parsed.map(({ index }) => index)).size !== parsed.length ||
       parsed.reduce(
-        (sum, part) => sum + coverageUnits(part.amount),
+        (sum, part) => sum + decimalToUnits(part.amount),
         BigInt(0),
-      ) !== coverageUnits(actual)
+      ) !== decimalToUnits(actual)
     ) {
       return {
         error:
           "Los importes asignados deben sumar exactamente el importe real.",
       };
     }
-    let allocation: SharedAllocation | undefined;
-    if (split !== undefined) {
-      const data = fields(split, ["ownAmount", "parties"]);
-      allocation =
-        Array.isArray(data.parties) && data.parties.length === 0
-          ? { ownAmount: exact(data.ownAmount), parties: [] }
-          : parseSharedAllocation(data.ownAmount, data.parties);
-    }
     const settlement = {
       ...command,
       targets: parsed,
       amount: actual,
-      ...(allocation && { split: allocation }),
     };
     if (action === "link")
       return { ...settlement, action, eventId: uuid(eventId) };
@@ -238,39 +217,15 @@ export function parseSettlement(
     const {
       effectiveOn,
       method,
-      cardId = null,
       distinct = false,
     } = input as Record<string, unknown>;
     if (
       !isBankReferenceDate(effectiveOn, today) ||
       typeof distinct !== "boolean" ||
-      (method !== "deposit" &&
-        method !== "unspecified" &&
-        method !== "debit" &&
-        method !== "transfer" &&
-        method !== "credit") ||
-      (method !== "credit" && cardId !== null)
+      (method !== "unspecified" && method !== "debit" && method !== "transfer")
     )
       throw new Error();
-    const financed =
-      installment === undefined
-        ? undefined
-        : fields(installment, ["cardAmount", "plan"]);
-    if (financed && (method !== "credit" || !allocation)) throw new Error();
-    return {
-      ...settlement,
-      action,
-      effectiveOn,
-      method,
-      cardId: method === "credit" ? uuid(cardId) : null,
-      distinct,
-      ...(financed && {
-        installment: {
-          cardAmount: exact(financed.cardAmount, true),
-          plan: installmentTerms(financed.plan),
-        },
-      }),
-    };
+    return { ...settlement, action, effectiveOn, method, distinct };
   } catch {
     return {
       error:
@@ -285,10 +240,10 @@ export function settlementAmounts(
   finalizedAmount: string | null,
   omitted: boolean,
 ) {
-  const actual = coverageUnits(recorded);
+  const actual = decimalToUnits(recorded);
   const finalized =
-    finalizedAmount !== null && coverageUnits(finalizedAmount) === actual;
-  const remaining = total === null ? null : coverageUnits(total) - actual;
+    finalizedAmount !== null && decimalToUnits(finalizedAmount) === actual;
+  const remaining = total === null ? null : decimalToUnits(total) - actual;
   const status: RecurrencePeriodStatus = omitted
     ? "skipped"
     : finalized || remaining === BigInt(0)
@@ -304,6 +259,6 @@ export function settlementAmounts(
       ? "0.0000"
       : remaining === null || omitted
         ? null
-        : coverageDecimal(remaining),
+        : unitsToDecimal(remaining),
   };
 }

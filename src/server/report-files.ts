@@ -106,14 +106,12 @@ export function pdfSafe(value: string) {
 }
 
 function summaryChart(doc: PDFKit.PDFDocument, rows: string[][]) {
-  const data = rows.filter(([concept]) =>
-    ["Ingreso", "Gasto"].includes(concept),
-  );
+  const data = rows.filter(([concept]) => concept === "Gasto");
   if (!data.length) return;
   doc
     .font("Helvetica-Bold")
     .fontSize(12)
-    .text("Ingresos y gastos por moneda")
+    .text("Gasto por moneda")
     .moveDown(0.4);
   doc
     .font("Helvetica")

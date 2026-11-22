@@ -24,7 +24,6 @@ import { Kpi } from "./glaciar/screen";
 import { percentageChange } from "@/domain/statistics";
 import {
   StatisticsComparisonTable,
-  StatisticsPositions,
   StatisticsRecurringExpenses,
 } from "./statistics-tables";
 import {
@@ -654,7 +653,6 @@ export function StatisticsDashboard({
             </p>
           )}
         </div>
-        <StatisticsPositions snapshot={snapshot} />
       </StatisticsChartCard>
     ),
     summary: (

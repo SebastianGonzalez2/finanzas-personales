@@ -66,18 +66,12 @@ export default async function HistoryPage({
       // «mes actual» consulta el mes vigente, no el de su creación (CA-058).
       const period = historyPeriodFilter(query.filters.period);
       const range = period ? historyPeriodRange(period, today) : null;
-      const page = await listHistory(
-        client,
-        ownerId,
-        {
-          ...query,
-          filters: range
-            ? { ...query.filters, from: range.from, to: range.to }
-            : query.filters,
-        },
-        undefined,
-        true,
-      );
+      const page = await listHistory(client, ownerId, {
+        ...query,
+        filters: range
+          ? { ...query.filters, from: range.from, to: range.to }
+          : query.filters,
+      });
       return {
         ...page,
         categories: (await listHistoryCategories(client, ownerId)).filter(

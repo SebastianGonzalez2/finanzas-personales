@@ -7,19 +7,13 @@ import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import { normalizeName } from "../../src/domain/catalog.ts";
 import {
   findEventMerchant,
-  findLoanPerson,
   listNameCatalog,
   nameCatalogReady,
   previewMerchantMerge,
   saveCatalogCommand,
   searchNameCatalog,
 } from "../../src/server/catalog.ts";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { listHistory } from "../../src/server/history.ts";
-import { findLoan, saveLoanOperation } from "../../src/server/loans.ts";
 import {
   listMerchantTotals,
   listMovementTotals,
@@ -215,13 +209,6 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
     assert.equal(count("restore"), 1);
 
     const date = "2026-01-01";
-    await as(a, (client, owner) =>
-      saveOpeningBalance(client, owner, {
-        currency: "UYU",
-        amount: "100.0000",
-        asOfDate: date,
-      }),
-    );
     const spend = (merchantName, amount, idempotencyKey = randomUUID()) =>
       as(a, (client, owner) =>
         saveMovement(client, owner, {
@@ -266,7 +253,6 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
     const confirmed = merge(await preview());
     assert.equal(confirmed.movementCount, 3);
 
-    const balances = await as(a, listBankBalances);
     const total = () =>
       as(a, (client, owner) => listMovementTotals(client, owner, date));
     const amounts = await total();
@@ -278,7 +264,6 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
       "replayed",
       "saved",
     ]);
-    assert.deepEqual(await as(a, listBankBalances), balances);
     assert.deepEqual(await total(), amounts);
     assert.deepEqual(
       await as(a, (client, owner) => listMerchantTotals(client, owner, date)),
@@ -358,74 +343,6 @@ test("F5-03: CA-054/CA-055, autocompletado, archivo reversible y aislamiento con
       { entry_id: first.id, merged_source_id: source.id },
       { entry_id: other.id, merged_source_id: first.id },
     ]);
-
-    const loan = await as(a, (client, owner) =>
-      saveLoanOperation(client, owner, {
-        action: "existing",
-        direction: "receivable",
-        currency: "UYU",
-        concept: "Deuda sintética",
-        personName: "Juan",
-        effectiveOn: date,
-        amount: "7.0000",
-        note: null,
-        installmentLoan: false,
-        installmentAmount: null,
-        frequency: null,
-        dueOn: null,
-        agreedTotal: null,
-        idempotencyKey: randomUUID(),
-      }),
-    );
-    const contact = await as(a, (client, owner) =>
-      findLoanPerson(client, owner, loan.id),
-    );
-    assert.equal(contact.name, "Juan");
-    assert.equal(
-      (
-        await create(a, {
-          action: "archive",
-          kind: "person",
-          entryId: contact.id,
-          version: 1,
-        })
-      ).status,
-      "saved",
-    );
-    assert.deepEqual(await search(a, "person", "jua"), []);
-    assert.equal(
-      (await as(a, (client, owner) => findLoan(client, owner, loan.id)))
-        .outstanding,
-      "7.0000",
-    );
-    assert.deepEqual(
-      await as(a, (client, owner) => findLoanPerson(client, owner, loan.id)),
-      contact,
-    );
-    assert.equal(
-      await as(b, (client, owner) => findLoanPerson(client, owner, loan.id)),
-      null,
-    );
-    const collected = await as(a, (client, owner) =>
-      saveLoanOperation(client, owner, {
-        action: "settle",
-        loanId: loan.id,
-        expectedVersion: 1,
-        principal: null,
-        financialCharges: null,
-        accruedPaid: null,
-        effectiveOn: date,
-        amount: "7.0000",
-        note: null,
-        idempotencyKey: randomUUID(),
-      }),
-    );
-    assert.equal(collected.status, "created");
-    assert.equal(
-      (await as(a, (client, owner) => findLoan(client, owner, loan.id)))
-        .outstanding,
-      "0.0000",
-    );
   } finally {
     if (installed)
       await pool.query(

@@ -39,11 +39,6 @@ test("QA-F01: dos gastos EUR muestran 0,80 UYU con la misma tasa y categoría", 
       });
       expect(response.status(), await response.text()).toBe(201);
     };
-    await create("bank-balances", {
-      currency: "EUR",
-      amount: "10",
-      asOfDate: today,
-    });
     await create("budgets", {
       action: "save",
       currency: "UYU",

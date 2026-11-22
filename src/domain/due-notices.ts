@@ -1,7 +1,7 @@
 // F4-05: RF-037/038; CA-049. Avisos internos por vencimientos CIERTOS
 // registrados en la aplicación (§11.1, v9.36, v9.44). Reglas irrenunciables:
 // - Sin fecha conocida no hay aviso de vencimiento: nunca se inventa una.
-// - Un aviso por obligación (tarjeta/ciclo, deuda, período): antirruido, sin
+// - Un aviso por obligación (período recurrente): antirruido, sin
 //   duplicados diarios; resolver o confirmar el pago cierra o actualiza.
 // - Los avisos no mueven dinero ni declaran mora: informan según registros.
 import {
@@ -86,7 +86,7 @@ export type DueNoticeLevel = "warning";
 
 export type DueNotice = {
   key: string;
-  kind: "loan" | "recurrence";
+  kind: "recurrence";
   title: string;
   currency: string;
   dueOn: string;
@@ -142,40 +142,5 @@ export function recurrenceDueNotice(
     level: "warning",
     href: `/recurrentes?serie=${encodeURIComponent(input.seriesId)}`,
     linkLabel: "Ver recurrentes",
-  };
-}
-
-export type LoanDueNoticeInput = {
-  loanId: string;
-  concept: string;
-  direction: "payable" | "receivable";
-  currency: Currency;
-  dueOn: string | null;
-  outstanding: string;
-  today: string;
-  leadDays?: number | null;
-};
-
-/** Aviso de deuda/préstamo con fecha cierta y saldo pendiente (v9.44, CA-049). */
-export function loanDueNotice(input: LoanDueNoticeInput): DueNotice | null {
-  const window = dueNoticeWindow({
-    today: input.today,
-    dueOn: input.dueOn,
-    leadDays: input.leadDays,
-  });
-  if (!window || input.outstanding === "0.0000") return null;
-  const subject =
-    input.direction === "payable" ? "Pago de deuda" : "Cobro pendiente";
-  return {
-    key: `loan:${input.loanId}`,
-    kind: "loan",
-    title: `${input.concept} · ${input.currency}`,
-    currency: input.currency,
-    dueOn: window.dueOn,
-    timing: dueNoticeTimingText(window),
-    amount: `Pendiente según tus registros: ${formatBankAmount({ amount: input.outstanding, currency: input.currency })}`,
-    level: "warning",
-    href: `/deudas/${input.loanId}`,
-    linkLabel: `${subject === "Pago de deuda" ? "Ver deuda" : "Ver préstamo"}`,
   };
 }

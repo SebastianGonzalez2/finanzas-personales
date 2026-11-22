@@ -1,4 +1,4 @@
-/* global Buffer, navigator, caches, localStorage, sessionStorage, indexedDB */
+/* global Buffer, caches, localStorage, sessionStorage, indexedDB */
 import { createHash, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -7,13 +7,6 @@ import { gunzipSync } from "node:zlib";
 import { expect, test as base } from "@playwright/test";
 import pg from "pg";
 import { tutorialStorageKey } from "../../src/domain/tutorial.ts";
-import {
-  cardCommand,
-  creditPayment,
-  creditPurchase,
-  loanLend,
-  loanSettle,
-} from "../support/f2-10-fixtures.mjs";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -50,14 +43,12 @@ const apiRoutes = walk(join(appRoot, "api"), (p) => p.endsWith("route.ts"))
   }))
   .filter(({ url }) => !url.startsWith("/api/auth/"))
   .sort((a, b) => a.url.localeCompare(b.url));
-const cronRoutes = apiRoutes.filter(({ url }) => url.startsWith("/api/cron/"));
 const mutatingRoutes = apiRoutes.filter(({ methods }) =>
   methods.some((m) => m !== "GET"),
 );
 const placeholders = {
   "[id]": randomUUID(),
   "[source]": "movimientos",
-  "[cardId]": randomUUID(),
 };
 const pageUrls = walk(appRoot, (p) => p.endsWith(`${sep}page.tsx`))
   .map((file) =>
@@ -65,8 +56,6 @@ const pageUrls = walk(appRoot, (p) => p.endsWith(`${sep}page.tsx`))
   )
   .map((url) => url || "/")
   .filter((url) => url !== "/auth/sign-in" && url !== "/")
-  // SIMP-03: los módulos retirados redirigen a /resumen antes de llegar a la página.
-  .filter((url) => !/^\/(fondos|tarjetas|deudas|beneficios)(\/|$)/.test(url))
   .sort();
 
 const test = base.extend({
@@ -139,7 +128,6 @@ async function ownerDigest(admin, owner) {
 }
 
 const sample = {
-  bankBalance: { currency: "UYU", amount: "10000", asOfDate: "2025-01-01" },
   expense: (concept = "Gasto sintético F6-02") => ({
     kind: "expense",
     currency: "UYU",
@@ -158,7 +146,7 @@ test("F6-02: API sin sesión: cada ruta y verbo se rechaza sin datos, cookies ni
     test.info().project.name !== "chromium-desktop",
     "Matriz HTTP: una sola vez",
   );
-  expect(apiRoutes.length).toBeGreaterThanOrEqual(29);
+  expect(apiRoutes.length).toBeGreaterThanOrEqual(15);
   const problems = [];
   for (const { url, methods } of apiRoutes)
     for (const method of verbs) {
@@ -200,10 +188,7 @@ test("F6-02: API sin sesión: cada ruta y verbo se rechaza sin datos, cookies ni
   expect(problems).toEqual([]);
   // Rutas con comandos válidos: sin sesión siempre 401, nunca un efecto.
   for (const [url, data] of [
-    ["/api/bank-balances", sample.bankBalance],
     ["/api/movements", sample.expense()],
-    ["/api/cards", cardCommand()],
-    ["/api/loans", loanLend()],
     ["/api/export", { from: "2025-03-01", to: "2025-03-31", format: "csv" }],
     ["/api/account/backup", { action: "download" }],
   ]) {
@@ -292,14 +277,6 @@ test("F6-02: sesión revocada: todas las rutas y páginas dejan de responder aun
 }) => {
   const { a, admin, fixtures } = actors;
   expect((await send(a, "GET", "/api/account")).status()).toBe(200);
-  expect(
-    (
-      await a.request.post("/api/bank-balances", {
-        data: sample.bankBalance,
-        headers: { origin: financeTestOrigin },
-      })
-    ).status(),
-  ).toBe(201);
   const page = await a.newPage();
   await page.goto("/resumen");
   await expect(page).toHaveURL(/\/resumen$/);
@@ -310,7 +287,6 @@ test("F6-02: sesión revocada: todas las rutas y páginas dejan de responder aun
   );
   const problems = [];
   for (const { url, methods } of apiRoutes) {
-    if (url.startsWith("/api/cron/")) continue;
     for (const method of methods) {
       const response = await send(
         a,
@@ -323,9 +299,7 @@ test("F6-02: sesión revocada: todas las rutas y páginas dejan de responder aun
     }
   }
   for (const [url, data] of [
-    ["/api/bank-balances", sample.bankBalance],
     ["/api/movements", sample.expense()],
-    ["/api/cards", cardCommand()],
     ["/api/export", { from: "2025-03-01", to: "2025-03-31", format: "csv" }],
     ["/api/account/backup", { action: "download" }],
     [
@@ -358,20 +332,9 @@ test("F6-02: mutaciones con origen ajeno, ausente o cruzado, o con parámetros d
   actors,
 }) => {
   const { a, admin, fixtures } = actors;
-  expect(
-    (
-      await a.request.post("/api/bank-balances", {
-        data: sample.bankBalance,
-        headers: { origin: financeTestOrigin },
-      })
-    ).status(),
-  ).toBe(201);
   const before = await ownerDigest(admin, fixtures.owners.a);
   const bodies = {
-    "/api/bank-balances": sample.bankBalance,
     "/api/movements": sample.expense(),
-    "/api/cards": cardCommand(),
-    "/api/loans": loanLend(),
     "/api/export": { from: "2025-03-01", to: "2025-03-31", format: "csv" },
     "/api/account/backup": { action: "download" },
   };
@@ -427,64 +390,6 @@ test("F6-02: mutaciones con origen ajeno, ausente o cruzado, o con parámetros d
   expect(await ownerDigest(admin, fixtures.owners.a)).toEqual(before);
 });
 
-test("F6-02: cron exige la credencial propia; sesión, query y cabeceras alternativas no sirven", async ({
-  actors,
-  request,
-}) => {
-  const { a } = actors;
-  expect(cronRoutes.length).toBe(2);
-  for (const { url } of cronRoutes) {
-    const secret = "synthetic-finance-cron-secret";
-    const attempts = [
-      ["sin credencial", {}, ""],
-      ["Bearer incorrecto", { authorization: "Bearer incorrecta" }, ""],
-      ["sin esquema Bearer", { authorization: secret }, ""],
-      ["esquema en minúsculas", { authorization: `bearer ${secret}` }, ""],
-      // Un espacio final lo elimina el propio protocolo HTTP (RFC 9110), de modo
-      // que se prueban prefijo y sufijo de la credencial real.
-      [
-        "credencial truncada",
-        { authorization: `Bearer ${secret.slice(0, -1)}` },
-        "",
-      ],
-      ["credencial con sufijo", { authorization: `Bearer ${secret}0` }, ""],
-      ["credencial en query", {}, `?secret=${secret}`],
-      [
-        "cabecera alternativa",
-        { "x-cron-secret": secret, "x-vercel-cron": "1" },
-        "",
-      ],
-    ];
-    for (const [label, headers, query] of attempts) {
-      const response = await request.get(`${url}${query}`, {
-        headers,
-        maxRedirects: 0,
-      });
-      expect(response.status(), `${url}: ${label}`).toBe(401);
-      expect(response.headers()["cache-control"]).toBe("private, no-store");
-    }
-    expect(
-      (await a.request.get(url, { maxRedirects: 0 })).status(),
-      `${url}: cookie de sesión`,
-    ).toBe(401);
-    for (const method of ["POST", "PUT", "PATCH", "DELETE"])
-      expect(
-        (
-          await request.fetch(url, {
-            method,
-            headers: { authorization: `Bearer ${secret}` },
-          })
-        ).status(),
-        `${method} ${url}`,
-      ).toBe(405);
-  }
-  // Con la credencial correcta la ruta procesa (base desechable, datos sintéticos).
-  const accepted = await request.get("/api/cron/contributions", {
-    headers: { authorization: "Bearer synthetic-finance-cron-secret" },
-  });
-  expect([204, 503]).toContain(accepted.status());
-});
-
 test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni crean efectos", async ({
   actors,
 }) => {
@@ -494,18 +399,18 @@ test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni c
     expect(response.status(), await response.text()).toBe(status);
     return (await response.json()).id;
   };
-  expect(
-    (await post(a, "/api/bank-balances", sample.bankBalance)).status(),
-  ).toBe(201);
   const concept = `MARCADOR-A-${randomUUID()}`;
   const movement = await created(
     await post(a, "/api/movements", sample.expense(concept)),
   );
-  const card = await created(await post(a, "/api/cards", cardCommand()));
   const purchase = await created(
-    await post(a, "/api/cards/operations", creditPurchase({ cardId: card })),
+    await post(a, "/api/movements", {
+      ...sample.expense(`Cuotas-${concept}`),
+      amount: undefined,
+      method: "unspecified",
+      plan: { installmentAmount: "5000", count: 6, firstPeriod: "2025-02" },
+    }),
   );
-  const loan = await created(await post(a, "/api/loans", loanLend()));
   const category = await created(
     await post(a, "/api/categories", {
       kind: "expense",
@@ -546,60 +451,6 @@ test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni c
       "/api/movements",
       { action: "void", eventId: purchase, idempotencyKey: randomUUID() },
     ],
-    [
-      "POST",
-      "/api/cards",
-      {
-        action: "update",
-        cardId: card,
-        version: 1,
-        name: "Renombrada por B",
-        issuer: null,
-        currencies: [{ currency: "UYU", limit: null }],
-        idempotencyKey: randomUUID(),
-      },
-    ],
-    [
-      "POST",
-      "/api/cards",
-      {
-        action: "archive",
-        cardId: card,
-        version: 1,
-        idempotencyKey: randomUUID(),
-      },
-    ],
-    ["POST", "/api/cards/operations", creditPurchase({ cardId: card })],
-    ["POST", "/api/cards/operations", creditPayment({ cardId: card })],
-    ["POST", "/api/loans", loanSettle({ loanId: loan })],
-    [
-      "POST",
-      "/api/refunds",
-      { action: "void", eventId: purchase, idempotencyKey: randomUUID() },
-    ],
-    [
-      "POST",
-      "/api/refunds",
-      {
-        action: "pending",
-        purchaseId: purchase,
-        amount: "1",
-        effectiveOn: "2025-02-02",
-        idempotencyKey: randomUUID(),
-      },
-    ],
-    [
-      "POST",
-      "/api/refunds",
-      {
-        action: "return_balance",
-        currency: "UYU",
-        cardId: card,
-        amount: "1",
-        effectiveOn: "2025-02-02",
-        idempotencyKey: randomUUID(),
-      },
-    ],
     ["POST", "/api/categories", { id: category, archived: true }],
   ];
   const problems = [];
@@ -610,7 +461,7 @@ test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni c
     const label = `${method} ${url} ${data.action ?? ""} → ${status}`;
     if (status < 400 || status >= 500)
       problems.push(`${label}: debe rechazarse con 4xx`);
-    if (text.includes(concept) || text.includes(card) || text.includes(loan))
+    if (text.includes(concept) || text.includes(purchase))
       problems.push(`${label}: la respuesta repite datos de A`);
     if (response.headers()["cache-control"] !== "private, no-store")
       problems.push(`${label}: caché ${response.headers()["cache-control"]}`);
@@ -642,12 +493,7 @@ test("F6-02: referencias a recursos de A desde B no leen, modifican, anulan ni c
     // (entrada reflejada del mismo titular, no un dato de A): ahí se exige que el
     // listado de resultados esté vacío en lugar de buscar el término.
     const reflected = url.includes("?q=");
-    for (const secret of [
-      concept,
-      "Categoría de A",
-      "Tarjeta sintética F2-10",
-      "Préstamo sintético F2-10",
-    ])
+    for (const secret of [concept, "Categoría de A"])
       if (!(reflected && secret === concept))
         expect(text, `${url} filtra «${secret}»`).not.toContain(secret);
     if (reflected) expect(text).toContain('\\"entries\\":[]');
@@ -665,18 +511,12 @@ test("F6-02: exportaciones y copias: privadas, sin secretos ni identificadores a
   const { a, b, fixtures, admin } = actors;
   const marker = `MARCADOR-A-${randomUUID()}`;
   expect(
-    (await send(a, "POST", "/api/bank-balances", sample.bankBalance)).status(),
-  ).toBe(201);
-  expect(
     (
       await send(a, "POST", "/api/movements", {
         ...sample.expense(marker),
         effectiveOn: "2025-03-05",
       })
     ).status(),
-  ).toBe(201);
-  expect(
-    (await send(b, "POST", "/api/bank-balances", sample.bankBalance)).status(),
   ).toBe(201);
   expect(
     (
@@ -733,7 +573,6 @@ test("F6-02: exportaciones y copias: privadas, sin secretos ni identificadores a
     "01".repeat(32),
     "isolated-finance-browser",
     "finance-fixture-secret",
-    "synthetic-finance-cron-secret",
     fixtures.owners.b,
   ])
     expect(
@@ -789,9 +628,6 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
   request,
 }) => {
   const { a } = actors;
-  expect(
-    (await send(a, "POST", "/api/bank-balances", sample.bankBalance)).status(),
-  ).toBe(201);
   for (const url of pageUrls) {
     for (const headers of [
       {},
@@ -811,7 +647,6 @@ test("F6-02: caché y cabeceras de páginas, RSC y archivos públicos", async ({
   // Archivos públicos: sin datos ni cookies.
   for (const url of [
     "/manifest.webmanifest",
-    "/card-push-worker.js",
     "/icon.svg",
     "/apple-icon",
     "/pwa-icons/icon-192.png",
@@ -844,7 +679,7 @@ test("F6-02-H02: las páginas fijan cabeceras de seguridad (frame, MIME, referre
   actors,
 }) => {
   const { a } = actors;
-  for (const path of ["/resumen", "/auth/sign-in", "/card-push-worker.js"]) {
+  for (const path of ["/resumen", "/auth/sign-in"]) {
     const response = await a.request.get(path, { maxRedirects: 0 });
     const headers = response.headers();
     expect(headers["x-content-type-options"]).toBe("nosniff");
@@ -859,7 +694,7 @@ test("F6-02-H02: las páginas fijan cabeceras de seguridad (frame, MIME, referre
   }
 });
 
-test("F6-02/F6-03: con el worker activo, cerrar sesión y cambiar de titular protege el historial en el mismo navegador", async ({
+test("F6-02/F6-03: cerrar sesión y cambiar de titular protege el historial en el mismo navegador", async ({
   actors,
 }) => {
   const { a, b, fixtures } = actors;
@@ -875,13 +710,7 @@ test("F6-02/F6-03: con el worker activo, cerrar sesión y cambiar de titular pro
   const marker = "Movimiento privado F6-02 caché";
   const otherMarker = "Movimiento privado del segundo titular";
   expect(
-    (await send(a, "POST", "/api/bank-balances", sample.bankBalance)).status(),
-  ).toBe(201);
-  expect(
     (await send(a, "POST", "/api/movements", sample.expense(marker))).status(),
-  ).toBe(201);
-  expect(
-    (await send(b, "POST", "/api/bank-balances", sample.bankBalance)).status(),
   ).toBe(201);
   expect(
     (
@@ -890,16 +719,6 @@ test("F6-02/F6-03: con el worker activo, cerrar sesión y cambiar de titular pro
   ).toBe(201);
   await page.goto("/historial");
   await expect(page.getByText(marker, { exact: true })).toBeVisible();
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.register("/card-push-worker.js", {
-      scope: "/",
-    });
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload();
-  expect(
-    await page.evaluate(() => navigator.serviceWorker.controller !== null),
-  ).toBe(true);
   await page.goto("/account");
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in$/);

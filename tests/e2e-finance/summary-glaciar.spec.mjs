@@ -128,7 +128,8 @@ test("SIMP-03: la navegación solo ofrece gastos y los módulos retirados rediri
     "/deudas/00000000-0000-4000-8000-000000000000",
     "/beneficios",
   ]) {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/resumen$/);
+    // SIMP-04: las rutas retiradas ya no redirigen: responden 404.
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
   }
 });

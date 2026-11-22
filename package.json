@@ -40,7 +40,6 @@
     "db:migrate:production": "node --env-file-if-exists=.env.production.local scripts/migrate-production.mjs"
   },
   "dependencies": {
-    "@block65/webcrypto-web-push": "2.0.0",
     "better-auth": "1.7.18",
     "clsx": "2.1.1",
     "kysely": "0.29.8",

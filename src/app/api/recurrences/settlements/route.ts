@@ -109,7 +109,10 @@ export async function POST(request: Request) {
           { error: result.error },
           result.status === "not-found" ? 404 : 409,
         );
-      if (result.status === "created" && "split" in command && command.split)
+      if (
+        result.status === "created" &&
+        (command.action === "record" || command.action === "link")
+      )
         await refreshBudgetNotices(client, ownerId);
       return reply({ id: result.id }, result.status === "created" ? 201 : 200);
     });

@@ -93,7 +93,11 @@ test("F5-07: secciones y columnas del informe sin colisiones", () => {
     true,
   );
   const resumen = REPORT_SECTIONS.find((section) => section.id === "resumen");
-  assert.match(resumen.description, /transferencias internas/i);
+  assert.match(resumen.description, /Estadísticas/);
+  assert.doesNotMatch(
+    REPORT_SECTIONS.map((section) => section.id).join(" "),
+    /saldo|ingreso|banco|tarjeta|deuda|patrimonio/i,
+  );
 });
 
 test("F5-07: nombres de archivo por período y formato", () => {

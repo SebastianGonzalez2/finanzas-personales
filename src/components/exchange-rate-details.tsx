@@ -15,19 +15,15 @@ export function ExchangeRateDetails({
   target,
   quotes,
   missing = [],
-  missingPositions = [],
   live = false,
 }: {
   target: Currency;
   quotes: FxQuote[];
   missing?: FxKey[];
-  missingPositions?: FxKey[];
   live?: boolean;
 }) {
   const unresolved = [
-    ...new Map(
-      [...missing, ...missingPositions].map((key) => [fxKey(key), key]),
-    ).values(),
+    ...new Map(missing.map((key) => [fxKey(key), key])).values(),
   ];
   const observations = [
     ...new Map(quotes.map((quote) => [fxKey(quote), quote])).values(),
@@ -46,7 +42,7 @@ export function ExchangeRateDetails({
 
   return (
     <div className="grid gap-2 text-sm">
-      {(missing.length > 0 || missingPositions.length > 0) && (
+      {missing.length > 0 && (
         <div role="status" className="grid gap-1">
           {missing.length > 0 && (
             <p>
@@ -55,18 +51,12 @@ export function ExchangeRateDetails({
                 : `Faltan cotizaciones para consolidar el flujo en ${target}. Se muestran importes originales.`}
             </p>
           )}
-          {missingPositions.length > 0 && (
-            <p>
-              Faltan cotizaciones para consolidar la situación financiera en{" "}
-              {target}. Se muestran importes originales.
-            </p>
-          )}
         </div>
       )}
       {!live && (observations.length > 0 || unresolved.length > 0) && (
         <p className="text-muted-foreground">
           Equivalencia de referencia en {target} según la fecha efectiva de cada
-          movimiento o saldo histórico.
+          movimiento.
         </p>
       )}
       {observations.length > 0 && (

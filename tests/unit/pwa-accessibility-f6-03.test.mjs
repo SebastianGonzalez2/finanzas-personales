@@ -36,9 +36,7 @@ test("F6-03: el manifest declara instalación, idioma, colores e íconos PNG", a
 });
 
 test("F6-03: PWA sin almacenamiento financiero offline ni caché de respuestas", () => {
-  const sources = [...walk("src"), "public/card-push-worker.js"].filter(
-    (file) => /\.(tsx?|mjs|js)$/.test(file),
-  );
+  const sources = walk("src").filter((file) => /\.(tsx?|mjs|js)$/.test(file));
   const forbidden =
     /\b(indexedDB|localStorage|sessionStorage|caches\.|CacheStorage|BackgroundSync|periodicSync)\b|navigator\.serviceWorker\.register/;
   // F6-06: única excepción, la preferencia de interfaz del tutorial (ver tutorial.test.mjs).
@@ -52,9 +50,7 @@ test("F6-03: PWA sin almacenamiento financiero offline ni caché de respuestas",
       forbidden.test(read(file)),
   );
   assert.deepEqual(offenders, []);
-  assert.deepEqual(readdirSync(join(root, "public")).sort(), [
-    "card-push-worker.js",
-  ]);
+  assert.throws(() => readdirSync(join(root, "public")), /ENOENT/);
 });
 
 test("F6-03: el aviso de conexión informa sin persistir ni reintentar solo", () => {

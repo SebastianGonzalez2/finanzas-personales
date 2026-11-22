@@ -85,7 +85,7 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
     id: "resumen",
     title: "Resumen del período",
     description:
-      "Totales por moneda del rango exportado. Las transferencias internas entre cuentas propias no se cuentan como ingreso ni gasto.",
+      "Gasto total por moneda y por categoría dentro del rango exportado, con la comparación entre sus dos tramos. Coincide con Estadísticas para el mismo período y moneda.",
     columns: [
       { id: "concepto", label: "Concepto", kind: "text" },
       { id: "moneda", label: "Moneda", kind: "text" },
@@ -95,72 +95,58 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
     ],
   },
   {
-    id: "movimientos",
-    title: "Movimientos",
+    id: "evolucion",
+    title: "Evolución mensual",
     description:
-      "Movimientos confirmados dentro del período, incluyendo revisiones históricas vigentes a la fecha de exportación.",
+      "Gasto de cada mes del período por moneda y diferencia con el mes anterior del rango. Cada cuota cuenta una sola vez, en su mes.",
+    columns: [
+      { id: "mes", label: "Mes", kind: "month" },
+      { id: "moneda", label: "Moneda", kind: "text" },
+      moneyColumn("gasto", "Gasto del mes"),
+      moneyColumn(
+        "diferencia",
+        "Diferencia con el mes anterior",
+        "Vacío en el primer mes del rango de cada moneda.",
+      ),
+    ],
+  },
+  {
+    id: "movimientos",
+    title: "Gastos",
+    description:
+      "Gastos confirmados dentro del período, incluyendo revisiones históricas vigentes a la fecha de exportación. Una compra en cuotas figura por su total; el detalle mensual está en Cuotas.",
     columns: [
       { id: "fecha", label: "Fecha", kind: "date" },
       { id: "tipo", label: "Tipo", kind: "text" },
       { id: "descripcion", label: "Descripción", kind: "text" },
       { id: "categoria", label: "Categoría", kind: "text" },
-      { id: "banco", label: "Banco", kind: "text" },
-      { id: "tarjeta", label: "Tarjeta", kind: "text" },
       { id: "cuotas", label: "Cuotas", kind: "text" },
       { id: "moneda", label: "Moneda", kind: "text" },
       moneyColumn("importe", "Importe"),
       { id: "estado", label: "Confirmación", kind: "text" },
       { id: "movimiento_id", label: "Identificador", kind: "text" },
-      { id: "compra_original_id", label: "Compra original", kind: "text" },
     ],
   },
   {
-    id: "saldos",
-    title: "Saldos por banco",
+    id: "cuotas",
+    title: "Cuotas",
     description:
-      "Saldos confirmados (checkpoints) al cierre del período; las proyecciones se reportan aparte y no reemplazan el checkpoint.",
+      "Cuotas de compras financiadas que corresponden a los meses del período. La suma de las cuotas de una compra es su total, sin duplicaciones.",
     columns: [
-      { id: "banco", label: "Banco", kind: "text" },
+      { id: "mes", label: "Mes", kind: "month" },
+      { id: "descripcion", label: "Compra", kind: "text" },
+      { id: "cuota", label: "Cuota", kind: "text" },
+      { id: "categoria", label: "Categoría", kind: "text" },
       { id: "moneda", label: "Moneda", kind: "text" },
-      moneyColumn("saldo_confirmado", "Saldo confirmado al cierre"),
-      { id: "checkpoint_fecha", label: "Fecha del checkpoint", kind: "date" },
-      moneyColumn(
-        "proyeccion",
-        "Proyección",
-        "Estimación informativa; nunca reemplaza el saldo confirmado.",
-      ),
-    ],
-  },
-  {
-    id: "tarjetas",
-    title: "Tarjetas",
-    description:
-      "Ciclos de los meses seleccionados con importes calculados hasta el fin del período. Pagar una tarjeta reduce deuda y banco sin duplicar el gasto.",
-    columns: [
-      { id: "tarjeta", label: "Tarjeta", kind: "text" },
-      { id: "ciclo", label: "Ciclo", kind: "month" },
-      { id: "moneda", label: "Moneda", kind: "text" },
-      moneyColumn("compras", "Compras del ciclo"),
-      moneyColumn("pagos", "Pagos del ciclo"),
-      moneyColumn("saldo_pendiente", "Saldo pendiente"),
-      moneyColumn("abonos", "Abonos en la estimación"),
-      moneyColumn(
-        "sin_ciclo",
-        "Compras sin ciclo asignado",
-        "Compras del mes de una tarjeta sin día de cierre configurado; no forman parte del saldo pendiente.",
-      ),
-      moneyColumn(
-        "oficial",
-        "Monto oficial del resumen",
-        "Total informado por la tarjeta. Cuando existe, el saldo pendiente parte de este valor y no de las compras.",
-      ),
+      moneyColumn("importe", "Importe de la cuota"),
+      { id: "movimiento_id", label: "Identificador", kind: "text" },
     ],
   },
   {
     id: "presupuestos",
     title: "Presupuestos",
     description:
-      "Límite mensual por categoría y consumo dentro de las fechas seleccionadas. Los reembolsos de otros meses no reducen el presupuesto.",
+      "Límite mensual por categoría y consumo dentro de las fechas seleccionadas, con las cotizaciones usadas para convertir otras monedas. Coincide con Presupuestos.",
     columns: [
       { id: "mes", label: "Mes", kind: "month" },
       { id: "categoria", label: "Categoría", kind: "text" },
@@ -169,19 +155,6 @@ export const REPORT_SECTIONS: readonly ReportSection[] = [
       moneyColumn("gastado", "Gastado"),
       moneyColumn("restante", "Restante"),
       { id: "referencias", label: "Cotizaciones utilizadas", kind: "text" },
-    ],
-  },
-  {
-    id: "fondos",
-    title: "Fondos de ahorro",
-    description:
-      "Estado de los fondos del titular al cierre del período, incluyendo la cobertura de gastos desde fondos.",
-    columns: [
-      { id: "fondo", label: "Fondo", kind: "text" },
-      { id: "moneda", label: "Moneda", kind: "text" },
-      moneyColumn("aportado", "Aportado"),
-      moneyColumn("objetivo", "Objetivo"),
-      moneyColumn("disponible", "Disponible"),
     ],
   },
 ];

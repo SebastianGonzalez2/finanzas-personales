@@ -76,9 +76,7 @@ export function HistorySelection({
   const selectedRows = rows.filter((entry) => selected.has(rowKey(entry)));
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
   const compatibleCategories = categories.filter(({ kind }) =>
-    selectedRows.every(
-      (row) => kind === (row.kind === "income" ? "income" : "expense"),
-    ),
+    selectedRows.every(() => kind === "expense"),
   );
   const [type, id] = choice.split(":");
   const validChoice = (type === "category" ? compatibleCategories : tags).some(
@@ -419,7 +417,7 @@ export function HistorySelection({
                       <KindBadge kind={entry.kind} />
                       <span className="min-w-0">
                         <a
-                          href={`/historial/${entry.kind === "checkpoint" ? "saldos" : "movimientos"}/${entry.id}${historySearch(filters, cursor)}#titulo-pagina`}
+                          href={`/historial/movimientos/${entry.id}${historySearch(filters, cursor)}#titulo-pagina`}
                           className="lab-td-concept__title"
                         >
                           {entry.concept}

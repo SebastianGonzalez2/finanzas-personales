@@ -32,7 +32,6 @@ import {
   latestTrackedIndex,
 } from "@/domain/recurrence-plan";
 import type { TrackedPeriod } from "@/domain/recurrence-settlements";
-import { listPeople, recurringSharesReady } from "@/server/recurring-shares";
 import { recurrenceTrackingReady } from "@/server/recurrence-links";
 import {
   trackedPeriodPage,
@@ -122,10 +121,9 @@ export default async function RecurrencesPage({
             "Las recurrencias estarán disponibles cuando se actualice la base de datos.",
         };
       const tracking = await recurrenceTrackingReady(client);
-      const sharing = tracking && (await recurringSharesReady(client));
       // SIMP-03: las series de ingreso heredadas no se muestran.
       const definitions = (
-        await listRecurrences(client, ownerId, today, tracking, sharing)
+        await listRecurrences(client, ownerId, today, tracking)
       ).filter(({ kind }) => kind === "expense");
       const controls =
         tracking && (await recurrenceSeriesControlsReady(client));
@@ -177,7 +175,6 @@ export default async function RecurrencesPage({
         selectedId,
         tracking,
         controls,
-        people: sharing ? await listPeople(client, ownerId) : null,
         categories: await listCatalogCategories(client, ownerId),
       };
     },
@@ -213,7 +210,6 @@ export default async function RecurrencesPage({
                 today={today}
                 categories={data.categories}
                 frequencies={frequencies}
-                people={data.people}
               />
             </details>
             {!data.tracking && data.recurrences.length > 0 && (
@@ -237,7 +233,6 @@ export default async function RecurrencesPage({
                     series={selected}
                     tracking={data.tracking}
                     controls={data.controls}
-                    people={data.people}
                     today={today}
                   />
                 </div>
@@ -306,7 +301,6 @@ function SeriesList({
             frequencies[series.frequency],
             dateSummary(series, today),
             series.category,
-            series.usualShares.length > 0 ? "compartida" : null,
           ].filter(Boolean);
           return (
             <li
@@ -365,13 +359,11 @@ function SeriesDetail({
   series,
   tracking,
   controls,
-  people,
   today,
 }: {
   series: Loaded;
   tracking: boolean;
   controls: boolean;
-  people: Awaited<ReturnType<typeof listPeople>> | null;
   today: string;
 }) {
   const title = `detalle-${series.id}`;
@@ -453,19 +445,6 @@ function SeriesDetail({
                   : `Día ${series.dueDay}`}
           </dd>
         </div>
-        {series.usualShares.length > 0 && (
-          <div>
-            <dt>Compartida · reparto habitual</dt>
-            <dd>
-              {series.usualShares
-                .map(
-                  ({ name, percentage }) =>
-                    `${name} · ${percentage.replace(/\.?0+$/, "").replace(".", ",")} %`,
-                )
-                .join(" · ")}
-            </dd>
-          </div>
-        )}
         {series.category && (
           <div>
             <dt>Categoría</dt>
@@ -525,8 +504,6 @@ function SeriesDetail({
                     currency={series.currency}
                     kind={series.kind}
                     today={today}
-                    usualShares={series.usualShares}
-                    people={people ?? []}
                   />
                 </div>
               </li>
@@ -614,13 +591,12 @@ function PeriodSummary({
       </dl>
       {period.events.length > 0 && (
         <ul className="gs-linked" aria-label="Movimientos vinculados">
-          {period.events.map(({ id, amount, effectiveOn, method, shared }) => (
+          {period.events.map(({ id, amount, effectiveOn, method }) => (
             <li key={id}>
               <Link className="lab-link" href={`/historial/movimientos/${id}`}>
                 {formatBankReference(effectiveOn)} ·{" "}
                 {formatBankAmount({ amount, currency })} ·{" "}
                 {movementDisplayMethods[method]}
-                {shared && " · Ver reparto y cobros"}
               </Link>
             </li>
           ))}

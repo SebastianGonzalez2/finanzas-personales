@@ -4,7 +4,6 @@ import test from "node:test";
 import { URLSearchParams } from "node:url";
 import { historySearch, parseHistoryParams } from "../../src/domain/history.ts";
 import {
-  parseBankTransfer,
   parseMovement,
   parseMovementRevision,
 } from "../../src/domain/movements.ts";
@@ -20,8 +19,8 @@ const expense = {
   idempotencyKey: randomUUID(),
 };
 
-test("F1-07: valida rangos exactos y el cursor de un cambio de moneda", () => {
-  const cursor = { date: today, id: randomUUID(), kind: "bank_transfer" };
+test("F1-07: valida rangos exactos y el cursor de un gasto", () => {
+  const cursor = { date: today, id: randomUUID(), kind: "expense" };
   const filters = {
     q: "alquiler %",
     min: "9007199254740993,0001",
@@ -74,45 +73,6 @@ test("F1-07: edición reusa la validación de alta y rechaza campos de autoridad
   }
 });
 
-test("F1-06: los dos importes se validan y normalizan por separado", () => {
-  const payload = {
-    kind: "bank_transfer",
-    sourceCurrency: "UYU",
-    sourceAmount: "9007199254740993,0001",
-    destinationCurrency: "USD",
-    destinationAmount: " 2,1234 ",
-    effectiveOn: today,
-    idempotencyKey: randomUUID().toUpperCase(),
-  };
-  assert.deepEqual(parseBankTransfer(payload, today), {
-    ...payload,
-    sourceAmount: "9007199254740993.0001",
-    destinationAmount: "2.1234",
-    idempotencyKey: payload.idempotencyKey.toLowerCase(),
-  });
-  for (const invalid of [
-    { destinationCurrency: "UYU" },
-    { sourceCurrency: "ARS" },
-    { destinationCurrency: undefined },
-    { destinationAmount: "0" },
-    { destinationAmount: "1.00001" },
-    { destinationAmount: 50 },
-    { sourceAmount: "-1" },
-    { sourceAmount: "1.000,00" },
-    { effectiveOn: "2026-11-09" },
-    { effectiveOn: "2026-02-29" },
-    { idempotencyKey: "inválida" },
-    { ownerId: "otro" },
-    { categoryId: null },
-    { rate: "40" },
-  ]) {
-    assert.ok(
-      "error" in parseBankTransfer({ ...payload, ...invalid }, today),
-      JSON.stringify(invalid),
-    );
-  }
-});
-
 test("F1-03: registra importes exactos y normaliza campos opcionales", () => {
   assert.deepEqual(parseMovement(expense, today), {
     ...expense,
@@ -122,12 +82,11 @@ test("F1-03: registra importes exactos y normaliza campos opcionales", () => {
     categoryId: null,
   });
   const categoryId = randomUUID();
-  const income = parseMovement(
+  const optional = parseMovement(
     {
       ...expense,
-      kind: "income",
-      method: "deposit",
-      concept: undefined,
+      method: "transfer",
+      concept: "Sin ingreso",
       currency: "EUR",
       amount: "9999999999999999.9999",
       categoryId: categoryId.toUpperCase(),
@@ -135,10 +94,10 @@ test("F1-03: registra importes exactos y normaliza campos opcionales", () => {
     },
     today,
   );
-  assert.equal(income.concept, "");
-  assert.equal(income.note, "Recibido");
-  assert.equal(income.amount, "9999999999999999.9999");
-  assert.equal(income.categoryId, categoryId);
+  assert.equal(optional.concept, "Sin ingreso");
+  assert.equal(optional.note, "Recibido");
+  assert.equal(optional.amount, "9999999999999999.9999");
+  assert.equal(optional.categoryId, categoryId);
 });
 
 test("F1-04: valida revisiones y conserva importes superiores a la precisión binaria", () => {
@@ -192,7 +151,9 @@ test("F1-03: rechaza datos no permitidos para un movimiento real", () => {
     { ownerId: "otro" },
     { method: "credit" },
     { method: "deposit" },
-    { kind: "income", method: "transfer" },
+    { kind: "income" },
+    { kind: "bank_transfer" },
+    { kind: "expense", concept: "" },
     { amount: 1500 },
     { amount: "1.500,00" },
     { amount: "0" },
@@ -216,10 +177,6 @@ test("SIMP-02: el gasto no exige medio bancario y reparte cuotas exactas", () =>
   const { method, ...withoutMethod } = expense;
   assert.equal(method, "debit");
   assert.equal(parseMovement(withoutMethod, today).method, "unspecified");
-  assert.equal(
-    parseMovement({ ...withoutMethod, kind: "income" }, today).method,
-    "deposit",
-  );
   assert.ok("error" in parseMovement({ ...expense, method: "deposit" }, today));
 
   const plan = { installmentAmount: "5000", count: 6, firstPeriod: "2026-11" };
@@ -240,6 +197,7 @@ test("SIMP-02: el gasto no exige medio bancario y reparte cuotas exactas", () =>
     { ...withoutAmount, plan: { ...plan, extra: true } },
     { ...withoutAmount, kind: "income", plan },
     { ...withoutAmount, plan, fundPortions: [] },
+    { ...withoutAmount, plan, cardAmounts: [] },
   ])
     assert.ok(
       "error" in parseMovement(invalid, today),

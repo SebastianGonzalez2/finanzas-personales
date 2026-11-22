@@ -27,25 +27,15 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
   const child = randomUUID();
   const otherCategory = randomUUID();
   const reference = `${year - 4}-06-09`;
-  const older = `${year - 6}-01-01`;
 
   const create = async (path, data, actor = context.request) => {
     const response = await actor.post(`/api/${path}`, {
-      data:
-        path === "bank-balances"
-          ? data
-          : { idempotencyKey: randomUUID(), ...data },
+      data: { idempotencyKey: randomUUID(), ...data },
       headers: { origin: financeTestOrigin },
     });
     expect(response.status(), `${path}: ${await response.text()}`).toBe(201);
     return response.json();
   };
-  const bank = (currency, actor) =>
-    create(
-      "bank-balances",
-      { currency, amount: "5000", asOfDate: older },
-      actor,
-    );
   const expense = (
     amount,
     effectiveOn,
@@ -84,10 +74,6 @@ test("STAT-ANNUAL: totales por año, cotizaciones, interacción e historial priv
        VALUES ($1,$2,'expense','Categoría privada B')`,
       [owners.b, privateCategory],
     );
-    await bank("UYU");
-    await bank("USD");
-    await bank("EUR");
-    await bank("UYU", isolated.request);
 
     await expense("50", `${year - 6}-02-10`);
     await expense("110.0123", reference);

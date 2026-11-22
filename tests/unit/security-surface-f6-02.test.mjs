@@ -55,10 +55,6 @@ function methods(text) {
 // Módulos auxiliares que centralizan origen, tamaño y cabeceras privadas.
 const originHelpers = {
   "server/movements-http.ts": ["handleMovement", "handleMovementRevision"],
-  "server/bank-balances-http.ts": [
-    "handleOpeningBalance",
-    "handleBalanceAdjustment",
-  ],
   "server/exchange-rate-http.ts": ["currencyRequest"],
   "server/private-download.ts": ["exportOriginError"],
 };
@@ -70,7 +66,7 @@ const ownerGuards = [
 
 test("F6-02: inventario de rutas HTTP: cada handler exige titular, cron o el adaptador Google", () => {
   assert.ok(
-    routes.length >= 30,
+    routes.length >= 15,
     "El inventario de rutas no puede quedar vacío",
   );
   for (const { file, text } of routes) {
@@ -95,8 +91,6 @@ test("F6-02: los métodos de lectura permitidos están enumerados; ninguna ruta 
     "app/api/account/route.ts": ["GET"],
     "app/api/auth/[...path]/route.ts": ["GET"],
     "app/api/catalog/route.ts": ["GET"],
-    "app/api/cron/card-push/route.ts": ["GET"],
-    "app/api/cron/contributions/route.ts": ["GET"],
     "app/api/history-filters/route.ts": ["GET"],
     "app/api/recurrences/settlements/route.ts": ["GET"],
   });
@@ -152,7 +146,6 @@ test("F6-02: toda mutación valida origen exacto y Sec-Fetch-Site antes de proce
 test("F6-02: respuestas de rutas privadas usan Cache-Control private, no-store (directo o por helper)", () => {
   const helperModules = [
     "movements-http",
-    "bank-balances-http",
     "exchange-rate-http",
     "private-download",
     "google-http",
@@ -172,7 +165,7 @@ test("F6-02: respuestas de rutas privadas usan Cache-Control private, no-store (
 });
 
 test("F6-02: páginas privadas exigen sesión y titular en servidor y son dinámicas", () => {
-  assert.ok(pages.length >= 18);
+  assert.ok(pages.length >= 12);
   const exempt = new Set(["app/auth/sign-in/page.tsx", "app/page.tsx"]);
   for (const { file, text } of pages) {
     if (exempt.has(file)) continue;
@@ -326,42 +319,25 @@ test("F6-02: el runtime financiero nunca acepta un titular proveniente del clien
   assert.match(auth, /authorized\?\.owner_id !== ownerId/);
 });
 
-test("F6-02: el cron exige credencial exclusiva y declarada en vercel.json", () => {
+test("SIMP-04: no quedan crons ni notificaciones push", () => {
   const vercel = JSON.parse(readFileSync(join(root, "vercel.json"), "utf8"));
-  const cronFiles = routes.filter(({ file }) => file.includes("/cron/"));
+  assert.equal(vercel.crons, undefined);
   assert.deepEqual(
-    vercel.crons.map(({ path }) => path).sort(),
-    cronFiles
-      .map(({ file }) => file.replace(/^app/, "").replace(/\/route\.ts$/, ""))
-      .sort(),
-    "Cada ruta de cron está declarada y viceversa",
+    routes.filter(({ file }) => file.includes("/cron/")),
+    [],
   );
-  for (const { file, text } of cronFiles) {
-    assert.ok(
-      text.indexOf("authorizedCron(") < text.indexOf("listCronOwners("),
-      `${file}: la credencial debe verificarse antes de enumerar titulares`,
-    );
-    assert.doesNotMatch(text, /withGoogleOwner|freshGoogleSession/, file);
-  }
-  const cron = src("server/google-cron.ts");
-  assert.match(cron, /secret\.length < 16/);
-  assert.match(cron, /timingSafeEqual/);
-  assert.match(cron, /Bearer \$\{secret\}/);
-});
-
-test("F6-02: el service worker solo gestiona notificaciones y no almacena respuestas", () => {
-  const worker = readFileSync(join(root, "public/card-push-worker.js"), "utf8");
-  assert.doesNotMatch(worker, /\bfetch\b|caches\.|CacheStorage|importScripts/);
-  assert.match(worker, /event\.data\?\.text\(\) !== "card-due"/);
-  assert.doesNotMatch(worker, /event\.data\.json|\$\{/, "Sin datos privados");
+  assert.equal(
+    readdirSync(join(root, "src/server")).includes("google-cron.ts"),
+    false,
+  );
   const manifest = src("app/manifest.ts");
   assert.match(manifest, /start_url: "\/"/);
   assert.doesNotMatch(
     manifest,
     /scope|share_target|shortcuts|related_applications/,
   );
-  const app = readdirSync(join(root, "public"));
-  assert.deepEqual(app.sort(), ["card-push-worker.js"]);
+  // La app ya no registra service workers ni sirve archivos estáticos públicos.
+  assert.throws(() => readdirSync(join(root, "public")), /ENOENT/);
 });
 
 test("F6-02: la política de origen rechaza esquemas, puertos y hosts no canónicos", async () => {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
@@ -29,10 +30,14 @@ test("F5-08 RF-049: confirmación, copia opcional y revocación A/B", async ({
       [context, "1000.0123"],
       [other, "2000.0456"],
     ]) {
-      const response = await post(browserContext, "/api/bank-balances", {
+      const response = await post(browserContext, "/api/movements", {
+        kind: "expense",
+        method: "debit",
         currency: "UYU",
         amount,
-        asOfDate: "2025-01-01",
+        concept: "Gasto sintético con importe exacto",
+        effectiveOn: "2025-01-01",
+        idempotencyKey: randomUUID(),
       });
       expect(response.status()).toBe(201);
     }

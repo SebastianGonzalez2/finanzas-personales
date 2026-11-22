@@ -52,11 +52,6 @@ test("F5-06 CA-060: domingo, tasa fija, cambio de fecha y preferencia privada", 
       ON CONFLICT DO NOTHING`,
       [friday, sunday, monday],
     );
-    await created("bank-balances", {
-      currency: "EUR",
-      amount: "100",
-      asOfDate: friday,
-    });
     const expense = await created("movements", {
       kind: "expense",
       method: "debit",
@@ -234,12 +229,6 @@ test("F5-06: sin cotización histórica, tasa manual reproducible y aislada", as
         data,
         headers: { origin: financeTestOrigin },
       });
-    const opening = await post("bank-balances", {
-      currency: "UYU",
-      amount: "1000",
-      asOfDate: "2000-01-01",
-    });
-    expect(opening.status(), await opening.text()).toBe(201);
     const expense = await post("movements", {
       kind: "expense",
       method: "debit",

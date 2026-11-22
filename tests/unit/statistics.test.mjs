@@ -233,18 +233,16 @@ test("F5-05: resumen determinista y advertencia de muestra insuficiente", () => 
     totals: [
       {
         currency: "UYU",
-        income: "10000.0000",
+        income: "0.0000",
         expense: "12500.0000",
-        refunds: "500.0000",
+        refunds: "0.0000",
         movements: 8,
       },
     ],
   });
   assert.equal(ready.status, "ready");
-  assert.match(ready.paragraphs[0], /10\.000,00 UYU/);
-  assert.match(ready.paragraphs[1], /125,0 %/);
-  assert.match(ready.paragraphs[1], /superan los ingresos/);
-  assert.match(ready.paragraphs[2], /Devoluciones registradas/);
+  assert.match(ready.paragraphs[0], /12.500,00 UYU de gastos/);
+  assert.doesNotMatch(ready.paragraphs.join(" "), /ingresos|Devoluciones/);
   assert.match(ready.paragraphs.at(-1), /solo movimientos registrados/);
 });
 

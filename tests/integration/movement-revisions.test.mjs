@@ -5,10 +5,6 @@ import pg from "pg";
 import { readMigrations } from "../../src/db/migrations.mts";
 import { withOwnerTransaction } from "../../src/db/owner-context.ts";
 import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
-import {
   listMovementTotals,
   listRecentMovements,
   reviseMovement,
@@ -21,7 +17,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
   const as = (owner, work) =>
     withOwnerTransaction(pool, async () => ({ ownerId: owner }), work);
   const date = "2026-02-01";
-  const opening = { currency: "UYU", amount: "10000.0000", asOfDate: date };
   const expense = {
     kind: "expense",
     currency: "UYU",
@@ -62,9 +57,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
     );
   const revise = (owner, command) =>
     as(owner, (client, id) => reviseMovement(client, id, command));
-  const init = (owner, values = opening) =>
-    as(owner, (client, id) => saveOpeningBalance(client, id, values));
-  const balances = (owner) => as(owner, listBankBalances);
   const totals = (owner) =>
     as(owner, (client, id) => listMovementTotals(client, id, date));
   const recent = (owner) =>
@@ -159,9 +151,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
         assert.deepEqual(await revise(legacyOwner, undo(originalId)), {
           status: "inactive",
         });
-        assert.deepEqual(await balances(legacyOwner), [
-          { ...opening, amount: "10000", calculatedAmount: "9500.0000" },
-        ]);
         assert.deepEqual(await totals(legacyOwner), [
           { kind: "expense", currency: "UYU", amount: "500.0000" },
         ]);
@@ -209,7 +198,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
       "CA-014/016: deshace con reintento y conserva una sola anulación",
       async () => {
         const owner = "f1-04-void";
-        await init(owner);
         const { id } = await save(owner, { amount: "0.0001" });
         const command = undo(id);
         const results = await Promise.all([
@@ -251,7 +239,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
             "-0.0001",
           );
         });
-        assert.deepEqual(await balances(owner), [opening]);
         assert.deepEqual(await totals(owner), []);
         const otherId = (await save(owner)).id;
         const key = randomUUID();
@@ -271,11 +258,10 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
       "SIMP-02: los cambios no dependen de fondos ni de un saldo confirmado",
       async () => {
         const owner = "f1-04-checkpoint";
-        await init(owner, { ...opening, amount: "0.0000" });
-        const income = await save(owner, { kind: "income", method: "deposit" });
+        const first = await save(owner, { amount: "5000.0000" });
         const debit = await save(owner, { amount: "4999.9999" });
         assert.equal(debit.status, "created");
-        assert.equal((await revise(owner, undo(income.id))).status, "revised");
+        assert.equal((await revise(owner, undo(first.id))).status, "revised");
         await as(owner, (client, id) =>
           client.query(
             `INSERT INTO finance.balance_checkpoints(owner_id,id,currency,confirmed_amount,as_of_date,created_at)
@@ -297,7 +283,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
       "una falla posterior revierte reemplazo, auditoría y estado; RLS exige auditoría",
       async () => {
         const owner = "f1-04-rollback";
-        await init(owner);
         const { id } = await save(owner);
         const command = { ...undo(id), action: "correct", amount: "500.0001" };
         await assert.rejects(
@@ -338,9 +323,6 @@ test("F1-04: motor monetario sobre PostgreSQL con datos previos y conexiones con
           await client.query("ROLLBACK TO SAVEPOINT unaudited");
         });
         assert.equal((await revise(owner, command)).status, "revised");
-        assert.deepEqual(await balances(owner), [
-          { ...opening, calculatedAmount: "9499.9999" },
-        ]);
       },
     );
   } finally {

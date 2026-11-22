@@ -33,7 +33,12 @@ export function ManualExchangeRateForm({
       const response = await fetch("/api/manual-exchange-rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...key, target, rate: fields.get("rate") }),
+        body: JSON.stringify({
+          date: key.date,
+          base: key.base,
+          target,
+          rate: fields.get("rate"),
+        }),
       });
       if (!response.ok) {
         const { error } = await response.json();

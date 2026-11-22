@@ -9,10 +9,14 @@ const reset = "/api/account/reset";
 const post = (context, path, data, origin = financeTestOrigin) =>
   context.request.post(path, { data, headers: { origin } });
 const opening = (context, amount) =>
-  post(context, "/api/bank-balances", {
+  post(context, "/api/movements", {
+    kind: "expense",
+    method: "debit",
     currency: "UYU",
     amount,
-    asOfDate: "2025-01-01",
+    concept: "Gasto de prueba del reinicio",
+    effectiveOn: "2025-01-01",
+    idempotencyKey: randomUUID(),
   });
 const expense = (context, concept) =>
   post(context, "/api/movements", {
@@ -83,7 +87,6 @@ test("OPS-RESET: reinicia desde Mi cuenta sin pedir copia y permite volver a reg
     await confirm.fill("REINICIAR");
     await section.getByRole("button", { name: "Cancelar" }).click();
     await expect(open).toBeFocused();
-    expect((await opening(context, "3000.0000")).status()).toBe(409);
 
     await open.click();
     await expect(confirm).toHaveValue("");
@@ -123,7 +126,6 @@ test("OPS-RESET: reinicia desde Mi cuenta sin pedir copia y permite volver a reg
       (await expense(second, "Primer gasto después del reinicio")).status(),
     ).toBe(201);
     expect((await post(context, reset, confirmed)).status()).toBe(409);
-    expect((await opening(second, "4000.0000")).status()).toBe(409);
     const otherPage = await other.newPage();
     await otherPage.goto("/historial");
     await expect(

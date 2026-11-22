@@ -7,18 +7,8 @@ import {
 } from "./movements.ts";
 
 export const historyKinds = {
-  income: "Ingreso",
   expense: "Gasto",
-  bank_transfer: "Cambio de moneda",
-  checkpoint: "Saldo confirmado",
   card_purchase: "Compra con tarjeta",
-  card_payment: "Pago de tarjeta",
-  card_opening: "Deuda inicial de tarjeta",
-  card_adjustment: "Ajuste de deuda de tarjeta",
-  loan_operation: "Deudas y préstamos",
-  purchase_refund: "Devolución",
-  card_credit_return: "Reintegro de saldo a favor",
-  bank_benefit: "Beneficio bancario",
 } as const;
 
 export const historyStates = {

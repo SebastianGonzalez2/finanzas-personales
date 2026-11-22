@@ -1,13 +1,11 @@
 import test from "node:test";
 import { resetFinancialOwner } from "../../scripts/reset-financial-owner.mjs";
-import { openingBalance } from "../support/f2-10-fixtures.mjs";
 import { seedFinancialDomain } from "../support/f6-04-dataset.mjs";
-import {
-  listBankBalances,
-  saveOpeningBalance,
-} from "../../src/server/bank-balances.ts";
 import { decodeBackup, encodeBackup } from "../../src/server/backup-format.ts";
-import { saveMovement } from "../../src/server/movements.ts";
+import {
+  listMovementTotals,
+  saveMovement,
+} from "../../src/server/movements.ts";
 
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -350,7 +348,8 @@ test(
           // The previous A/B test already stored preferences for both owners.
           // The broad F6-04 fixture adds real financial relations and history.
           await authorizedRead(a.session, (c, id) =>
-            seedFinancialDomain(c, id),
+            // La sesión de aplicación no escribe tablas heredadas.
+            seedFinancialDomain(c, id, { legacy: false }),
           );
           await authorizedRead(b.session, (c, id) =>
             seedFinancialDomain(c, id, { rich: false }),
@@ -389,10 +388,11 @@ test(
           assert.equal(Object.keys(initial.counts).length, 62);
           assert.ok(
             Object.values(initial.counts).filter((n) => Number(n) > 0).length >=
-              45,
+              20,
           );
+          // Sin tarjetas sembradas no hay intentos push; las suscripciones y el
+          // recibo de restauración siguen contándose.
           for (const table of [
-            "finance.card_push_attempts",
             "finance.card_push_subscriptions",
             "finance_meta.account_restores",
           ])
@@ -500,15 +500,7 @@ test(
           assert.equal(returned.user.id, ownerId);
           assert.notEqual(returned.session.token, a.session.session.token);
           await authorizedRead(returned, async (c, id) => {
-            assert.deepEqual(await listBankBalances(c, id), []);
-            assert.equal(
-              await saveOpeningBalance(
-                c,
-                id,
-                openingBalance({ amount: "100.1234" }),
-              ),
-              "created",
-            );
+            assert.deepEqual(await listMovementTotals(c, id, "2026-01-02"), []);
             const movement = await saveMovement(c, id, {
               kind: "expense",
               method: "debit",
@@ -521,8 +513,9 @@ test(
               note: null,
             });
             assert.equal(movement.status, "created");
-            const [uyu] = await listBankBalances(c, id);
-            assert.equal(uyu.calculatedAmount, "90.1200");
+            assert.deepEqual(await listMovementTotals(c, id, "2026-01-02"), [
+              { kind: "expense", currency: "UYU", amount: "10.0034" },
+            ]);
           });
           assert.deepEqual(await plan(otherId, "b@example.invalid"), other);
         },

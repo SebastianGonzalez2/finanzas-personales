@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { bankReferenceToday } from "../../src/domain/bank-balances.ts";
 import {
   financeBrowserFixtures,
   financeTestOrigin,
@@ -20,16 +19,11 @@ test("F5-02: dividir, etiquetar y filtrar el mismo movimiento", async ({
   await other.addCookies([cookies.b]);
   const admin = new pg.Client(testDatabaseConfig());
   await admin.connect();
-  const today = bankReferenceToday();
   const category = randomUUID();
   try {
     await admin.query(
       "INSERT INTO finance.categories(owner_id,id,kind,name) VALUES($1,$2,'expense','Transporte sintético')",
       [owners.a, category],
-    );
-    await admin.query(
-      "INSERT INTO finance.balance_checkpoints(owner_id,id,currency,confirmed_amount,as_of_date) VALUES ($1,$2,'UYU',1000,$3)",
-      [owners.a, randomUUID(), today],
     );
     await page.goto("/resumen");
     await page

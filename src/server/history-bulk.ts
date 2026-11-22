@@ -3,14 +3,13 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { classificationLimit } from "../domain/classification.ts";
 import type { BulkClassificationCommand } from "../domain/history-bulk.ts";
-import { lockBankWrites } from "./bank-balances.ts";
+import { lockOwnerWrites } from "./owner-lock.ts";
 import {
   classificationTarget,
   insertClassification,
   readClassification,
 } from "./classification.ts";
 import { commandHash } from "./movements.ts";
-import { hasLinkedRefund } from "./refund-schema.ts";
 
 const conflict = (error: string) => ({ error, status: 409 }) as const;
 
@@ -29,7 +28,7 @@ export async function saveBulkClassification(
   const { entries, idempotencyKey } = command;
   const hash = commandHash(["bulk-classification-v1", JSON.stringify(command)]);
   // Shared with corrections, refunds and individual classification edits.
-  await lockBankWrites(client, ownerId);
+  await lockOwnerWrites(client, ownerId);
   const {
     rows: [receipt],
   } = await client.query<{ command_hash: string; updated: number }>(
@@ -100,11 +99,7 @@ export async function saveBulkClassification(
 
     const { allocations, tagIds } = current;
     if (categoryId) {
-      if (
-        allocations.length > 1 ||
-        !target.amount ||
-        (await hasLinkedRefund(client, ownerId, id))
-      )
+      if (allocations.length > 1 || !target.amount)
         return conflict(
           "La selección incluye un movimiento que requiere revisar sus categorías en el detalle.",
         );

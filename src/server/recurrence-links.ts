@@ -1,7 +1,6 @@
 import "server-only";
 import type pg from "pg";
-import { coverageUnits } from "../domain/fund-coverage.ts";
-import type { Currency } from "../domain/money.ts";
+import { decimalToUnits, type Currency } from "../domain/money.ts";
 
 export async function recurrenceTrackingReady(client: pg.PoolClient) {
   const { rows } = await client.query<{ ready: boolean }>(
@@ -66,11 +65,11 @@ export async function validRecurringRevision(
   if (rows[0].allocated !== null)
     return (
       rows.reduce(
-        (sum, row) => sum + coverageUnits(row.allocated ?? "0"),
+        (sum, row) => sum + decimalToUnits(row.allocated ?? "0"),
         BigInt(0),
-      ) === coverageUnits(amount)
+      ) === decimalToUnits(amount)
     );
   const [row] = rows;
-  const next = coverageUnits(row.other) + coverageUnits(amount);
-  return next <= coverageUnits(row.confirmed ?? "9999999999999999.9999");
+  const next = decimalToUnits(row.other) + decimalToUnits(amount);
+  return next <= decimalToUnits(row.confirmed ?? "9999999999999999.9999");
 }

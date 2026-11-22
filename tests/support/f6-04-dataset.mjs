@@ -1,25 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { parseBankBenefitCommand } from "../../src/domain/bank-benefits.ts";
 import { parseBudgetCommand } from "../../src/domain/budgets.ts";
-import { parseCreditCommand } from "../../src/domain/credit-operations.ts";
-import { parseLoanCommand } from "../../src/domain/loans.ts";
 import { parseMovement } from "../../src/domain/movements.ts";
 import { parseRecurrence } from "../../src/domain/recurrence-definition.ts";
 import { parseSettlement } from "../../src/domain/recurrence-settlements.ts";
-import { parseRefundCommand } from "../../src/domain/refunds.ts";
-import { parseSharedExpense } from "../../src/domain/shared-expenses.ts";
-import { saveOpeningBalance } from "../../src/server/bank-balances.ts";
-import { saveBankBenefit } from "../../src/server/bank-benefits.ts";
 import { saveManualFx } from "../../src/server/exchange-rates.ts";
 import { saveBudget } from "../../src/server/budgets.ts";
-import { parseCycleCommand } from "../../src/domain/card-cycles.ts";
-import { saveCard } from "../../src/server/cards.ts";
-import { saveCardCycle } from "../../src/server/card-cycles.ts";
 import { saveSavedFilterCommand } from "../../src/server/history-filters.ts";
 import { createCatalogCategory } from "../../src/server/categories.ts";
 import { saveTag } from "../../src/server/classification.ts";
-import { saveCreditOperation } from "../../src/server/credit-operations.ts";
-import { saveLoanOperation } from "../../src/server/loans.ts";
 import { saveMovement } from "../../src/server/movements.ts";
 import {
   applySettlement,
@@ -27,18 +15,6 @@ import {
 } from "../../src/server/recurrence-settlements.ts";
 import { createRecurrence } from "../../src/server/recurrences.ts";
 import { saveDisplayCurrency } from "../../src/server/exchange-rates.ts";
-import { saveRefund } from "../../src/server/refunds.ts";
-import { saveSavingsFund } from "../../src/server/savings-funds.ts";
-import { saveSharedExpense } from "../../src/server/shared-expenses.ts";
-import {
-  cardCommand,
-  creditPayment,
-  creditPurchase,
-  loanLend,
-  loanSettle,
-  openingBalance,
-  sharedExpense,
-} from "./f2-10-fixtures.mjs";
 
 const today = "2026-01-15";
 
@@ -53,21 +29,15 @@ function created(result) {
   return result;
 }
 
-// F6-04: sintetic-only dataset that touches the financial domain broadly
-// (bank, cards, loans, shared expenses, refunds, funds, budgets, recurrences,
-// classification and benefits) using the real services, so a disaster-recovery
-// test replays rows produced by production code paths rather than hand SQL.
+// F6-04 / SIMP-04: dataset sintético que recorre el dominio de gastos con los
+// servicios reales y, además, filas heredadas (tarjetas, saldos, beneficios,
+// préstamos y fondos) insertadas como datos preexistentes: la aplicación ya no
+// las escribe, pero backup, restauración, reinicio y borrado deben conservarlas.
 export async function seedFinancialDomain(
   client,
   ownerId,
-  { rich = true } = {},
+  { rich = true, legacy = true } = {},
 ) {
-  await saveOpeningBalance(client, ownerId, openingBalance());
-  await saveOpeningBalance(
-    client,
-    ownerId,
-    openingBalance({ currency: "USD", amount: "9999999999999.9999" }),
-  );
   await saveDisplayCurrency(client, ownerId, "UYU");
   const food = created(
     await createCatalogCategory(client, ownerId, {
@@ -131,29 +101,6 @@ export async function seedFinancialDomain(
     ),
     today,
   );
-  const fund = created(
-    await saveSavingsFund(client, ownerId, {
-      action: "create",
-      name: "Fondo sintético",
-      currency: "UYU",
-      idempotencyKey: randomUUID(),
-    }),
-  );
-  created(
-    await saveSavingsFund(client, ownerId, {
-      action: "reserve",
-      fundId: fund.id,
-      amount: "700.0001",
-      version: 1,
-      idempotencyKey: randomUUID(),
-    }),
-  );
-
-  const { id: cardId } = await saveCard(
-    client,
-    ownerId,
-    cardCommand({ name: "Tarjeta sintética F6-04" }),
-  );
   const savedFilter = await saveSavedFilterCommand(client, ownerId, {
     action: "create",
     name: "Filtro sintético",
@@ -161,42 +108,26 @@ export async function seedFinancialDomain(
     idempotencyKey: randomUUID(),
   });
   created(savedFilter);
+  // Gasto en cuotas independiente de tarjetas (USD, tres cuotas mensuales).
   created(
-    await saveCardCycle(
+    await saveMovement(
       client,
       ownerId,
       parsed(
-        parseCycleCommand({
-          cardId,
-          version: 0,
-          idempotencyKey: randomUUID(),
-          scope: "schedule",
-          closingDay: 25,
-          dueDay: 10,
-          leadDays: 3,
-        }),
-      ),
-    ),
-  );
-  const { id: debitCardId } = await saveCard(client, ownerId, {
-    ...cardCommand({ name: "Débito sintético" }),
-    kind: "debit",
-  });
-  created(
-    await saveCreditOperation(
-      client,
-      ownerId,
-      parsed(
-        parseCreditCommand(
+        parseMovement(
           {
-            ...creditPurchase({ cardId, concept: "Compra mixta sintética" }),
-            amount: "1000",
-            mixed: {
-              total: "3000",
-              debitAmount: "2000",
-              debitCardId,
-              categories: [],
+            kind: "expense",
+            currency: "USD",
+            amount: "300",
+            effectiveOn: today,
+            method: "unspecified",
+            concept: "Compra en cuotas sintética",
+            plan: {
+              installmentAmount: "100",
+              count: 3,
+              firstPeriod: "2026-02",
             },
+            idempotencyKey: randomUUID(),
           },
           today,
         ),
@@ -204,11 +135,6 @@ export async function seedFinancialDomain(
     ),
   );
   // Preserve both rate formats in the restore rehearsal.
-  const { id: usdCardId } = await saveCard(
-    client,
-    ownerId,
-    cardCommand({ name: "Tarjeta USD sintética", currency: "USD" }),
-  );
   await saveBudget(
     client,
     ownerId,
@@ -227,54 +153,6 @@ export async function seedFinancialDomain(
     ),
     today,
   );
-  created(
-    await saveCreditOperation(
-      client,
-      ownerId,
-      parsed(
-        parseCreditCommand(
-          {
-            ...creditPurchase({
-              cardId: usdCardId,
-              currency: "USD",
-              amount: "300",
-              concept: "Compra en cuotas sintética",
-            }),
-            plan: {
-              installmentAmount: "100",
-              count: 3,
-              firstPeriod: "2026-02",
-            },
-          },
-          today,
-        ),
-      ),
-    ),
-  );
-  const legacyPlan = created(
-    await saveCreditOperation(
-      client,
-      ownerId,
-      parsed(
-        parseCreditCommand(
-          creditPurchase({
-            cardId: usdCardId,
-            currency: "USD",
-            amount: "300",
-            concept: "Plan anterior sintético",
-          }),
-          today,
-        ),
-      ),
-    ),
-  );
-  // Older writers omit the monthly policy indicator and capture a budget rate.
-  await client.query(
-    `INSERT INTO finance.installment_plans
-       (owner_id,event_id,currency,version,installment_amount,installment_count,active_count,first_period,change_type)
-     VALUES ($1,$2,'USD',1,100,3,3,'2026-02-01','created')`,
-    [ownerId, legacyPlan.id],
-  );
   if (
     !(await saveManualFx(client, ownerId, {
       date: "2026-02-01",
@@ -284,91 +162,7 @@ export async function seedFinancialDomain(
     }))
   )
     throw new Error("No se pudo preparar la referencia mensual sintética");
-  const purchase = created(
-    await saveCreditOperation(
-      client,
-      ownerId,
-      parsed(parseCreditCommand(creditPurchase({ cardId }), today)),
-    ),
-  );
-  created(
-    await saveCreditOperation(
-      client,
-      ownerId,
-      parsed(
-        parseCreditCommand(
-          creditPayment({
-            cardId,
-            allocations: [{ purchaseId: purchase.id, amount: "400.0000" }],
-          }),
-          today,
-        ),
-      ),
-    ),
-  );
-  const february = "2026-02-01";
-  created(
-    await saveRefund(
-      client,
-      ownerId,
-      parsed(
-        parseRefundCommand(
-          {
-            action: "credit",
-            effectiveOn: february,
-            purchaseId: purchase.id,
-            idempotencyKey: randomUUID(),
-            parts: [{ method: "credit", categoryId: null, amount: "100" }],
-          },
-          february,
-        ),
-      ),
-      february,
-    ),
-  );
-
-  const loan = created(
-    await saveLoanOperation(
-      client,
-      ownerId,
-      parsed(parseLoanCommand(loanLend(), today)),
-    ),
-  );
-  created(
-    await saveLoanOperation(
-      client,
-      ownerId,
-      parsed(parseLoanCommand(loanSettle({ loanId: loan.id }), today)),
-    ),
-  );
-  created(
-    await saveSharedExpense(
-      client,
-      ownerId,
-      parsed(parseSharedExpense(sharedExpense(), today)),
-    ),
-  );
-  created(
-    await saveBankBenefit(
-      client,
-      ownerId,
-      parsed(
-        parseBankBenefitCommand(
-          {
-            action: "register",
-            idempotencyKey: randomUUID(),
-            destination: "bank",
-            currency: "UYU",
-            amount: "300.0001",
-            effectiveOn: "2026-01-10",
-            concept: "Beneficio sintético",
-            credited: true,
-          },
-          today,
-        ),
-      ),
-    ),
-  );
+  if (legacy) await seedLegacyRows(client, ownerId);
   const definition = parsed(
     parseRecurrence({
       kind: "expense",
@@ -413,5 +207,41 @@ export async function seedFinancialDomain(
       today,
     ),
   );
-  return { cardId, fundId: fund.id };
+  return {};
+}
+
+// Filas heredadas: la aplicación de gastos ya no las crea, pero cuentas
+// anteriores las conservan y deben sobrevivir a copia, restauración y reinicio.
+async function seedLegacyRows(client, ownerId) {
+  // La aplicación ya no escribe estas tablas: se insertan con el rol de la
+  // sesión (propietario del esquema) y se vuelve luego al rol de la aplicación.
+  await client.query("RESET ROLE");
+  const cardId = randomUUID();
+  const eventId = randomUUID();
+  await client.query(
+    `INSERT INTO finance.balance_checkpoints
+       (owner_id, id, currency, confirmed_amount, as_of_date)
+     VALUES ($1, gen_random_uuid(), 'UYU', '42.0001', '2025-01-01')`,
+    [ownerId],
+  );
+  await client.query(
+    "INSERT INTO finance.cards (owner_id, id, kind, name) VALUES ($1, $2, 'credit', 'Tarjeta heredada sintética')",
+    [ownerId, cardId],
+  );
+  await client.query(
+    "INSERT INTO finance.card_currencies (owner_id, card_id, kind, currency, debt) VALUES ($1, $2, 'credit', 'UYU', '15.0001')",
+    [ownerId, cardId],
+  );
+  await client.query(
+    `INSERT INTO finance.financial_events
+       (owner_id, id, kind, concept, effective_on, idempotency_key, command_hash)
+     VALUES ($1, $2, 'bank_benefit', 'Beneficio heredado sintético', '2025-01-01', gen_random_uuid(), repeat('a', 64))`,
+    [ownerId, eventId],
+  );
+  await client.query(
+    `INSERT INTO finance.bank_benefits (owner_id, event_id, destination, currency, amount)
+     VALUES ($1, $2, 'bank', 'UYU', '5.0001')`,
+    [ownerId, eventId],
+  );
+  await client.query("SET LOCAL ROLE finanzas_app");
 }

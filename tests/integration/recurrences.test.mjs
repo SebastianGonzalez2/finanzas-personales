@@ -155,8 +155,8 @@ test("F4-03: pausa y reanudación explícitas sin tocar períodos ni historial",
     }
 
     const definition = parseRecurrence({
-      kind: "income",
-      concept: "Sueldo sintético",
+      kind: "expense",
+      concept: "Alquiler sintético",
       currency: "UYU",
       categoryId: null,
       firstPeriod: "2026-11-01",

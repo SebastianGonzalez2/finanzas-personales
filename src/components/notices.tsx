@@ -4,7 +4,7 @@ import { Panel } from "./glaciar-summary/panel";
 import { Icon, type IconName } from "./ui/icon";
 
 // F3-07: componentes de avisos internos compartidos por Avisos, Presupuestos
-// y Fondos. Sin acciones automáticas: solo informar (RF-032/038).
+// y Recurrentes. Sin acciones automáticas: solo informar (RF-032/038).
 // UI-05H: presentación Glaciar (`.b-notice`); niveles y contenido sin cambios.
 
 const levelTone = {

@@ -10,9 +10,8 @@ import {
   type TagCommand,
 } from "../domain/classification.ts";
 import type { MovementKind } from "../domain/movements.ts";
-import { lockBankWrites } from "./bank-balances.ts";
+import { lockOwnerWrites } from "./owner-lock.ts";
 import { commandHash, resolveMovementCategory } from "./movements.ts";
-import { hasLinkedRefund } from "./refund-schema.ts";
 
 type CommandResult = { id: string } | { error: string; status: number };
 type Snapshot = {
@@ -57,7 +56,7 @@ export async function saveTag(
   ownerId: string,
   command: TagCommand,
 ): Promise<CommandResult> {
-  await lockBankWrites(client, ownerId);
+  await lockOwnerWrites(client, ownerId);
   const tags = await listTags(client, ownerId);
   const current = tags.find(({ id }) => id === command.id);
   if (command.action === "create" && current)
@@ -258,7 +257,7 @@ export async function saveClassification(
 ): Promise<CommandResult> {
   const { eventId, idempotencyKey, version, allocations } = command;
   const hash = commandHash(["edit-classification-v1", JSON.stringify(command)]);
-  await lockBankWrites(client, ownerId);
+  await lockOwnerWrites(client, ownerId);
   const {
     rows: [receipt],
   } = await client.query<{ hash: string }>(
@@ -279,10 +278,7 @@ export async function saveClassification(
       error: "La clasificación cambió. Actualizá la página.",
       status: 409,
     };
-  if (
-    allocations !== undefined &&
-    (!target.amount || (await hasLinkedRefund(client, ownerId, eventId)))
-  )
+  if (allocations !== undefined && !target.amount)
     return {
       error: "El desglose de este movimiento no se puede modificar desde aquí.",
       status: 409,
